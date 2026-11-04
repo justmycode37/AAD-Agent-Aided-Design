@@ -49,3 +49,42 @@ def test_commit_moves_head_and_keeps_spec(home):
     _, second = project.new_job_dir()
     assert project.commit_revision(second, "source 2", None) == 2
     assert project.head_rev == 2
+    assert not (project.path / "spec.yaml").exists()
+
+
+def test_checkout_removes_spec_absent_from_selected_revision(home):
+    project = create_project("p")
+    _, first = project.new_job_dir()
+    project.commit_revision(first, "one", None)
+    _, second = project.new_job_dir()
+    project.commit_revision(second, "two", "requirements: []\n")
+    project.checkout(1)
+    assert project.head_rev == 1
+    assert (project.path / "model.py").read_text() == "one"
+    assert not (project.path / "spec.yaml").exists()
+
+
+def test_checkout_missing_model_leaves_head_and_working_copy(home):
+    project = create_project("p")
+    _, job = project.new_job_dir()
+    project.commit_revision(job, "good", "units: mm\n")
+    project.rev_dir(2).mkdir()
+    with pytest.raises(FileNotFoundError):
+        project.checkout(2)
+    assert project.head_rev == 1
+    assert (project.path / "model.py").read_text() == "good"
+    assert (project.path / "spec.yaml").read_text() == "units: mm\n"
+
+
+def test_checkout_write_failure_restores_working_copy(home, monkeypatch):
+    project = create_project("p")
+    _, first = project.new_job_dir()
+    project.commit_revision(first, "one", "units: mm\n")
+    _, second = project.new_job_dir()
+    project.commit_revision(second, "two", None)
+    monkeypatch.setattr(project.__class__, "write_meta", lambda *_: (_ for _ in ()).throw(OSError("disk full")))
+    with pytest.raises(OSError, match="disk full"):
+        project.checkout(1)
+    assert project.head_rev == 2
+    assert (project.path / "model.py").read_text() == "two"
+    assert not (project.path / "spec.yaml").exists()
