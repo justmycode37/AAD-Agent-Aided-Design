@@ -43,3 +43,30 @@ def test_broken_file_falls_back_for_get_but_load_reports_it(home):
 def test_viewer_mode(setting, client, expected):
     config.set_value("viewer", setting)
     assert viewer_mode(client) == expected
+
+
+@pytest.mark.parametrize(("setting", "opens"), [("auto", False), ("window", True)])
+def test_browser_opens_only_when_windows_were_requested(setting, opens, monkeypatch):
+    import asyncio
+
+    from aiad_platform.daemon.handlers import Handlers
+
+    config.set_value("viewer", setting)
+    opened = []
+
+    class FakeWindow:
+        def open_once(self, project):
+            opened.append(project)
+
+        def url(self, project):
+            return f"http://127.0.0.1:1/p/{project}"
+
+    handlers = Handlers()
+
+    async def ensure():
+        return FakeWindow()
+
+    monkeypatch.setattr(handlers, "_ensure_window", ensure)
+    viewer = asyncio.run(handlers._viewer_for("p", {"supports_ui": False}))
+    assert viewer == {"mode": "window", "url": "http://127.0.0.1:1/p/p"}
+    assert bool(opened) is opens

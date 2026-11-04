@@ -93,6 +93,35 @@
     } catch (error) { show("fs", `fullscreen failed: ${error.message}`, true); }
   });
 
+  // Local window: the same UI over the daemon's same-origin routes (CONTRACTS section 8).
+  const localWindow = window.__AIAD_WINDOW__;
+  async function callTool(name, args) {
+    if (!localWindow) return request("tools/call", { name, arguments: args });
+    const response = await fetch("/rpc", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${localWindow.token}` },
+      body: JSON.stringify({ method: name, params: args }),
+    });
+    if (!response.ok) throw new Error(`${name} returned HTTP ${response.status}`);
+    return response.json();
+  }
+
+  async function initWindow() {
+    state.host = "local window";
+    show("host", "AIAD M0 stub viewer | local window");
+    // The token already authorized this page. Keep it out of the address bar and of screenshots.
+    history.replaceState(null, "", location.pathname);
+    onToolResult(await callTool("aiad_show", { project: localWindow.project }));
+    const query = new URLSearchParams({ token: localWindow.token, project: localWindow.project });
+    const socket = new WebSocket(`ws://${location.host}/ws?${query}`);
+    socket.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.type === "result") onToolResult({ structuredContent: message.envelope });
+    };
+    socket.onclose = () => show("live", "live updates stopped: the daemon closed the connection");
+  }
+
+  let loadedSceneId = null;
   function onToolResult(result) {
     const envelope = result.structuredContent || {};
     if (!envelope.scene) {
@@ -100,6 +129,9 @@
       return;
     }
     show("project", `${envelope.project} rev ${envelope.rev} | status ${envelope.status}`);
+    // Some hosts deliver one result twice. A repeat must not reload the scene.
+    if (envelope.scene.scene_id === loadedSceneId) return;
+    loadedSceneId = envelope.scene.scene_id;
     loadScene(envelope.scene).catch((error) => show("scene", `scene failed: ${error.message}`, true));
   }
 
@@ -114,7 +146,7 @@
     let lastError;
     for (let attempt = 0; attempt < RETRIES; attempt++) {
       try {
-        const result = await request("tools/call", { name: "aiad_scene_read", arguments: { scene_id: sceneId, offset, length: CHUNK } });
+        const result = await callTool("aiad_scene_read", { scene_id: sceneId, offset, length: CHUNK });
         const chunk = result.structuredContent;
         if (!chunk || typeof chunk.data_b64 !== "string") throw new Error("chunk result has no data_b64");
         return base64ToBytes(chunk.data_b64);
@@ -264,7 +296,7 @@
     resize();
     show("webgl", `WebGL ok: ${gl.getParameter(gl.VERSION)}`);
   } catch (error) { show("webgl", `WebGL failed: ${error.message}`, true); }
-  init().catch((error) => show("host", `ui/initialize failed: ${error.message}`, true));
+  (localWindow ? initWindow() : init()).catch((error) => show("host", `viewer start failed: ${error.message}`, true));
 })();
 </script>
 </body>

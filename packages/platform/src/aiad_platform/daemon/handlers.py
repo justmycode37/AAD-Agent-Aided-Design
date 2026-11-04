@@ -413,7 +413,9 @@ class Handlers:
         if mode != "window":
             return {"mode": mode}
         window = await self._ensure_window()
-        if client is not None and not client.get("suppress_browser"):
+        # Nothing appears on the user's screen unless they asked for windows. Under `auto` a host
+        # without inline support gets the URL in the result, and the agent can offer it.
+        if client is not None and not client.get("suppress_browser") and config.get("viewer") == "window":
             await asyncio.to_thread(window.open_once, project)
         return {"mode": "window", "url": window.url(project)}
 
