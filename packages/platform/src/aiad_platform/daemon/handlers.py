@@ -837,7 +837,7 @@ class Handlers:
         structured = build.get("structured") or {}
         if not structured.get("ok") or structured.get("status") == "running":
             return build
-        return await self.aiad_show({"project": params.get("project", ""), "rev": structured.get("rev")})
+        return await self.aiad_show({"project": params.get("project", ""), "rev": structured.get("rev"), "client": params.get("client")})
 
     async def aiad_pick_info(self, params: dict[str, Any]) -> dict[str, Any]:
         project = open_project(params.get("project", ""), params.get("client"))
@@ -974,5 +974,5 @@ def _scene_payload(rev_dir: Path) -> Path | None:
 
 def _next_hints(status: str) -> list[str]:
     if status == "verified":
-        return ["Review with aiad_render, then aiad_show for the user."]
+        return ["Review with aiad_render. Call aiad_show only if the user asks to see the part."]
     return ["Add requirements to spec.yaml to prove the part. draft means not proven.", "Review with aiad_render."]

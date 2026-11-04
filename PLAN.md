@@ -285,7 +285,7 @@ Owns `viewer/`, `packages/render/`.
 
 1. **Bundle.** Vite + `vite-plugin-singlefile` + three-cad-viewer + `@modelcontextprotocol/ext-apps`. At most 3 MiB single HTML (T3's limit is 5 MiB). Audit dependencies for `eval`, `new Function`, WASM, workers and network use. Patch or configure them out.
 2. **One app, three transports.** MCP App (postMessage), opt-in local page (HTTP), standalone exported HTML with an embedded scene. Same UI code.
-3. **Tessellation.** `make_scene()` using ocp-tessellate where it fits. Deflection scales with the part's size. Each face and edge maps to its feature for picking. Gzip. Coarse level first for large models.
+3. **Tessellation.** `make_scene()` using ocp-tessellate where it fits. Deflection scales with the part's size. Each face and edge records its feature, so a later feature can use it. Gzip. Coarse level first for large models.
 4. **Chunk loader.** Per contract: 128 KiB raw chunks, at most 4 in flight, retries, progress bar. Never put mesh bytes in `content` or `structuredContent` of a model-visible tool.
 5. **Interaction.** Orbit, zoom, pan, view cube, ortho and perspective, section planes, explode, measure, tree, edges, studio mode: what three-cad-viewer already provides. Fullscreen button via `requestDisplayMode` on a user click only. Reports size changes. Follows host theme. Pauses rendering and releases WebGL when off-screen, since browsers cap contexts. Picking, sliders, an Ask box and review tools are not built (D17).
 6. **2D mode.** Same app shows SVG sheets: pan, zoom, layers, measure.
@@ -384,7 +384,7 @@ On this Mac, for a typical part (at most 200 faces).
 
 | Risk | Test | When |
 |---|---|---|
-| Inline viewer fails on real hosts (WebGL, CSP, sizes, app-only tools) | M0 on real hosts. If it fails everywhere, the window becomes primary. | Day 1 |
+| Inline viewer fails on real hosts (WebGL, CSP, sizes, app-only tools) | M0 on real hosts. If it fails everywhere, users rely on agent renders and a standalone `viewer_html` export. | Day 1 |
 | Codex or T3 path behaves differently from the spec | S2 matrix. Also check whether Codex needs an `openai/outputTemplate` alias (the string is in its binary). | Day 1–2 |
 | Stable references break under edits | S1 corpus: edit retention | M2 |
 | Agents still produce wrong designs | S5 evals against baselines | M1 onward |

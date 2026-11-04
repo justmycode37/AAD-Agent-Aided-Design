@@ -43,3 +43,26 @@ def test_broken_file_falls_back_for_get_but_load_reports_it(home):
 def test_viewer_mode(setting, client, expected):
     config.set_value("viewer", setting)
     assert viewer_mode(client) == expected
+
+
+def test_set_param_shows_with_the_callers_client(monkeypatch):
+    """Regression: a nested aiad_show without a client looked like a call from an open local page."""
+    import asyncio
+
+    from aiad_platform.daemon.handlers import Handlers
+
+    handlers = Handlers()
+    seen = []
+
+    async def build(_params):
+        return {"structured": {"ok": True, "status": "draft", "rev": 2}}
+
+    async def show(params):
+        seen.append(params)
+        return {"structured": {"ok": True}}
+
+    monkeypatch.setattr(handlers, "aiad_build", build)
+    monkeypatch.setattr(handlers, "aiad_show", show)
+    client = {"supports_ui": True}
+    asyncio.run(handlers.aiad_set_param({"project": "p", "base_rev": 1, "name": "w", "value": 2, "client": client}))
+    assert seen == [{"project": "p", "rev": 2, "client": client}]
