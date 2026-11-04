@@ -63,6 +63,14 @@ memory-breach receipt. Raw status alone cannot distinguish setup failure,
 source-raised `MemoryError`, native signal, explicit exit or allocation failure.
 This package does not classify any of those as `OUT_OF_MEMORY`.
 
+Immediately before target exec, the bootstrap restores the `SIGPIPE`, `SIGXFZ`
+and `SIGXFSZ` defaults where those signals exist, matching the launcher's
+`Popen(restore_signals=True)` behavior. Python startup had changed these to
+ignored dispositions; carrying them into a native target could make a producer
+survive a signal that normally terminates it. Other inherited dispositions are
+preserved. Compiled native signal tests compare budgeted and ordinary launches;
+parent dispositions remain unchanged.
+
 ## Mac sampling, observation only
 
 `sample_process_memory(process: subprocess.Popen) -> ProcessMemorySample | None`

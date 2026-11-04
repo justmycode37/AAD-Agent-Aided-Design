@@ -63,11 +63,13 @@ class AddressSpacePolicyTests(unittest.TestCase):
                 api.getrlimit.side_effect = lambda _: (events.append('read') or (inherited if len(events) == 1 else expected))
                 api.setrlimit.side_effect = lambda *_: events.append('set')
                 with patch.object(memory, '_address_resource', return_value=api), \
+                        patch.object(memory, '_restore_exec_signals', side_effect=lambda *_: events.append('signals')) as restore, \
                         patch.object(memory.os, 'execvpe', side_effect=lambda *_: events.append('exec')) as execute:
                     memory._exec_address_space(memory.AddressSpaceBudget(100), ['target', 'argument'])
                 api.setrlimit.assert_called_once_with(5, expected)
                 execute.assert_called_once_with('target', ['target', 'argument'], os.environ)
-                self.assertEqual(events, ['read', 'set', 'read', 'exec'])
+                restore.assert_called_once_with(signal)
+                self.assertEqual(events, ['read', 'set', 'read', 'signals', 'exec'])
 
     def test_install_and_read_errors_preserve_exception_and_never_execute(self) -> None:
         for phase in ('initial-read', 'set', 'readback'):
@@ -202,6 +204,7 @@ NATIVE_PROBE = r'''
 #include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -249,6 +252,11 @@ static void *allocation(size_t bytes) {
     return p;
 }
 int main(int argc, char **argv) {
+    if (argc == 3 && !strcmp(argv[1], "signal")) {
+        raise(atoi(argv[2]));
+        puts("survived");
+        return 0;
+    }
     if (argc != 2) return 2;
 #ifdef __APPLE__
     if (!strcmp(argv[1], "abi")) {
@@ -305,6 +313,7 @@ class SandboxedMemoryTests(unittest.TestCase):
         import resource
         self.resource = resource
         self.parent_limits = resource.getrlimit(resource.RLIMIT_AS)
+        self.parent_signals = {name: signal.getsignal(getattr(signal, name)) for name in ('SIGPIPE', 'SIGXFZ', 'SIGXFSZ') if hasattr(signal, name)}
         self.temporary = tempfile.TemporaryDirectory(prefix='aiad-memory-test-')
         self.root = Path(self.temporary.name).resolve()
         self.job = self.root / 'job'
@@ -319,6 +328,7 @@ class SandboxedMemoryTests(unittest.TestCase):
                     process.communicate(timeout=2)
                 self.assertIsNotNone(process.returncode)
             self.assertEqual(self.resource.getrlimit(self.resource.RLIMIT_AS), self.parent_limits)
+            self.assertEqual({name: signal.getsignal(getattr(signal, name)) for name in self.parent_signals}, self.parent_signals)
         finally:
             self.temporary.cleanup()
 
@@ -404,6 +414,23 @@ resource.setrlimit(resource.RLIMIT_AS, ({cap}, resource.getrlimit(resource.RLIMI
 os.execv({sys.executable!r}, {wrapped!r})
 '''
         self.assertEqual(self.records(self.python(source)), [[cap, cap]])
+
+    def test_native_signal_defaults_match_unbudgeted_launch(self) -> None:
+        for name in ('SIGPIPE', 'SIGXFZ', 'SIGXFSZ'):
+            if not hasattr(signal, name):
+                continue
+            number = int(getattr(signal, name))
+            with self.subTest(signal=name):
+                results = []
+                for policy in (None, memory.AddressSpaceBudget(TIB)):
+                    process = self.launch([str(self.native), 'signal', str(number)], policy, (self.native,))
+                    results.append(self.finish(process))
+                baseline, limited = results
+                self.assertNotEqual(baseline.returncode, 0)
+                self.assertEqual(limited.returncode, baseline.returncode, limited.stdout)
+                self.assertNotIn('survived', limited.stdout)
+                if sys.platform == 'darwin':
+                    self.assertEqual(limited.returncode, -number)
 
     @unittest.skipUnless(sys.platform == 'darwin', 'observed small AS installation failures are Mac-specific')
     def test_small_mac_caps_fail_setup_before_target_execution(self) -> None:

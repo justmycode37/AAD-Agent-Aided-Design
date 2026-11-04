@@ -74,6 +74,8 @@ def _exec_address_space(budget: AddressSpaceBudget, args: list[str]) -> None:
     """CHILD ONLY: install both limits, verify, then replace this process."""
     if not args:
         raise ValueError("the address-space bootstrap requires a target argv")
+    import signal  # Load trusted stdlib code before installing a tight cap.
+
     resource = _address_resource()
     inherited = resource.getrlimit(resource.RLIMIT_AS)
     ceiling = min([budget.bytes, *(value for value in inherited if value != resource.RLIM_INFINITY)])
@@ -84,7 +86,17 @@ def _exec_address_space(budget: AddressSpaceBudget, args: list[str]) -> None:
     actual = resource.getrlimit(resource.RLIMIT_AS)
     if actual != expected:
         raise AddressSpaceSetupError(f"RLIMIT_AS readback: expected {expected!r}, got {actual!r}")
+    _restore_exec_signals(signal)
     os.execvpe(args[0], args, os.environ)
+
+
+def _restore_exec_signals(signal) -> None:
+    # Match Popen(restore_signals=True) after this intermediate Python image
+    # changed defaults to SIG_IGN. Other inherited dispositions stay intact.
+    for name in ("SIGPIPE", "SIGXFZ", "SIGXFSZ"):
+        number = getattr(signal, name, None)
+        if number is not None:
+            signal.signal(number, signal.SIG_DFL)
 
 
 @dataclass(frozen=True, slots=True)
