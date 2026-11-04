@@ -104,3 +104,45 @@ def test_directory_replaced_while_publishing_restores_prior_files_using_handles(
     assert list(outside.iterdir()) == []
     assert sorted(path.name for path in pinned.iterdir()) == sorted(names)
     assert all((pinned/name).read_bytes() == b'previous artifact' for name in names)
+
+
+@pytest.mark.parametrize('kind', ['svg', 'dxf', 'scene'])
+@pytest.mark.parametrize('replacement', ['symlink', 'regular'])
+@pytest.mark.parametrize('phase', ['staged', 'installed'])
+def test_substituted_source_or_installed_entry_cannot_publish_changed_artifact(tmp_path, monkeypatch, kind, replacement, phase):
+    job = tmp_path/'job'
+    job.mkdir()
+    parent = job/'outputs'
+    parent.mkdir()
+    sentinel = tmp_path/'outside.txt'
+    sentinel.write_bytes(b'outside sentinel')
+    names = ['scene.bin.gz', 'scene.json'] if kind == 'scene' else [f'panel.{kind}']
+    for name in names:
+        (parent/name).write_bytes(b'previous artifact')
+    original = OutputDirectory.replace
+    swapped = False
+
+    def substitute_staged_source(self, source, destination):
+        nonlocal swapped
+        if source.endswith('.tmp') and not swapped:
+            swapped = True
+            if phase == 'installed':
+                original(self, source, destination)
+            entry = self.path/(source if phase == 'staged' else destination)
+            entry.unlink()
+            if replacement == 'symlink':
+                entry.symlink_to(sentinel)
+            else:
+                entry.write_bytes(b'substituted regular file')
+            if phase == 'installed':
+                return
+        return original(self, source, destination)
+
+    monkeypatch.setattr(OutputDirectory, 'replace', substitute_staged_source)
+    with pytest.raises(OSError, match='staged file changed'):
+        write(kind, job, parent)
+    assert sentinel.read_bytes() == b'outside sentinel'
+    assert sorted(path.name for path in parent.iterdir()) == sorted(names)
+    for name in names:
+        assert not (parent/name).is_symlink()
+        assert (parent/name).read_bytes() == b'previous artifact'

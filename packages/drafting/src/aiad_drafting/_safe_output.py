@@ -17,6 +17,7 @@ class OutputDirectory:
     def __init__(self, path: Path, job_root: Path | None):
         self.path = path
         self.fd: int | None = None
+        self._staged_handles: dict[str, int] = {}
         self.existed = path.exists()
         if job_root is None:
             path.mkdir(parents=True, exist_ok=True)
@@ -52,6 +53,9 @@ class OutputDirectory:
         return self
 
     def __exit__(self, *_):
+        for handle in self._staged_handles.values():
+            os.close(handle)
+        self._staged_handles.clear()
         if self.fd is not None:
             os.close(self.fd)
             self.fd = None
@@ -70,6 +74,14 @@ class OutputDirectory:
             current = self.path.stat(follow_symlinks=False)
             if (current.st_dev, current.st_ino) != (pinned.st_dev, pinned.st_ino):
                 raise OSError("Output directory changed during publication.")
+
+    def verify_staged(self, temporary: str, installed: str) -> None:
+        pinned = os.fstat(self._staged_handles[temporary])
+        current = (os.stat(installed, dir_fd=self.fd, follow_symlinks=False)
+                   if self.fd is not None else (self.path/installed).lstat())
+        if (not stat.S_ISREG(current.st_mode) or
+            (current.st_dev, current.st_ino) != (pinned.st_dev, pinned.st_ino)):
+            raise OSError("Output staged file changed during publication.")
 
     def is_dir(self, name: str) -> bool:
         mode = self.mode(name)
@@ -105,11 +117,13 @@ class OutputDirectory:
         else:
             fd = os.open(self.path / temporary, flags, 0o600)
         try:
-            with os.fdopen(fd, "wb") as stream:
+            with os.fdopen(fd, "wb", closefd=False) as stream:
                 stream.write(data)
                 stream.flush()
                 os.fsync(stream.fileno())
         except BaseException:
+            os.close(fd)
             self.unlink(temporary)
             raise
+        self._staged_handles[temporary] = fd
         return temporary

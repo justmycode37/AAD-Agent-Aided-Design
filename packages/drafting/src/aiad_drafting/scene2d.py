@@ -127,6 +127,7 @@ def _publish_pair(output: OutputDirectory, files: dict[str, bytes]) -> None:
         for name, temp in staged.items():
             output.replace(temp, name)
             installed.append(name)
+            output.verify_staged(temp, name)
         output.ensure_current()
         staged.clear()
         # Both new files are now published. Backup cleanup is housekeeping;

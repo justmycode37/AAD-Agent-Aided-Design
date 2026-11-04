@@ -342,6 +342,7 @@ def _atomic_write(path: Path, data: bytes, job_root: Path | None = None) -> Path
             backup = directory.preserve(path.name)
             directory.replace(temporary, path.name)
             installed = True
+            directory.verify_staged(temporary, path.name)
             directory.ensure_current()
         except BaseException:
             if backup is not None:

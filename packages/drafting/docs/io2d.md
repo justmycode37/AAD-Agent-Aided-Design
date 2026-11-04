@@ -81,6 +81,8 @@ replace. Scene packages stage both files before publishing and restore existing
 artifacts if publication fails. No output path is inferred from project state.
 Confined writes on macOS/Linux walk directories without following symlinks and
 keep staging, replacement and rollback relative to pinned directory handles.
+Staged regular files remain open until publication is checked against their
+original inode, so replacing a staged name with a symlink triggers rollback.
 Replacing a directory during creation or publication cannot redirect writes
 outside the pinned worker directory. Platforms without POSIX directory-handle
 operations reject confined exports explicitly; unconfined local exports remain
