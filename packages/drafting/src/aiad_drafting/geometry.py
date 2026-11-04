@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import math
 from collections.abc import Mapping
 from typing import Any
@@ -82,6 +82,7 @@ class ProjectedView:
     bounds: ProjectedBounds
     visible_count: int
     hidden_count: int
+    metadata: Mapping[str, Any] = field(default_factory=dict)
 
 
 def context_value(ctx: Any, name: str, default: Any = None) -> Any:
@@ -127,7 +128,11 @@ def shape_bounds(shape: Any) -> Bounds3D:
 
     bbox = Bnd_Box()
     BRepBndLib.Add_s(wrapped_shape(shape), bbox)
-    xmin, ymin, zmin, xmax, ymax, zmax = bbox.Get()
+    # OCP 8 exposes Bnd_Box::Get() as an unregistered C++ Limits type on
+    # Python 3.12. CornerMin/CornerMax remain wrapped gp_Pnt values.
+    low, high = bbox.CornerMin(), bbox.CornerMax()
+    xmin, ymin, zmin = low.X(), low.Y(), low.Z()
+    xmax, ymax, zmax = high.X(), high.Y(), high.Z()
     return Bounds3D(xmin, ymin, zmin, xmax, ymax, zmax)
 
 

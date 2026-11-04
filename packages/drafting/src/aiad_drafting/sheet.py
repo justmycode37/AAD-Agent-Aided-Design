@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import math
 from numbers import Integral
 from pathlib import Path
@@ -83,19 +83,35 @@ def _coerce_view(value: Any) -> DrawingView:
             up=tuple(up) if up is not None else None,
             label=_value(value, "label"),
             hidden_lines=bool(_value(value, "hidden_lines", True)),
+            kind=str(_value(value, "kind", "orthographic")),
+            plane=str(_value(value, "plane", "XY")),
+            offset=_value(value, "offset", 0.0),
+            center=_value(value, "center"), radius=_value(value, "radius"),
+            scale=_value(value, "scale", _value(value, "scale_multiplier", 1.0)),
+            parent=_value(value, "parent"),
         )
+    kind = str(view.kind).strip().lower()
+    if kind not in {"orthographic", "section", "detail"}:
+        raise ValueError("Drawing view kind must be orthographic, section, or detail.")
+    parent = str(view.parent).strip().lower() if view.parent is not None else None
+    parent = {"isometric":"iso"}.get(parent,parent)
+    view = replace(view, kind=kind, parent=parent)
     name = str(view.name).strip().lower()
     if name == "isometric":
         name = "iso"
     if not name:
         raise ValueError("Drawing view name cannot be empty.")
-    if name not in {"front", "back", "top", "bottom", "right", "left", "iso"} and view.direction is None:
+    if view.kind == "orthographic" and name not in {"front", "back", "top", "bottom", "right", "left", "iso"} and view.direction is None:
         raise ValueError(f"Custom drawing view {name!r} requires a direction vector.")
     for vector_name, vector in (("direction", view.direction), ("up", view.up)):
         if vector is not None and len(vector) != 3:
             raise ValueError(f"View {vector_name} must have three coordinates.")
     # Named views carry fixed axes because their dimensions refer to those axes.
     # Arbitrary directions remain available under a custom view name.
+    if view.kind != "orthographic" and name in _STANDARD_VIEWS:
+        raise ValueError("Section and detail views require a unique descriptive name.")
+    if view.kind == "orthographic" and float(view.scale) != 1.0:
+        raise ValueError("Orthographic view scale uses the common sheet scale; magnification is for sections/details.")
     if name in _STANDARD_VIEWS:
         expected_direction, expected_up = _STANDARD_VIEWS[name]
         for vector_name, vector, expected in (
@@ -107,13 +123,10 @@ def _coerce_view(value: Any) -> DrawingView:
                     raise ValueError("View vectors must contain finite coordinates.")
                 if math.dist(_unit(tuple(vector)), _unit(expected)) > 1e-8:
                     raise ValueError(f"Named view {name!r} has fixed {vector_name} axes; use a custom view name.")
-    return DrawingView(
-        name=name,
+    return replace(view, name=name,
         direction=tuple(float(value) for value in view.direction) if view.direction is not None else None,
-        up=tuple(float(value) for value in view.up) if view.up is not None else None,
-        label=view.label,
-        hidden_lines=view.hidden_lines,
-    )
+        up=tuple(float(value) for value in view.up) if view.up is not None else None)
+
 
 
 def _coerce_dimension(value: Any) -> DimensionSpec:
@@ -643,12 +656,13 @@ def _sheet_point(
 
 def _emit_view_geometry(entities: list[Primitive], placed: _PlacedView) -> None:
     projection = placed.projection
+    hatches = set(projection.metadata.get("hatch_curves", ()))
     for curve in projection.curves:
-        layer = "HIDDEN" if curve.hidden else "VISIBLE"
+        layer = "HATCH" if curve in hatches else "HIDDEN" if curve.hidden else "VISIBLE"
         dash = curve.hidden
         if curve.kind == "line":
             points = [_sheet_point(placed, point) for point in curve.points]
-            entities.append(line(*points[0], *points[1], layer=layer, width=0.22 if not dash else 0.16, dash=dash))
+            entities.append(line(*points[0], *points[1], layer=layer, width=0.12 if layer == "HATCH" else 0.22 if not dash else 0.16, dash=dash))
         elif curve.kind == "polyline":
             points = [_sheet_point(placed, point) for point in curve.points]
             entities.append(polyline(points, layer=layer, width=0.18 if not dash else 0.14, dash=dash))
@@ -985,6 +999,9 @@ def _view_label_entities(
     labels = {view.name: view.label for view in request.views}
     for name, item in placed.items():
         label = labels.get(name) or name.upper()
+        if item.projection.metadata.get("kind") in {"section", "detail"}:
+            magnification = item.projection.metadata.get("scale", 1.0)
+            label += f"  x{magnification:g} SHEET SCALE"
         entities.append(
             text(
                 str(label).upper(),
@@ -995,6 +1012,35 @@ def _view_label_entities(
                 "center",
             )
         )
+
+
+def _view_markers(entities, shape, placed, request):
+    """Locate section cuts and detail crops on the actual parent projection."""
+    from .views import section_plane_trace
+    for spec in request.views:
+        if spec.kind == "section":
+            trace = section_plane_trace(shape, spec)
+            parent = placed.get(trace.parent)
+            if parent is None or trace.curve is None:
+                continue
+            start, end = [_sheet_point(parent, p) for p in trace.curve.points]
+            entities.append(line(*start, *end, layer="SECTION_MARKERS", width=0.3, dash=True))
+            dx, dy = end[0]-start[0], end[1]-start[1]
+            length = math.hypot(dx,dy)
+            nx, ny = -dy/length, dx/length
+            for x,y in (start,end):
+                entities.append(line(x,y,x+3*nx,y+3*ny,layer="SECTION_MARKERS",width=0.3))
+            entities.append(text(spec.label or spec.name.upper(), start[0]-3, start[1]+4,
+                                 2.6, "SECTION_MARKERS", "right"))
+        elif spec.kind == "detail":
+            parent = placed.get(spec.parent or "front")
+            if parent is None:
+                continue
+            center = _sheet_point(parent, spec.center)
+            radius = float(spec.radius)*parent.factor
+            entities.append(circle(center,radius,"DETAIL_MARKERS",0.2,True))
+            entities.append(text(spec.label or spec.name.upper(),center[0]+radius+2,center[1]+radius,
+                                 2.6,"DETAIL_MARKERS"))
 
 
 def _entity_text_bounds(entity: Primitive) -> tuple[float, float, float, float] | None:
@@ -1149,7 +1195,28 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
     holes = through_holes(shape, bounds)
     dimensions = _make_dimensions(request.dimensions, bounds, holes, units)
 
-    projections = tuple(project_view(shape, view) for view in request.views)
+    from .views import project_drawing_view
+    registered = {view.name:view for view in request.views}
+    resolved = []
+    for view in request.views:
+        parent_name = view.parent or "front"
+        parent = registered.get(parent_name)
+        if parent is None and parent_name in _STANDARD_VIEWS:
+            parent = DrawingView(parent_name)
+        if view.kind == "detail" and parent is not None:
+            if parent.kind != "orthographic":
+                raise ValueError("A detail parent must be an orthographic view.")
+            default_direction, default_up = _STANDARD_VIEWS.get(parent.name, (None,None))
+            direction = parent.direction or default_direction
+            up = parent.up or default_up
+            if view.direction is not None and math.dist(_unit(view.direction), _unit(direction)) > 1e-8:
+                raise ValueError("Detail direction must match its parent view.")
+            if view.up is not None and up is not None and math.dist(_unit(view.up), _unit(up)) > 1e-8:
+                raise ValueError("Detail up vector must match its parent view.")
+            view = replace(view, direction=direction, up=up)
+        resolved.append(view)
+    request = replace(request, views=tuple(resolved))
+    projections = tuple(project_drawing_view(shape, view) for view in request.views)
     page_width, page_height = SHEET_SIZES_MM[request.sheet]
     unit_factor = UNIT_TO_MM[units]
     scale = _choose_scale(projections, page_width, page_height, unit_factor)
@@ -1167,6 +1234,7 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
     for view in placed.values():
         _emit_view_geometry(entities, view)
     _view_label_entities(entities, placed, request)
+    _view_markers(entities, shape, placed, request)
     _draw_overall_dimensions(entities, placed, dimensions, request.style)
     _draw_hole_dimensions(entities, placed, dimensions, holes, bounds, request.style)
     title_bounds = _title_block_entities(
@@ -1222,6 +1290,10 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
             ],
             "visible_edges": view.projection.visible_count,
             "hidden_edges": view.projection.hidden_count,
+            "kind": view.projection.metadata.get("kind", "orthographic"),
+            "scale_multiplier": view.projection.metadata.get("scale", 1.0),
+            "plane": view.projection.metadata.get("plane"),
+            "offset": view.projection.metadata.get("offset"),
         }
         for name, view in placed.items()
     ]
