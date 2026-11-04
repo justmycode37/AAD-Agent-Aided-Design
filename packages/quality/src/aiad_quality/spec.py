@@ -40,7 +40,7 @@ def _range_text(value: NumericRange) -> str:
             f"{_display_value(value.tolerance, power=value.power, unit=unit).strip()}"
         )
     if value.minimum is not None and value.minimum == value.maximum:
-        return f"exact {_display_value(value.minimum, power=value.power, unit=unit)} (no tolerance specified)"
+        return f"exact {_display_value(value.minimum, power=value.power, unit=unit)} (1e-6 canonical-unit comparison resolution)"
     pieces = []
     if value.minimum is not None:
         pieces.append(f"minimum {_display_value(value.minimum, power=value.power, unit=unit)}")
@@ -55,7 +55,11 @@ def _actual_value(value: float, *, power: int, unit: str) -> str:
 
 def _within(value: float, expected: NumericRange) -> bool:
     measured = finite(value)
-    return (expected.minimum is None or measured>=expected.minimum) and (expected.maximum is None or measured<=expected.maximum)
+    # OCCT bounds and decimal pitches carry sub-micron numerical noise. This
+    # resolution band is only for an exact measurement, never a discrete count or
+    # an explicitly toleranced/ranged acceptance boundary.
+    resolution = (1e-6 if expected.power else 1e-9) if expected.minimum == expected.maximum else 0.0
+    return (expected.minimum is None or measured >= expected.minimum - resolution) and (expected.maximum is None or measured <= expected.maximum + resolution)
 
 
 def _comparison_status(matches: bool, level: str) -> str:
@@ -180,9 +184,13 @@ def _grid_result(
 ) -> tuple[bool | None, str, str]:
     expected_x = _range(grid[0], unit=unit, path=("requirements", req_id, "holes", "pattern", "grid", "x"))
     expected_y = _range(grid[1], unit=unit, path=("requirements", req_id, "holes", "pattern", "grid", "y"))
-    expected = f"vertical-hole complete XY grid with pitch X {_range_text(expected_x)} and Y {_range_text(expected_y)}"
-    if any(abs(abs(cylinder.axis[2]) - 1.0) > 1e-8 for cylinder in cylinders):
-        return None, expected, "unknown (recognized hole axes are not all parallel to Z)"
+    normal_axis = max(range(3), key=lambda i: abs(cylinders[0].axis[i])) if cylinders else 2
+    coordinate_axes = [i for i in range(3) if i != normal_axis]
+    labels = ''.join('XYZ'[i] for i in coordinate_axes)
+    expected = f"complete {labels} grid with pitches {_range_text(expected_x)} and {_range_text(expected_y)}"
+    if any(abs(abs(cylinder.axis[normal_axis]) - 1.0) > 1e-8 for cylinder in cylinders):
+        return None, expected, "unknown (grid axes require parallel holes along one principal coordinate axis)"
+    points = [(point[coordinate_axes[0]], point[coordinate_axes[1]], 0.0) for point in points]
     if not points:
         return False, expected, "0 hole centers; no XY grid is present"
     coordinate_tol = 1e-6
@@ -207,7 +215,7 @@ def _grid_result(
     pitches_x=[b-a for a,b in zip(xs,xs[1:])]
     pitches_y=[b-a for a,b in zip(ys,ys[1:])]
     matches = all(_within(value,expected_x) for value in pitches_x) and all(_within(value,expected_y) for value in pitches_y)
-    actual = f"X pitches {pitches_x}, Y pitches {pitches_y} mm across a complete {len(xs)}×{len(ys)} grid"
+    actual = f"{labels[0]} pitches {pitches_x}, {labels[1]} pitches {pitches_y} mm across a complete {len(xs)}×{len(ys)} grid"
     return matches, expected, actual
 
 
@@ -216,16 +224,17 @@ def _eval_holes(req_id: str, level: str, req: dict[str, Any], unit: str, factor:
         raise geometry.UnsupportedGeometry("context units are not known")
     body = req["holes"]
     scope = body.get("scope", "all")
-    if scope == "all":
+    if scope == "all" and not body.get('through', True):
         geometry.require_round_planar_openings(_shape_or_skip(ctx))
-    elif geometry.solid_count(_shape_or_skip(ctx)) == 0:
+    if geometry.solid_count(_shape_or_skip(ctx)) == 0:
         raise geometry.UnsupportedGeometry("cylindrical bore counts require 3D solids")
     requested_count = body.get("count")
     diameter = _range(body["diameter"], unit=unit, path=("requirements", req_id, "holes", "diameter")) if "diameter" in body else None
-    cylinders = geometry.inward_full_cylinders(_shape_or_skip(ctx), factor)
-    all_points = geometry.unique_hole_axes(cylinders)
+    cylinders = geometry.inward_full_cylinders(_shape_or_skip(ctx), factor, cylindrical_only=scope == 'cylindrical' or body.get('through', True))
+    bore_options = dict(shape=_shape_or_skip(ctx), mm_per_native_unit=factor, through=body.get('through', True))
+    all_points = geometry.unique_hole_axes(cylinders, **bore_options)
     selected_points = (
-        geometry.unique_hole_axes(cylinders, diameter_mm=(diameter.minimum, diameter.maximum))
+        geometry.unique_hole_axes(cylinders, diameter_mm=(diameter.minimum, diameter.maximum), **bore_options)
         if diameter is not None
         else all_points
     )
@@ -235,16 +244,26 @@ def _eval_holes(req_id: str, level: str, req: dict[str, Any], unit: str, factor:
         selected_cylinders = [
             cylinder
             for cylinder in cylinders
-            if (diameter.minimum is None or 2.0 * cylinder.radius_mm >= diameter.minimum)
-            and (diameter.maximum is None or 2.0 * cylinder.radius_mm <= diameter.maximum)
+            if _within(2.0 * cylinder.radius_mm, diameter)
         ]
+    selected_cylinders = [c for c in selected_cylinders if geometry.unique_hole_axes([c], **bore_options)]
     failures: list[str] = []
     skips: list[str] = []
+    if scope == 'all' and body.get('through', True):
+        topology_count = geometry.closed_shell_tunnels(_shape_or_skip(ctx))
+        if topology_count != len(all_points):
+            # A noncircular/branched tunnel must not disappear just because
+            # the cylindrical recognizer has no wall to measure.
+            if diameter is None and requested_count is not None and topology_count != requested_count:
+                failures.append(f'closed-shell topology has {topology_count} through tunnels, not {requested_count}')
+            else:
+                skips.append('noncircular or unclassified through tunnels remain outside the cylindrical measurements')
     expected_parts = [
-        "all enclosed openings (noncircular openings withhold coverage)" if scope == "all"
+        ("all through tunnels; unclassified dimensions withhold coverage" if body.get('through', True)
+         else "open cylindrical bores including blind bores; noncircular openings withhold coverage") if scope == "all"
         else "cylindrical bores only; other opening types are outside this requirement"
     ]
-    actual_parts = []
+    actual_parts = list(failures) + list(skips)
     if requested_count is not None:
         expected_parts.append(f"{requested_count} recognized hole(s)")
         actual_parts.append(f"{len(selected_points)} matching analytic hole axis/axes")
@@ -259,7 +278,7 @@ def _eval_holes(req_id: str, level: str, req: dict[str, Any], unit: str, factor:
         )
         if not all_points:
             failures.append("no analytic hole diameter was measured")
-        elif len(selected_points) != len(all_points):
+        elif requested_count is None and len(selected_points) != len(all_points):
             failures.append("one or more recognized hole axes lack a cylinder in the requested diameter range")
     if "pattern" in body:
         grid_match, grid_expected, grid_actual = _grid_result(
@@ -387,6 +406,12 @@ def _eval_symmetry(req_id: str, level: str, req: dict[str, Any], unit: str, fact
         f"a certified pointwise mirror-deviation bound about {body['plane']} ≤ {_actual_value(tolerance_mm, power=1, unit=unit)}"
     )
     actual = f"B-rep symmetric-difference volume {_text_number(difference_mm3)} mm^3"
+    separation = geometry.mirror_separation_mm(_shape_or_skip(ctx), body['plane'], factor)
+    if separation > tolerance_mm + 1e-6:
+        return _check(req_id, level=level, status=_comparison_status(False, level),
+            message=f"Symmetry requirement {req_id!r} fails: the model and its mirror are separated beyond tolerance.",
+            expected=expected, actual=actual + f"; minimum model-to-mirror separation {separation:.8g} mm",
+            fix_hint="Place corresponding geometry within the requested mirror tolerance.")
     # Booleans may erase differences below kernel resolution. No certified
     # pointwise error bound is exposed here, including when volume is zero.
     status = "skip"
@@ -502,6 +527,19 @@ def _evaluate_one(req: dict[str, Any], index: int, doc: dict[str, Any], ctx: Any
         return _eval_holes(req_id, level, req, unit, native_factor, ctx)
     if field == "min_wall":
         target = _range(req[field], unit=unit, path=("requirements", req_id, field))
+        from .process_geometry import wall_thickness_screen, GeometryUnavailable
+        try:
+            sampled = wall_thickness_screen(_shape_or_skip(ctx), units=getattr(ctx, 'units', None),
+                tolerance_mm=1e-5, max_faces=256, max_samples=4096)
+            lower = target.minimum
+            if lower is not None and sampled.minimum_mm < lower - 1e-6:
+                return _check(req_id, level=level, status=_comparison_status(False, level),
+                    message=f"Minimum-wall requirement {req_id!r} fails at a measured local wall ray.",
+                    expected=f"global minimum wall at least {lower:.8g} mm",
+                    actual=f"local wall ray {sampled.minimum_mm:.8g} mm at face {sampled.face_index}",
+                    fix_hint="Thicken the reported local wall and rerun the screen; passing samples do not prove a global minimum.")
+        except GeometryUnavailable:
+            pass
         return _check(
             req_id,
             level=level,
@@ -668,7 +706,7 @@ def _check_mapping(value: Any) -> dict[str, Any] | None:
     return mapping if isinstance(mapping, dict) else None
 
 
-def verification_ready(spec: Any, checks: Sequence[Any], hard_checks: Sequence[Any], *, process: str | None = None) -> bool:
+def verification_ready(spec: Any, checks: Sequence[Any], hard_checks: Sequence[Any], *, process: str | None) -> bool:
     """Return true only when every declared error requirement is proven.
 
     Readiness requires a valid non-empty spec, exact unique coverage by spec
@@ -676,7 +714,7 @@ def verification_ready(spec: Any, checks: Sequence[Any], hard_checks: Sequence[A
     non-empty hard gate, and pass status for every error-level check supplied
     from every suite. Pass the context process explicitly so a project-only
     process cannot bypass evidence requirements. Unknown warning-level spec
-    and process results also withhold readiness.
+    results also withhold readiness; explicitly advisory process screens do not.
     """
     try:
         document = load_spec(spec)
@@ -713,7 +751,7 @@ def verification_ready(spec: Any, checks: Sequence[Any], hard_checks: Sequence[A
         return False
 
     spec_checks_only = [check for check in check_maps if check.get("suite") == "spec"]
-    if any(check.get('status')=='skip' for check in check_maps if check.get('suite') in {'spec','process'}):
+    if any(check.get('status')=='skip' for check in check_maps if check.get('suite') == 'spec' or (check.get('suite') == 'process' and check.get('level') == 'error')):
         return False
     declared=document.get('process')
     if process and declared and process!=declared:

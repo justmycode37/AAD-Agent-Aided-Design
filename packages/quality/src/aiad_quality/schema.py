@@ -29,6 +29,26 @@ _TOLERANCED = re.compile(
 class _UniqueSafeLoader(yaml.SafeLoader):
     """SafeLoader variant that rejects duplicate keys, including YAML merges."""
 
+    def compose_node(self, parent, index):
+        # Bound work before Python recursion or YAML merge construction can expand it.
+        if self.check_event(yaml.AliasEvent):
+            raise yaml.YAMLError("YAML aliases are unsupported; write each requirement explicitly")
+        self._depth = getattr(self, '_depth', 0) + 1
+        self._nodes = getattr(self, '_nodes', 0) + 1
+        try:
+            if self._depth > 64 or self._nodes > 10000:
+                raise yaml.YAMLError("spec exceeds the 64-level or 10000-node input limit")
+            return super().compose_node(parent, index)
+        finally:
+            self._depth -= 1
+
+    def construct_yaml_int(self, node):
+        scalar = self.construct_scalar(node)
+        unsigned = scalar.lstrip('+-')
+        if ':' in scalar or (len(unsigned) > 1 and unsigned[0] == '0' and unsigned[1].isdigit()):
+            raise yaml.YAMLError("ambiguous YAML 1.1 integer; use decimal without leading zeros")
+        return super().construct_yaml_int(node)
+
     def construct_mapping(self, node: MappingNode, deep: bool = False) -> dict[Any, Any]:
         if not isinstance(node, MappingNode):
             raise ConstructorError(None, None, "expected a mapping node", node.start_mark)
@@ -54,6 +74,9 @@ class _UniqueSafeLoader(yaml.SafeLoader):
                 )
             result[key] = self.construct_object(value_node, deep=deep)
         return result
+
+
+_UniqueSafeLoader.add_constructor('tag:yaml.org,2002:int', _UniqueSafeLoader.construct_yaml_int)
 
 
 @dataclass(frozen=True)
@@ -320,9 +343,11 @@ def _validate_requirement(req: dict[str, Any], index: int, units: str) -> list[S
             _count(value, path + (field,))
         elif field == "holes":
             values = _require_mapping(body, path + (field,))
-            _check_keys(values, {"count", "diameter", "pattern", "scope"}, path + (field,))
+            _check_keys(values, {"count", "diameter", "pattern", "scope", "through"}, path + (field,))
             if values.get("scope", "all") not in {"all", "cylindrical"}:
                 raise ValueError("holes.scope must be all or cylindrical")
+            if "through" in values and not isinstance(values["through"], bool):
+                raise ValueError("holes.through must be true or false")
             if "count" not in values and "diameter" not in values:
                 raise ValueError(f"{_path_text(path + (field,))} requires count or diameter")
             if "count" in values:
@@ -397,9 +422,14 @@ def _validate_requirement(req: dict[str, Any], index: int, units: str) -> list[S
     return issues
 
 
-def _to_plain_data(value: Any, path: tuple[str | int, ...] = (), active: set[int] | None = None) -> Any:
+def _to_plain_data(value: Any, path: tuple[str | int, ...] = (), active: set[int] | None = None, budget: list[int] | None = None) -> Any:
     if active is None:
         active = set()
+    if budget is None:
+        budget = [10000]
+    budget[0] -= 1
+    if len(path) > 64 or budget[0] < 0:
+        raise ValueError("spec exceeds the 64-level or 10000-node input limit")
     if isinstance(value, dict):
         marker = id(value)
         if marker in active:
@@ -410,7 +440,7 @@ def _to_plain_data(value: Any, path: tuple[str | int, ...] = (), active: set[int
             for key, item in value.items():
                 if not isinstance(key, str):
                     raise ValueError(f"{_path_text(path)} mapping keys must be strings")
-                plain[key] = _to_plain_data(item, path + (key,), active)
+                plain[key] = _to_plain_data(item, path + (key,), active, budget)
         finally:
             active.remove(marker)
         return plain
@@ -420,7 +450,7 @@ def _to_plain_data(value: Any, path: tuple[str | int, ...] = (), active: set[int
             raise ValueError(f"{_path_text(path)} contains a recursive alias")
         active.add(marker)
         try:
-            return [_to_plain_data(item, path + (index,), active) for index, item in enumerate(value)]
+            return [_to_plain_data(item, path + (index,), active, budget) for index, item in enumerate(value)]
         finally:
             active.remove(marker)
     if value is None or isinstance(value, (str, bool, int, float)):
@@ -449,6 +479,8 @@ def _parse_input(value: str | bytes | dict[str, Any]) -> tuple[dict[str, Any] | 
         else:
             raise ValueError("spec input must be YAML text, bytes, or a dict")
         if isinstance(source, str):
+            if len(source.encode('utf-8')) > 1024 * 1024:
+                raise ValueError("spec exceeds the 1 MiB text limit")
             try:
                 loaded = yaml.load(source, Loader=_UniqueSafeLoader)
             except yaml.YAMLError as exc:
@@ -458,7 +490,7 @@ def _parse_input(value: str | bytes | dict[str, Any]) -> tuple[dict[str, Any] | 
         plain = _to_plain_data(loaded)
         if not isinstance(plain, dict):
             raise ValueError("spec document must be a mapping")
-    except (UnicodeDecodeError, ValueError, TypeError) as exc:
+    except (UnicodeDecodeError, ValueError, TypeError, RecursionError) as exc:
         return None, (SpecIssue(str(exc)),)
 
     issues: list[SpecIssue] = []

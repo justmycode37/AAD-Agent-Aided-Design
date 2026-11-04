@@ -643,3 +643,28 @@ def feature_for_face(ctx: Any, shape: Any, face_index: int) -> str | None:
             if _same_topology(target, candidate):
                 return name
     return None
+
+
+def rectangular_box_thickness_mm(shape: Any, units: str) -> float | None:
+    """Recognize only a closed, single, axis-aligned rectangular solid."""
+    from build123d import Shape, GeomType
+    from OCP.BRepCheck import BRepCheck_Analyzer
+    clean = Shape.cast(shape.wrapped)
+    if not BRepCheck_Analyzer(clean.wrapped).IsValid() or len(clean.solids()) != 1:
+        return None
+    if len(clean.faces()) != 6 or len(clean.edges()) != 12 or len(clean.vertices()) != 8:
+        return None
+    if any(face.geom_type != GeomType.PLANE for face in clean.faces()):
+        return None
+    bounds = clean.bounding_box()
+    low, high = tuple(bounds.min), tuple(bounds.max)
+    size = [high[i] - low[i] for i in range(3)]
+    if any(value <= 0 for value in size):
+        return None
+    for vertex in clean.vertices():
+        point = tuple(vertex.center())
+        if any(min(abs(point[i]-low[i]), abs(point[i]-high[i])) > 1e-7 for i in range(3)):
+            return None
+    if not math.isclose(clean.volume, math.prod(size), rel_tol=1e-10, abs_tol=1e-9):
+        return None
+    return min(size) * mm_per_unit(units)

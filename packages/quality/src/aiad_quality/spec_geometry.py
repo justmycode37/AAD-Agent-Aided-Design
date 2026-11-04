@@ -130,7 +130,7 @@ def _faces(shape: Any) -> list[Any]:
         raise UnsupportedGeometry(f'could not enumerate native B-rep faces: {exc}') from exc
 
 
-def inward_full_cylinders(shape: Any, mm_per_native_unit: float) -> list[HoleCylinder]:
+def inward_full_cylinders(shape: Any, mm_per_native_unit: float, *, cylindrical_only: bool = False) -> list[HoleCylinder]:
     """Find full, inward-facing analytic cylindrical walls.
 
     A wall is accepted only when its OCCT face orientation points into the
@@ -154,11 +154,18 @@ def inward_full_cylinders(shape: Any, mm_per_native_unit: float) -> list[HoleCyl
             if surface.GetType()==GeomAbs_Plane:
                 continue
             if surface.GetType() != GeomAbs_Cylinder:
+                if cylindrical_only:
+                    continue
                 raise UnsupportedGeometry('nonplanar, noncylindrical faces may hide unrecognized holes')
-            if raw_face.Orientation() != TopAbs_REVERSED:
+            cylinder = surface.Cylinder()
+            # Reflection changes the surface handedness as well as the face
+            # orientation. Reading Orientation alone swaps bosses and bores.
+            if (raw_face.Orientation() == TopAbs_REVERSED) != cylinder.Direct():
                 continue
             u_min, u_max, v_min, v_max = BRepTools.UVBounds_s(raw_face)
             if abs(float(u_max) - float(u_min)) < 2.0 * math.pi - 1e-6:
+                if cylindrical_only:
+                    continue
                 raise UnsupportedGeometry("partial inward cylindrical face cannot be safely classified as a full hole")
             cylinder = surface.Cylinder()
             original_direction = _xyz(cylinder.Axis().Direction())
@@ -189,6 +196,39 @@ def inward_full_cylinders(shape: Any, mm_per_native_unit: float) -> list[HoleCyl
             # hide another hole and create a false passing count.
             raise UnsupportedGeometry(f"could not inspect a B-rep face for a hole: {exc}") from exc
     return cylinders
+
+
+def closed_shell_tunnels(shape: Any) -> int:
+    """Count handles on valid closed analytic shells using Euler characteristic.
+
+    Count unique edges once; seams are included and degenerate pole edges
+    are collapsed. Each inner wire reduces the face's Euler contribution.
+    This establishes through-tunnel coverage, not blind-pocket dimensions.
+    """
+    from build123d import Shape, GeomType
+    from OCP.BRep import BRep_Tool
+    from OCP.BRepCheck import BRepCheck_Analyzer, BRepCheck_Shell, BRepCheck_NoError
+    clean = Shape.cast(_raw(shape))
+    solids = list(clean.solids())
+    if not solids or not BRepCheck_Analyzer(clean.wrapped).IsValid():
+        raise UnsupportedGeometry('through-hole coverage requires valid volumetric solids')
+    allowed = {GeomType.PLANE, GeomType.CYLINDER, GeomType.CONE, GeomType.SPHERE, GeomType.TORUS}
+    total = 0
+    for solid in solids:
+        for shell in solid.shells():
+            faces = list(shell.faces())
+            if not faces or any(face.geom_type not in allowed for face in faces):
+                raise UnsupportedGeometry('nonanalytic face topology has no established through-tunnel coverage')
+            if BRepCheck_Shell(shell.wrapped).Closed() != BRepCheck_NoError:
+                raise UnsupportedGeometry('open shell cannot establish a through-tunnel count')
+            vertices = len(shell.vertices())
+            edges = sum(not BRep_Tool.Degenerated_s(edge.wrapped) for edge in shell.edges())
+            face_chi = sum(1 - len(face.inner_wires()) for face in faces)
+            chi = vertices - edges + face_chi
+            if chi > 2 or chi % 2:
+                raise UnsupportedGeometry('shell cell decomposition has an unsupported Euler characteristic')
+            total += (2 - chi) // 2
+    return total
 
 
 def require_round_planar_openings(shape: Any) -> None:
@@ -237,17 +277,12 @@ def unique_hole_axes(
     cylinders: list[HoleCylinder],
     *,
     diameter_mm: tuple[float | None, float | None] | None = None,
+    shape: Any = None,
+    mm_per_native_unit: float = 1.0,
+    through: bool = True,
 ) -> list[tuple[float, float, float]]:
     """Cluster recognized cylindrical walls by coaxial centerline."""
     selected = cylinders
-    if diameter_mm is not None:
-        lower, upper = diameter_mm
-        selected = [
-            cylinder
-            for cylinder in cylinders
-            if (lower is None or 2.0 * cylinder.radius_mm >= lower)
-            and (upper is None or 2.0 * cylinder.radius_mm <= upper)
-        ]
     if not selected:
         return []
     scale = max(1.0, max(cylinder.radius_mm for cylinder in selected))
@@ -269,14 +304,36 @@ def unique_hole_axes(
     hole_points: list[tuple[float, float, float]] = []
     interval_tol = line_tol
     for _, group in groups:
-        intervals = sorted((cylinder.axial_min_mm, cylinder.axial_max_mm) for cylinder in group)
-        components: list[list[float]] = []
-        for lower, upper in intervals:
-            if not components or lower > components[-1][1] + interval_tol:
-                components.append([lower, upper])
-            else:
-                components[-1][1] = max(components[-1][1], upper)
-        hole_points.extend([group[0].point] * len(components))
+        ordered = sorted(group, key=lambda cylinder: cylinder.axial_min_mm)
+        components: list[list[HoleCylinder]] = []
+        upper = -math.inf
+        for cylinder in ordered:
+            if not components or cylinder.axial_min_mm > upper + interval_tol:
+                components.append([])
+                upper = cylinder.axial_max_mm
+            components[-1].append(cylinder)
+            upper = max(upper, cylinder.axial_max_mm)
+        for component in components:
+            if shape is not None:
+                lower = min(c.axial_min_mm for c in component)
+                upper_end = max(c.axial_max_mm for c in component)
+                # The ends of a sealed void both have material beyond them;
+                # a dimple/blind bore has only one open end. No bbox proxy.
+                ends = [lower - 1e-5, upper_end + 1e-5]
+                states = [material_state_at_point(shape, tuple(
+                    (component[0].point[i] + component[0].axis[i] * end) / mm_per_native_unit
+                    for i in range(3))) for end in ends]
+                if 'boundary' in states:
+                    raise UnsupportedGeometry('bore end classification is within kernel resolution')
+                if states.count('void') < (2 if through else 1):
+                    continue
+            if diameter_mm is not None:
+                lower, upper_d = diameter_mm
+                resolution = 1e-6 if lower == upper_d else 0.0
+                if not any((lower is None or 2*c.radius_mm >= lower-resolution)
+                           and (upper_d is None or 2*c.radius_mm <= upper_d+resolution) for c in component):
+                    continue
+            hole_points.append(component[0].point)
     return hole_points
 
 
@@ -447,6 +504,13 @@ def symmetry_difference_volume(shape: Any, plane: str, mm_per_native_unit: float
     return result
 
 
+def mirror_separation_mm(shape: Any, plane: str, factor: float) -> float:
+    """A disjoint mirror's minimum distance is a lower bound on deviation."""
+    from build123d import Shape, Plane, mirror
+    clean = Shape.cast(_raw(shape))
+    return distance_mm(clean, mirror(clean, about=getattr(Plane, plane)), factor)
+
+
 def _resolve_selector(ctx: Any, selector: str) -> Any:
     """Resolve a selector through S1's trusted resolver; never evaluate code."""
     try:
@@ -465,8 +529,16 @@ def _resolve_selector(ctx: Any, selector: str) -> Any:
     if isinstance(found, (list, tuple)):
         if len(found) != 1:
             raise UnsupportedGeometry(f"selector resolved {len(found)} entities; exactly one is required")
-        return found[0]
-    return found
+        found = found[0]
+    if hasattr(found, 'wrapped'):
+        return found
+    binding = getattr(module, 'entity_shape', None)
+    if binding is None:
+        raise UnsupportedGeometry("S1 resolver returned metadata without the live entity_shape binding API")
+    try:
+        return binding(ctx, found)
+    except Exception as exc:
+        raise UnsupportedGeometry(f"native selector binding failed: {exc}") from exc
 
 
 def _read_numeric(entity: Any, name: str) -> float | None:

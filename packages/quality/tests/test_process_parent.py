@@ -137,7 +137,8 @@ def test_no_surface_samples_is_unknown(monkeypatch):
 def test_collision_threshold_uses_actual_small_tool_radius():
     # The bridge intrudes by 0.015 mm into a 0.1 mm diameter probe. Its
     # intersection volume exceeds a 0.01 mm length tolerance for that probe.
-    shape=fixture('plate')+Pos(-23,-13,3.0075)*Box(2,2,.015)
+    # Both approaches are obstructed; one clear side suffices for a through bore.
+    shape=fixture('plate')+Pos(-23,-13,3.0075)*Box(2,2,.015)+Pos(-23,-13,-3.0075)*Box(2,2,.015)
     check=by_id(context(shape,'cnc_3axis',{'level':'error','tool_diameter_mm':.1}))['process.cnc_3axis.hole_approach_probe']
     assert check['status']=='fail',check
 

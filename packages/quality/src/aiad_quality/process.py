@@ -427,14 +427,21 @@ def _cnc_checks(ctx: Any, settings: dict[str, Any]) -> list[Any]:
         else:
             volumes = [item[0] for item in tested]
             thresholds=[item[3] for item in tested]
-            obstructed = [item for item in tested if item[0] > item[3]]
-            biggest = max(volumes)
+            by_cylinder: dict[int, list[Any]] = {}
+            for item in tested:
+                by_cylinder.setdefault(item[1].face_index, []).append(item)
+            # A through bore needs one usable approach, not both. A larger
+            # counterbore remains a separate cylinder and needs its own entry.
+            blocked_groups = [items for items in by_cylinder.values() if all(item[0] > item[3] for item in items)]
+            obstructed = [min(items, key=lambda item: item[0]) for items in blocked_groups]
+            best_volumes = [min(item[0] for item in items) for items in by_cylinder.values()]
+            biggest = max(best_volumes)
             partial = bool(probe_skips) or len(mouths) > 128
             violates = bool(obstructed)
             near = not violates and biggest > 0
             status = _finding_status(level, violates, near or partial and not violates)
             actual = (
-                f"{len(obstructed)}/{len(tested)} tested sweeps overlapped the B-rep; "
+                f"{len(obstructed)}/{len(by_cylinder)} recognized cylinders lack a clear tested approach ({len(tested)} sweeps); "
                 f"largest intersection volume={_fnum(biggest, 6)} mm³; "
                 f"per-probe volume tolerances={min(thresholds):g}..{max(thresholds):g} mm³ (actual probe area × length tolerance)"
             )
@@ -978,6 +985,63 @@ def _injection_checks(ctx: Any, settings: dict[str, Any]) -> list[Any]:
     ]
 
 
+def _coverage_checked(ctx: Any, process: str, settings: dict[str, Any], checks: list[Any]) -> list[Any]:
+    """Prevent a partial feature/surface sample from certifying omitted geometry."""
+    from ._checks import record
+    from .process_geometry import rectangular_box_thickness_mm
+    from . import spec_geometry
+    from build123d import GeomType
+
+    shape = ctx.shape
+    faces = list(shape.faces())
+    all_planar = all(face.geom_type == GeomType.PLANE for face in faces)
+    box_thickness = rectangular_box_thickness_mm(shape, ctx.units)
+    result = []
+    for check in checks:
+        data = record(check)
+        reason = None
+        if data['status'] == 'pass':
+            check_id = data['id']
+            if check_id.endswith('.wall_thickness') and box_thickness is None:
+                reason = 'sampled rays do not bound the global minimum wall thickness'
+            elif check_id.endswith('.overhang') and not all_planar:
+                reason = 'curved surfaces have unsampled normals; global overhang coverage is unproven'
+            elif check_id.endswith('.internal_radius'):
+                reason = 'recognized rounded corners do not rule out sharp or unclassified internal corners'
+            elif check_id.startswith('process.sheet_metal.') and len(faces) != 6:
+                reason = 'recognized bend pairs do not rule out additional sharp or unclassified bends'
+            elif check_id == 'process.laser.minimum_feature':
+                try:
+                    spec_geometry.require_round_planar_openings(shape)
+                    spec_geometry.inward_full_cylinders(shape, mm_per_unit(ctx.units))
+                except spec_geometry.UnsupportedGeometry as exc:
+                    reason = f'noncircular or unclassified cuts are not screened: {exc}'
+            elif check_id == 'process.injection.draft':
+                reason = 'absolute local draft does not establish signed release or exclude undercuts'
+        if box_thickness is not None and data['id'].endswith('.wall_thickness') and data['status'] == 'warn':
+            threshold = settings.get('min_wall_mm')
+            if threshold is None and 'nozzle_diameter_mm' in settings:
+                threshold = settings['nozzle_diameter_mm'] * settings.get('wall_line_count', 2)
+            if threshold is not None and box_thickness >= threshold - 1e-6:
+                data.update(status='pass', message='The recognized rectangular solid meets the inclusive wall threshold.',
+                    actual=f'exact rectangular-solid minimum thickness={box_thickness:.8g} mm')
+        if box_thickness is not None and data['status'] == 'skip':
+            if process == 'cnc_3axis' and data['id'] in {
+                'process.cnc_3axis.hole_approach_probe',
+                'process.cnc_3axis.fixed_axis_access',
+                'process.cnc_3axis.internal_radius',
+            }:
+                data.update(status='pass', message='A native rectangular solid has no holes or internal corners to screen.',
+                    actual='0 internal bores and 0 internal corners on the recognized six-face rectangular solid')
+        if reason:
+            data['status'] = 'skip'
+            data['message'] = 'Process screen has partial evidence: ' + reason + '.'
+            data['actual'] += '; full coverage unproven: ' + reason
+            data['fix_hint'] = 'Review the omitted geometry or use a validated complete evaluator; retain draft status at error severity.'
+        result.append(make_check(**data))
+    return result
+
+
 def process_checks(ctx: Any) -> list[Any]:
     """Evaluate the requested process with finite, explicitly assumed B-rep screens.
 
@@ -1063,15 +1127,15 @@ def process_checks(ctx: Any) -> list[Any]:
 
     try:
         if process in ("fdm_pla", "sla"):
-            return _additive_checks(ctx, process, settings)
+            return _coverage_checked(ctx, process, settings, _additive_checks(ctx, process, settings))
         if process == "cnc_3axis":
-            return _cnc_checks(ctx, settings)
+            return _coverage_checked(ctx, process, settings, _cnc_checks(ctx, settings))
         if process == "sheet_metal":
-            return _sheet_metal_checks(ctx, settings)
+            return _coverage_checked(ctx, process, settings, _sheet_metal_checks(ctx, settings))
         if process == "laser":
-            return _laser_checks(ctx, settings)
+            return _coverage_checked(ctx, process, settings, _laser_checks(ctx, settings))
         if process == "injection":
-            return _injection_checks(ctx, settings)
+            return _coverage_checked(ctx, process, settings, _injection_checks(ctx, settings))
     except Exception as exc:
         # Evaluator exceptions are explicit skips; they are never interpreted
         # as manufacturing evidence or a pass.

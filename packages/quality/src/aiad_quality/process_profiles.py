@@ -17,11 +17,11 @@ from ._checks import finite
 PROCESS_NAMES = ("fdm_pla", "sla", "cnc_3axis", "sheet_metal", "laser", "injection")
 
 _COMMON_DEFAULTS: dict[str, Any] = {
-    "level": "warn",
+    "level": "error",
     "tolerance_mm": 0.01,
     "angle_tolerance_deg": 0.1,
-    "max_faces": 128,
-    "max_samples": 512,
+    "max_faces": 256,
+    "max_samples": 4096,
 }
 
 _PROFILE_DEFAULTS: dict[str, dict[str, Any]] = {
