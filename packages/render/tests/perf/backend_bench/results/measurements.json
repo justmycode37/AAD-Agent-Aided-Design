@@ -1,0 +1,172 @@
+{
+  "measured_at": "2026-11-04T12:35:37.617510+00:00",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.12.10",
+  "packages": [
+    {
+      "name": "build123d",
+      "version": "0.13.0",
+      "installed_file_bytes": 1480843
+    },
+    {
+      "name": "cadquery-ocp-novtk",
+      "version": "8.0.1.1.0",
+      "installed_file_bytes": 232618810
+    },
+    {
+      "name": "numpy",
+      "version": "2.5.4",
+      "installed_file_bytes": 20599223
+    },
+    {
+      "name": "pillow",
+      "version": "13.0.0",
+      "installed_file_bytes": 11967486
+    },
+    {
+      "name": "vtk",
+      "version": "9.7.1",
+      "installed_file_bytes": 540973925
+    },
+    {
+      "name": "moderngl",
+      "version": "5.13.0",
+      "installed_file_bytes": 491251
+    },
+    {
+      "name": "glcontext",
+      "version": "3.1.0",
+      "installed_file_bytes": 66262
+    }
+  ],
+  "runs": [
+    {
+      "backend": "ocp",
+      "phase": "import",
+      "returncode": 0,
+      "import_ms": 674.9
+    },
+    {
+      "backend": "ocp",
+      "phase": "a",
+      "returncode": 0,
+      "image_bytes": 106387,
+      "mesh_faces": 30,
+      "model_faces": 30,
+      "python": "3.12.10",
+      "sha256": "d7f572c01252276f4dfd1ab97849e979c67c9400c9f54bdf704d826d93fb4d13",
+      "sheet_ms": 221.86,
+      "triangles": 14596,
+      "unique_edges": 66
+    },
+    {
+      "backend": "ocp",
+      "phase": "b",
+      "returncode": 0,
+      "image_bytes": 106387,
+      "mesh_faces": 30,
+      "model_faces": 30,
+      "python": "3.12.10",
+      "sha256": "d7f572c01252276f4dfd1ab97849e979c67c9400c9f54bdf704d826d93fb4d13",
+      "sheet_ms": 196.9,
+      "triangles": 14596,
+      "unique_edges": 66
+    },
+    {
+      "backend": "moderngl",
+      "phase": "import",
+      "returncode": 0,
+      "import_ms": 4.43
+    },
+    {
+      "backend": "moderngl",
+      "phase": "a",
+      "returncode": 0,
+      "image_bytes": 118513,
+      "mesh_faces": 30,
+      "model_faces": 30,
+      "python": "3.12.10",
+      "sha256": "7e09bcc08bfd6c78b3fd1af4bb8cf12c8ae9757143733340338ce4e2f7d6b11e",
+      "sheet_ms": 330.7,
+      "triangles": 14596,
+      "unique_edges": 66
+    },
+    {
+      "backend": "moderngl",
+      "phase": "b",
+      "returncode": 0,
+      "image_bytes": 118513,
+      "mesh_faces": 30,
+      "model_faces": 30,
+      "python": "3.12.10",
+      "sha256": "7e09bcc08bfd6c78b3fd1af4bb8cf12c8ae9757143733340338ce4e2f7d6b11e",
+      "sheet_ms": 139.0,
+      "triangles": 14596,
+      "unique_edges": 66
+    },
+    {
+      "backend": "numpy",
+      "phase": "import",
+      "returncode": 0,
+      "import_ms": 30.23
+    },
+    {
+      "backend": "numpy",
+      "phase": "a",
+      "returncode": 0,
+      "image_bytes": 122290,
+      "mesh_faces": 30,
+      "model_faces": 30,
+      "python": "3.12.10",
+      "sha256": "985424d8bde4cb30aa53009ab32ff3f49e4bb37092722856adf1efa551e14c36",
+      "sheet_ms": 2307.4,
+      "triangles": 14596,
+      "unique_edges": 66
+    },
+    {
+      "backend": "numpy",
+      "phase": "b",
+      "returncode": 0,
+      "image_bytes": 122290,
+      "mesh_faces": 30,
+      "model_faces": 30,
+      "python": "3.12.10",
+      "sha256": "985424d8bde4cb30aa53009ab32ff3f49e4bb37092722856adf1efa551e14c36",
+      "sheet_ms": 2265.97,
+      "triangles": 14596,
+      "unique_edges": 66
+    },
+    {
+      "backend": "vtk",
+      "phase": "import",
+      "returncode": 0,
+      "import_ms": 274.88
+    },
+    {
+      "backend": "vtk",
+      "phase": "a",
+      "returncode": 0,
+      "image_bytes": 119726,
+      "mesh_faces": 30,
+      "model_faces": 30,
+      "python": "3.12.10",
+      "sha256": "fcfebdfbde357e257be0c9ec07d47f3dede3198b2016a2f42059bf85ea092087",
+      "sheet_ms": 248.5,
+      "triangles": 14596,
+      "unique_edges": 66
+    },
+    {
+      "backend": "vtk",
+      "phase": "b",
+      "returncode": 0,
+      "image_bytes": 119726,
+      "mesh_faces": 30,
+      "model_faces": 30,
+      "python": "3.12.10",
+      "sha256": "fcfebdfbde357e257be0c9ec07d47f3dede3198b2016a2f42059bf85ea092087",
+      "sheet_ms": 239.31,
+      "triangles": 14596,
+      "unique_edges": 66
+    }
+  ]
+}
