@@ -30,6 +30,7 @@ class Primitive:
     width: float = 0.18
     dash: bool = False
     dimension_id: str | None = None
+    view_name: str | None = None
 
 
 def line(
@@ -344,6 +345,9 @@ def write_dxf(path: Path, width_mm: float, height_mm: float, entities: list[Prim
                 align=alignments.get(entity.align, TextEntityAlignment.LEFT),
             )
 
+    auditor=document.audit()
+    if auditor.errors:
+        raise ValueError(f"DXF audit failed with {len(auditor.errors)} errors.")
     path.parent.mkdir(parents=True, exist_ok=True)
     document.saveas(path)
 
@@ -520,16 +524,17 @@ def write_png(path: Path, width_mm: float, height_mm: float, entities: list[Prim
             font_size = max(8, round(entity.height * raster_scale))
             font = _font(font_size)
             value = entity.text or ""
-            bbox = draw.textbbox((0, 0), value, font=font)
-            text_width = bbox[2] - bbox[0]
+            # Every writer uses a baseline in sheet coordinates. Pillow's
+            # default ascender anchor shifted glyphs into table rules.
+            advance = font.getlength(value)
+            x_px = x*raster_scale
             if entity.align == "center":
-                x_px = round(x * raster_scale - text_width / 2)
+                x_px -= advance/2
             elif entity.align == "right":
-                x_px = round(x * raster_scale - text_width)
-            else:
-                x_px = round(x * raster_scale)
-            y_px = height_px - round(y * raster_scale) - bbox[3]
-            draw.text((x_px - bbox[0], y_px - bbox[1]), value, font=font, fill="#111111")
+                x_px -= advance
+            draw.text((round(x_px),height_px-round(y*raster_scale)),value,
+                      font=font,fill="#111111",anchor="ls")
+
 
     path.parent.mkdir(parents=True, exist_ok=True)
     image.save(path, format="PNG", optimize=True)

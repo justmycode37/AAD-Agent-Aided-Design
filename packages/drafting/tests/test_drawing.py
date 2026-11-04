@@ -69,7 +69,7 @@ def test_all_formats_have_valid_headers_and_dxf_audits(drawing):
     hole_circles = [
         circle
         for circle in circles
-        if circle.dxf.layer == "VISIBLE" and abs(circle.dxf.radius - 3.0) < 1e-7
+        if circle.dxf.layer == "VISIBLE" and abs(circle.dxf.radius - 3.0*drawing.sheet["scale"]) < 1e-7
     ]
     assert len(hole_circles) == 4
 

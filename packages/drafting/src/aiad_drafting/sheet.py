@@ -27,6 +27,24 @@ from .geometry import (
     _STANDARD_VIEWS,
     _unit,
 )
+from .layout import (
+    AuxiliaryLayout,
+    MARGIN_MM,
+    PackedViews,
+    Rect,
+    bounds_collide,
+    bom_from_context,
+    compose_auxiliary_layout,
+    drawing_geometry_margin_overflow,
+    hole_callout_text,
+    pack_views,
+    primitive_intersects_rect,
+    text_bounds,
+    text_margin_overflow,
+    text_text_collisions,
+    text_view_collisions,
+    text_width_mm,
+)
 from .types import DimensionSpec, DrawingRequest, DrawingResult, DrawingView
 
 
@@ -38,9 +56,6 @@ SHEET_SIZES_MM = {
     "LETTER": (279.4, 215.9),
     "TABLOID": (431.8, 279.4),
 }
-MARGIN_MM = 10.0
-TITLE_BLOCK_WIDTH_MM = 80.0
-TITLE_BLOCK_HEIGHT_MM = 27.0
 DIMENSION_TEXT_HEIGHT_MM = 3.0
 
 
@@ -51,6 +66,9 @@ class _NormalizedRequest:
     dimensions: str | tuple[DimensionSpec, ...]
     style: str
     title_block: dict[str, str]
+    notes: tuple[str, ...]
+    revisions: tuple[dict[str, str], ...]
+    bom: bool
     formats: tuple[str, ...]
 
 
@@ -60,6 +78,7 @@ class _PlacedView:
     center: tuple[float, float]
     bounds: ProjectedBounds
     factor: float
+    cell: Rect
 
 
 def _value(source: Any, name: str, default: Any = None) -> Any:
@@ -205,6 +224,57 @@ def _normalize_request(req: Any) -> _NormalizedRequest:
     if not isinstance(raw_title_block, Mapping):
         raise ValueError("title_block must be a mapping of field names to text.")
     title_block = {str(key).strip().lower(): str(value) for key, value in raw_title_block.items()}
+    reserved_title_fields = {"units", "sheet", "scale", "style", "projection"}
+    conflicting_title_fields = sorted(reserved_title_fields.intersection(title_block))
+    if conflicting_title_fields:
+        raise ValueError(
+            "These title block fields are measured from the request and cannot be overridden: "
+            + ", ".join(conflicting_title_fields)
+            + "."
+        )
+
+    raw_notes = _value(req, "notes", ()) or ()
+    if isinstance(raw_notes, str):
+        raw_notes = (raw_notes,)
+    if isinstance(raw_notes, Mapping) or not isinstance(raw_notes, Sequence):
+        raise ValueError("notes must be a string or a sequence of strings.")
+    if any(not isinstance(note, str) for note in raw_notes):
+        raise ValueError("Every drawing note must be text.")
+    notes = tuple(raw_notes)
+
+    raw_revisions = _value(req, "revisions", ()) or ()
+    if isinstance(raw_revisions, Mapping):
+        raw_revisions = (raw_revisions,)
+    if isinstance(raw_revisions, (str, bytes)) or not isinstance(raw_revisions, Sequence):
+        raise ValueError("revisions must be a sequence of revision mappings.")
+    revisions: list[dict[str, str]] = []
+    allowed_revision_fields = {"revision", "rev", "date", "description", "by", "author"}
+    for row in raw_revisions:
+        if not isinstance(row, Mapping):
+            raise ValueError("Each revision entry must be a mapping.")
+        normalized = {str(key).strip().lower(): str(value) for key, value in row.items()}
+        unknown_revision_fields = sorted(set(normalized) - allowed_revision_fields)
+        if unknown_revision_fields:
+            raise ValueError(
+                "Unsupported revision fields: " + ", ".join(unknown_revision_fields) + "."
+            )
+        if "revision" not in normalized and "rev" in normalized:
+            normalized["revision"] = normalized.pop("rev")
+        if "by" not in normalized and "author" in normalized:
+            normalized["by"] = normalized.pop("author")
+        else:
+            normalized.pop("author", None)
+        revisions.append(
+            {key: normalized.get(key, "") for key in ("revision", "date", "description", "by")}
+        )
+
+    raw_bom = _value(req, "bom", False)
+    if raw_bom in (False, None):
+        bom = False
+    elif raw_bom is True or (isinstance(raw_bom, str) and raw_bom.strip().lower() == "auto"):
+        bom = True
+    else:
+        raise ValueError("bom must be true, false, or 'auto'; BOM rows and quantities come from assembly children.")
 
     raw_formats = _value(req, "formats", ("svg", "dxf", "pdf"))
     if raw_formats is None:
@@ -218,7 +288,17 @@ def _normalize_request(req: Any) -> _NormalizedRequest:
     unknown = sorted(set(formats) - allowed_formats)
     if unknown:
         raise ValueError(f"Unsupported drawing formats: {', '.join(unknown)}.")
-    return _NormalizedRequest(raw_sheet, views, dimensions, style, title_block, formats)
+    return _NormalizedRequest(
+        raw_sheet,
+        views,
+        dimensions,
+        style,
+        title_block,
+        notes,
+        tuple(revisions),
+        bom,
+        formats,
+    )
 
 
 def _format_number(value: float, precision: int) -> str:
@@ -508,139 +588,29 @@ def _make_dimensions(
     return result
 
 
-def _layout_centers(
-    sheet_width: float,
-    sheet_height: float,
-    style: str,
-    names: tuple[str, ...],
-) -> dict[str, tuple[float, float]]:
-    centers = {
-        "front": (sheet_width * 0.49, sheet_height * 0.54),
-        "top": (
-            sheet_width * 0.49,
-            sheet_height * (0.76 if style == "asme" else 0.24),
-        ),
-        "right": (
-            sheet_width * (0.78 if style == "asme" else 0.22),
-            sheet_height * 0.54,
-        ),
-        "iso": (
-            sheet_width * (0.19 if style == "asme" else 0.78),
-            sheet_height * 0.76,
-        ),
-        "left": (
-            sheet_width * (0.78 if style == "asme" else 0.22),
-            sheet_height * 0.54,
-        ),
-        "back": (sheet_width * 0.49, sheet_height * 0.54),
-        "bottom": (
-            sheet_width * 0.49,
-            sheet_height * (0.24 if style == "asme" else 0.76),
-        ),
-    }
-    generic = [
-        (sheet_width * 0.28, sheet_height * 0.75),
-        (sheet_width * 0.72, sheet_height * 0.75),
-        (sheet_width * 0.28, sheet_height * 0.28),
-        (sheet_width * 0.72, sheet_height * 0.28),
-    ]
-    for index, name in enumerate(names):
-        if name not in centers:
-            centers[name] = generic[index % len(generic)]
-    return centers
-
-
-def _layout_padding(
-    name: str,
-    bounds: ProjectedBounds,
-    unit_factor: float,
-) -> tuple[float, float]:
-    if name == "front":
-        return bounds.width * unit_factor + 28.0, bounds.height * unit_factor + 22.0
-    if name == "top":
-        return bounds.width * unit_factor + 30.0, bounds.height * unit_factor + 25.0
-    if name in {"right", "left", "back", "bottom"}:
-        return bounds.width * unit_factor + 14.0, bounds.height * unit_factor + 14.0
-    return bounds.width * unit_factor + 16.0, bounds.height * unit_factor + 16.0
-
-
-def _choose_scale(
-    projections: tuple[ProjectedView, ...],
-    sheet_width: float,
-    sheet_height: float,
-    unit_factor: float,
-) -> float:
-    capacities = []
-    for projection in projections:
-        design_width, design_height = _layout_padding(
-            projection.name,
-            projection.bounds,
-            unit_factor,
-        )
-        if projection.name in {"front", "top"}:
-            cell_width = sheet_width * 0.41
-        elif projection.name in {"right", "left"}:
-            cell_width = sheet_width * 0.27
-        else:
-            cell_width = sheet_width * 0.37
-        if projection.name == "front":
-            cell_height = sheet_height * 0.25
-        elif projection.name == "top":
-            cell_height = sheet_height * 0.40
-        elif projection.name in {"right", "left"}:
-            cell_height = sheet_height * 0.22
-        else:
-            cell_height = sheet_height * 0.37
-        capacities.extend(
-            [
-                cell_width / max(design_width, 1e-9),
-                cell_height / max(design_height, 1e-9),
-            ]
-        )
-
-    maximum = min(capacities) if capacities else 1.0
-    preferred = (10.0, 5.0, 2.0, 1.0, 0.75, 0.5, 0.4, 1 / 3, 0.25, 0.2, 1 / 6, 0.125, 0.1, 0.05)
-    for scale in preferred:
-        if scale <= maximum + 1e-9:
-            return scale
-    return max(maximum, 1e-4)
-
-
 def _scale_label(scale: float) -> str:
-    if scale >= 1:
-        return f"{scale:g}:1"
-    return f"1:{1 / scale:g}"
+    from fractions import Fraction
+    ratio=Fraction(scale).limit_denominator(100)
+    if abs(float(ratio)-scale)<1e-8 and ratio.numerator:
+        return f"{ratio.numerator}:{ratio.denominator}"
+    return f"{scale:.6g}:1"
 
 
 def _place_views(
     projections: tuple[ProjectedView, ...],
-    sheet_width: float,
-    sheet_height: float,
-    style: str,
-    scale: float,
-    unit_factor: float,
+    plan: PackedViews,
 ) -> dict[str, _PlacedView]:
-    centers = _layout_centers(
-        sheet_width,
-        sheet_height,
-        style,
-        tuple(projection.name for projection in projections),
-    )
-    placed = {}
-    for projection in projections:
-        center = centers[projection.name]
-        projected_center = projection.bounds.center
-        factor = scale * unit_factor
-        half_width = projection.bounds.width * factor / 2
-        half_height = projection.bounds.height * factor / 2
-        bounds = ProjectedBounds(
-            center[0] - half_width,
-            center[1] - half_height,
-            center[0] + half_width,
-            center[1] + half_height,
+    return {
+        projection.name: _PlacedView(
+            projection=projection,
+            center=placement.center,
+            bounds=placement.bounds,
+            factor=placement.factor,
+            cell=placement.cell,
         )
-        placed[projection.name] = _PlacedView(projection, center, bounds, factor)
-    return placed
+        for projection in projections
+        if (placement := plan.placements[projection.name]) is not None
+    }
 
 
 def _sheet_point(
@@ -764,15 +734,15 @@ def _draw_overall_dimensions(
         entities.append(line(bounds.xmin, bounds.ymin, bounds.xmin, y_dim - 1, "DIMENSIONS", 0.12))
         entities.append(line(bounds.xmax, bounds.ymin, bounds.xmax, y_dim - 1, "DIMENSIONS", 0.12))
         label = by_axis["x"]["display"]
-        gap = max(4.0, len(label) * 1.8)
+        gap_half = text_width_mm(label, 2.8) / 2 + 1.2
         center = (bounds.xmin + bounds.xmax) / 2
         _dimension_line(
             entities,
             (bounds.xmin, y_dim),
             (bounds.xmax, y_dim),
             style,
-            (center, y_dim),
-            gap / 2 + 1.2,
+            (center, y_dim) if bounds.width >= 2 * gap_half + 2.0 else None,
+            gap_half,
         )
         entities.append(text(label, center, y_dim + 1.4, 2.8, "DIMENSIONS", "center", dimension_id=by_axis["x"]["id"]))
 
@@ -786,20 +756,40 @@ def _draw_overall_dimensions(
 
     if top and "y" in by_axis:
         bounds = top.bounds
-        x_dim = bounds.xmax + 14.0
-        entities.append(line(bounds.xmax, bounds.ymin, x_dim + 1.0, bounds.ymin, "DIMENSIONS", 0.12))
-        entities.append(line(bounds.xmax, bounds.ymax, x_dim + 1.0, bounds.ymax, "DIMENSIONS", 0.12))
-        _dimension_line(entities, (x_dim, bounds.ymin), (x_dim, bounds.ymax), style)
-        entities.append(
-            text(
-                by_axis["y"]["display"],
-                x_dim + 2.2,
-                (bounds.ymin + bounds.ymax) / 2 - 1,
-                2.8,
-                "DIMENSIONS",
-                dimension_id=by_axis["y"]["id"],
-            )
+        has_y_ordinates = any(
+            dimension["kind"] == "hole_coordinate" and dimension["axis"] == "y"
+            or dimension["kind"] == "hole_spacing" and dimension["axis"] == "y"
+            for dimension in dimensions
         )
+        from .layout import _view_padding
+        left_reserve=_view_padding("top",dimensions)[0]
+        label_width=text_width_mm(by_axis["y"]["display"],2.8)
+        x_dim=bounds.xmin-left_reserve+label_width+3.0
+        entities.append(line(bounds.xmin,bounds.ymin,x_dim-1,bounds.ymin,"DIMENSIONS",0.12))
+        entities.append(line(bounds.xmin,bounds.ymax,x_dim-1,bounds.ymax,"DIMENSIONS",0.12))
+        _dimension_line(entities,(x_dim,bounds.ymin),(x_dim,bounds.ymax),style)
+        entities.append(text(by_axis["y"]["display"],x_dim-2.2,(bounds.ymin+bounds.ymax)/2-1,2.8,
+                             "DIMENSIONS","right",dimension_id=by_axis["y"]["id"]))
+
+
+def _arrowed_hole_leader(entities, path, dimension_id):
+    first_entity=len(entities)
+    tip, next_point = path[:2]
+    for first,last in zip(path,path[1:]):
+        entities.append(line(*first,*last,"DIMENSIONS",0.12))
+    length=math.dist(tip,next_point)
+    ux,uy=(next_point[0]-tip[0])/length,(next_point[1]-tip[1])/length
+    arrow_length=min(1.5,length*0.8)
+    normal=(-uy*0.32,ux*0.32)
+    base=(tip[0]+ux*arrow_length,tip[1]+uy*arrow_length)
+    entities.append(line(*tip,base[0]+normal[0],base[1]+normal[1],"DIMENSIONS",0.12))
+    entities.append(line(*tip,base[0]-normal[0],base[1]-normal[1],"DIMENSIONS",0.12))
+    entities[first_entity:]=[replace(entity,dimension_id=dimension_id) for entity in entities[first_entity:]]
+
+
+def _ordinate_count_prefix(dimension: dict[str, Any]) -> str:
+    count = dimension.get("count") or 1
+    return f"{count}X " if count > 1 else ""
 
 
 def _draw_hole_dimensions(
@@ -809,26 +799,17 @@ def _draw_hole_dimensions(
     holes: list[Hole],
     bounds: Bounds3D,
     style: str,
-) -> None:
+    view_geometry: Mapping[str, Sequence[Primitive]],
+    sheet_width: float,
+    sheet_height: float,
+) -> set[str]:
     top = placed.get("top")
     if not top:
-        return
-    diameters = [d for d in dimensions if d["kind"] == "hole_diameter"]
-    for index, diameter in enumerate(diameters):
-        selected = [h for h in holes if h.index in diameter["hole_indices"]]
-        hole = selected[0]
-        point = _sheet_point(top, project_point((hole.x, hole.y, 0), top.projection))
-        count = diameter.get("count") or 1
-        prefix = f"{count}X " if count > 1 else ""
-        label_x = top.bounds.xmax + 25
-        label_y = top.bounds.ymax - 5 - 8 * index
-        entities.append(line(point[0], point[1], label_x - 2, label_y, "DIMENSIONS", 0.12))
-        entities.append(text(f"{prefix}DIA {diameter['display']} THRU", label_x, label_y, 2.8,
-                             "DIMENSIONS", dimension_id=diameter["id"]))
+        return set()
+    leader_ids: set[str] = set()
 
     top_view = top.projection
     left, bottom = top.bounds.xmin, top.bounds.ymin
-
     x_dimensions = sorted(
         (dimension for dimension in dimensions if dimension["kind"] == "hole_coordinate" and dimension["axis"] == "x"),
         key=lambda dimension: dimension["value"],
@@ -838,142 +819,192 @@ def _draw_hole_dimensions(
         key=lambda dimension: dimension["value"],
     )
 
-    if x_dimensions:
-        baseline_y = bottom - 8.0
-        max_x = top.bounds.xmin
-        for dimension in x_dimensions:
-            hole_indices = dimension["hole_indices"]
-            group_holes = [hole for hole in holes if hole.index in hole_indices]
-            if not group_holes:
-                continue
-            local_x = sum(hole.x for hole in group_holes) / len(group_holes)
-            station_x = _sheet_point(top, project_point((local_x, bounds.ymin, 0.0), top_view))[0]
-            max_x = max(max_x, station_x)
-            entities.append(line(station_x, bottom, station_x, baseline_y - 1, "DIMENSIONS", 0.12))
-            entities.append(line(station_x, baseline_y - 1, station_x, baseline_y + 1, "DIMENSIONS", 0.16))
-            entities.append(
-                text(
-                    f"X{dimension['display']}",
-                    station_x,
-                    baseline_y - 3.2,
-                    2.6,
-                    "DIMENSIONS",
-                    "center",
-                    dimension_id=dimension["id"],
-                )
-            )
-        entities.append(line(top.bounds.xmin, baseline_y, max_x, baseline_y, "DIMENSIONS", 0.16))
-        entities.append(circle((top.bounds.xmin, baseline_y), 0.6, "DIMENSIONS", 0.16))
-
-    if y_dimensions:
-        baseline_x = left - 8.0
-        max_y = top.bounds.ymin
-        for dimension in y_dimensions:
-            hole_indices = dimension["hole_indices"]
-            group_holes = [hole for hole in holes if hole.index in hole_indices]
-            if not group_holes:
-                continue
-            local_y = sum(hole.y for hole in group_holes) / len(group_holes)
-            station_y = _sheet_point(top, project_point((bounds.xmin, local_y, 0.0), top_view))[1]
-            max_y = max(max_y, station_y)
-            entities.append(line(left, station_y, baseline_x - 1, station_y, "DIMENSIONS", 0.12))
-            entities.append(line(baseline_x - 1, station_y, baseline_x + 1, station_y, "DIMENSIONS", 0.16))
-            entities.append(
-                text(
-                    f"Y{dimension['display']}",
-                    baseline_x - 2.2,
-                    station_y - 1,
-                    2.6,
-                    "DIMENSIONS",
-                    "right",
-                    dimension_id=dimension["id"],
-                )
-            )
-        entities.append(line(baseline_x, top.bounds.ymin, baseline_x, max_y, "DIMENSIONS", 0.16))
-        entities.append(circle((baseline_x, top.bounds.ymin), 0.6, "DIMENSIONS", 0.16))
-
-    spacings = [d for d in dimensions if d["kind"] == "hole_spacing"]
-    for index, dimension in enumerate(spacings):
-        axis = dimension["axis"]
-        source = dimension["source"]
-        first = source["from_coordinate"]
-        last = source["to_coordinate"]
-        if axis == "x":
-            a = _sheet_point(top, project_point((first, bounds.ymin, 0), top_view))
-            b = _sheet_point(top, project_point((last, bounds.ymin, 0), top_view))
-            station = bottom - (18 if x_dimensions else 8) - 8 * index
-            entities.extend([line(a[0], bottom, a[0], station-1, "DIMENSIONS"),
-                             line(b[0], bottom, b[0], station-1, "DIMENSIONS")])
-            _dimension_line(entities, (a[0],station), (b[0],station), style)
-            entities.append(text(dimension["display"], (a[0]+b[0])/2, station+1.5, 2.8,
-                                 "DIMENSIONS", "center", dimension_id=dimension["id"]))
-        else:
-            a = _sheet_point(top, project_point((bounds.xmin, first, 0), top_view))
-            b = _sheet_point(top, project_point((bounds.xmin, last, 0), top_view))
-            station = left - (20 if y_dimensions else 8) - 8 * index
-            entities.extend([line(left, a[1], station-1, a[1], "DIMENSIONS"),
-                             line(left, b[1], station-1, b[1], "DIMENSIONS")])
-            _dimension_line(entities, (station,a[1]), (station,b[1]), style)
-            entities.append(text(dimension["display"], station-2, (a[1]+b[1])/2, 2.8,
-                                 "DIMENSIONS", "right", dimension_id=dimension["id"]))
-
-
-def _title_block_entities(
-    entities: list[Primitive],
-    width: float,
-    height: float,
-    request: _NormalizedRequest,
-    context: Any,
-    scale: float,
-    units: str,
-) -> tuple[float, float, float, float]:
-    block_width = min(TITLE_BLOCK_WIDTH_MM, width * 0.34)
-    block_height = TITLE_BLOCK_HEIGHT_MM
-    x0 = width - MARGIN_MM - block_width
-    y0 = MARGIN_MM
-    x1, y1 = x0 + block_width, y0 + block_height
-
-    default_title = (
-        context_value(context, "name")
-        or context_value(context, "project")
-        or (Path(context_value(context, "project_dir")).name if context_value(context, "project_dir") else None)
-        or "UNTITLED PART"
-    )
-    fields = {
-        "title": default_title,
-        "drawing_no": "AIAD-S4-001",
-        "revision": "A",
-        "units": units,
-        "sheet": request.sheet,
-        "style": request.style.upper(),
-    }
-    fields.update(request.title_block)
-
-    entities.extend(
-        [
-            line(x0, y0, x1, y0, "TITLE", 0.22),
-            line(x1, y0, x1, y1, "TITLE", 0.22),
-            line(x1, y1, x0, y1, "TITLE", 0.22),
-            line(x0, y1, x0, y0, "TITLE", 0.22),
-            line(x0, y0 + 9, x1, y0 + 9, "TITLE", 0.16),
-            line(x0, y0 + 18, x1, y0 + 18, "TITLE", 0.16),
-            line(x0 + block_width * 0.56, y0, x0 + block_width * 0.56, y0 + 18, "TITLE", 0.16),
-        ]
-    )
-    entities.append(text(fields["title"][:48], x0 + 2, y0 + 20, 3.0, "TITLE"))
-    entities.append(text(f"NO. {fields['drawing_no']}", x0 + 2, y0 + 11.5, 2.4, "TITLE"))
-    entities.append(text(f"REV {fields['revision']}", x0 + block_width * 0.56 + 2, y0 + 11.5, 2.4, "TITLE"))
-    entities.append(text(f"SCALE {_scale_label(scale)}", x0 + 2, y0 + 2.5, 2.4, "TITLE"))
-    entities.append(
-        text(
-            f"{fields['units'].upper()}  {fields['sheet'].upper()}  {fields['style'].upper()}",
-            x0 + block_width * 0.56 + 2,
-            y0 + 2.5,
-            2.4,
-            "TITLE",
+    # Ordinate labels use measured font advances to select non-overlapping rows.
+    x_rows: list[list[tuple[float, float]]] = []
+    x_stations: list[tuple[dict[str, Any], float, str, int]] = []
+    for dimension in x_dimensions:
+        group_holes = [hole for hole in holes if hole.index in dimension["hole_indices"]]
+        if not group_holes:
+            continue
+        local_x = sum(hole.x for hole in group_holes) / len(group_holes)
+        station_x = _sheet_point(top, project_point((local_x, bounds.ymin, 0.0), top_view))[0]
+        label = f"{_ordinate_count_prefix(dimension)}X{dimension['display']}"
+        half_width = text_width_mm(label, 2.6) / 2 + 1.0
+        row = next(
+            (
+                index
+                for index, stations in enumerate(x_rows)
+                if all(abs(station_x - other_x) >= half_width + other_half for other_x, other_half in stations)
+            ),
+            len(x_rows),
         )
+        if row == len(x_rows):
+            x_rows.append([])
+        x_rows[row].append((station_x, half_width))
+        x_stations.append((dimension, station_x, label, row))
+    for dimension, station_x, label, row in x_stations:
+        baseline_y = bottom - 8.0 - 4.5 * row
+        entities.append(line(station_x, bottom, station_x, baseline_y - 1.0, "DIMENSIONS", 0.12))
+        entities.append(line(station_x, baseline_y - 1.0, station_x, baseline_y + 1.0, "DIMENSIONS", 0.16))
+        entities.append(text(label, station_x, baseline_y - 3.2, 2.6, "DIMENSIONS", "center", dimension_id=dimension["id"]))
+    for row, stations in enumerate(x_rows):
+        baseline_y = bottom - 8.0 - 4.5 * row
+        entities.append(line(left, baseline_y, max([left, *(station for station, _ in stations)]), baseline_y, "DIMENSIONS", 0.16))
+        entities.append(circle((left, baseline_y), 0.6, "DIMENSIONS", 0.16))
+
+    y_lanes: list[list[tuple[float, float]]] = []
+    y_stations: list[tuple[dict[str, Any], float, str, int]] = []
+    y_label_width = max(
+        (text_width_mm(f"{_ordinate_count_prefix(d)}Y{d['display']}", 2.6) for d in y_dimensions),
+        default=0.0,
     )
-    return (x0, y0, x1, y1)
+    lane_step = max(6.0, y_label_width + 3.0)
+    for dimension in y_dimensions:
+        group_holes = [hole for hole in holes if hole.index in dimension["hole_indices"]]
+        if not group_holes:
+            continue
+        local_y = sum(hole.y for hole in group_holes) / len(group_holes)
+        station_y = _sheet_point(top, project_point((bounds.xmin, local_y, 0.0), top_view))[1]
+        label = f"{_ordinate_count_prefix(dimension)}Y{dimension['display']}"
+        prototype = text(label, 0.0, station_y - 1.0, 2.6, "DIMENSIONS", "right")
+        prototype_bounds = text_bounds(prototype)
+        interval = (prototype_bounds.ymin, prototype_bounds.ymax)
+        lane = next(
+            (
+                index
+                for index, intervals in enumerate(y_lanes)
+                if all(interval[0] >= other[1] + 0.7 or other[0] >= interval[1] + 0.7 for other in intervals)
+            ),
+            len(y_lanes),
+        )
+        if lane == len(y_lanes):
+            y_lanes.append([])
+        y_lanes[lane].append(interval)
+        y_stations.append((dimension, station_y, label, lane))
+    for dimension, station_y, label, lane in y_stations:
+        baseline_x = left - 13.0 - lane * lane_step
+        entities.append(line(left, station_y, baseline_x - 1.0, station_y, "DIMENSIONS", 0.12))
+        entities.append(line(baseline_x - 1.0, station_y, baseline_x + 1.0, station_y, "DIMENSIONS", 0.16))
+        candidates = [
+            (baseline_x - 2.2, "right"),
+            (baseline_x + 2.2, "left"),
+        ]
+        for offset in range(10, 42, 2):
+            candidates.extend(((baseline_x - offset, "right"), (baseline_x + offset, "left")))
+        selected: Primitive | None = None
+        for anchor_x, align in candidates:
+            candidate = text(
+                label,
+                anchor_x,
+                station_y - 1.0,
+                2.6,
+                "DIMENSIONS",
+                align,
+                dimension_id=dimension["id"],
+            )
+            candidate_bounds = text_bounds(candidate)
+            if candidate_bounds is None or (
+                candidate_bounds.xmin < MARGIN_MM - 1e-7
+                or candidate_bounds.ymin < MARGIN_MM - 1e-7
+                or candidate_bounds.xmax > sheet_width - MARGIN_MM + 1e-7
+                or candidate_bounds.ymax > sheet_height - MARGIN_MM + 1e-7
+            ):
+                continue
+            if text_view_collisions([candidate], view_geometry):
+                continue
+            combined = [*entities, candidate]
+            candidate_index = len(combined) - 1
+            if any(candidate_index in pair for pair in text_text_collisions(combined)):
+                continue
+            selected = candidate
+            break
+        if selected is None:
+            selected = text(
+                label,
+                baseline_x - 2.2,
+                station_y - 1.0,
+                2.6,
+                "DIMENSIONS",
+                "right",
+                dimension_id=dimension["id"],
+            )
+        entities.append(selected)
+    for lane, intervals in enumerate(y_lanes):
+        station_ys = [station_y for _, station_y, _, assigned_lane in y_stations if assigned_lane == lane]
+        baseline_x = left - 13.0 - lane * lane_step
+        if station_ys:
+            entities.append(line(baseline_x, min(station_ys), baseline_x, max(station_ys), "DIMENSIONS", 0.16))
+            entities.append(circle((baseline_x, top.bounds.ymin), 0.6, "DIMENSIONS", 0.16))
+
+    x_spacings = [d for d in dimensions if d["kind"] == "hole_spacing" and d["axis"] == "x"]
+    x_coordinate_lanes = max((row for _, _, _, row in x_stations), default=-1) + 1
+    spacing_y_start = 18.0 + 4.5 * max(0, x_coordinate_lanes - 1) if x_dimensions else 8.0
+    for index, dimension in enumerate(x_spacings):
+        source = dimension["source"]
+        first, last = source["from_coordinate"], source["to_coordinate"]
+        a = _sheet_point(top, project_point((first, bounds.ymin, 0.0), top_view))
+        b = _sheet_point(top, project_point((last, bounds.ymin, 0.0), top_view))
+        station_y = bottom - spacing_y_start - 8.0 * index
+        entities.extend(
+            [
+                line(a[0], bottom, a[0], station_y - 1.0, "DIMENSIONS"),
+                line(b[0], bottom, b[0], station_y - 1.0, "DIMENSIONS"),
+            ]
+        )
+        _dimension_line(entities, (a[0], station_y), (b[0], station_y), style)
+        entities.append(
+            text(dimension["display"], (a[0] + b[0]) / 2, station_y + 1.5, 2.8, "DIMENSIONS", "center", dimension_id=dimension["id"])
+        )
+
+    y_spacings = [d for d in dimensions if d["kind"] == "hole_spacing" and d["axis"] == "y"]
+    y_coordinate_lanes = max((lane for _, _, _, lane in y_stations), default=-1) + 1
+    spacing_x_start = 18.0 + y_coordinate_lanes * lane_step if y_dimensions else 8.0
+    for index, dimension in enumerate(y_spacings):
+        source = dimension["source"]
+        first, last = source["from_coordinate"], source["to_coordinate"]
+        a = _sheet_point(top, project_point((bounds.xmin, first, 0.0), top_view))
+        b = _sheet_point(top, project_point((bounds.xmin, last, 0.0), top_view))
+        station_x = left - spacing_x_start - 8.0 * index
+        entities.extend(
+            [
+                line(left, a[1], station_x - 1.0, a[1], "DIMENSIONS"),
+                line(left, b[1], station_x - 1.0, b[1], "DIMENSIONS"),
+            ]
+        )
+        _dimension_line(entities, (station_x, a[1]), (station_x, b[1]), style)
+        entities.append(
+            text(dimension["display"], station_x - 2.0, (a[1] + b[1]) / 2, 2.8, "DIMENSIONS", "right", dimension_id=dimension["id"])
+        )
+    diameters = [d for d in dimensions if d["kind"] == "hole_diameter"]
+    diameters.sort(key=lambda d:max(h.y for h in holes if h.index in d["hole_indices"]),reverse=True)
+    planned_labels=[]
+    for i,d in enumerate(diameters):
+        rectangle=text_bounds(text(hole_callout_text(d),top.bounds.xmax+25,top.bounds.ymax-5-8*i,2.8))
+        planned_labels.append(Rect(rectangle.xmin-0.35,rectangle.ymin-0.35,rectangle.xmax+0.35,rectangle.ymax+0.35))
+    for index, diameter in enumerate(diameters):
+        selected = [hole for hole in holes if hole.index in diameter["hole_indices"]]
+        if not selected:
+            continue
+        label = hole_callout_text(diameter)
+        label_x = top.bounds.xmax + 25.0
+        label_y = top.bounds.ymax - 5.0 - 8.0 * index
+        from .routing import hole_leader_path
+        circles=[(h.index,_sheet_point(top,project_point((h.x,h.y,0),top.projection)),h.radius*top.factor) for h in holes]
+        blocked=[Rect(v.bounds.xmin-0.5,v.bounds.ymin-0.5,v.bounds.xmax+0.5,v.bounds.ymax+0.5)
+                 for name,v in placed.items() if name != "top"]
+        text_obstacles=[text_bounds(e) for e in entities if e.kind == "text"]
+        blocked.extend(Rect(r.xmin-0.35,r.ymin-0.35,r.xmax+0.35,r.ymax+0.35) for r in text_obstacles if r)
+        blocked.extend(planned_labels)
+        occupied_segments=[e.points for e in entities if e.layer == "DIMENSIONS" and e.kind == "line"]
+        route=hole_leader_path(circles,diameter["hole_indices"],(label_x-1.5,label_y),blocked,occupied_segments)
+        if route is not None:
+            _,path=route
+            _arrowed_hole_leader(entities,path,diameter["id"])
+            leader_ids.add(diameter["id"])
+
+        entities.append(text(label, label_x, label_y, 2.8, "DIMENSIONS", dimension_id=diameter["id"]))
+
+    return leader_ids
 
 
 def _sheet_frame(entities: list[Primitive], width: float, height: float) -> None:
@@ -995,23 +1026,68 @@ def _view_label_entities(
     entities: list[Primitive],
     placed: dict[str, _PlacedView],
     request: _NormalizedRequest,
+    view_geometry: dict[str, list[Primitive]],
+    sheet_width: float,
+    sheet_height: float,
 ) -> None:
     labels = {view.name: view.label for view in request.views}
+    placed_text: list[Rect] = []
     for name, item in placed.items():
         label = labels.get(name) or name.upper()
         if item.projection.metadata.get("kind") in {"section", "detail"}:
             magnification = item.projection.metadata.get("scale", 1.0)
             label += f"  x{magnification:g} SHEET SCALE"
-        entities.append(
-            text(
-                str(label).upper(),
-                item.center[0],
-                item.bounds.ymax + 5.0,
-                2.6,
-                "ANNOTATION",
-                "center",
-            )
+        value = str(label).upper()
+        candidates = (
+            (item.center[0], item.bounds.ymax + 5.0, "center"),
+            (item.center[0], item.bounds.ymin - 4.0, "center"),
+            (item.bounds.xmin - 4.0, item.center[1], "right"),
+            (item.bounds.xmax + 4.0, item.center[1], "left"),
+            (item.bounds.xmin - 4.0, item.bounds.ymax + 5.0, "right"),
+            (item.bounds.xmax + 4.0, item.bounds.ymax + 5.0, "left"),
+            (item.bounds.xmin - 4.0, item.bounds.ymin - 4.0, "right"),
+            (item.bounds.xmax + 4.0, item.bounds.ymin - 4.0, "left"),
         )
+        selected: Primitive | None = None
+        for x, y, align in candidates:
+            candidate = text(value, x, y, 2.6, "ANNOTATION", align)
+            candidate_bounds = text_bounds(candidate)
+            if candidate_bounds is None:
+                continue
+            if (
+                candidate_bounds.xmin < MARGIN_MM - 1e-7
+                or candidate_bounds.ymin < MARGIN_MM - 1e-7
+                or candidate_bounds.xmax > sheet_width - MARGIN_MM + 1e-7
+                or candidate_bounds.ymax > sheet_height - MARGIN_MM + 1e-7
+            ):
+                continue
+            if any(
+                primitive_intersects_rect(geometry, candidate_bounds)
+                for other_name, geometry_items in view_geometry.items()
+                if other_name != name
+                for geometry in geometry_items
+            ):
+                continue
+            existing_text_bounds = [
+                bounds
+                for entity in entities
+                if entity.kind == "text"
+                and (bounds := text_bounds(entity)) is not None
+            ]
+            if any(
+                candidate_bounds.intersects(bounds, 0.15)
+                for bounds in (*existing_text_bounds, *placed_text)
+            ):
+                continue
+            selected = candidate
+            placed_text.append(candidate_bounds)
+            break
+        if selected is None:
+            selected = text(value, item.center[0], item.bounds.ymax + 5.0, 2.6, "ANNOTATION", "center")
+            candidate_bounds = text_bounds(selected)
+            if candidate_bounds is not None:
+                placed_text.append(candidate_bounds)
+        entities.append(selected)
 
 
 def _view_markers(entities, shape, placed, request):
@@ -1044,17 +1120,10 @@ def _view_markers(entities, shape, placed, request):
 
 
 def _entity_text_bounds(entity: Primitive) -> tuple[float, float, float, float] | None:
-    if entity.kind != "text":
+    bounds = text_bounds(entity)
+    if bounds is None:
         return None
-    x, y = entity.points[0]
-    width = max(len(entity.text or ""), 1) * entity.height * 0.54
-    if entity.align == "center":
-        xmin, xmax = x - width / 2, x + width / 2
-    elif entity.align == "right":
-        xmin, xmax = x - width, x
-    else:
-        xmin, xmax = x, x + width
-    return (xmin, y - entity.height * 0.35, xmax, y + entity.height)
+    return (bounds.xmin, bounds.ymin, bounds.xmax, bounds.ymax)
 
 
 def _drawing_checks(
@@ -1063,9 +1132,13 @@ def _drawing_checks(
     placed: dict[str, _PlacedView],
     sheet_width: float,
     sheet_height: float,
-    title_bounds: tuple[float, float, float, float],
+    auxiliary: AuxiliaryLayout,
+    plan: PackedViews,
+    view_geometry: dict[str, list[Primitive]],
+    hole_leader_ids: set[str],
+    bom: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    checks = []
+    checks: list[dict[str, Any]] = []
 
     def add_check(check_id: str, status: str, message: str, actual: str | None = None) -> None:
         checks.append(
@@ -1079,43 +1152,140 @@ def _drawing_checks(
             }
         )
 
-    escaped = [
-        name
-        for name, view in placed.items()
-        if view.bounds.xmin < MARGIN_MM - 1e-6
-        or view.bounds.ymin < MARGIN_MM - 1e-6
-        or view.bounds.xmax > sheet_width - MARGIN_MM + 1e-6
-        or view.bounds.ymax > sheet_height - MARGIN_MM + 1e-6
-    ]
-    if escaped:
-        add_check(
-            "sheet_margins",
-            "fail",
-            "One or more projected views extend beyond the drawing frame.",
-            ", ".join(escaped),
-        )
-    else:
-        add_check("sheet_margins", "pass", "Projected views fit inside the sheet frame.")
+    add_check(
+        "layout_fit",
+        "pass" if plan.fits else "fail",
+        "Projected view geometry fits without overlap at the selected physical scale."
+        if plan.fits
+        else "Projected view geometry does not fit the usable sheet area without overlap.",
+        None if plan.fits else f"scale={_scale_label(plan.scale)}; area={plan.area.as_list()}",
+    )
 
-    x0, y0, x1, y1 = title_bounds
-    title_ok = (
-        x0 >= MARGIN_MM
-        and y0 >= MARGIN_MM
-        and x1 <= sheet_width - MARGIN_MM
-        and y1 <= sheet_height - MARGIN_MM
+    geometry_overflow = drawing_geometry_margin_overflow(entities, sheet_width, sheet_height)
+    add_check(
+        "sheet_margins",
+        "fail" if geometry_overflow else "pass",
+        "Drawing geometry stays within the sheet margins."
+        if not geometry_overflow
+        else "One or more drawing strokes extend beyond the sheet margins.",
+        str(len(geometry_overflow)) if geometry_overflow else None,
+    )
+    text_overflow = text_margin_overflow(entities, sheet_width, sheet_height)
+    add_check(
+        "text_margins",
+        "fail" if text_overflow else "pass",
+        "Measured text glyphs stay within the sheet margins."
+        if not text_overflow
+        else "One or more measured text glyph bounds extend beyond the sheet margins.",
+        str(len(text_overflow)) if text_overflow else None,
+    )
+
+    title_bounds = auxiliary.title_bounds
+    title_fits = (
+        title_bounds.xmin >= MARGIN_MM - 1e-7
+        and title_bounds.ymin >= MARGIN_MM - 1e-7
+        and title_bounds.xmax <= sheet_width - MARGIN_MM + 1e-7
+        and title_bounds.ymax <= sheet_height - MARGIN_MM + 1e-7
     )
     add_check(
         "title_block_bounds",
-        "pass" if title_ok else "fail",
-        "Title block fits inside the drawing frame." if title_ok else "Title block exceeds the drawing frame.",
+        "pass" if title_fits else "fail",
+        "Title block fits inside the sheet frame." if title_fits else "Title block exceeds the sheet frame.",
+        None if title_fits else str(title_bounds.as_list()),
+    )
+    title_text_overflow = [
+        index
+        for index, entity in enumerate(entities)
+        if entity.kind == "text"
+        and entity.layer == "TITLE"
+        and (bounds := text_bounds(entity)) is not None
+        and not title_bounds.contains(bounds)
+    ]
+    add_check(
+        "title_block_text_overflow",
+        "fail" if title_text_overflow else "pass",
+        "Every title block field fits its measured text bounds."
+        if not title_text_overflow
+        else "One or more title block fields exceed the title block bounds.",
+        str(len(title_text_overflow)) if title_text_overflow else None,
     )
 
-    displayed_ids = {e.dimension_id for e in entities if e.kind == "text" and e.dimension_id}
-    missing = [d["id"] for d in dimensions if d["id"] not in displayed_ids]
-    add_check("dimension_coverage", "fail" if missing else "pass",
-              "Requested dimensions missing from the sheet." if missing else "Every reported dimension appears on the sheet.",
-              ", ".join(missing) if missing else None)
+    if auxiliary.schedule_bounds is None:
+        add_check("schedule_bounds", "pass", "No notes or schedule tables were requested.")
+        schedule_text_overflow: list[int] = []
+    else:
+        schedule_bounds = auxiliary.schedule_bounds
+        schedule_fits = (
+            schedule_bounds.xmin >= MARGIN_MM - 1e-7
+            and schedule_bounds.ymin >= MARGIN_MM - 1e-7
+            and schedule_bounds.xmax <= sheet_width - MARGIN_MM + 1e-7
+            and schedule_bounds.ymax <= sheet_height - MARGIN_MM + 1e-7
+        )
+        add_check(
+            "schedule_bounds",
+            "pass" if schedule_fits else "fail",
+            "Notes and schedule tables fit inside the sheet frame."
+            if schedule_fits
+            else "Notes or schedule tables exceed the sheet frame.",
+            None if schedule_fits else str(schedule_bounds.as_list()),
+        )
+        schedule_text_overflow = [
+            index
+            for index, entity in enumerate(entities)
+            if entity.kind == "text"
+            and entity.layer == "SCHEDULE"
+            and (bounds := text_bounds(entity)) is not None
+            and not schedule_bounds.contains(bounds)
+        ]
+    add_check(
+        "schedule_text_overflow",
+        "fail" if schedule_text_overflow else "pass",
+        "Every note and schedule cell fits its measured text bounds."
+        if not schedule_text_overflow
+        else "One or more note or schedule cells exceed their panel bounds.",
+        str(len(schedule_text_overflow)) if schedule_text_overflow else None,
+    )
 
+    view_names = list(placed)
+    view_collisions = [
+        (view_names[index], view_names[other_index])
+        for index, first_name in enumerate(view_names)
+        for other_index in range(index + 1, len(view_names))
+        if bounds_collide(placed[first_name].bounds, placed[view_names[other_index]].bounds)
+    ]
+    add_check(
+        "view_view_collisions",
+        "fail" if view_collisions else "pass",
+        "Projected view bounds do not overlap."
+        if not view_collisions
+        else "Projected view bounds overlap.",
+        ", ".join(f"{first}/{second}" for first, second in view_collisions) if view_collisions else None,
+    )
+    auxiliary_collisions = [
+        name
+        for name, view in placed.items()
+        if bounds_collide(view.bounds, title_bounds)
+        or (auxiliary.schedule_bounds is not None and bounds_collide(view.bounds, auxiliary.schedule_bounds))
+    ]
+    add_check(
+        "view_auxiliary_collisions",
+        "fail" if auxiliary_collisions else "pass",
+        "Projected views do not overlap the title block or schedules."
+        if not auxiliary_collisions
+        else "A projected view overlaps the title block or schedule panel.",
+        ", ".join(auxiliary_collisions) if auxiliary_collisions else None,
+    )
+
+    displayed_ids = {entity.dimension_id for entity in entities if entity.kind == "text" and entity.dimension_id}
+    missing = [dimension["id"] for dimension in dimensions if dimension["id"] not in displayed_ids]
+    add_check(
+        "dimension_coverage",
+        "fail" if missing else "pass",
+        "Requested dimensions missing from the sheet."
+        if missing
+        else "Every reported dimension appears on the sheet.",
+        ", ".join(missing) if missing else None,
+    )
     source_ok = all(
         isinstance(dimension.get("source"), dict)
         and math.isfinite(float(dimension.get("value", float("nan"))))
@@ -1124,68 +1294,112 @@ def _drawing_checks(
     add_check(
         "dimension_sources",
         "pass" if source_ok else "fail",
-        "Every displayed dimension has a numeric value measured from model geometry."
+        "Every reported dimension has a numeric value and geometry provenance."
         if source_ok
-        else "A dimension is missing its geometry source or numeric value.",
+        else "A dimension is missing geometry provenance or a finite measured value.",
     )
-
-    text_bounds = [
-        bounds
-        for entity in entities
-        if (bounds := _entity_text_bounds(entity)) is not None
-    ]
-    text_outside = [
-        bounds
-        for bounds in text_bounds
-        if bounds[0] < MARGIN_MM - 1e-6
-        or bounds[1] < MARGIN_MM - 1e-6
-        or bounds[2] > sheet_width - MARGIN_MM + 1e-6
-        or bounds[3] > sheet_height - MARGIN_MM + 1e-6
-    ]
+    expected_leaders = {dimension["id"] for dimension in dimensions if dimension["kind"] == "hole_diameter"}
+    missing_leaders = sorted(expected_leaders - hole_leader_ids)
     add_check(
-        "text_margins",
-        "fail" if text_outside else "pass",
-        "Drawing text fits inside the sheet frame."
-        if not text_outside
-        else "One or more text labels extend beyond the sheet frame.",
-        str(len(text_outside)) if text_outside else None,
+        "hole_leader_coverage",
+        "fail" if missing_leaders else "pass",
+        "Every displayed hole diameter callout has an arrowed leader."
+        if not missing_leaders
+        else "One or more displayed hole diameter callouts have no arrowed leader.",
+        ", ".join(missing_leaders) if missing_leaders else None,
     )
 
-    # Flag text collisions that can be resolved without interpreting geometry.
-    # Intentional hole callouts inside the top view are excluded from this check.
-    text_items = [
-        entity
-        for entity in entities
-        if entity.kind == "text"
-        and entity.layer in {"DIMENSIONS", "TITLE"}
-    ]
-    overlaps = 0
-    for index, first in enumerate(text_items):
-        first_bounds = _entity_text_bounds(first)
-        for second in text_items[index + 1 :]:
-            if first.layer == "TITLE" and second.layer == "TITLE":
-                continue
-            second_bounds = _entity_text_bounds(second)
-            if (
-                first_bounds[0] < second_bounds[2]
-                and second_bounds[0] < first_bounds[2]
-                and first_bounds[1] < second_bounds[3]
-                and second_bounds[1] < first_bounds[3]
-            ):
-                overlaps += 1
+    collisions = text_text_collisions(entities)
     add_check(
         "dimension_text_collisions",
-        "fail" if overlaps else "pass",
-        "Dimension and title text labels do not overlap."
-        if not overlaps
-        else "Dimension or title text labels overlap.",
-        str(overlaps) if overlaps else None,
+        "fail" if collisions else "pass",
+        "Measured text bounds do not overlap."
+        if not collisions
+        else "Measured text bounds overlap.",
+        str(len(collisions)) if collisions else None,
+    )
+    text_geometry_collisions = text_view_collisions(entities, view_geometry)
+    add_check(
+        "text_view_geometry_collisions",
+        "fail" if text_geometry_collisions else "pass",
+        "Text glyph bounds stay clear of projected view geometry."
+        if not text_geometry_collisions
+        else "One or more text glyph bounds intersect projected view geometry.",
+        ", ".join(f"text[{index}] {value!r}/{name}" for index, name, value in text_geometry_collisions)
+        if text_geometry_collisions
+        else None,
+    )
+    dimension_view_collisions=[]
+    for index,entity in enumerate(entities):
+        if entity.layer != "DIMENSIONS" or entity.kind == "text" or entity.view_name is None:
+            continue
+        for name,view in placed.items():
+            if name == entity.view_name:
+                continue
+            target=Rect(view.bounds.xmin,view.bounds.ymin,view.bounds.xmax,view.bounds.ymax)
+            if primitive_intersects_rect(entity,target):
+                dimension_view_collisions.append((index,name))
+    add_check("dimension_view_collisions","fail" if dimension_view_collisions else "pass",
+              "Dimension strokes intersect a different view." if dimension_view_collisions else "Dimension strokes stay clear of other views.",
+              str(dimension_view_collisions) if dimension_view_collisions else None)
+
+    from .routing import segments_distance
+    leader_strokes=[(i,e) for i,e in enumerate(entities) if e.kind == "line" and e.dimension_id in hole_leader_ids]
+    leader_collisions=[]
+    for offset,(index,first) in enumerate(leader_strokes):
+        for other_index,second in leader_strokes[offset+1:]:
+            if first.dimension_id != second.dimension_id and segments_distance(*first.points,*second.points)<0.1:
+                leader_collisions.append((index,other_index))
+        if any(primitive_intersects_rect(first,text_bounds(e)) for e in entities if e.kind == "text"):
+            leader_collisions.append((index,"text"))
+    add_check("hole_leader_collisions","fail" if leader_collisions else "pass",
+              "Hole leaders cross each other or text." if leader_collisions else "Hole leaders stay clear of other leaders and text.",
+              str(leader_collisions) if leader_collisions else None)
+
+    ruling_collisions=[]
+    for index,entity in enumerate(entities):
+        if entity.kind != "text" or entity.layer not in {"TITLE","SCHEDULE"}:
+            continue
+        rectangle=text_bounds(entity)
+        if rectangle and any(stroke.kind != "text" and stroke.layer == entity.layer and
+                             primitive_intersects_rect(stroke,rectangle) for stroke in entities):
+            ruling_collisions.append(index)
+    add_check("table_rule_collisions","fail" if ruling_collisions else "pass",
+              "Table rules cross text." if ruling_collisions else "Table rules stay clear of glyph bounds.",
+              str(ruling_collisions) if ruling_collisions else None)
+
+    small_text = [
+        index for index, entity in enumerate(entities)
+        if entity.kind == "text" and entity.height < 2.5 - 1e-8
+    ]
+    add_check(
+        "minimum_text_height",
+        "fail" if small_text else "pass",
+        "All drawing text is at least 2.5 mm high."
+        if not small_text
+        else "One or more drawing text entities are below 2.5 mm high.",
+        str(len(small_text)) if small_text else None,
+    )
+    invalid_bom_rows = [
+        str(row.get("item", index + 1))
+        for index, row in enumerate(bom)
+        if isinstance(row.get("quantity"), bool)
+        or not isinstance(row.get("quantity"), int)
+        or row["quantity"] <= 0
+    ]
+    add_check(
+        "bom_quantities",
+        "fail" if invalid_bom_rows else "pass",
+        "BOM quantities are positive counts of exposed assembly child instances."
+        if not invalid_bom_rows
+        else "A BOM quantity is missing or is not a positive assembly child count.",
+        ", ".join(invalid_bom_rows) if invalid_bom_rows else None,
     )
     return checks
 
 
 def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
-    """Project a structural model context onto a first dimensioned sheet."""
+    """Project a structural model context onto a composed drawing sheet."""
     request = _normalize_request(req)
     shape = context_shape(ctx)
     units = context_units(ctx)
@@ -1194,6 +1408,12 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
         raise ValueError("The supplied shape has an empty or invalid bounding box.")
     holes = through_holes(shape, bounds)
     dimensions = _make_dimensions(request.dimensions, bounds, holes, units)
+    cylinder_rows=[]
+    if request.dimensions == "auto":
+        from .features import cylindrical_schedule
+        cylinder_rows, cylinder_dimensions=cylindrical_schedule(shape,bounds,holes,units)
+        dimensions.extend(cylinder_dimensions)
+    bom = bom_from_context(ctx) if request.bom else []
 
     from .views import project_drawing_view
     registered = {view.name:view for view in request.views}
@@ -1219,40 +1439,86 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
     projections = tuple(project_drawing_view(shape, view) for view in request.views)
     page_width, page_height = SHEET_SIZES_MM[request.sheet]
     unit_factor = UNIT_TO_MM[units]
-    scale = _choose_scale(projections, page_width, page_height, unit_factor)
-    placed = _place_views(
-        projections,
-        page_width,
-        page_height,
-        request.style,
-        scale,
-        unit_factor,
-    )
+    scale_label = "1:1"
+    auxiliary: AuxiliaryLayout | None = None
+    plan: PackedViews | None = None
+    for _ in range(12):
+        auxiliary = compose_auxiliary_layout(
+            page_width,
+            page_height,
+            title_block=request.title_block,
+            notes=request.notes,
+            revisions=request.revisions,
+            bom=bom,
+            context=ctx,
+            units=units,
+            sheet=request.sheet,
+            style=request.style,
+            scale_label=scale_label,
+            cylinders=cylinder_rows,
+        )
+        plan = pack_views(
+            projections,
+            page_width,
+            page_height,
+            request.style,
+            unit_factor,
+            dimensions,
+            auxiliary.bottom_keepout_mm,
+        )
+        actual_scale_label = _scale_label(plan.scale)
+        if actual_scale_label == scale_label:
+            break
+        scale_label = actual_scale_label
+    assert auxiliary is not None and plan is not None
+    placed = _place_views(projections, plan)
 
     entities: list[Primitive] = []
     _sheet_frame(entities, page_width, page_height)
-    for view in placed.values():
+    view_geometry: dict[str, list[Primitive]] = {}
+    for name, view in placed.items():
+        first_entity = len(entities)
         _emit_view_geometry(entities, view)
-    _view_label_entities(entities, placed, request)
+        view_geometry[name] = entities[first_entity:]
+    marker_start = len(entities)
     _view_markers(entities, shape, placed, request)
-    _draw_overall_dimensions(entities, placed, dimensions, request.style)
-    _draw_hole_dimensions(entities, placed, dimensions, holes, bounds, request.style)
-    title_bounds = _title_block_entities(
+    marker_geometry = [entity for entity in entities[marker_start:] if entity.kind != "text"]
+    if marker_geometry:
+        view_geometry["_markers"] = marker_geometry
+    _view_label_entities(entities, placed, request, view_geometry, page_width, page_height)
+    for dimension in dimensions:
+        if dimension["kind"] != "overall":
+            continue
+        first=len(entities)
+        related=[dimension,*[d for d in dimensions if d["kind"] != "overall"]]
+        _draw_overall_dimensions(entities, placed, related, request.style)
+        owner="front" if dimension["axis"] in {"x","z"} else "top"
+        entities[first:]=[replace(e,view_name=owner) for e in entities[first:]]
+    first_hole_entity=len(entities)
+    hole_leader_ids = _draw_hole_dimensions(
         entities,
+        placed,
+        dimensions,
+        holes,
+        bounds,
+        request.style,
+        view_geometry,
         page_width,
         page_height,
-        request,
-        ctx,
-        scale,
-        units,
     )
+    entities[first_hole_entity:]=[replace(e,view_name="top") for e in entities[first_hole_entity:]]
+    entities.extend(auxiliary.entities)
     checks = _drawing_checks(
         entities,
         dimensions,
         placed,
         page_width,
         page_height,
-        title_bounds,
+        auxiliary,
+        plan,
+        view_geometry,
+        hole_leader_ids,
+        bom,
     )
 
     output_dir = Path(out)
@@ -1288,6 +1554,7 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
                 view.bounds.xmax,
                 view.bounds.ymax,
             ],
+            "cell_bounds_mm": view.cell.as_list(),
             "visible_edges": view.projection.visible_count,
             "hidden_edges": view.projection.hidden_count,
             "kind": view.projection.metadata.get("kind", "orthographic"),
@@ -1298,13 +1565,21 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
         for name, view in placed.items()
     ]
     all_passed = all(check["status"] in {"pass", "warn"} for check in checks)
-    scale_text = _scale_label(scale)
+    scale_text = _scale_label(plan.scale)
     format_summary = ", ".join(
         (*[format_name for format_name in request.formats if format_name != "png"], "png preview")
     )
+    extras = []
+    if request.notes:
+        extras.append(f"{len(request.notes)} notes")
+    if request.revisions:
+        extras.append(f"{len(request.revisions)} revisions")
+    if request.bom:
+        extras.append(f"{len(bom)} BOM rows from assembly children")
+    extra_summary = f"; {', '.join(extras)}" if extras else ""
     summary = (
         f"{request.sheet} {request.style.upper()} sheet at {scale_text}; "
-        f"{len(placed)} views, {len(dimensions)} geometry-derived dimensions; "
+        f"{len(placed)} views, {len(dimensions)} geometry-derived dimensions{extra_summary}; "
         f"{format_summary}."
     )
     return DrawingResult(
@@ -1318,13 +1593,20 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
             "height_mm": page_height,
             "orientation": "landscape",
             "units": units,
-            "scale": scale,
+            "scale": plan.scale,
             "scale_label": scale_text,
             "margin_mm": MARGIN_MM,
-            "title_block_bounds_mm": list(title_bounds),
+            "title_block_bounds_mm": auxiliary.title_bounds.as_list(),
+            "schedule_bounds_mm": auxiliary.schedule_bounds.as_list() if auxiliary.schedule_bounds else None,
+            "view_area_mm": plan.area.as_list(),
+            "layout_fits": plan.fits,
             "hole_count": len(holes),
+            "bom_item_count": len(bom),
         },
         views=view_results,
         ok=all_passed,
         summary=summary,
+        notes=list(request.notes),
+        revisions=[dict(row) for row in request.revisions],
+        bom=[dict(row) for row in bom],
     )
