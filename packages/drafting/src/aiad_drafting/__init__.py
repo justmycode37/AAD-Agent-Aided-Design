@@ -22,6 +22,8 @@ __all__ = [
     "sheet2d",
     "latest_sheet",
     "ConstraintSketch",
+    "checks",
+    "measurement_evidence",
 ]
 
 
@@ -56,3 +58,15 @@ def section_plane_trace(shape: Any, view: DrawingView):
     """Locate a section plane on its parent projection."""
     from .views import section_plane_trace as trace
     return trace(shape, view)
+
+
+def checks(ctx: Any, *, limits=None):
+    """Validate native 2D geometry and explicit laser limits lazily."""
+    from .validation2d import checks as validate
+    return validate(ctx, limits=limits)
+
+
+def measurement_evidence(ctx: Any):
+    """Return actual cut-geometry measurements with provenance and coverage."""
+    from .validation2d import measurement_evidence as measure
+    return measure(ctx)

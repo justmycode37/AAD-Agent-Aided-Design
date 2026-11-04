@@ -548,7 +548,7 @@ def _context_sheet(ctx: Any) -> tuple[Any | None, str | None, str | None]:
     try:
         # model2d has no kernel imports at module scope. Its native converter
         # imports build123d only when an entity is converted below.
-        from .model2d import Sheet2D
+        from .model2d import Sheet2D, _LATEST_SHEET
 
         if callable(getattr(raw_sheet, "to_dict", None)):
             data = raw_sheet.to_dict()
@@ -560,7 +560,11 @@ def _context_sheet(ctx: Any) -> tuple[Any | None, str | None, str | None]:
         if not isinstance(data, Mapping) or not required_keys.issubset(data):
             missing = sorted(required_keys.difference(data)) if isinstance(data, Mapping) else sorted(required_keys)
             return None, context_units, f"ctx.sheet mapping is missing required to_dict field(s): {', '.join(missing)}."
-        sheet = Sheet2D.from_dict(data)
+        token = _LATEST_SHEET.set(_LATEST_SHEET.get())
+        try:
+            sheet = Sheet2D.from_dict(data)
+        finally:
+            _LATEST_SHEET.reset(token)
         # `from_dict` validates the geometry fields. Round-tripping also
         # enforces the public finite JSON-native contract for metadata,
         # history, constraints, and entity data.
@@ -1056,6 +1060,8 @@ def _evidence(analysis: Mapping[str, Any]) -> dict[str, Any]:
         "geometry_source": "native OCCT edges created from Sheet2D primitives",
         "topology_tolerance": float(analysis["tolerance"]),
     }
+    from .openings2d import measured_openings
+    evidence["openings"], evidence["unsupported_openings"] = measured_openings(evidence)
     # Ensure accidental kernel wrappers or non-finite floats never escape the
     # evidence API. This also documents the JSON-native guarantee at runtime.
     try:
@@ -1261,22 +1267,19 @@ def _laser_checks(analysis: Mapping[str, Any], limits: Any) -> list[dict[str, An
         )
     result.append(opening_check)
 
+    from .openings2d import min_slot_check
+    slot_status, slot_message, slot_actual = (min_slot_check(evidence, min_slot) if min_slot is not None else
+        ("skip", "No caller-provided min_slot limit was supplied.", {}))
     result.append(
         _check(
             "2d.laser.min_slot",
             "warn",
-            "skip",
-            "General slot width is unsupported. Circular diameters and contour-pair clearances do not prove every slot meets min_slot.",
-            expected=f"general slot width >= {min_slot:g} {analysis['units']}" if min_slot is not None else "explicit min_slot limit",
-            actual=_json_text(
-                {
-                    "circular_cutouts": [
-                        {"diameter": hole["diameter"], "source_entities": hole["source_entities"]}
-                        for hole in holes
-                    ],
-                    "boundary_clearances": clearances,
-                }
-            ),
+            slot_status,
+            slot_message,
+            expected=f"interior cutout width >= {min_slot:g} {analysis['units']}" if min_slot is not None else "explicit min_slot limit",
+            actual=_json_text(slot_actual),
+            heuristic=True,
+            assumptions="min_slot means the nominal width of closed interior cutouts. Exact circles, rectangles and obrounds are recognized from measured native edges; other contours remain unsupported. This does not establish outside notch widths, minimum webs or compensated toolpaths.",
         )
     )
     return result
