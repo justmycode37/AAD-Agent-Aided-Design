@@ -273,7 +273,14 @@ class Handlers:
             )
             envelope["checks"] = sort_checks(compact(result.get("checks") or []))
             envelope["checks_summary"] = result.get("checks_summary")
-            project.discard_job(job_dir)
+            if (job_dir / "part.brep").is_file():
+                # A built candidate is evidence for the fix. The head, source and spec stay as they were.
+                project.retain_failed_job(job_dir, job_id, compact(envelope))
+                envelope["job"] = job_id
+                envelope["artifacts"] = {"part.brep": str(job_dir / "part.brep")}
+                envelope["next"] = [f"Inspect the failed candidate with aiad_history action='job' job='{job_id}'."]
+            else:
+                project.discard_job(job_dir)
             return reply(compact(envelope))
         if result.get("scene") is None:
             brep = job_dir / "part.brep"
@@ -427,6 +434,12 @@ class Handlers:
         if action == "job":
             job = self._jobs.get(params.get("job", ""))
             if job is None:
+                # In-memory job state ends with the daemon. Retained candidates stay on disk.
+                retained = None
+                if params.get("project"):
+                    retained = open_project(params["project"], params.get("client")).retained_job(params.get("job", ""))
+                if retained is not None:
+                    return reply(retained)
                 return reply(failure_envelope(params.get("project", ""), "BAD_INPUT", "input", f"Unknown job {params.get('job')!r}."))
             if job.task.done():
                 return job.task.result()
