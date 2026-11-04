@@ -2,15 +2,22 @@
 
 This package is the M0 S1 worker bootstrap. It publishes kernel-free contract
 dataclasses from `aiad.engine.types`, re-exports build123d names lazily from
-`aiad`, and runs each submitted script in a fresh Python subprocess.
+`aiad`, and runs each submitted script in a fresh OS-sandboxed Python subprocess
+through `aiad.engine.sandbox.popen`.
 
 ## Install and run
 
-The engine pins the kernel versions in `pyproject.toml`. From this directory:
+The engine pins the kernel versions in `pyproject.toml`. macOS requires
+`sandbox-exec`; Linux requires bubblewrap (`sudo apt-get install -y bubblewrap`
+on Ubuntu/Debian) and a host that permits its sandbox launch. Windows is not
+implemented. Missing or unsupported boundaries return `SANDBOX_DENIED` with
+phase `sandbox`; there is no opt-out or unsandboxed fallback.
+
+From this directory:
 
 ```bash
-uv sync --python 3.12
-uv run python -m unittest discover -s tests -v
+uv sync --locked --python 3.12
+uv run --locked --python 3.12 python -m unittest discover -s tests -v
 ```
 
 A simple request can build a shape directly or use a `BuildPart` context:
@@ -37,6 +44,12 @@ directory. `BuildResult.context.shape` is `None` in the parent process by
 design; downstream code can load the preserved `part.brep` in its own kernel
 process. Inside optional worker hooks, `ModelContext.shape` is the live shape.
 
+Model source must not do I/O (`CONTRACTS.md` section 3). The launcher supplies a
+sanitized environment, job-local HOME/temp/cache paths, closed descriptors,
+pipes, and the OS filesystem/network policy together. `project_dir` is metadata,
+not a read grant. A staged `asset(...)` API remains required; this package does
+not add one. See [sandbox.md](sandbox.md) for the boundary and its tests.
+
 ## Current limits
 
 - The [geometric hard gate](gate.md) checks native B-rep validity, closed
@@ -50,21 +63,36 @@ process. Inside optional worker hooks, `ModelContext.shape` is the live shape.
   malformed requirements or error-level skips/warnings remain `draft`.
   The parent also withholds `verified` from worker pipe results: model code can
   write that pipe. A separate trusted validator is required before promotion.
-  Private, nonempty job artifacts are required for a reported success; path
-  checks do not independently prove BREP validity. M0 remains unsandboxed as
-  described below until the runner boundary is integrated.
+  Private, nonempty regular job files are required for a reported success;
+  symlink/hardlink artifacts are rejected and accepted paths are canonical.
+  Reusing a job's existing `part.brep` is refused. These checks do not
+  independently prove BREP validity. Worker proof claims and scene status stay
+  draft pending a trusted validator, including binding its evidence to inputs
+  and artifacts.
 - `aiad_quality` and `aiad_render` hooks are optional. Missing hooks produce
   explicit `skip` checks; hook exceptions produce `warn` checks and retain the
   BREP. An unavailable or skipped spec check cannot produce `verified`.
+  Editable optional-package imports receive a directory-only search grant.
+  Native previews run after the model exits in a separate sandboxed process,
+  with at most 10 seconds and the remaining build budget. Preview hangs and
+  native exits become warnings while preserving the BREP and geometry checks.
+  Successful VTK rendering inside the Mac policy remains unproven; a native
+  import probe hung. See the observed limits in `sandbox.md`.
 - Scene and render hook records use the existing `Check` shape with IDs such as
   `scene_generation_unavailable` and `render_not_requested`; they describe
   pipeline availability, not additional geometry checks.
 - `kind="2d"` is not implemented in this bootstrap. `kind="part"` and
   `kind="assembly"` use a single build123d shape.
-- Jobs use one subprocess each and are killable on timeout. This is not a warm
-  worker pool, an OS sandbox, a memory limit, or a revision store. Arbitrary
-  Python in a model can still access inherited environment variables, files,
-  and network resources before the process exits.
+- Jobs use one sandboxed subprocess each, with a bounded timeout and
+  process-group/pipe cleanup, including pipes held after the leader exits.
+  Native launcher diagnostics are retained as sandbox failures; unexplained
+  worker exits stay crashes, without inferring OOM or a kernel cause.
+  A warm worker pool, memory budgets and a revision store remain required.
+- S2's trusted post-build operations still need to adopt this launcher under
+  [issue #21](https://github.com/justmycode37/AIAD-AI-Aided-Design-/issues/21).
+  Linux package/e2e CI must install bubblewrap under
+  [issue #50](https://github.com/justmycode37/AIAD-AI-Aided-Design-/issues/50);
+  public Linux build tests are not skipped when that dependency is absent.
 - Units are carried as request metadata. The model's numeric coordinates are
   not rescaled or inferred by the worker.
 

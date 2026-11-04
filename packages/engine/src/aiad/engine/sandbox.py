@@ -125,6 +125,11 @@ def macos_profile(job_dir: Path, read_paths: Sequence[Path]) -> str:
     # JSON string escaping covers the SBPL string syntax for these paths.
     quoted = lambda path: json.dumps(str(path), ensure_ascii=False)
     reads = " ".join(f"(subpath {quoted(Path(path).resolve())})" for path in read_paths)
+    # FileFinder lists sys.path directories before opening a package. Permit
+    # that directory itself, without granting reads of unrelated siblings.
+    package_parents = {Path(path).resolve().parent for path in read_paths
+                       if (Path(path) / "__init__.py").is_file()}
+    search_dirs = " ".join(f"(literal {quoted(path)})" for path in sorted(package_parents, key=str))
     return "\n".join([
         "(version 1)",
         "(deny default)",
@@ -133,7 +138,7 @@ def macos_profile(job_dir: Path, read_paths: Sequence[Path]) -> str:
         "(allow sysctl-read)",
         "(allow file-read-metadata)",
         "(allow file-read* (literal \"/\") (literal \"/dev/null\") (literal \"/dev/random\") (literal \"/dev/urandom\"))",
-        f"(allow file-read* (subpath {quoted(job)}) {reads})",
+        f"(allow file-read* (subpath {quoted(job)}) {reads} {search_dirs})",
         f"(allow file-write* (subpath {quoted(job)}))",
         # stdin/stdout/stderr are inherited pipes. No network or Mach service
         # access is granted; process-fork is intentionally absent.

@@ -1,0 +1,40 @@
+{
+  "observed_head": "f8047fed85bbf5b3f39feb95955b72d8a6e247e5",
+  "platform": {
+    "macos": "26.6.2",
+    "machine": "arm64",
+    "python": "3.12.10"
+  },
+  "request": {
+    "source": "result = Box(2, 3, 4)",
+    "kind": "part",
+    "units": "mm",
+    "preview": true,
+    "timeout_s": 60.0
+  },
+  "optional_preview_budget_s": 10.0,
+  "observed": {
+    "ok": true,
+    "status": "draft",
+    "volume": 23.999999999999996,
+    "build_ms": 12628.643124946393,
+    "preview_checks": [
+      {
+        "id": "render_timeout",
+        "suite": "hard",
+        "level": "warn",
+        "status": "warn",
+        "message": "The optional preview exceeded its 10 second budget and was killed; the built BREP artifact was retained.",
+        "expected": null,
+        "actual": null,
+        "feature": null,
+        "selector": null,
+        "heuristic": null,
+        "assumptions": null,
+        "fix_hint": null
+      }
+    ],
+    "brep_retained": true
+  },
+  "scope": "One public build, not a throughput or sandbox-overhead benchmark. The preview timed out; its native cause is unknown. Geometry remained available as draft."
+}
