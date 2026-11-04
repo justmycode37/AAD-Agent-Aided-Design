@@ -61,6 +61,10 @@ def environment(job_dir: Path) -> dict[str, str]:
 def runtime_reads(extra: Sequence[Path] = ()) -> tuple[Path, ...]:
     """Read-only interpreter/runtime paths; never add the user's whole home."""
     paths = [Path(sys.prefix), Path(sys.base_prefix), Path(__file__).parents[2]]
+    # uv --with uses an overlay interpreter whose dependencies can live in a
+    # separate environment. Include the active package roots, without granting
+    # arbitrary sys.path entries such as the working directory or user home.
+    paths.extend(Path(p) for p in sys.path if p and Path(p).name in {"site-packages", "dist-packages"})
     paths.extend(Path(p) for p in ("/System", "/usr", "/bin", "/sbin", "/Library/Fonts", "/private/etc"))
     # Editable workspace packages live outside site-packages. Inspect their
     # locations without importing the kernel, renderer or quality evaluator.

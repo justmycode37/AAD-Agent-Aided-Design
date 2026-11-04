@@ -15,7 +15,9 @@ Seatbelt is applied by `/usr/bin/sandbox-exec` with a default-deny profile.
 Network and Mach service access have no allow rules. Process creation is denied;
 exec of the same process retains the OS policy. Reads cover the interpreter,
 installed runtime packages, AIAD package source roots and explicitly granted
-assets. The root directory itself may be read, without granting its children;
+assets. Active `site-packages`/`dist-packages` roots are included for tools such
+as uv that separate an overlay interpreter from its dependencies; arbitrary
+Python search paths are not added. The root directory itself may be read, without granting its children;
 this was needed for the installed Python to start. Metadata reads are permitted.
 Only the canonical job directory is writable. The job has private HOME, temp,
 Matplotlib config and XDG paths. No parent environment secrets are inherited.

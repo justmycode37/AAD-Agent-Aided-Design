@@ -24,6 +24,19 @@ class SandboxPolicyTests(unittest.TestCase):
             with self.assertRaises(sandbox.SandboxUnavailable):
                 sandbox.command([sys.executable, "-c", "print('unsafe')"], Path(temporary))
 
+    def test_runtime_reads_include_overlay_packages_without_arbitrary_search_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            packages = root / "overlay" / "lib" / "python3.12" / "site-packages"
+            arbitrary = root / "unrelated"
+            packages.mkdir(parents=True)
+            arbitrary.mkdir()
+            with patch.object(sandbox.sys, "path", [str(packages), str(arbitrary), ""]):
+                reads = sandbox.runtime_reads()
+            self.assertIn(packages.resolve(), reads)
+            self.assertNotIn(arbitrary.resolve(), reads)
+            self.assertNotIn(root.resolve(), reads)
+
     def test_unimplemented_windows_boundary_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary, patch.object(sandbox.sys, "platform", "win32"):
             with self.assertRaises(sandbox.SandboxUnavailable):
