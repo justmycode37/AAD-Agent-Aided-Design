@@ -13,11 +13,15 @@ from typing import Any, Mapping, Sequence
 
 @dataclass(frozen=True)
 class DrawingView:
-    """A named orthographic or isometric view.
+    """A named orthographic, section, or detail view.
 
     direction points from the model toward the viewer. up selects the vertical
     direction on the sheet. The standard view names are front, top, right, and
     iso/isometric. Custom vectors are accepted for future views.
+
+    A section uses plane and offset to define a cutting plane in model units.
+    A detail uses center and radius in the projected coordinates of parent.
+    scale is a multiplier applied to the projected view geometry.
     """
 
     name: str = "front"
@@ -25,6 +29,18 @@ class DrawingView:
     up: tuple[float, float, float] | None = None
     label: str | None = None
     hidden_lines: bool = True
+    kind: str = "orthographic"
+    plane: str = "XY"
+    offset: float = 0.0
+    center: tuple[float, float] | None = None
+    radius: float | None = None
+    scale: float = 1.0
+    parent: str | None = None
+
+    @property
+    def scale_multiplier(self) -> float:
+        """The detail/section magnification multiplier (alias for scale)."""
+        return self.scale
 
 
 @dataclass(frozen=True)
