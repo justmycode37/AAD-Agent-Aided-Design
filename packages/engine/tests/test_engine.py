@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 import os
 import signal
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from aiad.engine.jobs import run_build
@@ -252,7 +254,7 @@ result = Box(2, 3, 4)
             source = "from pathlib import Path\nimport sys\n" + f"Path('aiad_quality.py').write_text({module!r})\n" + "sys.path.insert(0, str(Path.cwd()))\nresult = Box(2, 2, 2)\n"
             built = run_build(BuildRequest(source=source, project_dir=root, spec={"requirements": [{"id": "fit"}]}))
             self.assertTrue(built.ok, built.summary)
-            self.assertTrue(built.requirements_proven)
+            self.assertFalse(built.requirements_proven)
             self.assertEqual(built.status, "draft")
             self.assertTrue(any(c.id == "hard_gate_incomplete" and c.status == "skip" for c in built.checks))
 
@@ -286,6 +288,129 @@ result = Box(2, 3, 4)
             )
             self.assertTrue(recovered.ok, recovered.summary)
             self.assertEqual(recovered.metrics["bbox"], [2.0, 3.0, 4.0])
+
+    def test_forged_worker_success_without_artifact_is_rejected(self) -> None:
+        fake = {"protocol": 1, "result": {"ok": True, "status": "verified", "requirements_proven": True}}
+        marker = ("AIAD_ENGINE_RESULT:" + json.dumps(fake) + "\n").encode()
+        source = f"import os\nos.write(1, {marker!r})\nos._exit(0)\n"
+        built = run_build(BuildRequest(source=source))
+        self.assertFalse(built.ok)
+        self.assertEqual(built.status, "failed")
+        self.assertEqual(built.failure.code, "WORKER_CRASH")
+
+    def test_worker_claim_cannot_attest_verification_or_export_external_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            external = root / 'external.txt'
+            external.write_text('outside-fixture')
+            counter = 0
+            def send(wire, preparation="Path('part.brep').write_text('not independently validated')", crash=False):
+                nonlocal counter
+                counter += 1
+                job = root / f'job-{counter}'
+                job.mkdir()
+                marker = ("AIAD_ENGINE_RESULT:" + json.dumps({"protocol": 1, "result": wire}) + "\n").encode()
+                source = "import os\nfrom pathlib import Path\n" + preparation + "\n"
+                source += "os._exit(5)\n" if crash else f"os.write(1, {marker!r})\nos._exit(0)\n"
+                return run_build(BuildRequest(source=source, project_dir=root, job_dir=job))
+            wire = {"ok": True, "status": "verified", "requirements_proven": True,
+                    "artifacts": {"outside": str(external)}, "scene": {"status": "verified"}}
+            built = send(wire)
+            self.assertEqual(built.status, 'draft')
+            self.assertFalse(built.requirements_proven)
+            self.assertEqual(built.scene.status, 'draft')
+            self.assertNotIn('outside', built.artifacts)
+            self.assertTrue(any(c.id == 'worker_artifacts_rejected' and c.status == 'warn' for c in built.checks))
+            self.assertTrue(any(c.id == 'worker_verification_unattested' and c.status == 'skip' for c in built.checks))
+            wire['status'] = 'draft'
+            draft_claim = send(wire)
+            self.assertEqual(draft_claim.scene.status, 'draft')
+            self.assertFalse(draft_claim.requirements_proven)
+            wire['ok'] = False
+            inconsistent = send(wire)
+            self.assertFalse(inconsistent.ok)
+            self.assertEqual(inconsistent.status, 'failed')
+            wire['ok'] = True
+            link = f"Path('part.brep').symlink_to({str(external)!r})"
+            self.assertFalse(send(wire, link).ok)
+            crashed = send(wire, link, crash=True)
+            self.assertEqual(crashed.failure.code, 'WORKER_CRASH')
+            self.assertEqual(crashed.artifacts, {})
+            self.assertFalse(send(wire, "Path('part.brep').symlink_to('part.brep')").ok)
+
+    def mocked_result(self, wire, root, *, make_part=True, prepare=None):
+        job = root / 'job'
+        job.mkdir()
+        def communicate(input, timeout):
+            if make_part:
+                (job/'part.brep').write_text('fixture bytes; geometry is not attested')
+            if prepare is not None:
+                prepare(job)
+            return (('AIAD_ENGINE_RESULT:' + json.dumps({'protocol': 1, 'result': wire}) + '\n').encode(), b'')
+        with patch('aiad.engine.jobs.subprocess.Popen') as popen:
+            popen.return_value.returncode = 0
+            popen.return_value.communicate.side_effect = communicate
+            return run_build(BuildRequest(source='fixture', project_dir=root, job_dir=job))
+
+    def test_success_with_failed_error_check_is_not_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            built = self.mocked_result({'ok': True, 'status': 'draft', 'stdout': 'model log',
+                    'checks': [{'id': 'size', 'suite': 'spec', 'level': 'error', 'status': 'fail', 'message': 'size differs'}]}, Path(temporary))
+            self.assertFalse(built.ok)
+            self.assertEqual(built.status, 'failed')
+            self.assertEqual(built.failure.code, 'NOT_VERIFIED')
+            self.assertEqual(built.stdout, 'model log')
+            self.assertEqual(built.checks[0].id, 'size')
+            self.assertTrue(Path(built.artifacts['part.brep']).exists())
+
+    def test_job_artifact_cannot_be_reused_for_another_build(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.mocked_result({'ok': True, 'status': 'draft'}, root)
+            existing = (root/'job'/'part.brep').read_bytes()
+            with patch('aiad.engine.jobs.subprocess.Popen') as popen:
+                reused = run_build(BuildRequest(source='another source', project_dir=root, job_dir=root/'job'))
+                popen.assert_not_called()
+            self.assertFalse(reused.ok)
+            self.assertEqual(reused.failure.code, 'BAD_INPUT')
+            self.assertEqual((root/'job'/'part.brep').read_bytes(), existing)
+
+    def test_malformed_nested_checks_return_a_failure(self) -> None:
+        cases = [[None], ['bad'], [{'id': 'check', 'suite': 'unknown'}],
+                 [{'id': 'check', 'level': 'fatal'}], [{'id': 'check', 'status': 'unknown'}]]
+        for checks in cases:
+            with self.subTest(checks=checks), tempfile.TemporaryDirectory() as temporary:
+                built = self.mocked_result({'ok': True, 'status': 'draft', 'checks': checks}, Path(temporary))
+                self.assertFalse(built.ok)
+                self.assertEqual(built.failure.code, 'WORKER_CRASH')
+
+    def test_artifact_rejection_preserves_decoded_diagnostics(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            built = self.mocked_result({'ok': True, 'status': 'draft', 'stdout': 'before failure', 'stderr': 'diagnostic detail',
+                    'metrics': {'faces': 6}, 'checks': [{'id': 'note', 'level': 'warn', 'status': 'warn', 'message': 'retained'}]}, Path(temporary), make_part=False)
+            self.assertFalse(built.ok)
+            self.assertEqual((built.stdout, built.stderr), ('before failure', 'diagnostic detail'))
+            self.assertEqual(built.metrics['faces'], 6)
+            self.assertTrue(any(c.id == 'note' for c in built.checks))
+
+    def test_artifact_paths_are_returned_canonical(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            def prepare(job):
+                (job/'nested').mkdir()
+                (job/'proof.txt').write_text('proof')
+            built = self.mocked_result({'ok': True, 'status': 'draft', 'artifacts': {'proof': 'nested/../proof.txt'}}, root, prepare=prepare)
+            self.assertEqual(Path(built.artifacts['proof']), (root/'job'/'proof.txt').resolve())
+
+    def test_aggregate_counts_and_scene_summary_survive_parent_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            wire = {'ok': True, 'status': 'verified', 'checks_summary': {'pass': 7, 'warn': 1},
+                    'checks': [{'id': 'notice', 'level': 'warn', 'status': 'warn'}],
+                    'scene': {'status': 'verified', 'checks_summary': {'pass': 99}}}
+            built = self.mocked_result(wire, Path(temporary))
+            self.assertEqual(built.checks_summary, {'pass': 7, 'fail': 0, 'warn': 1, 'skip': 1})
+            self.assertEqual(built.scene.checks_summary, built.checks_summary)
+            self.assertEqual(built.scene.status, 'draft')
 
     def test_invalid_json_values_are_bad_input_not_worker_crashes(self) -> None:
         result = run_build(BuildRequest(source="result = Box(1, 1, 1)", params={"width": float("nan")}))

@@ -6,6 +6,7 @@ import json
 import math
 import os
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -53,6 +54,12 @@ def run_build(req: BuildRequest) -> BuildResult:
             job_dir.mkdir(parents=True, exist_ok=True)
         if not job_dir.is_dir():
             raise ValueError("job_dir is not a directory")
+        try:
+            (job_dir / "part.brep").lstat()
+        except FileNotFoundError:
+            pass
+        else:
+            raise ValueError("job_dir already contains part.brep; use a fresh job directory for each build")
 
         payload = {
             "source": request.source,
@@ -140,8 +147,9 @@ def run_build(req: BuildRequest) -> BuildResult:
         )
 
     try:
-        return _result_from_wire(response, job_dir=job_dir, elapsed_ms=elapsed_ms, process_stderr=_decode(stderr_bytes))
-    except (KeyError, TypeError, ValueError) as exc:
+        result = _result_from_wire(response, job_dir=job_dir, elapsed_ms=elapsed_ms, process_stderr=_decode(stderr_bytes))
+        return _constrain_worker_evidence(result, job_dir, project_dir)
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
         return _failed(
             Failure(
                 code="WORKER_CRASH",
@@ -162,6 +170,92 @@ def _coerce_request(req: BuildRequest | Mapping[str, Any]) -> BuildRequest:
     if isinstance(req, Mapping):
         return BuildRequest(**dict(req))
     raise TypeError("req must be a BuildRequest or a mapping of its fields")
+
+
+def _canonical_artifact(path: Path, job_dir: Path) -> Path | None:
+    try:
+        info = path.lstat()
+        resolved = path.resolve(strict=True)
+        if (resolved.is_relative_to(job_dir) and stat.S_ISREG(info.st_mode)
+                and info.st_nlink == 1 and info.st_size > 0):
+            return resolved
+    except (OSError, RuntimeError, ValueError):
+        pass
+    return None
+
+
+def _private_artifact(path: Path, job_dir: Path) -> bool:
+    return _canonical_artifact(path, job_dir) is not None
+
+
+def _detail_counts(checks: list[Check]) -> dict[str, int]:
+    return {status: sum(c.status == status for c in checks)
+            for status in ("pass", "fail", "warn", "skip")}
+
+
+def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: Path) -> BuildResult:
+    # A model's pipe result is not a trusted validation receipt.
+    original_counts = _detail_counts(result.checks)
+    totals = {status: max(result.checks_summary.get(status, 0), count)
+              for status, count in original_counts.items()}
+    part = _canonical_artifact(job_dir / "part.brep", job_dir)
+    if result.ok and part is None:
+        result.ok, result.status = False, "failed"
+        result.failure = Failure(
+            code="WORKER_CRASH", phase="crash", feature="unknown", file="part.brep",
+            message="The worker reported success without a private, non-empty part.brep artifact; the build was not accepted.",
+        )
+        result.summary = result.failure.message
+        result.checks.append(Check(id="worker_artifact_required", suite="hard", level="error", status="fail",
+                                   message="The required private BREP artifact was not available."))
+    failed_check = next((c for c in result.checks if c.level == "error" and c.status == "fail"), None)
+    if result.ok and failed_check is not None:
+        result.ok, result.status = False, "failed"
+        result.failure = Failure(code="NOT_VERIFIED", phase="validate", feature=failed_check.feature or "unknown",
+                                message=f"The worker reported a failed error-level check ({failed_check.id}); success was not accepted.")
+        result.summary = result.failure.message
+    artifacts: dict[str, str] = {}
+    rejected = 0
+    for name, value in result.artifacts.items():
+        if not isinstance(value, str):
+            rejected += 1
+            continue
+        path = Path(value)
+        if not path.is_absolute():
+            path = job_dir / path
+        canonical = _canonical_artifact(path, job_dir)
+        if canonical is not None:
+            artifacts[name] = str(canonical)
+        else:
+            rejected += 1
+    if part is not None:
+        artifacts["part.brep"] = str(part)
+    result.artifacts = artifacts
+    result.requirements_proven = False
+    if result.context is not None:
+        result.context.job_dir = job_dir
+        result.context.project_dir = project_dir
+    if rejected:
+        result.checks.append(Check(
+            id="worker_artifacts_rejected", suite="hard", level="warn", status="warn",
+            message="Worker artifact references did not pass the private job-file checks and were omitted.",
+            actual=str(rejected),
+        ))
+    if result.status == "verified":
+        result.status = "draft"
+        result.summary = "A BREP artifact was returned; independent verification of the worker evidence is pending."
+        result.checks.append(Check(
+            id="worker_verification_unattested", suite="hard", level="error", status="skip",
+            message="The model process cannot attest its own verified status. A separate trusted validator is required.",
+        ))
+    changed_counts = _detail_counts(result.checks)
+    result.checks_summary = {status: totals[status] + changed_counts[status] - original_counts[status]
+                             for status in totals}
+    if result.scene is not None:
+        result.scene.status = "draft"
+        result.scene.compare = None
+        result.scene.checks_summary = dict(result.checks_summary)
+    return result
 
 
 def _validate_request(req: BuildRequest) -> None:
@@ -241,7 +335,20 @@ def _find_response(stdout: bytes) -> dict[str, Any] | None:
 def _result_from_wire(
     wire: dict[str, Any], *, job_dir: Path, elapsed_ms: float, process_stderr: str
 ) -> BuildResult:
-    checks = [_check_from_wire(item) for item in wire.get("checks", [])]
+    if not isinstance(wire.get("ok"), bool) or wire.get("status") not in ("failed", "draft", "verified"):
+        raise ValueError("worker result has invalid success/status fields")
+    if wire["ok"] != (wire["status"] != "failed"):
+        raise ValueError("worker result has inconsistent success/status fields")
+    checks = [_check_from_wire(item) for item in _object_list(wire.get("checks", []), "checks")]
+    summary_data = wire.get("checks_summary", {})
+    if not isinstance(summary_data, dict):
+        raise ValueError("checks_summary must be an object")
+    summary = {}
+    for status in ("pass", "fail", "warn", "skip"):
+        count = summary_data.get(status, 0)
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+            raise ValueError("checks_summary counts must be non-negative integers")
+        summary[status] = count
     context_data = wire.get("context")
     context = _context_from_wire(context_data) if isinstance(context_data, dict) else None
     scene_data = wire.get("scene")
@@ -258,7 +365,7 @@ def _result_from_wire(
         context=context,
         metrics=dict(wire.get("metrics", {})),
         checks=checks,
-        checks_summary=dict(wire.get("checks_summary", {})),
+        checks_summary=summary,
         failure=failure,
         artifacts=dict(wire.get("artifacts", {})),
         scene=scene,
@@ -270,7 +377,26 @@ def _result_from_wire(
     )
 
 
+def _object_list(value: Any, field: str) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
+        raise ValueError(f"{field} must be a list of objects")
+    return value
+
+
 def _check_from_wire(item: dict[str, Any]) -> Check:
+    if not isinstance(item, dict):
+        raise ValueError("check must be an object")
+    if item.get("suite", "hard") not in ("hard", "spec", "process", "interference", "2d"):
+        raise ValueError("check has an unsupported suite")
+    if item.get("level", "warn") not in ("error", "warn") or item.get("status", "skip") not in ("pass", "fail", "warn", "skip"):
+        raise ValueError("check has an unsupported level or status")
+    if not isinstance(item.get("id"), str) or not item["id"]:
+        raise ValueError("check requires a nonempty string ID")
+    for field in ("message", "expected", "actual", "feature", "selector", "assumptions", "fix_hint"):
+        if item.get(field) is not None and not isinstance(item[field], str):
+            raise ValueError(f"check {field} must be text or null")
+    if item.get("heuristic") is not None and not isinstance(item["heuristic"], bool):
+        raise ValueError("check heuristic must be boolean or null")
     return Check(
         id=item.get("id", ""),
         suite=item.get("suite", "hard"),
@@ -296,7 +422,7 @@ def _context_from_wire(item: dict[str, Any]) -> ModelContext:
         # The parent intentionally does not deserialize a kernel shape.
         shape=None,
         sheet=None,
-        features=[_feature_from_wire(feature) for feature in item.get("features", [])],
+        features=[_feature_from_wire(feature) for feature in _object_list(item.get("features", []), "features")],
         params=dict(item.get("params", {})),
         metrics=dict(item.get("metrics", {})),
         spec=dict(item.get("spec", {})),
@@ -309,8 +435,8 @@ def _context_from_wire(item: dict[str, Any]) -> ModelContext:
 def _feature_from_wire(item: dict[str, Any]) -> FeatureInfo:
     return FeatureInfo(
         name=item.get("name", "main"),
-        faces=[_entity_from_wire(entity) for entity in item.get("faces", [])],
-        edges=[_entity_from_wire(entity) for entity in item.get("edges", [])],
+        faces=[_entity_from_wire(entity) for entity in _object_list(item.get("faces", []), "feature faces")],
+        edges=[_entity_from_wire(entity) for entity in _object_list(item.get("edges", []), "feature edges")],
         line_start=item.get("line_start"),
         line_end=item.get("line_end"),
         deps=list(item.get("deps", [])),
@@ -337,7 +463,7 @@ def _failure_from_wire(item: dict[str, Any]) -> Failure:
         file=item.get("file"),
         line=item.get("line"),
         selector=item.get("selector"),
-        candidates=[Candidate(**candidate) for candidate in item.get("candidates", [])],
+        candidates=[Candidate(**candidate) for candidate in _object_list(item.get("candidates", []), "failure candidates")],
         probes=list(item.get("probes", [])),
         repair=list(item.get("repair", [])),
         last_good_rev=item.get("last_good_rev"),
@@ -367,8 +493,8 @@ def _failed(
 
 
 def _preserved_artifacts(job_dir: Path) -> dict[str, str]:
-    brep_path = job_dir / "part.brep"
-    return {"part.brep": str(brep_path)} if brep_path.is_file() else {}
+    brep_path = _canonical_artifact(job_dir / "part.brep", job_dir)
+    return {"part.brep": str(brep_path)} if brep_path is not None else {}
 
 
 def _decode(value: bytes | None) -> str:
