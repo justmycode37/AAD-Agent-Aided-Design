@@ -1,0 +1,27 @@
+{
+  "observed_utc": "2026-11-04T11:42:30.755388+00:00",
+  "os": "26.6.2",
+  "arch": "arm64",
+  "python": "3.12.10",
+  "source": "from build123d import Box; s=Box(2,3,4); print(s.is_valid,round(s.volume,6))",
+  "runs": {
+    "plain": {
+      "samples_ms": [
+        3317.450499976985,
+        2965.2512080501765,
+        2921.8364999396726
+      ],
+      "median_ms": 2965.2512080501765
+    },
+    "sandbox": {
+      "samples_ms": [
+        2918.7780000502244,
+        2934.612166020088,
+        2892.8443749900907
+      ],
+      "median_ms": 2918.7780000502244
+    }
+  },
+  "median_difference_ms": -46.47320799995214,
+  "note": "Three sequential samples per mode on one machine; includes interpreter/kernel import. Not a bound or a warm-pool performance result."
+}
