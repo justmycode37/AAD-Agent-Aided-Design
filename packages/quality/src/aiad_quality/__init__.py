@@ -10,5 +10,5 @@ def process_checks(ctx):
     return evaluate(ctx)
 
 def library(action: str, **kw):
-    from .library import library as lookup
+    from .catalog import library as lookup
     return lookup(action, **kw)

@@ -109,15 +109,19 @@ geometry = [
     { name = "build123d" },
     { name = "cadquery-ocp-novtk" },
 ]
+parts = [
+    { name = "bd-warehouse" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "aiad-engine", editable = "packages/engine" },
+    { name = "bd-warehouse", marker = "extra == 'parts'", specifier = "==0.4.0" },
     { name = "build123d", marker = "extra == 'geometry'", specifier = "==0.13.0" },
     { name = "cadquery-ocp-novtk", marker = "extra == 'geometry'", specifier = "==8.0.1.1.0" },
     { name = "pyyaml", specifier = ">=6.0.3,<7" },
 ]
-provides-extras = ["geometry"]
+provides-extras = ["geometry", "parts"]
 
 [[package]]
 name = "aiad-render"
@@ -209,6 +213,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/11/34/913df28847b497acadb5c6fb07c459b4cc5a13fd6997ed4d5efbaa4bacb2/bd_materials-0.2.5.tar.gz", hash = "sha256:da08680efe34d582b72dde78d7f375705bf0f1258829bab83118ac0b24d88a11", size = 94645, upload-time = "2026-10-23T14:07:44.555Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2a/61/4f22974be46a3d16b11422db01422eddd020e52ee7ab42902add3f8c9c0a/bd_materials-0.2.5-py3-none-any.whl", hash = "sha256:a08fa367c460ed7bfedaf8bdf57c91d93ef87dd5e3b66dc5e4a6771668d168e0", size = 79126, upload-time = "2026-10-23T14:07:43.319Z" },
+]
+
+[[package]]
+name = "bd-warehouse"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "bd-materials" },
+    { name = "build123d" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/02/7b/1a860283b544e39763d9b6357b39785ed1db9055756b3a6cec0bb67f084a/bd_warehouse-0.4.0.tar.gz", hash = "sha256:3c98f83b0b5c67fade67411b9775ae98a7fcffc714e231e825886f0c86778191", size = 22358664, upload-time = "2026-10-07T17:50:09.441Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7d/4b/2eadc5c20456b0ddff63c1b14444a7f2852ceb7956b578b521162a4e8149/bd_warehouse-0.4.0-py3-none-any.whl", hash = "sha256:2bb830513dc53a5095904d645a92466e629a50bd5493783544bdf3a7d5efc339", size = 179019, upload-time = "2026-10-07T17:50:07.634Z" },
 ]
 
 [[package]]
