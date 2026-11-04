@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-vtk = ["vtk==9.7.2"]
+vtk = ["vtk==9.7.1"]
 
 [build-system]
 requires = ["hatchling>=1.27"]
