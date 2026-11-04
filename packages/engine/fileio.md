@@ -60,7 +60,8 @@ serialize unrelated code that changes OCCT's process-global settings.
   context's coordinate numbers; receivers must be told whether those numbers
   represent millimetres or inches.
 - 3MF: coordinates retain the context's numbers and the model declares the
-  matching `millimeter` or `inch` unit.
+  matching `millimeter` or `inch` unit. Root assembly placement is baked into
+  separate part resources along with their local placements.
 - Binary GLB: the native writer is given the context unit and emits glTF
   coordinates in metres, with the native Z-up to glTF Y-up orientation change.
   The copied root location is adjusted so this rotation also applies to an
@@ -96,7 +97,8 @@ caller's responsibility.
 
 - STEP: checks that the file header declares the requested schema, OCCT can
   read it, the returned B-rep is valid and has a solid, and its finite positive
-  physical volume differs from the source by at most the configured relative
+  physical volume, summed over all native solids including nested assemblies,
+  differs from the source by at most the configured relative
   tolerance. This compares total volume, not every face or feature.
 - BREP: re-imports with OCCT and checks that the resulting B-rep is non-null
   and valid. It does not compare every entity with the source.

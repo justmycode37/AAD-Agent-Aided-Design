@@ -345,7 +345,13 @@ def _write_export(shape: Any, fmt: str, path: Path, units: str, options: dict[st
         mesher = bd.Mesher(unit=unit)
         if isinstance(shape, bd.Compound):
             if shape.children:
-                parts = list(shape.children)
+                parts = []
+                for child in shape.children:
+                    part = copy.deepcopy(child)
+                    # Tree children hold local placements. Bake the root
+                    # placement into each independently meshed resource.
+                    part.location = shape.location * child.location
+                    parts.append(part)
             elif shape.label or shape.color is not None:
                 parts = [shape]
             else:
@@ -493,8 +499,10 @@ def _validate_export(shape: Any, fmt: str, path: Path, units: str, options: dict
             raise ValueError(f"STEP header does not declare {options['schema']}")
         restored = _read_step_mm(path)
         _require_shape(restored, require_solid=True)
-        expected_mm3 = float(shape.volume) * _MM_PER_UNIT[units] ** 3
-        actual_mm3 = float(restored.volume)
+        # Compound.volume in the pinned wrapper omits deeper assembly levels.
+        # Enumerate native solids consistently on both sides of the roundtrip.
+        expected_mm3 = math.fsum(float(solid.volume) for solid in shape.solids()) * _MM_PER_UNIT[units] ** 3
+        actual_mm3 = math.fsum(float(solid.volume) for solid in restored.solids())
         if not math.isfinite(expected_mm3) or expected_mm3 <= 0 or not math.isfinite(actual_mm3) or actual_mm3 <= 0:
             raise ValueError("STEP volume comparison requires finite positive solid volumes")
         drift = abs(actual_mm3 - expected_mm3) / expected_mm3

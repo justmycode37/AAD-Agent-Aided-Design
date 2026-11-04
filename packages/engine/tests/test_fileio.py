@@ -129,6 +129,34 @@ class FileIOTests(unittest.TestCase):
         self.assertEqual(len(imported.solids()), 2)
         self.assertAlmostEqual(imported.volume, 25.0, places=7)
 
+    def test_step_nested_assemblies_use_all_native_solid_volumes(self) -> None:
+        nested = bd.Compound(children=[bd.Compound(children=[bd.Box(2, 3, 4)])])
+        self.assertEqual(len(nested.solids()), 1)
+        for units, multiplier in (("mm", 1), ("in", 25.4)):
+            for schema in ("AP214", "AP242"):
+                with self.subTest(units=units, schema=schema):
+                    path = export(self.context(units, nested), "step", self.job / f"nested-{units}-{schema}.step", schema=schema)
+                    restored = bd.import_step(path)
+                    self.assertEqual(len(restored.solids()), 1)
+                    volume = math.fsum(solid.volume for solid in restored.solids())
+                    self.assertAlmostEqual(volume / multiplier**3, 24, places=7)
+
+    def test_3mf_retains_root_and_child_placements_as_separate_resources(self) -> None:
+        parts = [bd.Box(2, 3, 4), bd.Box(1, 2, 1).moved(bd.Location((6, 0, 1)))]
+        root = bd.Compound(children=parts).moved(bd.Location((10, -5, 2.5), (0, 0, 90)))
+        before = root.location
+        for units in ("mm", "in"):
+            with self.subTest(units=units):
+                path = export(self.context(units, root), "3mf", self.job / f"located-{units}.3mf")
+                reader = bd.Mesher()
+                restored = bd.Compound(reader.read(path))
+                self.assertEqual(len(reader.meshes), 2)
+                for actual, expected in zip(restored.bounding_box().min, root.bounding_box().min):
+                    self.assertAlmostEqual(actual, expected, places=5)
+                for actual, expected in zip(restored.bounding_box().max, root.bounding_box().max):
+                    self.assertAlmostEqual(actual, expected, places=5)
+                self.assertEqual(root.location, before)
+
     def test_converted_assembly_reexports_at_the_same_physical_size(self) -> None:
         assembly = bd.Compound(children=[self.shape, bd.Box(1, 1, 1).moved(bd.Location((8, 0, 0)))])
         original = export(self.context(shape=assembly), "step", self.job / "assembly.step", schema="AP242")
