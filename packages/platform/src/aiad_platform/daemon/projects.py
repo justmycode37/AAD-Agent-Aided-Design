@@ -81,9 +81,21 @@ class Project:
     def rev_dir(self, rev: int) -> Path:
         return self.revs_dir / f"{rev:06d}"
 
+    def revisions(self) -> list[int]:
+        return sorted(int(p.name) for p in self.revs_dir.iterdir() if p.name.isdigit())
+
     def next_rev(self) -> int:
-        existing = [int(p.name) for p in self.revs_dir.iterdir() if p.name.isdigit()]
-        return max(existing, default=0) + 1
+        return max(self.revisions(), default=0) + 1
+
+    def checkout(self, rev: int) -> None:
+        """Move the head to an existing revision. Later revisions stay in history."""
+        source = self.rev_dir(rev)
+        meta = self.meta()
+        meta["head_rev"] = rev
+        self.write_meta(meta)
+        write_atomic(self.path / "model.py", (source / "model.py").read_text())
+        if (source / "spec.yaml").exists():
+            write_atomic(self.path / "spec.yaml", (source / "spec.yaml").read_text())
 
     def new_job_dir(self) -> tuple[str, Path]:
         job = uuid.uuid4().hex[:12]

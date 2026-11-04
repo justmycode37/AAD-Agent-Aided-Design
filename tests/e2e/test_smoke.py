@@ -169,3 +169,54 @@ def test_host_without_apps_gets_a_window_that_serves_the_scene(mcp_process: Any)
     with pytest.raises(urllib.error.HTTPError) as denied:
         urllib.request.urlopen(url.split("?")[0], timeout=10)
     assert denied.value.code == 401
+
+
+@pytest.mark.usefixtures("engine")
+def test_edit_export_and_history(mcp_process: Any) -> None:
+    initialize(mcp_process)
+    call(mcp_process, "aiad_new", name="edits2")
+    call(mcp_process, "aiad_build", project="edits2", source=MODEL, wait_s=WAIT_S)
+
+    patch = "@@ -4 +4 @@\n-    Box(60, 40, 6)\n+    Box(80, 40, 6)\n"
+    patched = call(mcp_process, "aiad_build", project="edits2", base_rev=1, patch=patch, wait_s=WAIT_S)
+    assert patched["structuredContent"]["rev"] == 2, patched
+    assert patched["structuredContent"]["metrics"]["bbox"][0] == pytest.approx(80, abs=1e-3)
+
+    stale = call(mcp_process, "aiad_build", project="edits2", patch="@@ -3 +3 @@\n-nope\n+x\n", wait_s=WAIT_S)
+    assert stale["structuredContent"]["failure"]["code"] == "BAD_INPUT"
+    assert stale["structuredContent"]["head_rev"] == 2
+
+    refused = call(mcp_process, "aiad_export", project="edits2", formats=["step"])
+    assert refused["structuredContent"]["failure"]["code"] == "NOT_VERIFIED"
+
+    exported = call(mcp_process, "aiad_export", project="edits2", formats=["step", "stl", "glb", "3mf"], allow_unverified=True)
+    files = exported["structuredContent"]["artifacts"]
+    assert exported["structuredContent"]["ok"], exported
+    assert set(files) == {"step", "stl", "glb", "3mf"}
+    assert all("UNVERIFIED" in path for path in files.values())
+    assert open(files["glb"], "rb").read(4) == b"glTF"
+    assert b"ISO-10303" in open(files["step"], "rb").read(32)
+
+    diff = call(mcp_process, "aiad_history", project="edits2", action="diff", rev=2)["structuredContent"]
+    assert "Box(80, 40, 6)" in diff["diff"]["source"]
+    assert diff["diff"]["metrics"]["bbox"]["to"][0] == pytest.approx(80, abs=1e-3)
+
+    checkout = call(mcp_process, "aiad_history", project="edits2", action="checkout", rev=1)["structuredContent"]
+    assert checkout["head_rev"] == 1
+    listing = call(mcp_process, "aiad_history", project="edits2")["structuredContent"]
+    assert listing["head_rev"] == 1 and "2 revision" in listing["summary"]
+
+    topology = call(mcp_process, "aiad_inspect", project="edits2", what="topology")["structuredContent"]
+    assert topology["topology"]["faces"] == 7 and topology["topology"]["solids"] == 1
+    checks = call(mcp_process, "aiad_check", project="edits2", suites=["hard"])["structuredContent"]
+    assert checks["checks_summary"]["fail"] == 0
+
+
+@pytest.mark.usefixtures("engine")
+def test_unbuilt_sector_tools_say_so(mcp_process: Any) -> None:
+    initialize(mcp_process)
+    call(mcp_process, "aiad_new", name="honest")
+    call(mcp_process, "aiad_build", project="honest", source=MODEL, wait_s=WAIT_S)
+    measured = call(mcp_process, "aiad_measure", project="honest", kind="volume")["structuredContent"]
+    if not measured["ok"]:
+        assert "Not implemented" in measured["summary"]
