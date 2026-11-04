@@ -4,6 +4,12 @@ Editable 2D geometry is available through `from aiad_drafting import sheet2d`.
 See [native primitives and operations](docs/model2d.md) and
 [named SciPy constraints](docs/constraints.md). The 2D data API imports without
 loading the CAD kernel; native operations load build123d on demand.
+Native XY sheets use the same drawing entry point; see
+[planar drawings](docs/planar-drawings.md).
+`parse_dxf` and `parse_svg` import editable source records; see
+[import coverage](docs/import2d.md). `export_2d` writes exact raw SVG/DXF and
+`make_scene` writes a deterministic draft `svg-1` package; see
+[native exports and scenes](docs/io2d.md).
 
 S4 creates composed drawing sheets from a build123d shape or an assembly
 context. It writes SVG, R2013 DXF, vector PDF, and a PNG preview. The public
