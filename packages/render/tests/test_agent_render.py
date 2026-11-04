@@ -342,6 +342,9 @@ def test_linux_without_display_uses_osmesa_when_installed(monkeypatch):
     monkeypatch.setattr(vtk_backend.sys, "platform", "linux")
     for name in ("DISPLAY", "WAYLAND_DISPLAY", "VTK_DEFAULT_OPENGL_WINDOW"):
         monkeypatch.delenv(name, raising=False)
+    # Track this key before the production code writes it, so the fake library
+    # selection cannot leak into later real renders on runners without OSMesa.
+    monkeypatch.setenv("VTK_DEFAULT_OPENGL_WINDOW", "")
     monkeypatch.setattr(vtk_backend.ctypes.util, "find_library", lambda name: "libOSMesa.so.8")
     vtk_backend.prepare_headless_gl()
     assert os.environ["VTK_DEFAULT_OPENGL_WINDOW"] == "vtkOSOpenGLRenderWindow"
