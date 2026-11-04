@@ -235,3 +235,29 @@ def test_detail_with_no_selected_curves_fails_clearly():
                 radius=2.0,
             ),
         )
+
+
+def test_public_sheet_accepts_section_detail_mapping_and_preserves_layers(tmp_path):
+    from aiad_drafting import make_drawing
+    from types import SimpleNamespace
+    plate, _ = _drilled_plate()
+    result = make_drawing(SimpleNamespace(shape=plate, units="mm"), {
+        "sheet": "A3", "dimensions": "none",
+        "views": [{"name":"section a-a", "kind":"section", "plane":"XY"},
+                  {"name":"detail b", "kind":"detail", "parent":"top", "center":(-30,-10), "radius":15, "scale":2.5}],
+    }, tmp_path)
+    assert result.ok, result.checks
+    assert [v["kind"] for v in result.views] == ["section", "detail"]
+    assert result.views[1]["scale_multiplier"] == 2.5
+    doc = readfile(result.artifacts["dxf"])
+    assert not doc.audit().errors
+    assert list(doc.modelspace().query('LINE[layer=="HATCH"]'))
+
+
+def test_mapping_section_outside_model_is_not_silently_orthographic(tmp_path):
+    from aiad_drafting import make_drawing
+    from types import SimpleNamespace
+    plate, _ = _drilled_plate()
+    with pytest.raises(ValueError, match="does not intersect"):
+        make_drawing(SimpleNamespace(shape=plate, units="mm"), {
+            "dimensions":"none", "views":[{"name":"outside", "kind":"section", "plane":"XY", "offset":8}]}, tmp_path)

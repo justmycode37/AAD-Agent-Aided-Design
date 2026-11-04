@@ -282,6 +282,8 @@ def write_dxf(path: Path, width_mm: float, height_mm: float, entities: list[Prim
         "BORDER": 7,
         "TITLE": 7,
     }
+    for entity in entities:
+        layer_colors.setdefault(entity.layer, 7)
     for layer_name, color in layer_colors.items():
         if layer_name not in document.layers:
             document.layers.new(
@@ -480,7 +482,16 @@ def write_png(path: Path, width_mm: float, height_mm: float, entities: list[Prim
                 round((cx + radius) * raster_scale),
                 height_px - round((cy - radius) * raster_scale),
             )
-            draw.ellipse(box, outline="#111111", width=line_width)
+            if entity.dash:
+                steps = max(32, int(2 * math.pi * radius / 0.3))
+                for index in range(steps):
+                    distance = 2 * math.pi * radius * index / steps
+                    if distance % 2.3 < 1.4:
+                        a = (cx+radius*math.cos(2*math.pi*index/steps), cy+radius*math.sin(2*math.pi*index/steps))
+                        b = (cx+radius*math.cos(2*math.pi*(index+1)/steps), cy+radius*math.sin(2*math.pi*(index+1)/steps))
+                        draw_segment(a,b,"#111111",line_width,False)
+            else:
+                draw.ellipse(box, outline="#111111", width=line_width)
         elif entity.kind == "arc":
             cx, cy = entity.center
             radius = entity.radius
