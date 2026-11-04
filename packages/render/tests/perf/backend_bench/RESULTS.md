@@ -22,7 +22,7 @@ and timing boundaries, and [raw measurements](results/measurements.json) for has
 ![Two fresh-process measurements per backend](results/timings.png)
 
 *OCCT, NumPy and Pillow are already part of the CAD/render environment. This does not mean
-they take no disk space. The installed OCCT binding files are 221.842 MiB, NumPy 19.645 MiB,
+they take no disk space. The installed OCCT binding files are 221.843 MiB, NumPy 19.645 MiB,
 and Pillow 11.413 MiB in this environment. The CPU rasterizer adds only the prototype source.
 
 **ModernGL 5.13.0 plus glcontext 3.1.0: 557,513 bytes. Both packages report MIT licenses in
