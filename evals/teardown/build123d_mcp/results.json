@@ -1,0 +1,3332 @@
+{
+  "complete": true,
+  "environment": {
+    "machine": "arm64",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python": "3.12.10",
+    "python_executable": "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12",
+    "resolved_distributions": {
+      "augura": "0.1.8",
+      "bd_warehouse": "0.2.0",
+      "build123d": "0.11.0",
+      "build123d-mcp": "0.3.91.dev0",
+      "cadquery-ocp-novtk": "7.9.3.1",
+      "mcp": "2.0.0",
+      "quiddity": "0.3.11",
+      "vtk": "9.6.2"
+    },
+    "resolved_uv_lock_sha256": "6ac52f7c60c827ac1dae2949e9794580df3274cd5235d93fa1f9fa45b00113cb",
+    "source_pyproject_version": "0.3.91.dev0",
+    "upstream_commit": "48a7dba3a607ca4f1cab6a8ea798160fdb2c8162",
+    "upstream_tag": "v0.3.91",
+    "uv_version": "uv 0.13.7 (Homebrew 2026-11-03 aarch64-apple-darwin)"
+  },
+  "generated_at_local": "2026-11-04 11:47:28 CET",
+  "interpretation_limits": [
+    "These are deterministic tool exercises, not agent benchmark results.",
+    "Kernel validity and STEP export validity do not prove design intent or manufacturability.",
+    "The blocked-counterbore probe is one caller-authored point occupancy check, not swept-tool or screw-access analysis.",
+    "Timings are single-machine whole MCP sequences; summarize.py reports sample SD across repeats, not model-quality variance."
+  ],
+  "reproduction": {
+    "checkout": "git clone --branch v0.3.91 --depth 1 https://github.com/pzfreo/build123d-mcp.git upstream",
+    "install": "UV_CACHE_DIR=<build123d_mcp>/.cache uv sync --project upstream --python 3.12 --no-dev",
+    "mcp_transport": "Python mcp.ClientSession + mcp.client.stdio.stdio_client; server launched as a subprocess over stdio with --experimental for task calls",
+    "run": "upstream/.venv/bin/python reproduce.py --repetitions 3",
+    "tasks": {
+      "blocked_counterbore": {
+        "file": "../tasks/blocked_counterbore.py",
+        "sha256": "7ff61cf6046483bf665e6cbe7db4ad9d1431bcbf888b755228540e02d4ae2f2b"
+      },
+      "edit_plate": {
+        "file": "../tasks/edit_plate.py",
+        "sha256": "cd1e1dc67422fa6fed3c116fb99ad7e83c4ce91ac77a35263f49240d80426133"
+      },
+      "plate": {
+        "file": "../tasks/plate.py",
+        "sha256": "cc5b6ef1c80df0750e048974a698233f775512568c93d810000cf2456a15f830"
+      }
+    }
+  },
+  "run_id": "d333b6a9-ec49-4025-b4e3-648ceccad3ed",
+  "task_results": {
+    "blocked_counterbore": {
+      "repetitions": [
+        {
+          "access_probe": {
+            "conformance": [
+              {
+                "actual": "solid",
+                "note": "frame-dependent (absolute coordinate, tied to the part's own frame)",
+                "requirement": "material void at [0, 0, 19]",
+                "status": "FAIL",
+                "tier": "measured"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 1,
+              "conforms": false,
+              "fail": 1,
+              "pass": 0,
+              "unverified": 0
+            }
+          },
+          "access_probe_after_step_reimport": {
+            "conformance": [
+              {
+                "actual": "solid",
+                "note": "frame-dependent (absolute coordinate, tied to the part's own frame)",
+                "requirement": "material void at [0, 0, 19]",
+                "status": "FAIL",
+                "tier": "measured"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 1,
+              "conforms": false,
+              "fail": 1,
+              "pass": 0,
+              "unverified": 0
+            }
+          },
+          "bank_candidate_text": "{\n  \"banked\": true,\n  \"filename\": \"/Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/blocked_counterbore/blocked_counterbore-r1.bank.step\",\n  \"replaced_existing_output\": false,\n  \"snapshot_saved\": false,\n  \"snapshot_name\": null,\n  \"next_tool_call\": \"recognise_features(object_name='<current shape>')\",\n  \"note\": \"The written STEP passed the gate and is now the safe floor. For an imported B-rep edit, run compact then targeted recognition before manual topology walking.\",\n  \"export_report\": \"Exported to /Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/blocked_counterbore/bank-candidate-ao8qn513.step\\nvolume 1.711e+04 mm\\u00b3, bbox 60\\u00d740\\u00d722 mm, 17 faces\"\n}",
+          "elapsed_total_ms": 6874.224,
+          "independent_step_check": {
+            "bbox_matches_task_dimensions": true,
+            "bbox_mm": [
+              60.0,
+              40.0,
+              22.0
+            ],
+            "brepcheck_valid": true,
+            "center_0_0_z19_is_inside_solid": true,
+            "expected_bbox_mm": [
+              60.0,
+              40.0,
+              22.0
+            ],
+            "expected_hole_count": 1,
+            "hole_count_recognized_after_direct_step_import": 1,
+            "hole_diameters_mm_after_direct_step_import": [
+              4.4
+            ],
+            "solid_count": 1,
+            "step_sha256": "d540e4ce5279554788c73ddac678defe1400e39364e2f594cc754d41917d4cbf",
+            "volume_mm3": 17107.5323
+          },
+          "independent_step_check_ms": 10.897,
+          "initialize_ms": 367.2,
+          "mcp_call_count": 13,
+          "raw_reply_file": "outputs/raw/blocked_counterbore-r1.json",
+          "repeat": 1,
+          "snapshot_comparison": null,
+          "source_sha256": "7ff61cf6046483bf665e6cbe7db4ad9d1431bcbf888b755228540e02d4ae2f2b",
+          "spec": {
+            "conformance": [
+              {
+                "actual": 60.0,
+                "requirement": "envelope x \u2208 [59.99, 60.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 40.0,
+                "requirement": "envelope y \u2208 [39.99, 40.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 22.0,
+                "requirement": "envelope z \u2208 [21.99, 22.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 1,
+                "requirement": "1 solid body(ies)",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "requirement": "watertight, manifold, valid solid",
+                "status": "PASS",
+                "tier": "structural"
+              },
+              {
+                "found": 1,
+                "requirement": "1\u00d7 \u00d84.4 hole (depth 3.0, through, counterbore)",
+                "status": "PASS",
+                "tier": "recognised"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 6,
+              "conforms": true,
+              "fail": 0,
+              "pass": 6,
+              "unverified": 0
+            }
+          },
+          "step_bytes": 51425,
+          "step_path": "outputs/step/blocked_counterbore/blocked_counterbore-r1.step",
+          "step_reimport_measure": {
+            "area": 7807.8814,
+            "bbox": {
+              "center": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 11.0
+              },
+              "xmax": 30.0,
+              "xmin": -30.0,
+              "xsize": 60.0,
+              "ymax": 20.0,
+              "ymin": -20.0,
+              "ysize": 40.0,
+              "zmax": 22.0,
+              "zmin": 0.0,
+              "zsize": 22.0
+            },
+            "center_of_mass": {
+              "x": -0.0,
+              "y": -0.0,
+              "z": 5.1945
+            },
+            "face_inventory": [
+              {
+                "area": 84.823,
+                "axis": [
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "diameter": 9.0,
+                "type": "Cylinder"
+              },
+              {
+                "area": 41.469,
+                "axis": [
+                  0.0,
+                  0.0,
+                  -1.0
+                ],
+                "diameter": 4.4,
+                "type": "Cylinder"
+              },
+              {
+                "area": 2384.7947,
+                "type": "Plane"
+              },
+              {
+                "area": 2208.3827,
+                "type": "Plane"
+              },
+              {
+                "area": 360.0,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 352.0,
+                "type": "Plane"
+              },
+              {
+                "area": 256.0,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 240.0,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 224.0,
+                "type": "Plane"
+              },
+              {
+                "area": 192.0,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 184.0,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 48.4119,
+                "type": "Plane"
+              }
+            ],
+            "inertia": {
+              "Ixx": 2493526.3731,
+              "Ixy": 0.0,
+              "Ixz": -0.0,
+              "Iyy": 5013974.3731,
+              "Iyz": -0.0,
+              "Izz": 6484015.9021
+            },
+            "inertia_units": "mm\u2075 (volume inertia; pass density/material)",
+            "topology": {
+              "edges": 42,
+              "faces": 17,
+              "vertices": 28
+            },
+            "volume": 17107.5323
+          },
+          "step_reimport_spec": {
+            "conformance": [
+              {
+                "actual": 60.0,
+                "requirement": "envelope x \u2208 [59.99, 60.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 40.0,
+                "requirement": "envelope y \u2208 [39.99, 40.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 22.0,
+                "requirement": "envelope z \u2208 [21.99, 22.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 1,
+                "requirement": "1 solid body(ies)",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "requirement": "watertight, manifold, valid solid",
+                "status": "PASS",
+                "tier": "structural"
+              },
+              {
+                "found": 1,
+                "requirement": "1\u00d7 \u00d84.4 hole (depth 3.0, through, counterbore)",
+                "status": "PASS",
+                "tier": "recognised"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 6,
+              "conforms": true,
+              "fail": 0,
+              "pass": 6,
+              "unverified": 0
+            }
+          },
+          "step_reimport_valid": {
+            "brep_valid": true,
+            "mesh_check": "exact",
+            "mesh_nonmanifold_edges": 0,
+            "mesh_nonmanifold_vertices": 0,
+            "mesh_open_edges": 0,
+            "mesh_vertex_deflection_defects": 0,
+            "n_solids": 1,
+            "nonmanifold_edges": 0,
+            "open_edges": 0,
+            "overlap_check": "exact",
+            "overlapping_pairs": 0,
+            "pairwise_overlap_volume": 0.0,
+            "passes_gate": true,
+            "reasons": [],
+            "refined_untriangulated_faces": 0,
+            "refined_untriangulated_faces_verified": true,
+            "untriangulated_faces": 0,
+            "volume": 17107.5323,
+            "warnings": [],
+            "watertight_manifold": true
+          },
+          "step_sha256": "d540e4ce5279554788c73ddac678defe1400e39364e2f594cc754d41917d4cbf",
+          "tool_timings_ms": [
+            {
+              "elapsed_ms": 1969.369,
+              "role": "execute_file",
+              "tool": "execute_file"
+            },
+            {
+              "elapsed_ms": 4.242,
+              "role": "measure",
+              "tool": "measure"
+            },
+            {
+              "elapsed_ms": 5.189,
+              "role": "find_holes",
+              "tool": "find_holes"
+            },
+            {
+              "elapsed_ms": 11.94,
+              "role": "validate",
+              "tool": "validate"
+            },
+            {
+              "elapsed_ms": 14.595,
+              "role": "verify_spec",
+              "tool": "verify_spec"
+            },
+            {
+              "elapsed_ms": 1.487,
+              "role": "verify_access_probe",
+              "tool": "verify_spec"
+            },
+            {
+              "elapsed_ms": 2224.302,
+              "role": "export",
+              "tool": "export"
+            },
+            {
+              "elapsed_ms": 2178.735,
+              "role": "bank_candidate",
+              "tool": "bank_candidate"
+            },
+            {
+              "elapsed_ms": 7.694,
+              "role": "import_cad_file",
+              "tool": "import_cad_file"
+            },
+            {
+              "elapsed_ms": 10.492,
+              "role": "validate_step",
+              "tool": "validate"
+            },
+            {
+              "elapsed_ms": 3.44,
+              "role": "measure_step",
+              "tool": "measure"
+            },
+            {
+              "elapsed_ms": 13.793,
+              "role": "verify_spec_step",
+              "tool": "verify_spec"
+            },
+            {
+              "elapsed_ms": 1.217,
+              "role": "verify_access_probe_step",
+              "tool": "verify_spec"
+            }
+          ],
+          "valid": {
+            "brep_valid": true,
+            "mesh_check": "exact",
+            "mesh_nonmanifold_edges": 0,
+            "mesh_nonmanifold_vertices": 0,
+            "mesh_open_edges": 0,
+            "mesh_vertex_deflection_defects": 0,
+            "n_solids": 1,
+            "nonmanifold_edges": 0,
+            "open_edges": 0,
+            "overlap_check": "exact",
+            "overlapping_pairs": 0,
+            "pairwise_overlap_volume": 0.0,
+            "passes_gate": true,
+            "reasons": [],
+            "refined_untriangulated_faces": 0,
+            "refined_untriangulated_faces_verified": true,
+            "untriangulated_faces": 0,
+            "volume": 17107.5323,
+            "warnings": [],
+            "watertight_manifold": true
+          }
+        },
+        {
+          "access_probe": {
+            "conformance": [
+              {
+                "actual": "solid",
+                "note": "frame-dependent (absolute coordinate, tied to the part's own frame)",
+                "requirement": "material void at [0, 0, 19]",
+                "status": "FAIL",
+                "tier": "measured"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 1,
+              "conforms": false,
+              "fail": 1,
+              "pass": 0,
+              "unverified": 0
+            }
+          },
+          "access_probe_after_step_reimport": {
+            "conformance": [
+              {
+                "actual": "solid",
+                "note": "frame-dependent (absolute coordinate, tied to the part's own frame)",
+                "requirement": "material void at [0, 0, 19]",
+                "status": "FAIL",
+                "tier": "measured"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 1,
+              "conforms": false,
+              "fail": 1,
+              "pass": 0,
+              "unverified": 0
+            }
+          },
+          "bank_candidate_text": "{\n  \"banked\": true,\n  \"filename\": \"/Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/blocked_counterbore/blocked_counterbore-r2.bank.step\",\n  \"replaced_existing_output\": false,\n  \"snapshot_saved\": false,\n  \"snapshot_name\": null,\n  \"next_tool_call\": \"recognise_features(object_name='<current shape>')\",\n  \"note\": \"The written STEP passed the gate and is now the safe floor. For an imported B-rep edit, run compact then targeted recognition before manual topology walking.\",\n  \"export_report\": \"Exported to /Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/blocked_counterbore/bank-candidate-xmi7r7ol.step\\nvolume 1.711e+04 mm\\u00b3, bbox 60\\u00d740\\u00d722 mm, 17 faces\"\n}",
+          "elapsed_total_ms": 6908.768,
+          "independent_step_check": {
+            "bbox_matches_task_dimensions": true,
+            "bbox_mm": [
+              60.0,
+              40.0,
+              22.0
+            ],
+            "brepcheck_valid": true,
+            "center_0_0_z19_is_inside_solid": true,
+            "expected_bbox_mm": [
+              60.0,
+              40.0,
+              22.0
+            ],
+            "expected_hole_count": 1,
+            "hole_count_recognized_after_direct_step_import": 1,
+            "hole_diameters_mm_after_direct_step_import": [
+              4.4
+            ],
+            "solid_count": 1,
+            "step_sha256": "ed5f2d8f9b3a0969de317cbe71c5d537769c1e3aed3bd71cb693940be51aeb79",
+            "volume_mm3": 17107.5323
+          },
+          "independent_step_check_ms": 10.545,
+          "initialize_ms": 365.065,
+          "mcp_call_count": 13,
+          "raw_reply_file": "outputs/raw/blocked_counterbore-r2.json",
+          "repeat": 2,
+          "snapshot_comparison": null,
+          "source_sha256": "7ff61cf6046483bf665e6cbe7db4ad9d1431bcbf888b755228540e02d4ae2f2b",
+          "spec": {
+            "conformance": [
+              {
+                "actual": 60.0,
+                "requirement": "envelope x \u2208 [59.99, 60.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 40.0,
+                "requirement": "envelope y \u2208 [39.99, 40.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 22.0,
+                "requirement": "envelope z \u2208 [21.99, 22.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 1,
+                "requirement": "1 solid body(ies)",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "requirement": "watertight, manifold, valid solid",
+                "status": "PASS",
+                "tier": "structural"
+              },
+              {
+                "found": 1,
+                "requirement": "1\u00d7 \u00d84.4 hole (depth 3.0, through, counterbore)",
+                "status": "PASS",
+                "tier": "recognised"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 6,
+              "conforms": true,
+              "fail": 0,
+              "pass": 6,
+              "unverified": 0
+            }
+          },
+          "step_bytes": 51425,
+          "step_path": "outputs/step/blocked_counterbore/blocked_counterbore-r2.step",
+          "step_reimport_measure": {
+            "area": 7807.8814,
+            "bbox": {
+              "center": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 11.0
+              },
+              "xmax": 30.0,
+              "xmin": -30.0,
+              "xsize": 60.0,
+              "ymax": 20.0,
+              "ymin": -20.0,
+              "ysize": 40.0,
+              "zmax": 22.0,
+              "zmin": 0.0,
+              "zsize": 22.0
+            },
+            "center_of_mass": {
+              "x": -0.0,
+              "y": -0.0,
+              "z": 5.1945
+            },
+            "face_inventory": [
+              {
+                "area": 84.823,
+                "axis": [
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "diameter": 9.0,
+                "type": "Cylinder"
+              },
+              {
+                "area": 41.469,
+                "axis": [
+                  0.0,
+                  0.0,
+                  -1.0
+                ],
+                "diameter": 4.4,
+                "type": "Cylinder"
+              },
+              {
+                "area": 2384.7947,
+                "type": "Plane"
+              },
+              {
+                "area": 2208.3827,
+                "type": "Plane"
+              },
+              {
+                "area": 360.0,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 352.0,
+                "type": "Plane"
+              },
+              {
+                "area": 256.0,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 240.0,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 224.0,
+                "type": "Plane"
+              },
+              {
+                "area": 192.0,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 184.0,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 48.4119,
+                "type": "Plane"
+              }
+            ],
+            "inertia": {
+              "Ixx": 2493526.3731,
+              "Ixy": 0.0,
+              "Ixz": -0.0,
+              "Iyy": 5013974.3731,
+              "Iyz": -0.0,
+              "Izz": 6484015.9021
+            },
+            "inertia_units": "mm\u2075 (volume inertia; pass density/material)",
+            "topology": {
+              "edges": 42,
+              "faces": 17,
+              "vertices": 28
+            },
+            "volume": 17107.5323
+          },
+          "step_reimport_spec": {
+            "conformance": [
+              {
+                "actual": 60.0,
+                "requirement": "envelope x \u2208 [59.99, 60.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 40.0,
+                "requirement": "envelope y \u2208 [39.99, 40.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 22.0,
+                "requirement": "envelope z \u2208 [21.99, 22.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 1,
+                "requirement": "1 solid body(ies)",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "requirement": "watertight, manifold, valid solid",
+                "status": "PASS",
+                "tier": "structural"
+              },
+              {
+                "found": 1,
+                "requirement": "1\u00d7 \u00d84.4 hole (depth 3.0, through, counterbore)",
+                "status": "PASS",
+                "tier": "recognised"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 6,
+              "conforms": true,
+              "fail": 0,
+              "pass": 6,
+              "unverified": 0
+            }
+          },
+          "step_reimport_valid": {
+            "brep_valid": true,
+            "mesh_check": "exact",
+            "mesh_nonmanifold_edges": 0,
+            "mesh_nonmanifold_vertices": 0,
+            "mesh_open_edges": 0,
+            "mesh_vertex_deflection_defects": 0,
+            "n_solids": 1,
+            "nonmanifold_edges": 0,
+            "open_edges": 0,
+            "overlap_check": "exact",
+            "overlapping_pairs": 0,
+            "pairwise_overlap_volume": 0.0,
+            "passes_gate": true,
+            "reasons": [],
+            "refined_untriangulated_faces": 0,
+            "refined_untriangulated_faces_verified": true,
+            "untriangulated_faces": 0,
+            "volume": 17107.5323,
+            "warnings": [],
+            "watertight_manifold": true
+          },
+          "step_sha256": "ed5f2d8f9b3a0969de317cbe71c5d537769c1e3aed3bd71cb693940be51aeb79",
+          "tool_timings_ms": [
+            {
+              "elapsed_ms": 1897.541,
+              "role": "execute_file",
+              "tool": "execute_file"
+            },
+            {
+              "elapsed_ms": 4.224,
+              "role": "measure",
+              "tool": "measure"
+            },
+            {
+              "elapsed_ms": 5.084,
+              "role": "find_holes",
+              "tool": "find_holes"
+            },
+            {
+              "elapsed_ms": 11.978,
+              "role": "validate",
+              "tool": "validate"
+            },
+            {
+              "elapsed_ms": 14.331,
+              "role": "verify_spec",
+              "tool": "verify_spec"
+            },
+            {
+              "elapsed_ms": 1.118,
+              "role": "verify_access_probe",
+              "tool": "verify_spec"
+            },
+            {
+              "elapsed_ms": 2223.868,
+              "role": "export",
+              "tool": "export"
+            },
+            {
+              "elapsed_ms": 2288.086,
+              "role": "bank_candidate",
+              "tool": "bank_candidate"
+            },
+            {
+              "elapsed_ms": 7.775,
+              "role": "import_cad_file",
+              "tool": "import_cad_file"
+            },
+            {
+              "elapsed_ms": 10.638,
+              "role": "validate_step",
+              "tool": "validate"
+            },
+            {
+              "elapsed_ms": 3.402,
+              "role": "measure_step",
+              "tool": "measure"
+            },
+            {
+              "elapsed_ms": 13.523,
+              "role": "verify_spec_step",
+              "tool": "verify_spec"
+            },
+            {
+              "elapsed_ms": 1.204,
+              "role": "verify_access_probe_step",
+              "tool": "verify_spec"
+            }
+          ],
+          "valid": {
+            "brep_valid": true,
+            "mesh_check": "exact",
+            "mesh_nonmanifold_edges": 0,
+            "mesh_nonmanifold_vertices": 0,
+            "mesh_open_edges": 0,
+            "mesh_vertex_deflection_defects": 0,
+            "n_solids": 1,
+            "nonmanifold_edges": 0,
+            "open_edges": 0,
+            "overlap_check": "exact",
+            "overlapping_pairs": 0,
+            "pairwise_overlap_volume": 0.0,
+            "passes_gate": true,
+            "reasons": [],
+            "refined_untriangulated_faces": 0,
+            "refined_untriangulated_faces_verified": true,
+            "untriangulated_faces": 0,
+            "volume": 17107.5323,
+            "warnings": [],
+            "watertight_manifold": true
+          }
+        },
+        {
+          "access_probe": {
+            "conformance": [
+              {
+                "actual": "solid",
+                "note": "frame-dependent (absolute coordinate, tied to the part's own frame)",
+                "requirement": "material void at [0, 0, 19]",
+                "status": "FAIL",
+                "tier": "measured"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 1,
+              "conforms": false,
+              "fail": 1,
+              "pass": 0,
+              "unverified": 0
+            }
+          },
+          "access_probe_after_step_reimport": {
+            "conformance": [
+              {
+                "actual": "solid",
+                "note": "frame-dependent (absolute coordinate, tied to the part's own frame)",
+                "requirement": "material void at [0, 0, 19]",
+                "status": "FAIL",
+                "tier": "measured"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 1,
+              "conforms": false,
+              "fail": 1,
+              "pass": 0,
+              "unverified": 0
+            }
+          },
+          "bank_candidate_text": "{\n  \"banked\": true,\n  \"filename\": \"/Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/blocked_counterbore/blocked_counterbore-r3.bank.step\",\n  \"replaced_existing_output\": false,\n  \"snapshot_saved\": false,\n  \"snapshot_name\": null,\n  \"next_tool_call\": \"recognise_features(object_name='<current shape>')\",\n  \"note\": \"The written STEP passed the gate and is now the safe floor. For an imported B-rep edit, run compact then targeted recognition before manual topology walking.\",\n  \"export_report\": \"Exported to /Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/blocked_counterbore/bank-candidate-xbglmb_y.step\\nvolume 1.711e+04 mm\\u00b3, bbox 60\\u00d740\\u00d722 mm, 17 faces\"\n}",
+          "elapsed_total_ms": 7065.816,
+          "independent_step_check": {
+            "bbox_matches_task_dimensions": true,
+            "bbox_mm": [
+              60.0,
+              40.0,
+              22.0
+            ],
+            "brepcheck_valid": true,
+            "center_0_0_z19_is_inside_solid": true,
+            "expected_bbox_mm": [
+              60.0,
+              40.0,
+              22.0
+            ],
+            "expected_hole_count": 1,
+            "hole_count_recognized_after_direct_step_import": 1,
+            "hole_diameters_mm_after_direct_step_import": [
+              4.4
+            ],
+            "solid_count": 1,
+            "step_sha256": "42b8f3e6f74c01f760bf582dc78c45e92758e477cdd82efc5485db149d1a642e",
+            "volume_mm3": 17107.5323
+          },
+          "independent_step_check_ms": 10.348,
+          "initialize_ms": 371.733,
+          "mcp_call_count": 13,
+          "raw_reply_file": "outputs/raw/blocked_counterbore-r3.json",
+          "repeat": 3,
+          "snapshot_comparison": null,
+          "source_sha256": "7ff61cf6046483bf665e6cbe7db4ad9d1431bcbf888b755228540e02d4ae2f2b",
+          "spec": {
+            "conformance": [
+              {
+                "actual": 60.0,
+                "requirement": "envelope x \u2208 [59.99, 60.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 40.0,
+                "requirement": "envelope y \u2208 [39.99, 40.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 22.0,
+                "requirement": "envelope z \u2208 [21.99, 22.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 1,
+                "requirement": "1 solid body(ies)",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "requirement": "watertight, manifold, valid solid",
+                "status": "PASS",
+                "tier": "structural"
+              },
+              {
+                "found": 1,
+                "requirement": "1\u00d7 \u00d84.4 hole (depth 3.0, through, counterbore)",
+                "status": "PASS",
+                "tier": "recognised"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 6,
+              "conforms": true,
+              "fail": 0,
+              "pass": 6,
+              "unverified": 0
+            }
+          },
+          "step_bytes": 51425,
+          "step_path": "outputs/step/blocked_counterbore/blocked_counterbore-r3.step",
+          "step_reimport_measure": {
+            "area": 7807.8814,
+            "bbox": {
+              "center": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 11.0
+              },
+              "xmax": 30.0,
+              "xmin": -30.0,
+              "xsize": 60.0,
+              "ymax": 20.0,
+              "ymin": -20.0,
+              "ysize": 40.0,
+              "zmax": 22.0,
+              "zmin": 0.0,
+              "zsize": 22.0
+            },
+            "center_of_mass": {
+              "x": -0.0,
+              "y": -0.0,
+              "z": 5.1945
+            },
+            "face_inventory": [
+              {
+                "area": 84.823,
+                "axis": [
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "diameter": 9.0,
+                "type": "Cylinder"
+              },
+              {
+                "area": 41.469,
+                "axis": [
+                  0.0,
+                  0.0,
+                  -1.0
+                ],
+                "diameter": 4.4,
+                "type": "Cylinder"
+              },
+              {
+                "area": 2384.7947,
+                "type": "Plane"
+              },
+              {
+                "area": 2208.3827,
+                "type": "Plane"
+              },
+              {
+                "area": 360.0,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 352.0,
+                "type": "Plane"
+              },
+              {
+                "area": 256.0,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 240.0,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 224.0,
+                "type": "Plane"
+              },
+              {
+                "area": 192.0,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 184.0,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 48.4119,
+                "type": "Plane"
+              }
+            ],
+            "inertia": {
+              "Ixx": 2493526.3731,
+              "Ixy": 0.0,
+              "Ixz": -0.0,
+              "Iyy": 5013974.3731,
+              "Iyz": -0.0,
+              "Izz": 6484015.9021
+            },
+            "inertia_units": "mm\u2075 (volume inertia; pass density/material)",
+            "topology": {
+              "edges": 42,
+              "faces": 17,
+              "vertices": 28
+            },
+            "volume": 17107.5323
+          },
+          "step_reimport_spec": {
+            "conformance": [
+              {
+                "actual": 60.0,
+                "requirement": "envelope x \u2208 [59.99, 60.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 40.0,
+                "requirement": "envelope y \u2208 [39.99, 40.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 22.0,
+                "requirement": "envelope z \u2208 [21.99, 22.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 1,
+                "requirement": "1 solid body(ies)",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "requirement": "watertight, manifold, valid solid",
+                "status": "PASS",
+                "tier": "structural"
+              },
+              {
+                "found": 1,
+                "requirement": "1\u00d7 \u00d84.4 hole (depth 3.0, through, counterbore)",
+                "status": "PASS",
+                "tier": "recognised"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 6,
+              "conforms": true,
+              "fail": 0,
+              "pass": 6,
+              "unverified": 0
+            }
+          },
+          "step_reimport_valid": {
+            "brep_valid": true,
+            "mesh_check": "exact",
+            "mesh_nonmanifold_edges": 0,
+            "mesh_nonmanifold_vertices": 0,
+            "mesh_open_edges": 0,
+            "mesh_vertex_deflection_defects": 0,
+            "n_solids": 1,
+            "nonmanifold_edges": 0,
+            "open_edges": 0,
+            "overlap_check": "exact",
+            "overlapping_pairs": 0,
+            "pairwise_overlap_volume": 0.0,
+            "passes_gate": true,
+            "reasons": [],
+            "refined_untriangulated_faces": 0,
+            "refined_untriangulated_faces_verified": true,
+            "untriangulated_faces": 0,
+            "volume": 17107.5323,
+            "warnings": [],
+            "watertight_manifold": true
+          },
+          "step_sha256": "42b8f3e6f74c01f760bf582dc78c45e92758e477cdd82efc5485db149d1a642e",
+          "tool_timings_ms": [
+            {
+              "elapsed_ms": 1927.921,
+              "role": "execute_file",
+              "tool": "execute_file"
+            },
+            {
+              "elapsed_ms": 4.415,
+              "role": "measure",
+              "tool": "measure"
+            },
+            {
+              "elapsed_ms": 5.544,
+              "role": "find_holes",
+              "tool": "find_holes"
+            },
+            {
+              "elapsed_ms": 13.081,
+              "role": "validate",
+              "tool": "validate"
+            },
+            {
+              "elapsed_ms": 15.808,
+              "role": "verify_spec",
+              "tool": "verify_spec"
+            },
+            {
+              "elapsed_ms": 1.314,
+              "role": "verify_access_probe",
+              "tool": "verify_spec"
+            },
+            {
+              "elapsed_ms": 2281.131,
+              "role": "export",
+              "tool": "export"
+            },
+            {
+              "elapsed_ms": 2345.61,
+              "role": "bank_candidate",
+              "tool": "bank_candidate"
+            },
+            {
+              "elapsed_ms": 8.203,
+              "role": "import_cad_file",
+              "tool": "import_cad_file"
+            },
+            {
+              "elapsed_ms": 11.199,
+              "role": "validate_step",
+              "tool": "validate"
+            },
+            {
+              "elapsed_ms": 4.152,
+              "role": "measure_step",
+              "tool": "measure"
+            },
+            {
+              "elapsed_ms": 14.834,
+              "role": "verify_spec_step",
+              "tool": "verify_spec"
+            },
+            {
+              "elapsed_ms": 1.285,
+              "role": "verify_access_probe_step",
+              "tool": "verify_spec"
+            }
+          ],
+          "valid": {
+            "brep_valid": true,
+            "mesh_check": "exact",
+            "mesh_nonmanifold_edges": 0,
+            "mesh_nonmanifold_vertices": 0,
+            "mesh_open_edges": 0,
+            "mesh_vertex_deflection_defects": 0,
+            "n_solids": 1,
+            "nonmanifold_edges": 0,
+            "open_edges": 0,
+            "overlap_check": "exact",
+            "overlapping_pairs": 0,
+            "pairwise_overlap_volume": 0.0,
+            "passes_gate": true,
+            "reasons": [],
+            "refined_untriangulated_faces": 0,
+            "refined_untriangulated_faces_verified": true,
+            "untriangulated_faces": 0,
+            "volume": 17107.5323,
+            "warnings": [],
+            "watertight_manifold": true
+          }
+        }
+      ],
+      "step_files_created": 3
+    },
+    "edit_plate": {
+      "repetitions": [
+        {
+          "access_probe": null,
+          "access_probe_after_step_reimport": null,
+          "bank_candidate_text": "",
+          "elapsed_total_ms": 4716.356,
+          "independent_step_check": {
+            "bbox_matches_task_dimensions": true,
+            "bbox_mm": [
+              80.0,
+              40.0,
+              6.0
+            ],
+            "brepcheck_valid": true,
+            "center_0_0_z19_is_inside_solid": null,
+            "expected_bbox_mm": [
+              80.0,
+              40.0,
+              6.0
+            ],
+            "expected_hole_count": 4,
+            "hole_count_recognized_after_direct_step_import": 4,
+            "hole_diameters_mm_after_direct_step_import": [
+              4.4,
+              4.4,
+              4.4,
+              4.4
+            ],
+            "solid_count": 1,
+            "step_sha256": "3ca43df149f73224438cda52c7097278b535959b671f6bf069e752815fa610b7",
+            "volume_mm3": 18835.0726
+          },
+          "independent_step_check_ms": 8.39,
+          "initialize_ms": 376.246,
+          "mcp_call_count": 12,
+          "raw_reply_file": "outputs/raw/edit_plate-r1.json",
+          "repeat": 1,
+          "snapshot_comparison": {
+            "a": {
+              "current_shape": {
+                "bbox": [
+                  60.0,
+                  40.0,
+                  6.0
+                ],
+                "edges": 24,
+                "faces": 10,
+                "vertices": 16,
+                "volume": 14035.0726
+              },
+              "label": "before_edit",
+              "objects": {
+                "result": {
+                  "bbox": [
+                    60.0,
+                    40.0,
+                    6.0
+                  ],
+                  "edges": 24,
+                  "faces": 10,
+                  "vertices": 16,
+                  "volume": 14035.0726
+                }
+              }
+            },
+            "b": {
+              "current_shape": {
+                "bbox": [
+                  80.0,
+                  40.0,
+                  6.0
+                ],
+                "edges": 24,
+                "faces": 10,
+                "vertices": 16,
+                "volume": 18835.0726
+              },
+              "label": "current",
+              "objects": {
+                "result": {
+                  "bbox": [
+                    80.0,
+                    40.0,
+                    6.0
+                  ],
+                  "edges": 24,
+                  "faces": 10,
+                  "vertices": 16,
+                  "volume": 18835.0726
+                }
+              }
+            }
+          },
+          "source_sha256": "cd1e1dc67422fa6fed3c116fb99ad7e83c4ce91ac77a35263f49240d80426133",
+          "spec": {
+            "conformance": [
+              {
+                "actual": 80.0,
+                "requirement": "envelope x \u2208 [79.99, 80.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 40.0,
+                "requirement": "envelope y \u2208 [39.99, 40.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 6.0,
+                "requirement": "envelope z \u2208 [5.99, 6.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 1,
+                "requirement": "1 solid body(ies)",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "requirement": "watertight, manifold, valid solid",
+                "status": "PASS",
+                "tier": "structural"
+              },
+              {
+                "found": 4,
+                "requirement": "4\u00d7 \u00d84.4 hole (depth 6.0, through)",
+                "status": "PASS",
+                "tier": "recognised"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 6,
+              "conforms": true,
+              "fail": 0,
+              "pass": 6,
+              "unverified": 0
+            }
+          },
+          "step_bytes": 34489,
+          "step_path": "outputs/step/edit_plate/edit_plate-r1.step",
+          "step_reimport_measure": {
+            "area": 8050.1097,
+            "bbox": {
+              "center": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "xmax": 40.0,
+              "xmin": -40.0,
+              "xsize": 80.0,
+              "ymax": 20.0,
+              "ymin": -20.0,
+              "ysize": 40.0,
+              "zmax": 3.0,
+              "zmin": -3.0,
+              "zsize": 6.0
+            },
+            "center_of_mass": {
+              "x": 0.0,
+              "y": -0.0,
+              "z": 0.0
+            },
+            "face_inventory": [
+              {
+                "area": 82.938,
+                "axis": [
+                  0.0,
+                  0.0,
+                  -1.0
+                ],
+                "count": 4,
+                "diameter": 4.4,
+                "type": "Cylinder"
+              },
+              {
+                "area": 3139.1788,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 480.0,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 240.0,
+                "count": 2,
+                "type": "Plane"
+              }
+            ],
+            "inertia": {
+              "Ixx": 2554390.9246,
+              "Ixy": 0.0,
+              "Ixz": -0.0,
+              "Iyy": 9898657.7142,
+              "Iyz": 0.0,
+              "Izz": 12340038.2032
+            },
+            "inertia_units": "mm\u2075 (volume inertia; pass density/material)",
+            "topology": {
+              "edges": 24,
+              "faces": 10,
+              "vertices": 16
+            },
+            "volume": 18835.0726
+          },
+          "step_reimport_spec": {
+            "conformance": [
+              {
+                "actual": 80.0,
+                "requirement": "envelope x \u2208 [79.99, 80.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 40.0,
+                "requirement": "envelope y \u2208 [39.99, 40.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 6.0,
+                "requirement": "envelope z \u2208 [5.99, 6.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 1,
+                "requirement": "1 solid body(ies)",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "requirement": "watertight, manifold, valid solid",
+                "status": "PASS",
+                "tier": "structural"
+              },
+              {
+                "found": 4,
+                "requirement": "4\u00d7 \u00d84.4 hole (depth 6.0, through)",
+                "status": "PASS",
+                "tier": "recognised"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 6,
+              "conforms": true,
+              "fail": 0,
+              "pass": 6,
+              "unverified": 0
+            }
+          },
+          "step_reimport_valid": {
+            "brep_valid": true,
+            "mesh_check": "exact",
+            "mesh_nonmanifold_edges": 0,
+            "mesh_nonmanifold_vertices": 0,
+            "mesh_open_edges": 0,
+            "mesh_vertex_deflection_defects": 0,
+            "n_solids": 1,
+            "nonmanifold_edges": 0,
+            "open_edges": 0,
+            "overlap_check": "exact",
+            "overlapping_pairs": 0,
+            "pairwise_overlap_volume": 0.0,
+            "passes_gate": true,
+            "reasons": [],
+            "refined_untriangulated_faces": 0,
+            "refined_untriangulated_faces_verified": true,
+            "untriangulated_faces": 0,
+            "volume": 18835.0726,
+            "warnings": [],
+            "watertight_manifold": true
+          },
+          "step_sha256": "3ca43df149f73224438cda52c7097278b535959b671f6bf069e752815fa610b7",
+          "tool_timings_ms": [
+            {
+              "elapsed_ms": 1947.111,
+              "role": "execute_file",
+              "tool": "execute_file"
+            },
+            {
+              "elapsed_ms": 11.214,
+              "role": "execute_file",
+              "tool": "execute_file"
+            },
+            {
+              "elapsed_ms": 4.162,
+              "role": "compare",
+              "tool": "compare"
+            },
+            {
+              "elapsed_ms": 3.227,
+              "role": "measure",
+              "tool": "measure"
+            },
+            {
+              "elapsed_ms": 5.648,
+              "role": "find_holes",
+              "tool": "find_holes"
+            },
+            {
+              "elapsed_ms": 11.477,
+              "role": "validate",
+              "tool": "validate"
+            },
+            {
+              "elapsed_ms": 14.138,
+              "role": "verify_spec",
+              "tool": "verify_spec"
+            },
+            {
+              "elapsed_ms": 2249.892,
+              "role": "export",
+              "tool": "export"
+            },
+            {
+              "elapsed_ms": 5.774,
+              "role": "import_cad_file",
+              "tool": "import_cad_file"
+            },
+            {
+              "elapsed_ms": 10.517,
+              "role": "validate_step",
+              "tool": "validate"
+            },
+            {
+              "elapsed_ms": 2.794,
+              "role": "measure_step",
+              "tool": "measure"
+            },
+            {
+              "elapsed_ms": 13.63,
+              "role": "verify_spec_step",
+              "tool": "verify_spec"
+            }
+          ],
+          "valid": {
+            "brep_valid": true,
+            "mesh_check": "exact",
+            "mesh_nonmanifold_edges": 0,
+            "mesh_nonmanifold_vertices": 0,
+            "mesh_open_edges": 0,
+            "mesh_vertex_deflection_defects": 0,
+            "n_solids": 1,
+            "nonmanifold_edges": 0,
+            "open_edges": 0,
+            "overlap_check": "exact",
+            "overlapping_pairs": 0,
+            "pairwise_overlap_volume": 0.0,
+            "passes_gate": true,
+            "reasons": [],
+            "refined_untriangulated_faces": 0,
+            "refined_untriangulated_faces_verified": true,
+            "untriangulated_faces": 0,
+            "volume": 18835.0726,
+            "warnings": [],
+            "watertight_manifold": true
+          }
+        },
+        {
+          "access_probe": null,
+          "access_probe_after_step_reimport": null,
+          "bank_candidate_text": "",
+          "elapsed_total_ms": 4661.92,
+          "independent_step_check": {
+            "bbox_matches_task_dimensions": true,
+            "bbox_mm": [
+              80.0,
+              40.0,
+              6.0
+            ],
+            "brepcheck_valid": true,
+            "center_0_0_z19_is_inside_solid": null,
+            "expected_bbox_mm": [
+              80.0,
+              40.0,
+              6.0
+            ],
+            "expected_hole_count": 4,
+            "hole_count_recognized_after_direct_step_import": 4,
+            "hole_diameters_mm_after_direct_step_import": [
+              4.4,
+              4.4,
+              4.4,
+              4.4
+            ],
+            "solid_count": 1,
+            "step_sha256": "d083251d7a3b557e551da25665b4527974de2a189a8c913f7f2475754a450cd5",
+            "volume_mm3": 18835.0726
+          },
+          "independent_step_check_ms": 8.922,
+          "initialize_ms": 367.112,
+          "mcp_call_count": 12,
+          "raw_reply_file": "outputs/raw/edit_plate-r2.json",
+          "repeat": 2,
+          "snapshot_comparison": {
+            "a": {
+              "current_shape": {
+                "bbox": [
+                  60.0,
+                  40.0,
+                  6.0
+                ],
+                "edges": 24,
+                "faces": 10,
+                "vertices": 16,
+                "volume": 14035.0726
+              },
+              "label": "before_edit",
+              "objects": {
+                "result": {
+                  "bbox": [
+                    60.0,
+                    40.0,
+                    6.0
+                  ],
+                  "edges": 24,
+                  "faces": 10,
+                  "vertices": 16,
+                  "volume": 14035.0726
+                }
+              }
+            },
+            "b": {
+              "current_shape": {
+                "bbox": [
+                  80.0,
+                  40.0,
+                  6.0
+                ],
+                "edges": 24,
+                "faces": 10,
+                "vertices": 16,
+                "volume": 18835.0726
+              },
+              "label": "current",
+              "objects": {
+                "result": {
+                  "bbox": [
+                    80.0,
+                    40.0,
+                    6.0
+                  ],
+                  "edges": 24,
+                  "faces": 10,
+                  "vertices": 16,
+                  "volume": 18835.0726
+                }
+              }
+            }
+          },
+          "source_sha256": "cd1e1dc67422fa6fed3c116fb99ad7e83c4ce91ac77a35263f49240d80426133",
+          "spec": {
+            "conformance": [
+              {
+                "actual": 80.0,
+                "requirement": "envelope x \u2208 [79.99, 80.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 40.0,
+                "requirement": "envelope y \u2208 [39.99, 40.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 6.0,
+                "requirement": "envelope z \u2208 [5.99, 6.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 1,
+                "requirement": "1 solid body(ies)",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "requirement": "watertight, manifold, valid solid",
+                "status": "PASS",
+                "tier": "structural"
+              },
+              {
+                "found": 4,
+                "requirement": "4\u00d7 \u00d84.4 hole (depth 6.0, through)",
+                "status": "PASS",
+                "tier": "recognised"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 6,
+              "conforms": true,
+              "fail": 0,
+              "pass": 6,
+              "unverified": 0
+            }
+          },
+          "step_bytes": 34489,
+          "step_path": "outputs/step/edit_plate/edit_plate-r2.step",
+          "step_reimport_measure": {
+            "area": 8050.1097,
+            "bbox": {
+              "center": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "xmax": 40.0,
+              "xmin": -40.0,
+              "xsize": 80.0,
+              "ymax": 20.0,
+              "ymin": -20.0,
+              "ysize": 40.0,
+              "zmax": 3.0,
+              "zmin": -3.0,
+              "zsize": 6.0
+            },
+            "center_of_mass": {
+              "x": 0.0,
+              "y": -0.0,
+              "z": 0.0
+            },
+            "face_inventory": [
+              {
+                "area": 82.938,
+                "axis": [
+                  0.0,
+                  0.0,
+                  -1.0
+                ],
+                "count": 4,
+                "diameter": 4.4,
+                "type": "Cylinder"
+              },
+              {
+                "area": 3139.1788,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 480.0,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 240.0,
+                "count": 2,
+                "type": "Plane"
+              }
+            ],
+            "inertia": {
+              "Ixx": 2554390.9246,
+              "Ixy": 0.0,
+              "Ixz": -0.0,
+              "Iyy": 9898657.7142,
+              "Iyz": 0.0,
+              "Izz": 12340038.2032
+            },
+            "inertia_units": "mm\u2075 (volume inertia; pass density/material)",
+            "topology": {
+              "edges": 24,
+              "faces": 10,
+              "vertices": 16
+            },
+            "volume": 18835.0726
+          },
+          "step_reimport_spec": {
+            "conformance": [
+              {
+                "actual": 80.0,
+                "requirement": "envelope x \u2208 [79.99, 80.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 40.0,
+                "requirement": "envelope y \u2208 [39.99, 40.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 6.0,
+                "requirement": "envelope z \u2208 [5.99, 6.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 1,
+                "requirement": "1 solid body(ies)",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "requirement": "watertight, manifold, valid solid",
+                "status": "PASS",
+                "tier": "structural"
+              },
+              {
+                "found": 4,
+                "requirement": "4\u00d7 \u00d84.4 hole (depth 6.0, through)",
+                "status": "PASS",
+                "tier": "recognised"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 6,
+              "conforms": true,
+              "fail": 0,
+              "pass": 6,
+              "unverified": 0
+            }
+          },
+          "step_reimport_valid": {
+            "brep_valid": true,
+            "mesh_check": "exact",
+            "mesh_nonmanifold_edges": 0,
+            "mesh_nonmanifold_vertices": 0,
+            "mesh_open_edges": 0,
+            "mesh_vertex_deflection_defects": 0,
+            "n_solids": 1,
+            "nonmanifold_edges": 0,
+            "open_edges": 0,
+            "overlap_check": "exact",
+            "overlapping_pairs": 0,
+            "pairwise_overlap_volume": 0.0,
+            "passes_gate": true,
+            "reasons": [],
+            "refined_untriangulated_faces": 0,
+            "refined_untriangulated_faces_verified": true,
+            "untriangulated_faces": 0,
+            "volume": 18835.0726,
+            "warnings": [],
+            "watertight_manifold": true
+          },
+          "step_sha256": "d083251d7a3b557e551da25665b4527974de2a189a8c913f7f2475754a450cd5",
+          "tool_timings_ms": [
+            {
+              "elapsed_ms": 1921.641,
+              "role": "execute_file",
+              "tool": "execute_file"
+            },
+            {
+              "elapsed_ms": 11.461,
+              "role": "execute_file",
+              "tool": "execute_file"
+            },
+            {
+              "elapsed_ms": 3.994,
+              "role": "compare",
+              "tool": "compare"
+            },
+            {
+              "elapsed_ms": 3.235,
+              "role": "measure",
+              "tool": "measure"
+            },
+            {
+              "elapsed_ms": 5.467,
+              "role": "find_holes",
+              "tool": "find_holes"
+            },
+            {
+              "elapsed_ms": 11.434,
+              "role": "validate",
+              "tool": "validate"
+            },
+            {
+              "elapsed_ms": 13.834,
+              "role": "verify_spec",
+              "tool": "verify_spec"
+            },
+            {
+              "elapsed_ms": 2230.045,
+              "role": "export",
+              "tool": "export"
+            },
+            {
+              "elapsed_ms": 5.707,
+              "role": "import_cad_file",
+              "tool": "import_cad_file"
+            },
+            {
+              "elapsed_ms": 10.531,
+              "role": "validate_step",
+              "tool": "validate"
+            },
+            {
+              "elapsed_ms": 2.8,
+              "role": "measure_step",
+              "tool": "measure"
+            },
+            {
+              "elapsed_ms": 13.848,
+              "role": "verify_spec_step",
+              "tool": "verify_spec"
+            }
+          ],
+          "valid": {
+            "brep_valid": true,
+            "mesh_check": "exact",
+            "mesh_nonmanifold_edges": 0,
+            "mesh_nonmanifold_vertices": 0,
+            "mesh_open_edges": 0,
+            "mesh_vertex_deflection_defects": 0,
+            "n_solids": 1,
+            "nonmanifold_edges": 0,
+            "open_edges": 0,
+            "overlap_check": "exact",
+            "overlapping_pairs": 0,
+            "pairwise_overlap_volume": 0.0,
+            "passes_gate": true,
+            "reasons": [],
+            "refined_untriangulated_faces": 0,
+            "refined_untriangulated_faces_verified": true,
+            "untriangulated_faces": 0,
+            "volume": 18835.0726,
+            "warnings": [],
+            "watertight_manifold": true
+          }
+        },
+        {
+          "access_probe": null,
+          "access_probe_after_step_reimport": null,
+          "bank_candidate_text": "",
+          "elapsed_total_ms": 4761.84,
+          "independent_step_check": {
+            "bbox_matches_task_dimensions": true,
+            "bbox_mm": [
+              80.0,
+              40.0,
+              6.0
+            ],
+            "brepcheck_valid": true,
+            "center_0_0_z19_is_inside_solid": null,
+            "expected_bbox_mm": [
+              80.0,
+              40.0,
+              6.0
+            ],
+            "expected_hole_count": 4,
+            "hole_count_recognized_after_direct_step_import": 4,
+            "hole_diameters_mm_after_direct_step_import": [
+              4.4,
+              4.4,
+              4.4,
+              4.4
+            ],
+            "solid_count": 1,
+            "step_sha256": "6e3d5167a5548de206343f9a281a3c09b8facc3ba6421aad037bee346e89a2ef",
+            "volume_mm3": 18835.0726
+          },
+          "independent_step_check_ms": 8.746,
+          "initialize_ms": 368.553,
+          "mcp_call_count": 12,
+          "raw_reply_file": "outputs/raw/edit_plate-r3.json",
+          "repeat": 3,
+          "snapshot_comparison": {
+            "a": {
+              "current_shape": {
+                "bbox": [
+                  60.0,
+                  40.0,
+                  6.0
+                ],
+                "edges": 24,
+                "faces": 10,
+                "vertices": 16,
+                "volume": 14035.0726
+              },
+              "label": "before_edit",
+              "objects": {
+                "result": {
+                  "bbox": [
+                    60.0,
+                    40.0,
+                    6.0
+                  ],
+                  "edges": 24,
+                  "faces": 10,
+                  "vertices": 16,
+                  "volume": 14035.0726
+                }
+              }
+            },
+            "b": {
+              "current_shape": {
+                "bbox": [
+                  80.0,
+                  40.0,
+                  6.0
+                ],
+                "edges": 24,
+                "faces": 10,
+                "vertices": 16,
+                "volume": 18835.0726
+              },
+              "label": "current",
+              "objects": {
+                "result": {
+                  "bbox": [
+                    80.0,
+                    40.0,
+                    6.0
+                  ],
+                  "edges": 24,
+                  "faces": 10,
+                  "vertices": 16,
+                  "volume": 18835.0726
+                }
+              }
+            }
+          },
+          "source_sha256": "cd1e1dc67422fa6fed3c116fb99ad7e83c4ce91ac77a35263f49240d80426133",
+          "spec": {
+            "conformance": [
+              {
+                "actual": 80.0,
+                "requirement": "envelope x \u2208 [79.99, 80.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 40.0,
+                "requirement": "envelope y \u2208 [39.99, 40.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 6.0,
+                "requirement": "envelope z \u2208 [5.99, 6.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 1,
+                "requirement": "1 solid body(ies)",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "requirement": "watertight, manifold, valid solid",
+                "status": "PASS",
+                "tier": "structural"
+              },
+              {
+                "found": 4,
+                "requirement": "4\u00d7 \u00d84.4 hole (depth 6.0, through)",
+                "status": "PASS",
+                "tier": "recognised"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 6,
+              "conforms": true,
+              "fail": 0,
+              "pass": 6,
+              "unverified": 0
+            }
+          },
+          "step_bytes": 34489,
+          "step_path": "outputs/step/edit_plate/edit_plate-r3.step",
+          "step_reimport_measure": {
+            "area": 8050.1097,
+            "bbox": {
+              "center": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "xmax": 40.0,
+              "xmin": -40.0,
+              "xsize": 80.0,
+              "ymax": 20.0,
+              "ymin": -20.0,
+              "ysize": 40.0,
+              "zmax": 3.0,
+              "zmin": -3.0,
+              "zsize": 6.0
+            },
+            "center_of_mass": {
+              "x": 0.0,
+              "y": -0.0,
+              "z": 0.0
+            },
+            "face_inventory": [
+              {
+                "area": 82.938,
+                "axis": [
+                  0.0,
+                  0.0,
+                  -1.0
+                ],
+                "count": 4,
+                "diameter": 4.4,
+                "type": "Cylinder"
+              },
+              {
+                "area": 3139.1788,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 480.0,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 240.0,
+                "count": 2,
+                "type": "Plane"
+              }
+            ],
+            "inertia": {
+              "Ixx": 2554390.9246,
+              "Ixy": 0.0,
+              "Ixz": -0.0,
+              "Iyy": 9898657.7142,
+              "Iyz": 0.0,
+              "Izz": 12340038.2032
+            },
+            "inertia_units": "mm\u2075 (volume inertia; pass density/material)",
+            "topology": {
+              "edges": 24,
+              "faces": 10,
+              "vertices": 16
+            },
+            "volume": 18835.0726
+          },
+          "step_reimport_spec": {
+            "conformance": [
+              {
+                "actual": 80.0,
+                "requirement": "envelope x \u2208 [79.99, 80.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 40.0,
+                "requirement": "envelope y \u2208 [39.99, 40.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 6.0,
+                "requirement": "envelope z \u2208 [5.99, 6.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 1,
+                "requirement": "1 solid body(ies)",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "requirement": "watertight, manifold, valid solid",
+                "status": "PASS",
+                "tier": "structural"
+              },
+              {
+                "found": 4,
+                "requirement": "4\u00d7 \u00d84.4 hole (depth 6.0, through)",
+                "status": "PASS",
+                "tier": "recognised"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 6,
+              "conforms": true,
+              "fail": 0,
+              "pass": 6,
+              "unverified": 0
+            }
+          },
+          "step_reimport_valid": {
+            "brep_valid": true,
+            "mesh_check": "exact",
+            "mesh_nonmanifold_edges": 0,
+            "mesh_nonmanifold_vertices": 0,
+            "mesh_open_edges": 0,
+            "mesh_vertex_deflection_defects": 0,
+            "n_solids": 1,
+            "nonmanifold_edges": 0,
+            "open_edges": 0,
+            "overlap_check": "exact",
+            "overlapping_pairs": 0,
+            "pairwise_overlap_volume": 0.0,
+            "passes_gate": true,
+            "reasons": [],
+            "refined_untriangulated_faces": 0,
+            "refined_untriangulated_faces_verified": true,
+            "untriangulated_faces": 0,
+            "volume": 18835.0726,
+            "warnings": [],
+            "watertight_manifold": true
+          },
+          "step_sha256": "6e3d5167a5548de206343f9a281a3c09b8facc3ba6421aad037bee346e89a2ef",
+          "tool_timings_ms": [
+            {
+              "elapsed_ms": 1945.297,
+              "role": "execute_file",
+              "tool": "execute_file"
+            },
+            {
+              "elapsed_ms": 12.81,
+              "role": "execute_file",
+              "tool": "execute_file"
+            },
+            {
+              "elapsed_ms": 4.654,
+              "role": "compare",
+              "tool": "compare"
+            },
+            {
+              "elapsed_ms": 3.767,
+              "role": "measure",
+              "tool": "measure"
+            },
+            {
+              "elapsed_ms": 6.484,
+              "role": "find_holes",
+              "tool": "find_holes"
+            },
+            {
+              "elapsed_ms": 12.455,
+              "role": "validate",
+              "tool": "validate"
+            },
+            {
+              "elapsed_ms": 14.506,
+              "role": "verify_spec",
+              "tool": "verify_spec"
+            },
+            {
+              "elapsed_ms": 2299.437,
+              "role": "export",
+              "tool": "export"
+            },
+            {
+              "elapsed_ms": 6.134,
+              "role": "import_cad_file",
+              "tool": "import_cad_file"
+            },
+            {
+              "elapsed_ms": 10.458,
+              "role": "validate_step",
+              "tool": "validate"
+            },
+            {
+              "elapsed_ms": 2.719,
+              "role": "measure_step",
+              "tool": "measure"
+            },
+            {
+              "elapsed_ms": 13.563,
+              "role": "verify_spec_step",
+              "tool": "verify_spec"
+            }
+          ],
+          "valid": {
+            "brep_valid": true,
+            "mesh_check": "exact",
+            "mesh_nonmanifold_edges": 0,
+            "mesh_nonmanifold_vertices": 0,
+            "mesh_open_edges": 0,
+            "mesh_vertex_deflection_defects": 0,
+            "n_solids": 1,
+            "nonmanifold_edges": 0,
+            "open_edges": 0,
+            "overlap_check": "exact",
+            "overlapping_pairs": 0,
+            "pairwise_overlap_volume": 0.0,
+            "passes_gate": true,
+            "reasons": [],
+            "refined_untriangulated_faces": 0,
+            "refined_untriangulated_faces_verified": true,
+            "untriangulated_faces": 0,
+            "volume": 18835.0726,
+            "warnings": [],
+            "watertight_manifold": true
+          }
+        }
+      ],
+      "step_files_created": 3
+    },
+    "plate": {
+      "repetitions": [
+        {
+          "access_probe": null,
+          "access_probe_after_step_reimport": null,
+          "bank_candidate_text": "",
+          "elapsed_total_ms": 5797.417,
+          "independent_step_check": {
+            "bbox_matches_task_dimensions": true,
+            "bbox_mm": [
+              60.0,
+              40.0,
+              6.0
+            ],
+            "brepcheck_valid": true,
+            "center_0_0_z19_is_inside_solid": null,
+            "expected_bbox_mm": [
+              60.0,
+              40.0,
+              6.0
+            ],
+            "expected_hole_count": 4,
+            "hole_count_recognized_after_direct_step_import": 4,
+            "hole_diameters_mm_after_direct_step_import": [
+              4.4,
+              4.4,
+              4.4,
+              4.4
+            ],
+            "solid_count": 1,
+            "step_sha256": "4a5c708336d04c1610c8e4af4159b9ba7fb22d080596657697912096f8dd07a2",
+            "volume_mm3": 14035.0726
+          },
+          "independent_step_check_ms": 2067.705,
+          "initialize_ms": 380.613,
+          "mcp_call_count": 10,
+          "raw_reply_file": "outputs/raw/plate-r1.json",
+          "repeat": 1,
+          "snapshot_comparison": null,
+          "source_sha256": "cc5b6ef1c80df0750e048974a698233f775512568c93d810000cf2456a15f830",
+          "spec": {
+            "conformance": [
+              {
+                "actual": 60.0,
+                "requirement": "envelope x \u2208 [59.99, 60.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 40.0,
+                "requirement": "envelope y \u2208 [39.99, 40.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 6.0,
+                "requirement": "envelope z \u2208 [5.99, 6.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 1,
+                "requirement": "1 solid body(ies)",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "requirement": "watertight, manifold, valid solid",
+                "status": "PASS",
+                "tier": "structural"
+              },
+              {
+                "found": 4,
+                "requirement": "4\u00d7 \u00d84.4 hole (depth 6.0, through)",
+                "status": "PASS",
+                "tier": "recognised"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 6,
+              "conforms": true,
+              "fail": 0,
+              "pass": 6,
+              "unverified": 0
+            }
+          },
+          "step_bytes": 34505,
+          "step_path": "outputs/step/plate/plate-r1.step",
+          "step_reimport_measure": {
+            "area": 6210.1097,
+            "bbox": {
+              "center": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "xmax": 30.0,
+              "xmin": -30.0,
+              "xsize": 60.0,
+              "ymax": 20.0,
+              "ymin": -20.0,
+              "ysize": 40.0,
+              "zmax": 3.0,
+              "zmin": -3.0,
+              "zsize": 6.0
+            },
+            "center_of_mass": {
+              "x": 0.0,
+              "y": -0.0,
+              "z": 0.0
+            },
+            "face_inventory": [
+              {
+                "area": 82.938,
+                "axis": [
+                  0.0,
+                  0.0,
+                  -1.0
+                ],
+                "count": 4,
+                "diameter": 4.4,
+                "type": "Cylinder"
+              },
+              {
+                "area": 2339.1788,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 360.0,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 240.0,
+                "count": 2,
+                "type": "Plane"
+              }
+            ],
+            "inertia": {
+              "Ixx": 1899990.9246,
+              "Ixy": 0.0,
+              "Ixz": -0.0,
+              "Iyy": 4168617.0596,
+              "Iyz": -0.0,
+              "Izz": 5984397.5486
+            },
+            "inertia_units": "mm\u2075 (volume inertia; pass density/material)",
+            "topology": {
+              "edges": 24,
+              "faces": 10,
+              "vertices": 16
+            },
+            "volume": 14035.0726
+          },
+          "step_reimport_spec": {
+            "conformance": [
+              {
+                "actual": 60.0,
+                "requirement": "envelope x \u2208 [59.99, 60.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 40.0,
+                "requirement": "envelope y \u2208 [39.99, 40.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 6.0,
+                "requirement": "envelope z \u2208 [5.99, 6.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 1,
+                "requirement": "1 solid body(ies)",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "requirement": "watertight, manifold, valid solid",
+                "status": "PASS",
+                "tier": "structural"
+              },
+              {
+                "found": 4,
+                "requirement": "4\u00d7 \u00d84.4 hole (depth 6.0, through)",
+                "status": "PASS",
+                "tier": "recognised"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 6,
+              "conforms": true,
+              "fail": 0,
+              "pass": 6,
+              "unverified": 0
+            }
+          },
+          "step_reimport_valid": {
+            "brep_valid": true,
+            "mesh_check": "exact",
+            "mesh_nonmanifold_edges": 0,
+            "mesh_nonmanifold_vertices": 0,
+            "mesh_open_edges": 0,
+            "mesh_vertex_deflection_defects": 0,
+            "n_solids": 1,
+            "nonmanifold_edges": 0,
+            "open_edges": 0,
+            "overlap_check": "exact",
+            "overlapping_pairs": 0,
+            "pairwise_overlap_volume": 0.0,
+            "passes_gate": true,
+            "reasons": [],
+            "refined_untriangulated_faces": 0,
+            "refined_untriangulated_faces_verified": true,
+            "untriangulated_faces": 0,
+            "volume": 14035.0726,
+            "warnings": [],
+            "watertight_manifold": true
+          },
+          "step_sha256": "4a5c708336d04c1610c8e4af4159b9ba7fb22d080596657697912096f8dd07a2",
+          "tool_timings_ms": [
+            {
+              "elapsed_ms": 2865.45,
+              "role": "execute_file",
+              "tool": "execute_file"
+            },
+            {
+              "elapsed_ms": 5.771,
+              "role": "measure",
+              "tool": "measure"
+            },
+            {
+              "elapsed_ms": 10.508,
+              "role": "find_holes",
+              "tool": "find_holes"
+            },
+            {
+              "elapsed_ms": 27.898,
+              "role": "validate",
+              "tool": "validate"
+            },
+            {
+              "elapsed_ms": 16.594,
+              "role": "verify_spec",
+              "tool": "verify_spec"
+            },
+            {
+              "elapsed_ms": 2362.417,
+              "role": "export",
+              "tool": "export"
+            },
+            {
+              "elapsed_ms": 6.634,
+              "role": "import_cad_file",
+              "tool": "import_cad_file"
+            },
+            {
+              "elapsed_ms": 11.783,
+              "role": "validate_step",
+              "tool": "validate"
+            },
+            {
+              "elapsed_ms": 3.027,
+              "role": "measure_step",
+              "tool": "measure"
+            },
+            {
+              "elapsed_ms": 15.746,
+              "role": "verify_spec_step",
+              "tool": "verify_spec"
+            }
+          ],
+          "valid": {
+            "brep_valid": true,
+            "mesh_check": "exact",
+            "mesh_nonmanifold_edges": 0,
+            "mesh_nonmanifold_vertices": 0,
+            "mesh_open_edges": 0,
+            "mesh_vertex_deflection_defects": 0,
+            "n_solids": 1,
+            "nonmanifold_edges": 0,
+            "open_edges": 0,
+            "overlap_check": "exact",
+            "overlapping_pairs": 0,
+            "pairwise_overlap_volume": 0.0,
+            "passes_gate": true,
+            "reasons": [],
+            "refined_untriangulated_faces": 0,
+            "refined_untriangulated_faces_verified": true,
+            "untriangulated_faces": 0,
+            "volume": 14035.0726,
+            "warnings": [],
+            "watertight_manifold": true
+          }
+        },
+        {
+          "access_probe": null,
+          "access_probe_after_step_reimport": null,
+          "bank_candidate_text": "",
+          "elapsed_total_ms": 4887.7,
+          "independent_step_check": {
+            "bbox_matches_task_dimensions": true,
+            "bbox_mm": [
+              60.0,
+              40.0,
+              6.0
+            ],
+            "brepcheck_valid": true,
+            "center_0_0_z19_is_inside_solid": null,
+            "expected_bbox_mm": [
+              60.0,
+              40.0,
+              6.0
+            ],
+            "expected_hole_count": 4,
+            "hole_count_recognized_after_direct_step_import": 4,
+            "hole_diameters_mm_after_direct_step_import": [
+              4.4,
+              4.4,
+              4.4,
+              4.4
+            ],
+            "solid_count": 1,
+            "step_sha256": "7882e0ad8bf5c3f09b8308734a591deded93246af59136569ea8e69d575fe878",
+            "volume_mm3": 14035.0726
+          },
+          "independent_step_check_ms": 8.679,
+          "initialize_ms": 385.18,
+          "mcp_call_count": 10,
+          "raw_reply_file": "outputs/raw/plate-r2.json",
+          "repeat": 2,
+          "snapshot_comparison": null,
+          "source_sha256": "cc5b6ef1c80df0750e048974a698233f775512568c93d810000cf2456a15f830",
+          "spec": {
+            "conformance": [
+              {
+                "actual": 60.0,
+                "requirement": "envelope x \u2208 [59.99, 60.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 40.0,
+                "requirement": "envelope y \u2208 [39.99, 40.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 6.0,
+                "requirement": "envelope z \u2208 [5.99, 6.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 1,
+                "requirement": "1 solid body(ies)",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "requirement": "watertight, manifold, valid solid",
+                "status": "PASS",
+                "tier": "structural"
+              },
+              {
+                "found": 4,
+                "requirement": "4\u00d7 \u00d84.4 hole (depth 6.0, through)",
+                "status": "PASS",
+                "tier": "recognised"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 6,
+              "conforms": true,
+              "fail": 0,
+              "pass": 6,
+              "unverified": 0
+            }
+          },
+          "step_bytes": 34505,
+          "step_path": "outputs/step/plate/plate-r2.step",
+          "step_reimport_measure": {
+            "area": 6210.1097,
+            "bbox": {
+              "center": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "xmax": 30.0,
+              "xmin": -30.0,
+              "xsize": 60.0,
+              "ymax": 20.0,
+              "ymin": -20.0,
+              "ysize": 40.0,
+              "zmax": 3.0,
+              "zmin": -3.0,
+              "zsize": 6.0
+            },
+            "center_of_mass": {
+              "x": 0.0,
+              "y": -0.0,
+              "z": 0.0
+            },
+            "face_inventory": [
+              {
+                "area": 82.938,
+                "axis": [
+                  0.0,
+                  0.0,
+                  -1.0
+                ],
+                "count": 4,
+                "diameter": 4.4,
+                "type": "Cylinder"
+              },
+              {
+                "area": 2339.1788,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 360.0,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 240.0,
+                "count": 2,
+                "type": "Plane"
+              }
+            ],
+            "inertia": {
+              "Ixx": 1899990.9246,
+              "Ixy": 0.0,
+              "Ixz": -0.0,
+              "Iyy": 4168617.0596,
+              "Iyz": -0.0,
+              "Izz": 5984397.5486
+            },
+            "inertia_units": "mm\u2075 (volume inertia; pass density/material)",
+            "topology": {
+              "edges": 24,
+              "faces": 10,
+              "vertices": 16
+            },
+            "volume": 14035.0726
+          },
+          "step_reimport_spec": {
+            "conformance": [
+              {
+                "actual": 60.0,
+                "requirement": "envelope x \u2208 [59.99, 60.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 40.0,
+                "requirement": "envelope y \u2208 [39.99, 40.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 6.0,
+                "requirement": "envelope z \u2208 [5.99, 6.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 1,
+                "requirement": "1 solid body(ies)",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "requirement": "watertight, manifold, valid solid",
+                "status": "PASS",
+                "tier": "structural"
+              },
+              {
+                "found": 4,
+                "requirement": "4\u00d7 \u00d84.4 hole (depth 6.0, through)",
+                "status": "PASS",
+                "tier": "recognised"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 6,
+              "conforms": true,
+              "fail": 0,
+              "pass": 6,
+              "unverified": 0
+            }
+          },
+          "step_reimport_valid": {
+            "brep_valid": true,
+            "mesh_check": "exact",
+            "mesh_nonmanifold_edges": 0,
+            "mesh_nonmanifold_vertices": 0,
+            "mesh_open_edges": 0,
+            "mesh_vertex_deflection_defects": 0,
+            "n_solids": 1,
+            "nonmanifold_edges": 0,
+            "open_edges": 0,
+            "overlap_check": "exact",
+            "overlapping_pairs": 0,
+            "pairwise_overlap_volume": 0.0,
+            "passes_gate": true,
+            "reasons": [],
+            "refined_untriangulated_faces": 0,
+            "refined_untriangulated_faces_verified": true,
+            "untriangulated_faces": 0,
+            "volume": 14035.0726,
+            "warnings": [],
+            "watertight_manifold": true
+          },
+          "step_sha256": "7882e0ad8bf5c3f09b8308734a591deded93246af59136569ea8e69d575fe878",
+          "tool_timings_ms": [
+            {
+              "elapsed_ms": 1959.59,
+              "role": "execute_file",
+              "tool": "execute_file"
+            },
+            {
+              "elapsed_ms": 3.505,
+              "role": "measure",
+              "tool": "measure"
+            },
+            {
+              "elapsed_ms": 5.765,
+              "role": "find_holes",
+              "tool": "find_holes"
+            },
+            {
+              "elapsed_ms": 12.243,
+              "role": "validate",
+              "tool": "validate"
+            },
+            {
+              "elapsed_ms": 14.894,
+              "role": "verify_spec",
+              "tool": "verify_spec"
+            },
+            {
+              "elapsed_ms": 2395.676,
+              "role": "export",
+              "tool": "export"
+            },
+            {
+              "elapsed_ms": 6.582,
+              "role": "import_cad_file",
+              "tool": "import_cad_file"
+            },
+            {
+              "elapsed_ms": 11.816,
+              "role": "validate_step",
+              "tool": "validate"
+            },
+            {
+              "elapsed_ms": 3.044,
+              "role": "measure_step",
+              "tool": "measure"
+            },
+            {
+              "elapsed_ms": 14.586,
+              "role": "verify_spec_step",
+              "tool": "verify_spec"
+            }
+          ],
+          "valid": {
+            "brep_valid": true,
+            "mesh_check": "exact",
+            "mesh_nonmanifold_edges": 0,
+            "mesh_nonmanifold_vertices": 0,
+            "mesh_open_edges": 0,
+            "mesh_vertex_deflection_defects": 0,
+            "n_solids": 1,
+            "nonmanifold_edges": 0,
+            "open_edges": 0,
+            "overlap_check": "exact",
+            "overlapping_pairs": 0,
+            "pairwise_overlap_volume": 0.0,
+            "passes_gate": true,
+            "reasons": [],
+            "refined_untriangulated_faces": 0,
+            "refined_untriangulated_faces_verified": true,
+            "untriangulated_faces": 0,
+            "volume": 14035.0726,
+            "warnings": [],
+            "watertight_manifold": true
+          }
+        },
+        {
+          "access_probe": null,
+          "access_probe_after_step_reimport": null,
+          "bank_candidate_text": "",
+          "elapsed_total_ms": 4835.344,
+          "independent_step_check": {
+            "bbox_matches_task_dimensions": true,
+            "bbox_mm": [
+              60.0,
+              40.0,
+              6.0
+            ],
+            "brepcheck_valid": true,
+            "center_0_0_z19_is_inside_solid": null,
+            "expected_bbox_mm": [
+              60.0,
+              40.0,
+              6.0
+            ],
+            "expected_hole_count": 4,
+            "hole_count_recognized_after_direct_step_import": 4,
+            "hole_diameters_mm_after_direct_step_import": [
+              4.4,
+              4.4,
+              4.4,
+              4.4
+            ],
+            "solid_count": 1,
+            "step_sha256": "d5cd62ea3ba4e09f1b6546ec5d19f3686df971f809e56e9f336d6ad1f71d2e63",
+            "volume_mm3": 14035.0726
+          },
+          "independent_step_check_ms": 8.482,
+          "initialize_ms": 383.517,
+          "mcp_call_count": 10,
+          "raw_reply_file": "outputs/raw/plate-r3.json",
+          "repeat": 3,
+          "snapshot_comparison": null,
+          "source_sha256": "cc5b6ef1c80df0750e048974a698233f775512568c93d810000cf2456a15f830",
+          "spec": {
+            "conformance": [
+              {
+                "actual": 60.0,
+                "requirement": "envelope x \u2208 [59.99, 60.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 40.0,
+                "requirement": "envelope y \u2208 [39.99, 40.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 6.0,
+                "requirement": "envelope z \u2208 [5.99, 6.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 1,
+                "requirement": "1 solid body(ies)",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "requirement": "watertight, manifold, valid solid",
+                "status": "PASS",
+                "tier": "structural"
+              },
+              {
+                "found": 4,
+                "requirement": "4\u00d7 \u00d84.4 hole (depth 6.0, through)",
+                "status": "PASS",
+                "tier": "recognised"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 6,
+              "conforms": true,
+              "fail": 0,
+              "pass": 6,
+              "unverified": 0
+            }
+          },
+          "step_bytes": 34505,
+          "step_path": "outputs/step/plate/plate-r3.step",
+          "step_reimport_measure": {
+            "area": 6210.1097,
+            "bbox": {
+              "center": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "xmax": 30.0,
+              "xmin": -30.0,
+              "xsize": 60.0,
+              "ymax": 20.0,
+              "ymin": -20.0,
+              "ysize": 40.0,
+              "zmax": 3.0,
+              "zmin": -3.0,
+              "zsize": 6.0
+            },
+            "center_of_mass": {
+              "x": 0.0,
+              "y": -0.0,
+              "z": 0.0
+            },
+            "face_inventory": [
+              {
+                "area": 82.938,
+                "axis": [
+                  0.0,
+                  0.0,
+                  -1.0
+                ],
+                "count": 4,
+                "diameter": 4.4,
+                "type": "Cylinder"
+              },
+              {
+                "area": 2339.1788,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 360.0,
+                "count": 2,
+                "type": "Plane"
+              },
+              {
+                "area": 240.0,
+                "count": 2,
+                "type": "Plane"
+              }
+            ],
+            "inertia": {
+              "Ixx": 1899990.9246,
+              "Ixy": 0.0,
+              "Ixz": -0.0,
+              "Iyy": 4168617.0596,
+              "Iyz": -0.0,
+              "Izz": 5984397.5486
+            },
+            "inertia_units": "mm\u2075 (volume inertia; pass density/material)",
+            "topology": {
+              "edges": 24,
+              "faces": 10,
+              "vertices": 16
+            },
+            "volume": 14035.0726
+          },
+          "step_reimport_spec": {
+            "conformance": [
+              {
+                "actual": 60.0,
+                "requirement": "envelope x \u2208 [59.99, 60.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 40.0,
+                "requirement": "envelope y \u2208 [39.99, 40.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 6.0,
+                "requirement": "envelope z \u2208 [5.99, 6.01] mm",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "actual": 1,
+                "requirement": "1 solid body(ies)",
+                "status": "PASS",
+                "tier": "measured"
+              },
+              {
+                "requirement": "watertight, manifold, valid solid",
+                "status": "PASS",
+                "tier": "structural"
+              },
+              {
+                "found": 4,
+                "requirement": "4\u00d7 \u00d84.4 hole (depth 6.0, through)",
+                "status": "PASS",
+                "tier": "recognised"
+              }
+            ],
+            "note": "Proves requested-vs-built for the geometry-checkable requirements only. conforms means no FAILs AND at least one requirement was checked; UNVERIFIED requirements are NOT met \u2014 they are out of scope for this gate (declared unverifiable, deferred, or an unrecognised feature). Each line carries its evidence tier (measured/structural/recognised). This is not a certification; a human must sign off.",
+            "summary": {
+              "checked": 6,
+              "conforms": true,
+              "fail": 0,
+              "pass": 6,
+              "unverified": 0
+            }
+          },
+          "step_reimport_valid": {
+            "brep_valid": true,
+            "mesh_check": "exact",
+            "mesh_nonmanifold_edges": 0,
+            "mesh_nonmanifold_vertices": 0,
+            "mesh_open_edges": 0,
+            "mesh_vertex_deflection_defects": 0,
+            "n_solids": 1,
+            "nonmanifold_edges": 0,
+            "open_edges": 0,
+            "overlap_check": "exact",
+            "overlapping_pairs": 0,
+            "pairwise_overlap_volume": 0.0,
+            "passes_gate": true,
+            "reasons": [],
+            "refined_untriangulated_faces": 0,
+            "refined_untriangulated_faces_verified": true,
+            "untriangulated_faces": 0,
+            "volume": 14035.0726,
+            "warnings": [],
+            "watertight_manifold": true
+          },
+          "step_sha256": "d5cd62ea3ba4e09f1b6546ec5d19f3686df971f809e56e9f336d6ad1f71d2e63",
+          "tool_timings_ms": [
+            {
+              "elapsed_ms": 2010.958,
+              "role": "execute_file",
+              "tool": "execute_file"
+            },
+            {
+              "elapsed_ms": 3.881,
+              "role": "measure",
+              "tool": "measure"
+            },
+            {
+              "elapsed_ms": 5.835,
+              "role": "find_holes",
+              "tool": "find_holes"
+            },
+            {
+              "elapsed_ms": 12.779,
+              "role": "validate",
+              "tool": "validate"
+            },
+            {
+              "elapsed_ms": 15.944,
+              "role": "verify_spec",
+              "tool": "verify_spec"
+            },
+            {
+              "elapsed_ms": 2296.668,
+              "role": "export",
+              "tool": "export"
+            },
+            {
+              "elapsed_ms": 5.875,
+              "role": "import_cad_file",
+              "tool": "import_cad_file"
+            },
+            {
+              "elapsed_ms": 10.896,
+              "role": "validate_step",
+              "tool": "validate"
+            },
+            {
+              "elapsed_ms": 2.753,
+              "role": "measure_step",
+              "tool": "measure"
+            },
+            {
+              "elapsed_ms": 13.885,
+              "role": "verify_spec_step",
+              "tool": "verify_spec"
+            }
+          ],
+          "valid": {
+            "brep_valid": true,
+            "mesh_check": "exact",
+            "mesh_nonmanifold_edges": 0,
+            "mesh_nonmanifold_vertices": 0,
+            "mesh_open_edges": 0,
+            "mesh_vertex_deflection_defects": 0,
+            "n_solids": 1,
+            "nonmanifold_edges": 0,
+            "open_edges": 0,
+            "overlap_check": "exact",
+            "overlapping_pairs": 0,
+            "pairwise_overlap_volume": 0.0,
+            "passes_gate": true,
+            "reasons": [],
+            "refined_untriangulated_faces": 0,
+            "refined_untriangulated_faces_verified": true,
+            "untriangulated_faces": 0,
+            "volume": 14035.0726,
+            "warnings": [],
+            "watertight_manifold": true
+          }
+        }
+      ],
+      "step_files_created": 3
+    }
+  },
+  "title": "build123d-mcp teardown: shared MCP task replies and structural checks",
+  "tool_inventory": {
+    "default": {
+      "experimental_only": [],
+      "tool_count": 48,
+      "tool_names": [
+        "analyze_printability",
+        "bank_candidate",
+        "compare",
+        "crop_drawing",
+        "cross_sections",
+        "design_audit",
+        "destroy_session",
+        "edit_feature",
+        "execute",
+        "execute_file",
+        "export",
+        "find_bored_bosses",
+        "find_bosses",
+        "find_candidates",
+        "find_countersinks",
+        "find_hole_patterns",
+        "find_holes",
+        "health_check",
+        "import_cad_file",
+        "inspect_drawing",
+        "inspect_part",
+        "install_skill",
+        "interface_features",
+        "last_error",
+        "lint_drawing",
+        "list_sessions",
+        "locate_gate_defects",
+        "measure",
+        "mesh_holes",
+        "mesh_section",
+        "prepare_drawing",
+        "recognise_features",
+        "render_drawing",
+        "render_view",
+        "repair_advice",
+        "repair_hints",
+        "reset",
+        "resolve",
+        "restore_snapshot",
+        "save_drawing_annotations",
+        "save_snapshot",
+        "script",
+        "session_state",
+        "suggest_view_layout",
+        "validate",
+        "version",
+        "view_axes",
+        "workflow_hints"
+      ]
+    },
+    "experimental": {
+      "experimental_only": [
+        "suggest_spec",
+        "verify_spec"
+      ],
+      "tool_count": 50,
+      "tool_names": [
+        "analyze_printability",
+        "bank_candidate",
+        "compare",
+        "crop_drawing",
+        "cross_sections",
+        "design_audit",
+        "destroy_session",
+        "edit_feature",
+        "execute",
+        "execute_file",
+        "export",
+        "find_bored_bosses",
+        "find_bosses",
+        "find_candidates",
+        "find_countersinks",
+        "find_hole_patterns",
+        "find_holes",
+        "health_check",
+        "import_cad_file",
+        "inspect_drawing",
+        "inspect_part",
+        "install_skill",
+        "interface_features",
+        "last_error",
+        "lint_drawing",
+        "list_sessions",
+        "locate_gate_defects",
+        "measure",
+        "mesh_holes",
+        "mesh_section",
+        "prepare_drawing",
+        "recognise_features",
+        "render_drawing",
+        "render_view",
+        "repair_advice",
+        "repair_hints",
+        "reset",
+        "resolve",
+        "restore_snapshot",
+        "save_drawing_annotations",
+        "save_snapshot",
+        "script",
+        "session_state",
+        "suggest_spec",
+        "suggest_view_layout",
+        "validate",
+        "verify_spec",
+        "version",
+        "view_axes",
+        "workflow_hints"
+      ]
+    }
+  }
+}

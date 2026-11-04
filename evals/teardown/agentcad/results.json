@@ -1,0 +1,4343 @@
+{
+  "complete": true,
+  "run_id": "13f7b547-9332-4aa4-845a-5bd2613ee983",
+  "environment": {
+    "python": "3.12.10",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "upstream_commit": "428abffa763c12882697de6449c59ea15c18c540",
+    "packages": {
+      "agentcad": "0.7.1",
+      "build123d": "0.10.0",
+      "cadquery-ocp": "7.8.1.1.post1",
+      "mcp": "1.30.0"
+    }
+  },
+  "scope": "fixed source over real MCP; no agent benchmark; partial cylindrical spec does not test access",
+  "tool_inventory": [
+    {
+      "name": "cloud_create_project",
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "runtime": {
+            "default": "build123d",
+            "enum": [
+              "build123d",
+              "cadquery"
+            ],
+            "title": "Runtime",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "cloud_create_projectArguments",
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "cloud_projects",
+      "inputSchema": {
+        "properties": {},
+        "title": "cloud_projectsArguments",
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "cloud_project",
+      "inputSchema": {
+        "properties": {
+          "project": {
+            "title": "Project",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project"
+        ],
+        "title": "cloud_projectArguments",
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "cloud_run",
+      "inputSchema": {
+        "properties": {
+          "project": {
+            "title": "Project",
+            "type": "string"
+          },
+          "script": {
+            "title": "Script",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "cwd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cwd"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Idempotency Key"
+          }
+        },
+        "required": [
+          "project",
+          "script",
+          "label"
+        ],
+        "title": "cloud_runArguments",
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "cloud_import",
+      "inputSchema": {
+        "properties": {
+          "project": {
+            "title": "Project",
+            "type": "string"
+          },
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "cwd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cwd"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Idempotency Key"
+          }
+        },
+        "required": [
+          "project",
+          "file"
+        ],
+        "title": "cloud_importArguments",
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "cloud_measure",
+      "inputSchema": {
+        "properties": {
+          "project": {
+            "title": "Project",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project",
+          "version"
+        ],
+        "title": "cloud_measureArguments",
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "cloud_inspect",
+      "inputSchema": {
+        "properties": {
+          "project": {
+            "title": "Project",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "ids": {
+            "default": false,
+            "title": "Ids",
+            "type": "boolean"
+          },
+          "summary": {
+            "default": false,
+            "title": "Summary",
+            "type": "boolean"
+          },
+          "limit": {
+            "default": 100,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "validate_only": {
+            "default": false,
+            "title": "Validate Only",
+            "type": "boolean"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Idempotency Key"
+          }
+        },
+        "required": [
+          "project",
+          "version"
+        ],
+        "title": "cloud_inspectArguments",
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "cloud_check_spec",
+      "inputSchema": {
+        "properties": {
+          "project": {
+            "title": "Project",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "spec_file": {
+            "title": "Spec File",
+            "type": "string"
+          },
+          "cwd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cwd"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Idempotency Key"
+          }
+        },
+        "required": [
+          "project",
+          "version",
+          "spec_file"
+        ],
+        "title": "cloud_check_specArguments",
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "cloud_render",
+      "inputSchema": {
+        "properties": {
+          "project": {
+            "title": "Project",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Idempotency Key"
+          }
+        },
+        "required": [
+          "project",
+          "version"
+        ],
+        "title": "cloud_renderArguments",
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "cloud_diff",
+      "inputSchema": {
+        "properties": {
+          "project": {
+            "title": "Project",
+            "type": "string"
+          },
+          "from_version": {
+            "title": "From Version",
+            "type": "integer"
+          },
+          "to_version": {
+            "title": "To Version",
+            "type": "integer"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Idempotency Key"
+          }
+        },
+        "required": [
+          "project",
+          "from_version",
+          "to_version"
+        ],
+        "title": "cloud_diffArguments",
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "cloud_job",
+      "inputSchema": {
+        "properties": {
+          "project": {
+            "title": "Project",
+            "type": "string"
+          },
+          "job": {
+            "title": "Job",
+            "type": "string"
+          },
+          "wait_seconds": {
+            "default": 0,
+            "title": "Wait Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project",
+          "job"
+        ],
+        "title": "cloud_jobArguments",
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "cloud_download",
+      "inputSchema": {
+        "properties": {
+          "project": {
+            "title": "Project",
+            "type": "string"
+          },
+          "destination": {
+            "title": "Destination",
+            "type": "string"
+          },
+          "job": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Job"
+          },
+          "kind": {
+            "default": "step",
+            "enum": [
+              "step",
+              "render",
+              "report"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Version"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Path"
+          },
+          "cwd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cwd"
+          },
+          "overwrite": {
+            "default": false,
+            "title": "Overwrite",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "project",
+          "destination"
+        ],
+        "title": "cloud_downloadArguments",
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "import_cad",
+      "inputSchema": {
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "cwd": {
+            "title": "Cwd",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Label"
+          },
+          "initialize": {
+            "default": false,
+            "title": "Initialize",
+            "type": "boolean"
+          },
+          "runtime": {
+            "anyOf": [
+              {
+                "enum": [
+                  "build123d",
+                  "cadquery"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Runtime"
+          },
+          "validation_profile": {
+            "default": "deliverable",
+            "enum": [
+              "deliverable",
+              "kernel"
+            ],
+            "title": "Validation Profile",
+            "type": "string"
+          },
+          "view": {
+            "default": true,
+            "title": "View",
+            "type": "boolean"
+          },
+          "diff": {
+            "default": true,
+            "title": "Diff",
+            "type": "boolean"
+          },
+          "report": {
+            "default": true,
+            "title": "Report",
+            "type": "boolean"
+          },
+          "report_images": {
+            "default": true,
+            "title": "Report Images",
+            "type": "boolean"
+          },
+          "max_images": {
+            "default": 9,
+            "title": "Max Images",
+            "type": "integer"
+          },
+          "text_budget": {
+            "default": 2000,
+            "title": "Text Budget",
+            "type": "integer"
+          },
+          "build_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Build Dir"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Idempotency Key"
+          },
+          "checks_file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Checks File"
+          },
+          "defer_checks": {
+            "default": false,
+            "title": "Defer Checks",
+            "type": "boolean"
+          },
+          "stage": {
+            "default": false,
+            "title": "Stage",
+            "type": "boolean"
+          },
+          "inspection_background": {
+            "default": false,
+            "title": "Inspection Background",
+            "type": "boolean"
+          },
+          "inspection_wait_timeout": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Inspection Wait Timeout"
+          },
+          "context_window": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Context Window"
+          },
+          "response_budget": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Response Budget"
+          },
+          "response_text_budget": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Response Text Budget"
+          },
+          "image_budget": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Image Budget"
+          },
+          "vision_profile": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Vision Profile"
+          }
+        },
+        "required": [
+          "file",
+          "cwd"
+        ],
+        "title": "import_cadArguments",
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "run",
+      "inputSchema": {
+        "properties": {
+          "script": {
+            "title": "Script",
+            "type": "string"
+          },
+          "cwd": {
+            "title": "Cwd",
+            "type": "string"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Output"
+          },
+          "render": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Render"
+          },
+          "export": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Export"
+          },
+          "preview": {
+            "default": true,
+            "title": "Preview",
+            "type": "boolean"
+          },
+          "params": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Params"
+          },
+          "dry_run": {
+            "default": false,
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "diff": {
+            "default": true,
+            "title": "Diff",
+            "type": "boolean"
+          },
+          "view": {
+            "default": true,
+            "title": "View",
+            "type": "boolean"
+          },
+          "build_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Build Dir"
+          },
+          "checks_file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Checks File"
+          },
+          "defer_checks": {
+            "default": false,
+            "title": "Defer Checks",
+            "type": "boolean"
+          },
+          "stage": {
+            "default": false,
+            "title": "Stage",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "script",
+          "cwd"
+        ],
+        "title": "runArguments",
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "render",
+      "inputSchema": {
+        "properties": {
+          "step_file": {
+            "title": "Step File",
+            "type": "string"
+          },
+          "view": {
+            "title": "View",
+            "type": "string"
+          },
+          "cwd": {
+            "title": "Cwd",
+            "type": "string"
+          },
+          "zoom": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Zoom"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Name"
+          },
+          "focus": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Focus"
+          },
+          "no_fit": {
+            "default": false,
+            "title": "No Fit",
+            "type": "boolean"
+          },
+          "build_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Build Dir"
+          },
+          "highlight": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Highlight"
+          }
+        },
+        "required": [
+          "step_file",
+          "view",
+          "cwd"
+        ],
+        "title": "renderArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "export",
+      "inputSchema": {
+        "properties": {
+          "step_file": {
+            "title": "Step File",
+            "type": "string"
+          },
+          "formats": {
+            "title": "Formats",
+            "type": "string"
+          },
+          "cwd": {
+            "title": "Cwd",
+            "type": "string"
+          },
+          "build_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Build Dir"
+          }
+        },
+        "required": [
+          "step_file",
+          "formats",
+          "cwd"
+        ],
+        "title": "exportArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "measure",
+      "inputSchema": {
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "cwd": {
+            "title": "Cwd",
+            "type": "string"
+          },
+          "features": {
+            "default": false,
+            "title": "Features",
+            "type": "boolean"
+          },
+          "cylinders_only": {
+            "default": false,
+            "title": "Cylinders Only",
+            "type": "boolean"
+          },
+          "diameter": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Diameter"
+          },
+          "tolerance": {
+            "default": 0.5,
+            "title": "Tolerance",
+            "type": "number"
+          },
+          "axis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Axis"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Limit"
+          },
+          "no_limit": {
+            "default": false,
+            "title": "No Limit",
+            "type": "boolean"
+          },
+          "build_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Build Dir"
+          }
+        },
+        "required": [
+          "file",
+          "cwd"
+        ],
+        "title": "measureArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "inspect",
+      "inputSchema": {
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "cwd": {
+            "title": "Cwd",
+            "type": "string"
+          },
+          "ids": {
+            "default": false,
+            "title": "Ids",
+            "type": "boolean"
+          },
+          "summary": {
+            "default": false,
+            "title": "Summary",
+            "type": "boolean"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Limit"
+          },
+          "no_limit": {
+            "default": false,
+            "title": "No Limit",
+            "type": "boolean"
+          },
+          "build_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Build Dir"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Entity Id"
+          },
+          "image": {
+            "default": false,
+            "title": "Image",
+            "type": "boolean"
+          },
+          "isolate": {
+            "default": false,
+            "title": "Isolate",
+            "type": "boolean"
+          },
+          "report": {
+            "default": false,
+            "title": "Report",
+            "type": "boolean"
+          },
+          "report_images": {
+            "default": true,
+            "title": "Report Images",
+            "type": "boolean"
+          },
+          "max_images": {
+            "default": 9,
+            "title": "Max Images",
+            "type": "integer"
+          },
+          "text_budget": {
+            "default": 2000,
+            "title": "Text Budget",
+            "type": "integer"
+          },
+          "background": {
+            "default": false,
+            "title": "Background",
+            "type": "boolean"
+          },
+          "wait_timeout": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Wait Timeout"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Job Id"
+          },
+          "job_action": {
+            "anyOf": [
+              {
+                "enum": [
+                  "status",
+                  "wait",
+                  "resume",
+                  "cancel"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Job Action"
+          },
+          "response_snapshot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Response Snapshot"
+          },
+          "context_window": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Context Window"
+          },
+          "response_budget": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Response Budget"
+          },
+          "response_text_budget": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Response Text Budget"
+          },
+          "image_budget": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Image Budget"
+          },
+          "vision_profile": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Vision Profile"
+          }
+        },
+        "required": [
+          "file",
+          "cwd"
+        ],
+        "title": "inspectArguments",
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "check_spec",
+      "inputSchema": {
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "spec_file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Spec File"
+          },
+          "cwd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cwd"
+          },
+          "build_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Build Dir"
+          },
+          "complete": {
+            "default": false,
+            "title": "Complete",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "check_specArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "promote",
+      "inputSchema": {
+        "properties": {
+          "idempotency_key": {
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "cwd": {
+            "title": "Cwd",
+            "type": "string"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Revision"
+          },
+          "status": {
+            "default": false,
+            "title": "Status",
+            "type": "boolean"
+          },
+          "target": {
+            "const": "cad",
+            "default": "cad",
+            "title": "Target",
+            "type": "string"
+          },
+          "build_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Build Dir"
+          }
+        },
+        "required": [
+          "idempotency_key",
+          "cwd"
+        ],
+        "title": "promoteArguments",
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "docs",
+      "inputSchema": {
+        "properties": {
+          "section": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Section"
+          },
+          "runtime": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Runtime"
+          },
+          "cwd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cwd"
+          },
+          "build_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Build Dir"
+          }
+        },
+        "title": "docsArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "context",
+      "inputSchema": {
+        "properties": {
+          "cwd": {
+            "title": "Cwd",
+            "type": "string"
+          },
+          "build_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Build Dir"
+          }
+        },
+        "required": [
+          "cwd"
+        ],
+        "title": "contextArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "recover",
+      "inputSchema": {
+        "properties": {
+          "version_dir": {
+            "title": "Version Dir",
+            "type": "string"
+          },
+          "cwd": {
+            "title": "Cwd",
+            "type": "string"
+          },
+          "make_current": {
+            "default": false,
+            "title": "Make Current",
+            "type": "boolean"
+          },
+          "build_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Build Dir"
+          }
+        },
+        "required": [
+          "version_dir",
+          "cwd"
+        ],
+        "title": "recoverArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "diff",
+      "inputSchema": {
+        "properties": {
+          "ref1": {
+            "title": "Ref1",
+            "type": "string"
+          },
+          "ref2": {
+            "title": "Ref2",
+            "type": "string"
+          },
+          "cwd": {
+            "title": "Cwd",
+            "type": "string"
+          },
+          "build_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Build Dir"
+          }
+        },
+        "required": [
+          "ref1",
+          "ref2",
+          "cwd"
+        ],
+        "title": "diffArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "view",
+      "inputSchema": {
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "cwd": {
+            "title": "Cwd",
+            "type": "string"
+          },
+          "build_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Build Dir"
+          },
+          "validation": {
+            "default": false,
+            "title": "Validation",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "file",
+          "cwd"
+        ],
+        "title": "viewArguments",
+        "type": "object"
+      }
+    }
+  ],
+  "trials": [
+    {
+      "task": "plate",
+      "repeat": 1,
+      "elapsed_total_s": 1.7257977080298588,
+      "source_sha256": "cc5b6ef1c80df0750e048974a698233f775512568c93d810000cf2456a15f830",
+      "step": "outputs/step/plate/plate-r1.step",
+      "step_sha256": "f90284b3f45111dbb9454c4a41d4e204797355133fa867a06c248bb4315c3b56",
+      "build": {
+        "status": "success",
+        "metrics": {
+          "bounding_box": {
+            "x": [
+              -30.0,
+              30.0
+            ],
+            "y": [
+              -20.0,
+              20.0
+            ],
+            "z": [
+              -3.0,
+              3.0
+            ]
+          },
+          "dimensions": {
+            "x": 60.0,
+            "y": 40.0,
+            "z": 6.0
+          },
+          "volume": 14035.0726,
+          "surface_area": 6210.1097,
+          "center_of_mass": {
+            "x": -0.0,
+            "y": -0.0,
+            "z": 0.0
+          },
+          "face_count": 10,
+          "edge_count": 24,
+          "is_valid": true,
+          "reliable": true
+        },
+        "validation": {
+          "profile": "deliverable",
+          "is_valid": true,
+          "first_failure": null,
+          "undetermined_layer": null,
+          "layers": {
+            "file_parse": {
+              "status": "pass",
+              "duration_ms": 0
+            },
+            "kernel_load": {
+              "status": "pass",
+              "duration_ms": 0
+            },
+            "brep_check": {
+              "status": "pass",
+              "errors": [],
+              "entities": [],
+              "entity_count": 0,
+              "evidence_truncated": false,
+              "duration_ms": 1
+            },
+            "shell_closure": {
+              "status": "pass",
+              "closed_shell_count": 1,
+              "open_shell_count": 0,
+              "loose_face_count": 0,
+              "loose_face_ids": [],
+              "free_edge_count": 0,
+              "free_edge_ids": [],
+              "free_edges": [],
+              "evidence_truncated": false,
+              "duration_ms": 0
+            },
+            "mesh_manifold": {
+              "deflection_mm": 0.07236,
+              "triangle_count": 444,
+              "vertex_count": 216,
+              "status": "pass",
+              "ladder_divisor": 1,
+              "requested_deflection_mm": 0.07236,
+              "worker": "in_process",
+              "duration_ms": 5
+            },
+            "structure": {
+              "status": "pass",
+              "solid_count": 1,
+              "shell_count": 1,
+              "face_count": 10,
+              "edge_count": 24,
+              "faces_outside_solids": 0,
+              "solids": [
+                {
+                  "id": 1,
+                  "volume": 14035.0726,
+                  "bbox": {
+                    "x": [
+                      -30.0,
+                      30.0
+                    ],
+                    "y": [
+                      -20.0,
+                      20.0
+                    ],
+                    "z": [
+                      -3.0,
+                      3.0
+                    ]
+                  }
+                }
+              ],
+              "evidence_truncated": false,
+              "duration_ms": 0
+            },
+            "advisory": {
+              "status": "pass",
+              "min_face_area_mm2": 82.938,
+              "max_tolerance_mm": 0.0,
+              "flags": [],
+              "duration_ms": 1
+            }
+          },
+          "message": "The shape passed every deliverable validation layer.",
+          "repairs": [],
+          "worker": "in_process",
+          "step_round_trip": {
+            "status": "pass",
+            "matches": true,
+            "before": {
+              "is_valid": true,
+              "solid_count": 1,
+              "layers": {
+                "brep_check": "pass",
+                "shell_closure": "pass",
+                "mesh_manifold": "pass",
+                "structure": "pass",
+                "advisory": "pass"
+              }
+            },
+            "after": {
+              "is_valid": true,
+              "solid_count": 1,
+              "layers": {
+                "brep_check": "pass",
+                "shell_closure": "pass",
+                "mesh_manifold": "pass",
+                "structure": "pass",
+                "advisory": "pass"
+              }
+            },
+            "differences": [],
+            "skipped_layers": [],
+            "skipped_reason": null,
+            "message": "STEP layer outcomes and solid count match the source."
+          }
+        },
+        "outputs": {
+          "step": "v1_part/output.step",
+          "script": "v1_part/script.py",
+          "geometry_manifest": "v1_part/geometry_manifest.json"
+        },
+        "promotion": {
+          "blockers": [],
+          "candidate": {
+            "content_sha256": "a5594bd45cddac818dee29adcc64d10f5d20200b571c4b368ffc9b7276a0f182",
+            "model_fingerprint": "a43f8f9511aaa182f7e5a2154d865a339532e9bdeb68fa7d5feeeb26b362a3ef",
+            "revision_id": "r_ad2b3181749e44289277f30c0887bcbc"
+          },
+          "candidate_retained": true,
+          "check_receipt_sha256": "bdcfeb1808f2a8c5e1b0f7dfea89a517ea0e7fdddb8fadda7fae3085a94aa301",
+          "content_sha256": "0df77db572cbb126708ee74b2665bb1ff5406420264dd0add9054479ffb4bf28",
+          "kind": "promotion_receipt",
+          "lifecycle": "completed",
+          "operation_diagnostics": [],
+          "outcome": "promoted",
+          "policy": {
+            "policy_id": "legacy-core-retention-deliverable",
+            "sha256": "71d0ff21d72a98eb190cd86958dc183e1589ce5178b716c3720e126220d12965",
+            "version": 1
+          },
+          "project_id": "p_c4b2d325b6914e8f9b1839d0d357ccb0",
+          "promoted_revision_after": "r_ad2b3181749e44289277f30c0887bcbc",
+          "promoted_revision_before": null,
+          "promotion_mode": "automatic",
+          "reason_codes": [],
+          "request_key": "auto:r_ad2b3181749e44289277f30c0887bcbc",
+          "request_sha256": "e126eb4d57c8008003a48b77529c0bac0078674ac48f12addaef1fcb27617ca7",
+          "review_states": {},
+          "schema_version": 1,
+          "target_id": "cad",
+          "validation_state": "valid",
+          "verified_artifacts": [
+            {
+              "name": "output.step",
+              "path": ".agentcad/changes/attempts/r_ad2b3181749e44289277f30c0887bcbc/geometry/output.step",
+              "role": "geometry",
+              "sha256": "f90284b3f45111dbb9454c4a41d4e204797355133fa867a06c248bb4315c3b56",
+              "size_bytes": 34491
+            }
+          ],
+          "warnings": []
+        },
+        "current_advanced": true
+      },
+      "measure": {
+        "status": "success",
+        "metrics": {
+          "bounding_box": {
+            "x": [
+              -30.0,
+              30.0
+            ],
+            "y": [
+              -20.0,
+              20.0
+            ],
+            "z": [
+              -3.0,
+              3.0
+            ]
+          },
+          "dimensions": {
+            "x": 60.0,
+            "y": 40.0,
+            "z": 6.0
+          },
+          "volume": 14035.0726,
+          "surface_area": 6210.1097,
+          "center_of_mass": {
+            "x": 0.0,
+            "y": -0.0,
+            "z": 0.0
+          },
+          "face_count": 10,
+          "edge_count": 24,
+          "is_valid": true,
+          "reliable": true
+        }
+      },
+      "partial_spec": {
+        "passed": true,
+        "structure_checks": [
+          {
+            "expectation": "expect_solids",
+            "expected": 1,
+            "actual": 1,
+            "passed": true
+          }
+        ],
+        "validity": {
+          "is_valid": true,
+          "first_failure": null,
+          "profile": "deliverable"
+        },
+        "matched_features": [
+          {
+            "name": "through_holes",
+            "type": "cylinder",
+            "target": {
+              "name": "through_holes",
+              "diameter_mm": 4.4,
+              "count": 4,
+              "axis": null,
+              "diameter_tolerance_mm": 0.1,
+              "count_tolerance": 0
+            },
+            "measured": {
+              "diameter_mm": 4.4,
+              "count": 4,
+              "axis": "+z"
+            },
+            "diameter_error_mm": 0.0,
+            "count_error": 0,
+            "passed": true
+          }
+        ],
+        "missing_features": []
+      },
+      "tool_timings_s": [
+        {
+          "tool": "run",
+          "elapsed_s": 1.227287375018932
+        },
+        {
+          "tool": "measure",
+          "elapsed_s": 0.015407750033773482
+        },
+        {
+          "tool": "inspect",
+          "elapsed_s": 0.02288758393842727
+        },
+        {
+          "tool": "check_spec",
+          "elapsed_s": 0.016201708000153303
+        }
+      ]
+    },
+    {
+      "task": "plate",
+      "repeat": 2,
+      "elapsed_total_s": 1.7173924579983577,
+      "source_sha256": "cc5b6ef1c80df0750e048974a698233f775512568c93d810000cf2456a15f830",
+      "step": "outputs/step/plate/plate-r2.step",
+      "step_sha256": "6dc35b030ee0688a03db4ef6a99bf235823aa53a6f53974e37a24bc3f6efdd4d",
+      "build": {
+        "status": "success",
+        "metrics": {
+          "bounding_box": {
+            "x": [
+              -30.0,
+              30.0
+            ],
+            "y": [
+              -20.0,
+              20.0
+            ],
+            "z": [
+              -3.0,
+              3.0
+            ]
+          },
+          "dimensions": {
+            "x": 60.0,
+            "y": 40.0,
+            "z": 6.0
+          },
+          "volume": 14035.0726,
+          "surface_area": 6210.1097,
+          "center_of_mass": {
+            "x": -0.0,
+            "y": -0.0,
+            "z": 0.0
+          },
+          "face_count": 10,
+          "edge_count": 24,
+          "is_valid": true,
+          "reliable": true
+        },
+        "validation": {
+          "profile": "deliverable",
+          "is_valid": true,
+          "first_failure": null,
+          "undetermined_layer": null,
+          "layers": {
+            "file_parse": {
+              "status": "pass",
+              "duration_ms": 0
+            },
+            "kernel_load": {
+              "status": "pass",
+              "duration_ms": 0
+            },
+            "brep_check": {
+              "status": "pass",
+              "errors": [],
+              "entities": [],
+              "entity_count": 0,
+              "evidence_truncated": false,
+              "duration_ms": 1
+            },
+            "shell_closure": {
+              "status": "pass",
+              "closed_shell_count": 1,
+              "open_shell_count": 0,
+              "loose_face_count": 0,
+              "loose_face_ids": [],
+              "free_edge_count": 0,
+              "free_edge_ids": [],
+              "free_edges": [],
+              "evidence_truncated": false,
+              "duration_ms": 0
+            },
+            "mesh_manifold": {
+              "deflection_mm": 0.07236,
+              "triangle_count": 444,
+              "vertex_count": 216,
+              "status": "pass",
+              "ladder_divisor": 1,
+              "requested_deflection_mm": 0.07236,
+              "worker": "in_process",
+              "duration_ms": 5
+            },
+            "structure": {
+              "status": "pass",
+              "solid_count": 1,
+              "shell_count": 1,
+              "face_count": 10,
+              "edge_count": 24,
+              "faces_outside_solids": 0,
+              "solids": [
+                {
+                  "id": 1,
+                  "volume": 14035.0726,
+                  "bbox": {
+                    "x": [
+                      -30.0,
+                      30.0
+                    ],
+                    "y": [
+                      -20.0,
+                      20.0
+                    ],
+                    "z": [
+                      -3.0,
+                      3.0
+                    ]
+                  }
+                }
+              ],
+              "evidence_truncated": false,
+              "duration_ms": 0
+            },
+            "advisory": {
+              "status": "pass",
+              "min_face_area_mm2": 82.938,
+              "max_tolerance_mm": 0.0,
+              "flags": [],
+              "duration_ms": 1
+            }
+          },
+          "message": "The shape passed every deliverable validation layer.",
+          "repairs": [],
+          "worker": "in_process",
+          "step_round_trip": {
+            "status": "pass",
+            "matches": true,
+            "before": {
+              "is_valid": true,
+              "solid_count": 1,
+              "layers": {
+                "brep_check": "pass",
+                "shell_closure": "pass",
+                "mesh_manifold": "pass",
+                "structure": "pass",
+                "advisory": "pass"
+              }
+            },
+            "after": {
+              "is_valid": true,
+              "solid_count": 1,
+              "layers": {
+                "brep_check": "pass",
+                "shell_closure": "pass",
+                "mesh_manifold": "pass",
+                "structure": "pass",
+                "advisory": "pass"
+              }
+            },
+            "differences": [],
+            "skipped_layers": [],
+            "skipped_reason": null,
+            "message": "STEP layer outcomes and solid count match the source."
+          }
+        },
+        "outputs": {
+          "step": "v1_part/output.step",
+          "script": "v1_part/script.py",
+          "geometry_manifest": "v1_part/geometry_manifest.json"
+        },
+        "promotion": {
+          "blockers": [],
+          "candidate": {
+            "content_sha256": "96a298cecd79d54d86cffd4142ff205d2830024e63b9ed55d6417af7b87367e5",
+            "model_fingerprint": "5d0213c712fa3fef4ccc48f16d3215f61ba31dc0fa2904b8fb12f8f73f7d0c77",
+            "revision_id": "r_f72b86e89d074941bcfc7981e349ceda"
+          },
+          "candidate_retained": true,
+          "check_receipt_sha256": "3e6c9c1a7ff676f9393a45598c9993ca5379ada9b301dab2c8300acdba35107a",
+          "content_sha256": "3a85cd9bd6718d011e671dbaa399f0da772c52dc7d3efe1e8619e5bd8d5bdd01",
+          "kind": "promotion_receipt",
+          "lifecycle": "completed",
+          "operation_diagnostics": [],
+          "outcome": "promoted",
+          "policy": {
+            "policy_id": "legacy-core-retention-deliverable",
+            "sha256": "71d0ff21d72a98eb190cd86958dc183e1589ce5178b716c3720e126220d12965",
+            "version": 1
+          },
+          "project_id": "p_35b67c6323e74eef8c1dc0e761ca4c54",
+          "promoted_revision_after": "r_f72b86e89d074941bcfc7981e349ceda",
+          "promoted_revision_before": null,
+          "promotion_mode": "automatic",
+          "reason_codes": [],
+          "request_key": "auto:r_f72b86e89d074941bcfc7981e349ceda",
+          "request_sha256": "1d37f0f4e07ef4c940091a41610ed83facf0ce7486cf6803ee523b9618c1fd07",
+          "review_states": {},
+          "schema_version": 1,
+          "target_id": "cad",
+          "validation_state": "valid",
+          "verified_artifacts": [
+            {
+              "name": "output.step",
+              "path": ".agentcad/changes/attempts/r_f72b86e89d074941bcfc7981e349ceda/geometry/output.step",
+              "role": "geometry",
+              "sha256": "6dc35b030ee0688a03db4ef6a99bf235823aa53a6f53974e37a24bc3f6efdd4d",
+              "size_bytes": 34491
+            }
+          ],
+          "warnings": []
+        },
+        "current_advanced": true
+      },
+      "measure": {
+        "status": "success",
+        "metrics": {
+          "bounding_box": {
+            "x": [
+              -30.0,
+              30.0
+            ],
+            "y": [
+              -20.0,
+              20.0
+            ],
+            "z": [
+              -3.0,
+              3.0
+            ]
+          },
+          "dimensions": {
+            "x": 60.0,
+            "y": 40.0,
+            "z": 6.0
+          },
+          "volume": 14035.0726,
+          "surface_area": 6210.1097,
+          "center_of_mass": {
+            "x": 0.0,
+            "y": -0.0,
+            "z": 0.0
+          },
+          "face_count": 10,
+          "edge_count": 24,
+          "is_valid": true,
+          "reliable": true
+        }
+      },
+      "partial_spec": {
+        "passed": true,
+        "structure_checks": [
+          {
+            "expectation": "expect_solids",
+            "expected": 1,
+            "actual": 1,
+            "passed": true
+          }
+        ],
+        "validity": {
+          "is_valid": true,
+          "first_failure": null,
+          "profile": "deliverable"
+        },
+        "matched_features": [
+          {
+            "name": "through_holes",
+            "type": "cylinder",
+            "target": {
+              "name": "through_holes",
+              "diameter_mm": 4.4,
+              "count": 4,
+              "axis": null,
+              "diameter_tolerance_mm": 0.1,
+              "count_tolerance": 0
+            },
+            "measured": {
+              "diameter_mm": 4.4,
+              "count": 4,
+              "axis": "+z"
+            },
+            "diameter_error_mm": 0.0,
+            "count_error": 0,
+            "passed": true
+          }
+        ],
+        "missing_features": []
+      },
+      "tool_timings_s": [
+        {
+          "tool": "run",
+          "elapsed_s": 1.2166816669050604
+        },
+        {
+          "tool": "measure",
+          "elapsed_s": 0.015581540996208787
+        },
+        {
+          "tool": "inspect",
+          "elapsed_s": 0.023874124977737665
+        },
+        {
+          "tool": "check_spec",
+          "elapsed_s": 0.016402749926783144
+        }
+      ]
+    },
+    {
+      "task": "plate",
+      "repeat": 3,
+      "elapsed_total_s": 1.7499487089226022,
+      "source_sha256": "cc5b6ef1c80df0750e048974a698233f775512568c93d810000cf2456a15f830",
+      "step": "outputs/step/plate/plate-r3.step",
+      "step_sha256": "f000957d61737d68064e8f5b8c74f23d51573c668c577da7c3db23f7a6ec28b1",
+      "build": {
+        "status": "success",
+        "metrics": {
+          "bounding_box": {
+            "x": [
+              -30.0,
+              30.0
+            ],
+            "y": [
+              -20.0,
+              20.0
+            ],
+            "z": [
+              -3.0,
+              3.0
+            ]
+          },
+          "dimensions": {
+            "x": 60.0,
+            "y": 40.0,
+            "z": 6.0
+          },
+          "volume": 14035.0726,
+          "surface_area": 6210.1097,
+          "center_of_mass": {
+            "x": -0.0,
+            "y": -0.0,
+            "z": 0.0
+          },
+          "face_count": 10,
+          "edge_count": 24,
+          "is_valid": true,
+          "reliable": true
+        },
+        "validation": {
+          "profile": "deliverable",
+          "is_valid": true,
+          "first_failure": null,
+          "undetermined_layer": null,
+          "layers": {
+            "file_parse": {
+              "status": "pass",
+              "duration_ms": 0
+            },
+            "kernel_load": {
+              "status": "pass",
+              "duration_ms": 0
+            },
+            "brep_check": {
+              "status": "pass",
+              "errors": [],
+              "entities": [],
+              "entity_count": 0,
+              "evidence_truncated": false,
+              "duration_ms": 1
+            },
+            "shell_closure": {
+              "status": "pass",
+              "closed_shell_count": 1,
+              "open_shell_count": 0,
+              "loose_face_count": 0,
+              "loose_face_ids": [],
+              "free_edge_count": 0,
+              "free_edge_ids": [],
+              "free_edges": [],
+              "evidence_truncated": false,
+              "duration_ms": 0
+            },
+            "mesh_manifold": {
+              "deflection_mm": 0.07236,
+              "triangle_count": 444,
+              "vertex_count": 216,
+              "status": "pass",
+              "ladder_divisor": 1,
+              "requested_deflection_mm": 0.07236,
+              "worker": "in_process",
+              "duration_ms": 5
+            },
+            "structure": {
+              "status": "pass",
+              "solid_count": 1,
+              "shell_count": 1,
+              "face_count": 10,
+              "edge_count": 24,
+              "faces_outside_solids": 0,
+              "solids": [
+                {
+                  "id": 1,
+                  "volume": 14035.0726,
+                  "bbox": {
+                    "x": [
+                      -30.0,
+                      30.0
+                    ],
+                    "y": [
+                      -20.0,
+                      20.0
+                    ],
+                    "z": [
+                      -3.0,
+                      3.0
+                    ]
+                  }
+                }
+              ],
+              "evidence_truncated": false,
+              "duration_ms": 0
+            },
+            "advisory": {
+              "status": "pass",
+              "min_face_area_mm2": 82.938,
+              "max_tolerance_mm": 0.0,
+              "flags": [],
+              "duration_ms": 1
+            }
+          },
+          "message": "The shape passed every deliverable validation layer.",
+          "repairs": [],
+          "worker": "in_process",
+          "step_round_trip": {
+            "status": "pass",
+            "matches": true,
+            "before": {
+              "is_valid": true,
+              "solid_count": 1,
+              "layers": {
+                "brep_check": "pass",
+                "shell_closure": "pass",
+                "mesh_manifold": "pass",
+                "structure": "pass",
+                "advisory": "pass"
+              }
+            },
+            "after": {
+              "is_valid": true,
+              "solid_count": 1,
+              "layers": {
+                "brep_check": "pass",
+                "shell_closure": "pass",
+                "mesh_manifold": "pass",
+                "structure": "pass",
+                "advisory": "pass"
+              }
+            },
+            "differences": [],
+            "skipped_layers": [],
+            "skipped_reason": null,
+            "message": "STEP layer outcomes and solid count match the source."
+          }
+        },
+        "outputs": {
+          "step": "v1_part/output.step",
+          "script": "v1_part/script.py",
+          "geometry_manifest": "v1_part/geometry_manifest.json"
+        },
+        "promotion": {
+          "blockers": [],
+          "candidate": {
+            "content_sha256": "67b751f2c594224202e727ea5fb1787f696e416a7c63a458d2e4cd0206370c75",
+            "model_fingerprint": "0d268858aa4ada85a2c2384a78d9303e30ebb8250fa3533ba657d73260f6274c",
+            "revision_id": "r_3a6652a7435147579e8c4e44590a7d9a"
+          },
+          "candidate_retained": true,
+          "check_receipt_sha256": "59729aafab216a28916c7f46ad0c9cf562c1e970a28de2a6624a489652ababfb",
+          "content_sha256": "09717024493e025d881fe5a1cdd47a35d570fd3f48070fc553b324886626e0e5",
+          "kind": "promotion_receipt",
+          "lifecycle": "completed",
+          "operation_diagnostics": [],
+          "outcome": "promoted",
+          "policy": {
+            "policy_id": "legacy-core-retention-deliverable",
+            "sha256": "71d0ff21d72a98eb190cd86958dc183e1589ce5178b716c3720e126220d12965",
+            "version": 1
+          },
+          "project_id": "p_7b7873eff3c7449297f9dba0f71cdaad",
+          "promoted_revision_after": "r_3a6652a7435147579e8c4e44590a7d9a",
+          "promoted_revision_before": null,
+          "promotion_mode": "automatic",
+          "reason_codes": [],
+          "request_key": "auto:r_3a6652a7435147579e8c4e44590a7d9a",
+          "request_sha256": "a9918e6eccec8d8d5a6076d175861805fb049d1da6dec53363d43e2f5bfbcd9a",
+          "review_states": {},
+          "schema_version": 1,
+          "target_id": "cad",
+          "validation_state": "valid",
+          "verified_artifacts": [
+            {
+              "name": "output.step",
+              "path": ".agentcad/changes/attempts/r_3a6652a7435147579e8c4e44590a7d9a/geometry/output.step",
+              "role": "geometry",
+              "sha256": "f000957d61737d68064e8f5b8c74f23d51573c668c577da7c3db23f7a6ec28b1",
+              "size_bytes": 34491
+            }
+          ],
+          "warnings": []
+        },
+        "current_advanced": true
+      },
+      "measure": {
+        "status": "success",
+        "metrics": {
+          "bounding_box": {
+            "x": [
+              -30.0,
+              30.0
+            ],
+            "y": [
+              -20.0,
+              20.0
+            ],
+            "z": [
+              -3.0,
+              3.0
+            ]
+          },
+          "dimensions": {
+            "x": 60.0,
+            "y": 40.0,
+            "z": 6.0
+          },
+          "volume": 14035.0726,
+          "surface_area": 6210.1097,
+          "center_of_mass": {
+            "x": 0.0,
+            "y": -0.0,
+            "z": 0.0
+          },
+          "face_count": 10,
+          "edge_count": 24,
+          "is_valid": true,
+          "reliable": true
+        }
+      },
+      "partial_spec": {
+        "passed": true,
+        "structure_checks": [
+          {
+            "expectation": "expect_solids",
+            "expected": 1,
+            "actual": 1,
+            "passed": true
+          }
+        ],
+        "validity": {
+          "is_valid": true,
+          "first_failure": null,
+          "profile": "deliverable"
+        },
+        "matched_features": [
+          {
+            "name": "through_holes",
+            "type": "cylinder",
+            "target": {
+              "name": "through_holes",
+              "diameter_mm": 4.4,
+              "count": 4,
+              "axis": null,
+              "diameter_tolerance_mm": 0.1,
+              "count_tolerance": 0
+            },
+            "measured": {
+              "diameter_mm": 4.4,
+              "count": 4,
+              "axis": "+z"
+            },
+            "diameter_error_mm": 0.0,
+            "count_error": 0,
+            "passed": true
+          }
+        ],
+        "missing_features": []
+      },
+      "tool_timings_s": [
+        {
+          "tool": "run",
+          "elapsed_s": 1.2693701249081641
+        },
+        {
+          "tool": "measure",
+          "elapsed_s": 0.015272959019057453
+        },
+        {
+          "tool": "inspect",
+          "elapsed_s": 0.02311362500768155
+        },
+        {
+          "tool": "check_spec",
+          "elapsed_s": 0.01670712500344962
+        }
+      ]
+    },
+    {
+      "task": "edit_plate",
+      "repeat": 1,
+      "elapsed_total_s": 2.401382041047327,
+      "source_sha256": "cd1e1dc67422fa6fed3c116fb99ad7e83c4ce91ac77a35263f49240d80426133",
+      "step": "outputs/step/edit_plate/edit_plate-r1.step",
+      "step_sha256": "10c7a7224c9bd1cb6c945c0b11678dd6ae66b6ccdd5b84ed156acb4b2bbf2502",
+      "build": {
+        "status": "success",
+        "metrics": {
+          "bounding_box": {
+            "x": [
+              -40.0,
+              40.0
+            ],
+            "y": [
+              -20.0,
+              20.0
+            ],
+            "z": [
+              -3.0,
+              3.0
+            ]
+          },
+          "dimensions": {
+            "x": 80.0,
+            "y": 40.0,
+            "z": 6.0
+          },
+          "volume": 18835.0726,
+          "surface_area": 8050.1097,
+          "center_of_mass": {
+            "x": -0.0,
+            "y": -0.0,
+            "z": 0.0
+          },
+          "face_count": 10,
+          "edge_count": 24,
+          "is_valid": true,
+          "reliable": true
+        },
+        "validation": {
+          "profile": "deliverable",
+          "is_valid": true,
+          "first_failure": null,
+          "undetermined_layer": null,
+          "layers": {
+            "file_parse": {
+              "status": "pass",
+              "duration_ms": 0
+            },
+            "kernel_load": {
+              "status": "pass",
+              "duration_ms": 0
+            },
+            "brep_check": {
+              "status": "pass",
+              "errors": [],
+              "entities": [],
+              "entity_count": 0,
+              "evidence_truncated": false,
+              "duration_ms": 1
+            },
+            "shell_closure": {
+              "status": "pass",
+              "closed_shell_count": 1,
+              "open_shell_count": 0,
+              "loose_face_count": 0,
+              "loose_face_ids": [],
+              "free_edge_count": 0,
+              "free_edge_ids": [],
+              "free_edges": [],
+              "evidence_truncated": false,
+              "duration_ms": 0
+            },
+            "mesh_manifold": {
+              "deflection_mm": 0.089644,
+              "triangle_count": 444,
+              "vertex_count": 216,
+              "status": "pass",
+              "ladder_divisor": 1,
+              "requested_deflection_mm": 0.089644,
+              "worker": "in_process",
+              "duration_ms": 5
+            },
+            "structure": {
+              "status": "pass",
+              "solid_count": 1,
+              "shell_count": 1,
+              "face_count": 10,
+              "edge_count": 24,
+              "faces_outside_solids": 0,
+              "solids": [
+                {
+                  "id": 1,
+                  "volume": 18835.0726,
+                  "bbox": {
+                    "x": [
+                      -40.0,
+                      40.0
+                    ],
+                    "y": [
+                      -20.0,
+                      20.0
+                    ],
+                    "z": [
+                      -3.0,
+                      3.0
+                    ]
+                  }
+                }
+              ],
+              "evidence_truncated": false,
+              "duration_ms": 0
+            },
+            "advisory": {
+              "status": "pass",
+              "min_face_area_mm2": 82.938,
+              "max_tolerance_mm": 0.0,
+              "flags": [],
+              "duration_ms": 1
+            }
+          },
+          "message": "The shape passed every deliverable validation layer.",
+          "repairs": [],
+          "worker": "in_process",
+          "step_round_trip": {
+            "status": "pass",
+            "matches": true,
+            "before": {
+              "is_valid": true,
+              "solid_count": 1,
+              "layers": {
+                "brep_check": "pass",
+                "shell_closure": "pass",
+                "mesh_manifold": "pass",
+                "structure": "pass",
+                "advisory": "pass"
+              }
+            },
+            "after": {
+              "is_valid": true,
+              "solid_count": 1,
+              "layers": {
+                "brep_check": "pass",
+                "shell_closure": "pass",
+                "mesh_manifold": "pass",
+                "structure": "pass",
+                "advisory": "pass"
+              }
+            },
+            "differences": [],
+            "skipped_layers": [],
+            "skipped_reason": null,
+            "message": "STEP layer outcomes and solid count match the source."
+          }
+        },
+        "outputs": {
+          "step": "v2_after/output.step",
+          "script": "v2_after/script.py",
+          "geometry_manifest": "v2_after/geometry_manifest.json"
+        },
+        "promotion": {
+          "blockers": [],
+          "candidate": {
+            "content_sha256": "dc8d723b75104bfb3072e034a19c8531014f4844c4ca518bf2d9ed14bb38ab7f",
+            "model_fingerprint": "6b60ca1197e71a609aa269ba2378f31340320578882846c041612b64a5e24c98",
+            "revision_id": "r_0e7213648dc849e5941ae9a1a810e9f9"
+          },
+          "candidate_retained": true,
+          "check_receipt_sha256": "86987d4c5973e1ed6837ec256b438e43c1d3f8283d9bdcd0ce151ae35c5ad0eb",
+          "content_sha256": "200e3d6ecebdf876b2a9e8dc5b432552c712877d06c36dc1031b43c03a03a870",
+          "kind": "promotion_receipt",
+          "lifecycle": "completed",
+          "operation_diagnostics": [],
+          "outcome": "promoted",
+          "policy": {
+            "policy_id": "legacy-core-retention-deliverable",
+            "sha256": "71d0ff21d72a98eb190cd86958dc183e1589ce5178b716c3720e126220d12965",
+            "version": 1
+          },
+          "project_id": "p_8615687c79a748aa9505072f62e10db0",
+          "promoted_revision_after": "r_0e7213648dc849e5941ae9a1a810e9f9",
+          "promoted_revision_before": "r_228d746e0dcc42a0abc3c16738735cf8",
+          "promotion_mode": "automatic",
+          "reason_codes": [],
+          "request_key": "auto:r_0e7213648dc849e5941ae9a1a810e9f9",
+          "request_sha256": "8bb1bbb0063cd54b3e75bc92f27d58f0d228d400569a07a51ecc6c4a5ac0bd7f",
+          "review_states": {},
+          "schema_version": 1,
+          "target_id": "cad",
+          "validation_state": "valid",
+          "verified_artifacts": [
+            {
+              "name": "output.step",
+              "path": ".agentcad/changes/attempts/r_0e7213648dc849e5941ae9a1a810e9f9/geometry/output.step",
+              "role": "geometry",
+              "sha256": "10c7a7224c9bd1cb6c945c0b11678dd6ae66b6ccdd5b84ed156acb4b2bbf2502",
+              "size_bytes": 34475
+            }
+          ],
+          "warnings": []
+        },
+        "current_advanced": true
+      },
+      "measure": {
+        "status": "success",
+        "metrics": {
+          "bounding_box": {
+            "x": [
+              -40.0,
+              40.0
+            ],
+            "y": [
+              -20.0,
+              20.0
+            ],
+            "z": [
+              -3.0,
+              3.0
+            ]
+          },
+          "dimensions": {
+            "x": 80.0,
+            "y": 40.0,
+            "z": 6.0
+          },
+          "volume": 18835.0726,
+          "surface_area": 8050.1097,
+          "center_of_mass": {
+            "x": 0.0,
+            "y": -0.0,
+            "z": 0.0
+          },
+          "face_count": 10,
+          "edge_count": 24,
+          "is_valid": true,
+          "reliable": true
+        }
+      },
+      "partial_spec": {
+        "passed": true,
+        "structure_checks": [
+          {
+            "expectation": "expect_solids",
+            "expected": 1,
+            "actual": 1,
+            "passed": true
+          }
+        ],
+        "validity": {
+          "is_valid": true,
+          "first_failure": null,
+          "profile": "deliverable"
+        },
+        "matched_features": [
+          {
+            "name": "through_holes",
+            "type": "cylinder",
+            "target": {
+              "name": "through_holes",
+              "diameter_mm": 4.4,
+              "count": 4,
+              "axis": null,
+              "diameter_tolerance_mm": 0.1,
+              "count_tolerance": 0
+            },
+            "measured": {
+              "diameter_mm": 4.4,
+              "count": 4,
+              "axis": "+z"
+            },
+            "diameter_error_mm": 0.0,
+            "count_error": 0,
+            "passed": true
+          }
+        ],
+        "missing_features": []
+      },
+      "tool_timings_s": [
+        {
+          "tool": "run",
+          "elapsed_s": 1.2818064159946516
+        },
+        {
+          "tool": "run",
+          "elapsed_s": 0.08923770894762129
+        },
+        {
+          "tool": "diff",
+          "elapsed_s": 0.5364604159258306
+        },
+        {
+          "tool": "measure",
+          "elapsed_s": 0.016008832957595587
+        },
+        {
+          "tool": "inspect",
+          "elapsed_s": 0.023641666979528964
+        },
+        {
+          "tool": "check_spec",
+          "elapsed_s": 0.01641658297739923
+        }
+      ]
+    },
+    {
+      "task": "edit_plate",
+      "repeat": 2,
+      "elapsed_total_s": 2.3226812080247328,
+      "source_sha256": "cd1e1dc67422fa6fed3c116fb99ad7e83c4ce91ac77a35263f49240d80426133",
+      "step": "outputs/step/edit_plate/edit_plate-r2.step",
+      "step_sha256": "e8ce857551b9eba4e4a4314af062e20b2f39feb5241346797519b9588b491716",
+      "build": {
+        "status": "success",
+        "metrics": {
+          "bounding_box": {
+            "x": [
+              -40.0,
+              40.0
+            ],
+            "y": [
+              -20.0,
+              20.0
+            ],
+            "z": [
+              -3.0,
+              3.0
+            ]
+          },
+          "dimensions": {
+            "x": 80.0,
+            "y": 40.0,
+            "z": 6.0
+          },
+          "volume": 18835.0726,
+          "surface_area": 8050.1097,
+          "center_of_mass": {
+            "x": -0.0,
+            "y": -0.0,
+            "z": 0.0
+          },
+          "face_count": 10,
+          "edge_count": 24,
+          "is_valid": true,
+          "reliable": true
+        },
+        "validation": {
+          "profile": "deliverable",
+          "is_valid": true,
+          "first_failure": null,
+          "undetermined_layer": null,
+          "layers": {
+            "file_parse": {
+              "status": "pass",
+              "duration_ms": 0
+            },
+            "kernel_load": {
+              "status": "pass",
+              "duration_ms": 0
+            },
+            "brep_check": {
+              "status": "pass",
+              "errors": [],
+              "entities": [],
+              "entity_count": 0,
+              "evidence_truncated": false,
+              "duration_ms": 1
+            },
+            "shell_closure": {
+              "status": "pass",
+              "closed_shell_count": 1,
+              "open_shell_count": 0,
+              "loose_face_count": 0,
+              "loose_face_ids": [],
+              "free_edge_count": 0,
+              "free_edge_ids": [],
+              "free_edges": [],
+              "evidence_truncated": false,
+              "duration_ms": 0
+            },
+            "mesh_manifold": {
+              "deflection_mm": 0.089644,
+              "triangle_count": 444,
+              "vertex_count": 216,
+              "status": "pass",
+              "ladder_divisor": 1,
+              "requested_deflection_mm": 0.089644,
+              "worker": "in_process",
+              "duration_ms": 5
+            },
+            "structure": {
+              "status": "pass",
+              "solid_count": 1,
+              "shell_count": 1,
+              "face_count": 10,
+              "edge_count": 24,
+              "faces_outside_solids": 0,
+              "solids": [
+                {
+                  "id": 1,
+                  "volume": 18835.0726,
+                  "bbox": {
+                    "x": [
+                      -40.0,
+                      40.0
+                    ],
+                    "y": [
+                      -20.0,
+                      20.0
+                    ],
+                    "z": [
+                      -3.0,
+                      3.0
+                    ]
+                  }
+                }
+              ],
+              "evidence_truncated": false,
+              "duration_ms": 0
+            },
+            "advisory": {
+              "status": "pass",
+              "min_face_area_mm2": 82.938,
+              "max_tolerance_mm": 0.0,
+              "flags": [],
+              "duration_ms": 1
+            }
+          },
+          "message": "The shape passed every deliverable validation layer.",
+          "repairs": [],
+          "worker": "in_process",
+          "step_round_trip": {
+            "status": "pass",
+            "matches": true,
+            "before": {
+              "is_valid": true,
+              "solid_count": 1,
+              "layers": {
+                "brep_check": "pass",
+                "shell_closure": "pass",
+                "mesh_manifold": "pass",
+                "structure": "pass",
+                "advisory": "pass"
+              }
+            },
+            "after": {
+              "is_valid": true,
+              "solid_count": 1,
+              "layers": {
+                "brep_check": "pass",
+                "shell_closure": "pass",
+                "mesh_manifold": "pass",
+                "structure": "pass",
+                "advisory": "pass"
+              }
+            },
+            "differences": [],
+            "skipped_layers": [],
+            "skipped_reason": null,
+            "message": "STEP layer outcomes and solid count match the source."
+          }
+        },
+        "outputs": {
+          "step": "v2_after/output.step",
+          "script": "v2_after/script.py",
+          "geometry_manifest": "v2_after/geometry_manifest.json"
+        },
+        "promotion": {
+          "blockers": [],
+          "candidate": {
+            "content_sha256": "15020228e6db40f44567318a1ff2f42091ff3d3ddf9b6f85d20c14e540609914",
+            "model_fingerprint": "d74615b6873875e37d8f45a021adc3ed060c13a2376b6b2891c5e84f792aa890",
+            "revision_id": "r_7933c93ca9104248a636a1d5b2b7b03a"
+          },
+          "candidate_retained": true,
+          "check_receipt_sha256": "f39da545fd8213fbb359fbcea4360561127c46fbd21f8f4729b3da41ec674718",
+          "content_sha256": "2f14f61d3739e045743f159bf5b6b6fe219ed81b53ff8c30958fbe22465dd137",
+          "kind": "promotion_receipt",
+          "lifecycle": "completed",
+          "operation_diagnostics": [],
+          "outcome": "promoted",
+          "policy": {
+            "policy_id": "legacy-core-retention-deliverable",
+            "sha256": "71d0ff21d72a98eb190cd86958dc183e1589ce5178b716c3720e126220d12965",
+            "version": 1
+          },
+          "project_id": "p_5e5a3c230ba944bb8fa3ce1b0f031b64",
+          "promoted_revision_after": "r_7933c93ca9104248a636a1d5b2b7b03a",
+          "promoted_revision_before": "r_ed59acde315247afb45573e385dc407a",
+          "promotion_mode": "automatic",
+          "reason_codes": [],
+          "request_key": "auto:r_7933c93ca9104248a636a1d5b2b7b03a",
+          "request_sha256": "7a98bc81397f8402faa77c8efd6b4fc7955f48e4bc556da6aa284dc91749dd6f",
+          "review_states": {},
+          "schema_version": 1,
+          "target_id": "cad",
+          "validation_state": "valid",
+          "verified_artifacts": [
+            {
+              "name": "output.step",
+              "path": ".agentcad/changes/attempts/r_7933c93ca9104248a636a1d5b2b7b03a/geometry/output.step",
+              "role": "geometry",
+              "sha256": "e8ce857551b9eba4e4a4314af062e20b2f39feb5241346797519b9588b491716",
+              "size_bytes": 34475
+            }
+          ],
+          "warnings": []
+        },
+        "current_advanced": true
+      },
+      "measure": {
+        "status": "success",
+        "metrics": {
+          "bounding_box": {
+            "x": [
+              -40.0,
+              40.0
+            ],
+            "y": [
+              -20.0,
+              20.0
+            ],
+            "z": [
+              -3.0,
+              3.0
+            ]
+          },
+          "dimensions": {
+            "x": 80.0,
+            "y": 40.0,
+            "z": 6.0
+          },
+          "volume": 18835.0726,
+          "surface_area": 8050.1097,
+          "center_of_mass": {
+            "x": 0.0,
+            "y": -0.0,
+            "z": 0.0
+          },
+          "face_count": 10,
+          "edge_count": 24,
+          "is_valid": true,
+          "reliable": true
+        }
+      },
+      "partial_spec": {
+        "passed": true,
+        "structure_checks": [
+          {
+            "expectation": "expect_solids",
+            "expected": 1,
+            "actual": 1,
+            "passed": true
+          }
+        ],
+        "validity": {
+          "is_valid": true,
+          "first_failure": null,
+          "profile": "deliverable"
+        },
+        "matched_features": [
+          {
+            "name": "through_holes",
+            "type": "cylinder",
+            "target": {
+              "name": "through_holes",
+              "diameter_mm": 4.4,
+              "count": 4,
+              "axis": null,
+              "diameter_tolerance_mm": 0.1,
+              "count_tolerance": 0
+            },
+            "measured": {
+              "diameter_mm": 4.4,
+              "count": 4,
+              "axis": "+z"
+            },
+            "diameter_error_mm": 0.0,
+            "count_error": 0,
+            "passed": true
+          }
+        ],
+        "missing_features": []
+      },
+      "tool_timings_s": [
+        {
+          "tool": "run",
+          "elapsed_s": 1.2109208329347894
+        },
+        {
+          "tool": "run",
+          "elapsed_s": 0.08798441698309034
+        },
+        {
+          "tool": "diff",
+          "elapsed_s": 0.5352130830287933
+        },
+        {
+          "tool": "measure",
+          "elapsed_s": 0.01637125003617257
+        },
+        {
+          "tool": "inspect",
+          "elapsed_s": 0.024314207956194878
+        },
+        {
+          "tool": "check_spec",
+          "elapsed_s": 0.016540291951969266
+        }
+      ]
+    },
+    {
+      "task": "edit_plate",
+      "repeat": 3,
+      "elapsed_total_s": 2.3690175829688087,
+      "source_sha256": "cd1e1dc67422fa6fed3c116fb99ad7e83c4ce91ac77a35263f49240d80426133",
+      "step": "outputs/step/edit_plate/edit_plate-r3.step",
+      "step_sha256": "04831066327b002aa698e4527c605705f515d2bddf9b2eb1916aadaaeedefe80",
+      "build": {
+        "status": "success",
+        "metrics": {
+          "bounding_box": {
+            "x": [
+              -40.0,
+              40.0
+            ],
+            "y": [
+              -20.0,
+              20.0
+            ],
+            "z": [
+              -3.0,
+              3.0
+            ]
+          },
+          "dimensions": {
+            "x": 80.0,
+            "y": 40.0,
+            "z": 6.0
+          },
+          "volume": 18835.0726,
+          "surface_area": 8050.1097,
+          "center_of_mass": {
+            "x": -0.0,
+            "y": -0.0,
+            "z": 0.0
+          },
+          "face_count": 10,
+          "edge_count": 24,
+          "is_valid": true,
+          "reliable": true
+        },
+        "validation": {
+          "profile": "deliverable",
+          "is_valid": true,
+          "first_failure": null,
+          "undetermined_layer": null,
+          "layers": {
+            "file_parse": {
+              "status": "pass",
+              "duration_ms": 0
+            },
+            "kernel_load": {
+              "status": "pass",
+              "duration_ms": 0
+            },
+            "brep_check": {
+              "status": "pass",
+              "errors": [],
+              "entities": [],
+              "entity_count": 0,
+              "evidence_truncated": false,
+              "duration_ms": 1
+            },
+            "shell_closure": {
+              "status": "pass",
+              "closed_shell_count": 1,
+              "open_shell_count": 0,
+              "loose_face_count": 0,
+              "loose_face_ids": [],
+              "free_edge_count": 0,
+              "free_edge_ids": [],
+              "free_edges": [],
+              "evidence_truncated": false,
+              "duration_ms": 0
+            },
+            "mesh_manifold": {
+              "deflection_mm": 0.089644,
+              "triangle_count": 444,
+              "vertex_count": 216,
+              "status": "pass",
+              "ladder_divisor": 1,
+              "requested_deflection_mm": 0.089644,
+              "worker": "in_process",
+              "duration_ms": 5
+            },
+            "structure": {
+              "status": "pass",
+              "solid_count": 1,
+              "shell_count": 1,
+              "face_count": 10,
+              "edge_count": 24,
+              "faces_outside_solids": 0,
+              "solids": [
+                {
+                  "id": 1,
+                  "volume": 18835.0726,
+                  "bbox": {
+                    "x": [
+                      -40.0,
+                      40.0
+                    ],
+                    "y": [
+                      -20.0,
+                      20.0
+                    ],
+                    "z": [
+                      -3.0,
+                      3.0
+                    ]
+                  }
+                }
+              ],
+              "evidence_truncated": false,
+              "duration_ms": 0
+            },
+            "advisory": {
+              "status": "pass",
+              "min_face_area_mm2": 82.938,
+              "max_tolerance_mm": 0.0,
+              "flags": [],
+              "duration_ms": 1
+            }
+          },
+          "message": "The shape passed every deliverable validation layer.",
+          "repairs": [],
+          "worker": "in_process",
+          "step_round_trip": {
+            "status": "pass",
+            "matches": true,
+            "before": {
+              "is_valid": true,
+              "solid_count": 1,
+              "layers": {
+                "brep_check": "pass",
+                "shell_closure": "pass",
+                "mesh_manifold": "pass",
+                "structure": "pass",
+                "advisory": "pass"
+              }
+            },
+            "after": {
+              "is_valid": true,
+              "solid_count": 1,
+              "layers": {
+                "brep_check": "pass",
+                "shell_closure": "pass",
+                "mesh_manifold": "pass",
+                "structure": "pass",
+                "advisory": "pass"
+              }
+            },
+            "differences": [],
+            "skipped_layers": [],
+            "skipped_reason": null,
+            "message": "STEP layer outcomes and solid count match the source."
+          }
+        },
+        "outputs": {
+          "step": "v2_after/output.step",
+          "script": "v2_after/script.py",
+          "geometry_manifest": "v2_after/geometry_manifest.json"
+        },
+        "promotion": {
+          "blockers": [],
+          "candidate": {
+            "content_sha256": "88232fd5bff01aa5fbc2495780fc4b0333eabf489e2a50b69f5e3852d7a065a9",
+            "model_fingerprint": "965cb94d38400257bbe186e7376d82aefefe0a895825ce45b11c0ee1089ca14c",
+            "revision_id": "r_d14a142b80f4478c8199b90b933c532d"
+          },
+          "candidate_retained": true,
+          "check_receipt_sha256": "541d48b00777149079abda59daeff24302ba251c6d7c181571b0ca0bac2b2f96",
+          "content_sha256": "ef1001021ca1b012fed0c08539a6f6c1456d4e8780917f3d95d236bdc5bd8190",
+          "kind": "promotion_receipt",
+          "lifecycle": "completed",
+          "operation_diagnostics": [],
+          "outcome": "promoted",
+          "policy": {
+            "policy_id": "legacy-core-retention-deliverable",
+            "sha256": "71d0ff21d72a98eb190cd86958dc183e1589ce5178b716c3720e126220d12965",
+            "version": 1
+          },
+          "project_id": "p_cdceaf04f52e4710b74dda5d2c8c071e",
+          "promoted_revision_after": "r_d14a142b80f4478c8199b90b933c532d",
+          "promoted_revision_before": "r_d0971e67c79e4c05b78f445d8aad5dde",
+          "promotion_mode": "automatic",
+          "reason_codes": [],
+          "request_key": "auto:r_d14a142b80f4478c8199b90b933c532d",
+          "request_sha256": "4225c76c51b9810d239a2ad2ad88743b75df4057b51f98ddba3bb9917f9374d8",
+          "review_states": {},
+          "schema_version": 1,
+          "target_id": "cad",
+          "validation_state": "valid",
+          "verified_artifacts": [
+            {
+              "name": "output.step",
+              "path": ".agentcad/changes/attempts/r_d14a142b80f4478c8199b90b933c532d/geometry/output.step",
+              "role": "geometry",
+              "sha256": "04831066327b002aa698e4527c605705f515d2bddf9b2eb1916aadaaeedefe80",
+              "size_bytes": 34475
+            }
+          ],
+          "warnings": []
+        },
+        "current_advanced": true
+      },
+      "measure": {
+        "status": "success",
+        "metrics": {
+          "bounding_box": {
+            "x": [
+              -40.0,
+              40.0
+            ],
+            "y": [
+              -20.0,
+              20.0
+            ],
+            "z": [
+              -3.0,
+              3.0
+            ]
+          },
+          "dimensions": {
+            "x": 80.0,
+            "y": 40.0,
+            "z": 6.0
+          },
+          "volume": 18835.0726,
+          "surface_area": 8050.1097,
+          "center_of_mass": {
+            "x": 0.0,
+            "y": -0.0,
+            "z": 0.0
+          },
+          "face_count": 10,
+          "edge_count": 24,
+          "is_valid": true,
+          "reliable": true
+        }
+      },
+      "partial_spec": {
+        "passed": true,
+        "structure_checks": [
+          {
+            "expectation": "expect_solids",
+            "expected": 1,
+            "actual": 1,
+            "passed": true
+          }
+        ],
+        "validity": {
+          "is_valid": true,
+          "first_failure": null,
+          "profile": "deliverable"
+        },
+        "matched_features": [
+          {
+            "name": "through_holes",
+            "type": "cylinder",
+            "target": {
+              "name": "through_holes",
+              "diameter_mm": 4.4,
+              "count": 4,
+              "axis": null,
+              "diameter_tolerance_mm": 0.1,
+              "count_tolerance": 0
+            },
+            "measured": {
+              "diameter_mm": 4.4,
+              "count": 4,
+              "axis": "+z"
+            },
+            "diameter_error_mm": 0.0,
+            "count_error": 0,
+            "passed": true
+          }
+        ],
+        "missing_features": []
+      },
+      "tool_timings_s": [
+        {
+          "tool": "run",
+          "elapsed_s": 1.2176799169974402
+        },
+        {
+          "tool": "run",
+          "elapsed_s": 0.08499570796266198
+        },
+        {
+          "tool": "diff",
+          "elapsed_s": 0.5403448340948671
+        },
+        {
+          "tool": "measure",
+          "elapsed_s": 0.016393749974668026
+        },
+        {
+          "tool": "inspect",
+          "elapsed_s": 0.02392741700168699
+        },
+        {
+          "tool": "check_spec",
+          "elapsed_s": 0.016425458947196603
+        }
+      ]
+    },
+    {
+      "task": "blocked_counterbore",
+      "repeat": 1,
+      "elapsed_total_s": 1.8176191250095144,
+      "source_sha256": "7ff61cf6046483bf665e6cbe7db4ad9d1431bcbf888b755228540e02d4ae2f2b",
+      "step": "outputs/step/blocked_counterbore/blocked_counterbore-r1.step",
+      "step_sha256": "cf6a5aac88500614c1a4af48c6f7e91efaf880863f0e071e9159e5ea74f6c455",
+      "build": {
+        "status": "success",
+        "metrics": {
+          "bounding_box": {
+            "x": [
+              -30.0,
+              30.0
+            ],
+            "y": [
+              -20.0,
+              20.0
+            ],
+            "z": [
+              0.0,
+              22.0
+            ]
+          },
+          "dimensions": {
+            "x": 60.0,
+            "y": 40.0,
+            "z": 22.0
+          },
+          "volume": 17107.5323,
+          "surface_area": 7807.8814,
+          "center_of_mass": {
+            "x": -0.0,
+            "y": -0.0,
+            "z": 5.1945
+          },
+          "face_count": 17,
+          "edge_count": 42,
+          "is_valid": true,
+          "reliable": true
+        },
+        "validation": {
+          "profile": "deliverable",
+          "is_valid": true,
+          "first_failure": null,
+          "undetermined_layer": null,
+          "layers": {
+            "file_parse": {
+              "status": "pass",
+              "duration_ms": 0
+            },
+            "kernel_load": {
+              "status": "pass",
+              "duration_ms": 0
+            },
+            "brep_check": {
+              "status": "pass",
+              "errors": [],
+              "entities": [],
+              "entity_count": 0,
+              "evidence_truncated": false,
+              "duration_ms": 1
+            },
+            "shell_closure": {
+              "status": "pass",
+              "closed_shell_count": 1,
+              "open_shell_count": 0,
+              "loose_face_count": 0,
+              "loose_face_ids": [],
+              "free_edge_count": 0,
+              "free_edge_ids": [],
+              "free_edges": [],
+              "evidence_truncated": false,
+              "duration_ms": 0
+            },
+            "mesh_manifold": {
+              "deflection_mm": 0.075392,
+              "triangle_count": 260,
+              "vertex_count": 128,
+              "status": "pass",
+              "ladder_divisor": 1,
+              "requested_deflection_mm": 0.075392,
+              "worker": "in_process",
+              "duration_ms": 4
+            },
+            "structure": {
+              "status": "pass",
+              "solid_count": 1,
+              "shell_count": 1,
+              "face_count": 17,
+              "edge_count": 42,
+              "faces_outside_solids": 0,
+              "solids": [
+                {
+                  "id": 1,
+                  "volume": 17107.5323,
+                  "bbox": {
+                    "x": [
+                      -30.0,
+                      30.0
+                    ],
+                    "y": [
+                      -20.0,
+                      20.0
+                    ],
+                    "z": [
+                      0.0,
+                      22.0
+                    ]
+                  }
+                }
+              ],
+              "evidence_truncated": false,
+              "duration_ms": 0
+            },
+            "advisory": {
+              "status": "pass",
+              "min_face_area_mm2": 41.469,
+              "max_tolerance_mm": 0.0,
+              "flags": [],
+              "duration_ms": 1
+            }
+          },
+          "message": "The shape passed every deliverable validation layer.",
+          "repairs": [],
+          "worker": "in_process",
+          "step_round_trip": {
+            "status": "pass",
+            "matches": true,
+            "before": {
+              "is_valid": true,
+              "solid_count": 1,
+              "layers": {
+                "brep_check": "pass",
+                "shell_closure": "pass",
+                "mesh_manifold": "pass",
+                "structure": "pass",
+                "advisory": "pass"
+              }
+            },
+            "after": {
+              "is_valid": true,
+              "solid_count": 1,
+              "layers": {
+                "brep_check": "pass",
+                "shell_closure": "pass",
+                "mesh_manifold": "pass",
+                "structure": "pass",
+                "advisory": "pass"
+              }
+            },
+            "differences": [],
+            "skipped_layers": [],
+            "skipped_reason": null,
+            "message": "STEP layer outcomes and solid count match the source."
+          }
+        },
+        "outputs": {
+          "step": "v1_part/output.step",
+          "script": "v1_part/script.py",
+          "geometry_manifest": "v1_part/geometry_manifest.json"
+        },
+        "promotion": {
+          "blockers": [],
+          "candidate": {
+            "content_sha256": "11f4ac44ba7733025da9d037462bec74ab2c7ddcb039121e097c9b7af0e1f6d8",
+            "model_fingerprint": "e5c46f28ad7f7c33d462b91f7a37116dd229bdf7a39acf374bc9f111eadaafef",
+            "revision_id": "r_aabb0b5bc0344ff28b9a050e728ace9e"
+          },
+          "candidate_retained": true,
+          "check_receipt_sha256": "a6bff0f3be871ab06ffcf6f73fe3d11989136e8313f3eccf73a4ab397ffb581c",
+          "content_sha256": "208e0f648ae12286ad2f77ba33986cae148c6fcea5ac6e9528f12d3654d6d300",
+          "kind": "promotion_receipt",
+          "lifecycle": "completed",
+          "operation_diagnostics": [],
+          "outcome": "promoted",
+          "policy": {
+            "policy_id": "legacy-core-retention-deliverable",
+            "sha256": "71d0ff21d72a98eb190cd86958dc183e1589ce5178b716c3720e126220d12965",
+            "version": 1
+          },
+          "project_id": "p_01064e3cdf804766a716d3f602074664",
+          "promoted_revision_after": "r_aabb0b5bc0344ff28b9a050e728ace9e",
+          "promoted_revision_before": null,
+          "promotion_mode": "automatic",
+          "reason_codes": [],
+          "request_key": "auto:r_aabb0b5bc0344ff28b9a050e728ace9e",
+          "request_sha256": "71bffd808a1c33765b2c34d53b6b40c964a37216922d20956233935fa5391c43",
+          "review_states": {},
+          "schema_version": 1,
+          "target_id": "cad",
+          "validation_state": "valid",
+          "verified_artifacts": [
+            {
+              "name": "output.step",
+              "path": ".agentcad/changes/attempts/r_aabb0b5bc0344ff28b9a050e728ace9e/geometry/output.step",
+              "role": "geometry",
+              "sha256": "cf6a5aac88500614c1a4af48c6f7e91efaf880863f0e071e9159e5ea74f6c455",
+              "size_bytes": 51416
+            }
+          ],
+          "warnings": []
+        },
+        "current_advanced": true
+      },
+      "measure": {
+        "status": "success",
+        "metrics": {
+          "bounding_box": {
+            "x": [
+              -30.0,
+              30.0
+            ],
+            "y": [
+              -20.0,
+              20.0
+            ],
+            "z": [
+              0.0,
+              22.0
+            ]
+          },
+          "dimensions": {
+            "x": 60.0,
+            "y": 40.0,
+            "z": 22.0
+          },
+          "volume": 17107.5323,
+          "surface_area": 7807.8814,
+          "center_of_mass": {
+            "x": -0.0,
+            "y": -0.0,
+            "z": 5.1945
+          },
+          "face_count": 17,
+          "edge_count": 42,
+          "is_valid": true,
+          "reliable": true
+        }
+      },
+      "partial_spec": {
+        "passed": true,
+        "structure_checks": [
+          {
+            "expectation": "expect_solids",
+            "expected": 1,
+            "actual": 1,
+            "passed": true
+          }
+        ],
+        "validity": {
+          "is_valid": true,
+          "first_failure": null,
+          "profile": "deliverable"
+        },
+        "matched_features": [
+          {
+            "name": "through_holes",
+            "type": "cylinder",
+            "target": {
+              "name": "through_holes",
+              "diameter_mm": 4.4,
+              "count": 1,
+              "axis": null,
+              "diameter_tolerance_mm": 0.1,
+              "count_tolerance": 0
+            },
+            "measured": {
+              "diameter_mm": 4.4,
+              "count": 1,
+              "axis": "+z"
+            },
+            "diameter_error_mm": 0.0,
+            "count_error": 0,
+            "passed": true
+          },
+          {
+            "name": "counterbore",
+            "type": "cylinder",
+            "target": {
+              "name": "counterbore",
+              "diameter_mm": 9.0,
+              "count": 1,
+              "axis": null,
+              "diameter_tolerance_mm": 0.1,
+              "count_tolerance": 0
+            },
+            "measured": {
+              "diameter_mm": 9.0,
+              "count": 1,
+              "axis": "+z"
+            },
+            "diameter_error_mm": 0.0,
+            "count_error": 0,
+            "passed": true
+          }
+        ],
+        "missing_features": []
+      },
+      "tool_timings_s": [
+        {
+          "tool": "run",
+          "elapsed_s": 1.252886667032726
+        },
+        {
+          "tool": "measure",
+          "elapsed_s": 0.01631700003053993
+        },
+        {
+          "tool": "inspect",
+          "elapsed_s": 0.02646491606719792
+        },
+        {
+          "tool": "check_spec",
+          "elapsed_s": 0.018467374960891902
+        }
+      ]
+    },
+    {
+      "task": "blocked_counterbore",
+      "repeat": 2,
+      "elapsed_total_s": 1.7127491669962183,
+      "source_sha256": "7ff61cf6046483bf665e6cbe7db4ad9d1431bcbf888b755228540e02d4ae2f2b",
+      "step": "outputs/step/blocked_counterbore/blocked_counterbore-r2.step",
+      "step_sha256": "3fa22653a1b2f10092c001b367b6b86677e01ac02f0bd5c237e63b991dff16e9",
+      "build": {
+        "status": "success",
+        "metrics": {
+          "bounding_box": {
+            "x": [
+              -30.0,
+              30.0
+            ],
+            "y": [
+              -20.0,
+              20.0
+            ],
+            "z": [
+              0.0,
+              22.0
+            ]
+          },
+          "dimensions": {
+            "x": 60.0,
+            "y": 40.0,
+            "z": 22.0
+          },
+          "volume": 17107.5323,
+          "surface_area": 7807.8814,
+          "center_of_mass": {
+            "x": -0.0,
+            "y": -0.0,
+            "z": 5.1945
+          },
+          "face_count": 17,
+          "edge_count": 42,
+          "is_valid": true,
+          "reliable": true
+        },
+        "validation": {
+          "profile": "deliverable",
+          "is_valid": true,
+          "first_failure": null,
+          "undetermined_layer": null,
+          "layers": {
+            "file_parse": {
+              "status": "pass",
+              "duration_ms": 0
+            },
+            "kernel_load": {
+              "status": "pass",
+              "duration_ms": 0
+            },
+            "brep_check": {
+              "status": "pass",
+              "errors": [],
+              "entities": [],
+              "entity_count": 0,
+              "evidence_truncated": false,
+              "duration_ms": 1
+            },
+            "shell_closure": {
+              "status": "pass",
+              "closed_shell_count": 1,
+              "open_shell_count": 0,
+              "loose_face_count": 0,
+              "loose_face_ids": [],
+              "free_edge_count": 0,
+              "free_edge_ids": [],
+              "free_edges": [],
+              "evidence_truncated": false,
+              "duration_ms": 0
+            },
+            "mesh_manifold": {
+              "deflection_mm": 0.075392,
+              "triangle_count": 260,
+              "vertex_count": 128,
+              "status": "pass",
+              "ladder_divisor": 1,
+              "requested_deflection_mm": 0.075392,
+              "worker": "in_process",
+              "duration_ms": 4
+            },
+            "structure": {
+              "status": "pass",
+              "solid_count": 1,
+              "shell_count": 1,
+              "face_count": 17,
+              "edge_count": 42,
+              "faces_outside_solids": 0,
+              "solids": [
+                {
+                  "id": 1,
+                  "volume": 17107.5323,
+                  "bbox": {
+                    "x": [
+                      -30.0,
+                      30.0
+                    ],
+                    "y": [
+                      -20.0,
+                      20.0
+                    ],
+                    "z": [
+                      0.0,
+                      22.0
+                    ]
+                  }
+                }
+              ],
+              "evidence_truncated": false,
+              "duration_ms": 0
+            },
+            "advisory": {
+              "status": "pass",
+              "min_face_area_mm2": 41.469,
+              "max_tolerance_mm": 0.0,
+              "flags": [],
+              "duration_ms": 1
+            }
+          },
+          "message": "The shape passed every deliverable validation layer.",
+          "repairs": [],
+          "worker": "in_process",
+          "step_round_trip": {
+            "status": "pass",
+            "matches": true,
+            "before": {
+              "is_valid": true,
+              "solid_count": 1,
+              "layers": {
+                "brep_check": "pass",
+                "shell_closure": "pass",
+                "mesh_manifold": "pass",
+                "structure": "pass",
+                "advisory": "pass"
+              }
+            },
+            "after": {
+              "is_valid": true,
+              "solid_count": 1,
+              "layers": {
+                "brep_check": "pass",
+                "shell_closure": "pass",
+                "mesh_manifold": "pass",
+                "structure": "pass",
+                "advisory": "pass"
+              }
+            },
+            "differences": [],
+            "skipped_layers": [],
+            "skipped_reason": null,
+            "message": "STEP layer outcomes and solid count match the source."
+          }
+        },
+        "outputs": {
+          "step": "v1_part/output.step",
+          "script": "v1_part/script.py",
+          "geometry_manifest": "v1_part/geometry_manifest.json"
+        },
+        "promotion": {
+          "blockers": [],
+          "candidate": {
+            "content_sha256": "22952b858e4130ad4e4769879ca739ca2bca6e7d2fff98adc1692a1ae17ef04d",
+            "model_fingerprint": "800e0d76b165a88f943357762ed33bef76178edb3ef87dc95f9e874f1698c8a3",
+            "revision_id": "r_ca23ee1f0b67459eaf58d89c788e18c2"
+          },
+          "candidate_retained": true,
+          "check_receipt_sha256": "41c16cf4a455e9560a9f94b61989ceb05ee955fc717b024ff72a8b6f9c199aa1",
+          "content_sha256": "24bd4f37b88825ae5270c91de2f98d70e021f0a8fd906abd5d7503d7e5e9f9ca",
+          "kind": "promotion_receipt",
+          "lifecycle": "completed",
+          "operation_diagnostics": [],
+          "outcome": "promoted",
+          "policy": {
+            "policy_id": "legacy-core-retention-deliverable",
+            "sha256": "71d0ff21d72a98eb190cd86958dc183e1589ce5178b716c3720e126220d12965",
+            "version": 1
+          },
+          "project_id": "p_fd9b20dbd32f4501a27f3294f84bcc2e",
+          "promoted_revision_after": "r_ca23ee1f0b67459eaf58d89c788e18c2",
+          "promoted_revision_before": null,
+          "promotion_mode": "automatic",
+          "reason_codes": [],
+          "request_key": "auto:r_ca23ee1f0b67459eaf58d89c788e18c2",
+          "request_sha256": "94ec07200af061e15b4a9fb33696f6315c591d10f58b04721882de2de201aa7e",
+          "review_states": {},
+          "schema_version": 1,
+          "target_id": "cad",
+          "validation_state": "valid",
+          "verified_artifacts": [
+            {
+              "name": "output.step",
+              "path": ".agentcad/changes/attempts/r_ca23ee1f0b67459eaf58d89c788e18c2/geometry/output.step",
+              "role": "geometry",
+              "sha256": "3fa22653a1b2f10092c001b367b6b86677e01ac02f0bd5c237e63b991dff16e9",
+              "size_bytes": 51416
+            }
+          ],
+          "warnings": []
+        },
+        "current_advanced": true
+      },
+      "measure": {
+        "status": "success",
+        "metrics": {
+          "bounding_box": {
+            "x": [
+              -30.0,
+              30.0
+            ],
+            "y": [
+              -20.0,
+              20.0
+            ],
+            "z": [
+              0.0,
+              22.0
+            ]
+          },
+          "dimensions": {
+            "x": 60.0,
+            "y": 40.0,
+            "z": 22.0
+          },
+          "volume": 17107.5323,
+          "surface_area": 7807.8814,
+          "center_of_mass": {
+            "x": -0.0,
+            "y": -0.0,
+            "z": 5.1945
+          },
+          "face_count": 17,
+          "edge_count": 42,
+          "is_valid": true,
+          "reliable": true
+        }
+      },
+      "partial_spec": {
+        "passed": true,
+        "structure_checks": [
+          {
+            "expectation": "expect_solids",
+            "expected": 1,
+            "actual": 1,
+            "passed": true
+          }
+        ],
+        "validity": {
+          "is_valid": true,
+          "first_failure": null,
+          "profile": "deliverable"
+        },
+        "matched_features": [
+          {
+            "name": "through_holes",
+            "type": "cylinder",
+            "target": {
+              "name": "through_holes",
+              "diameter_mm": 4.4,
+              "count": 1,
+              "axis": null,
+              "diameter_tolerance_mm": 0.1,
+              "count_tolerance": 0
+            },
+            "measured": {
+              "diameter_mm": 4.4,
+              "count": 1,
+              "axis": "+z"
+            },
+            "diameter_error_mm": 0.0,
+            "count_error": 0,
+            "passed": true
+          },
+          {
+            "name": "counterbore",
+            "type": "cylinder",
+            "target": {
+              "name": "counterbore",
+              "diameter_mm": 9.0,
+              "count": 1,
+              "axis": null,
+              "diameter_tolerance_mm": 0.1,
+              "count_tolerance": 0
+            },
+            "measured": {
+              "diameter_mm": 9.0,
+              "count": 1,
+              "axis": "+z"
+            },
+            "diameter_error_mm": 0.0,
+            "count_error": 0,
+            "passed": true
+          }
+        ],
+        "missing_features": []
+      },
+      "tool_timings_s": [
+        {
+          "tool": "run",
+          "elapsed_s": 1.2172354580834508
+        },
+        {
+          "tool": "measure",
+          "elapsed_s": 0.016395792015828192
+        },
+        {
+          "tool": "inspect",
+          "elapsed_s": 0.02718579105567187
+        },
+        {
+          "tool": "check_spec",
+          "elapsed_s": 0.018971667042933404
+        }
+      ]
+    },
+    {
+      "task": "blocked_counterbore",
+      "repeat": 3,
+      "elapsed_total_s": 1.7432682090438902,
+      "source_sha256": "7ff61cf6046483bf665e6cbe7db4ad9d1431bcbf888b755228540e02d4ae2f2b",
+      "step": "outputs/step/blocked_counterbore/blocked_counterbore-r3.step",
+      "step_sha256": "3d26d3e9581c7bc404ac8fad7ac284a56d1f6ce4d6f1518a0c3f5f9fd70c6d7c",
+      "build": {
+        "status": "success",
+        "metrics": {
+          "bounding_box": {
+            "x": [
+              -30.0,
+              30.0
+            ],
+            "y": [
+              -20.0,
+              20.0
+            ],
+            "z": [
+              0.0,
+              22.0
+            ]
+          },
+          "dimensions": {
+            "x": 60.0,
+            "y": 40.0,
+            "z": 22.0
+          },
+          "volume": 17107.5323,
+          "surface_area": 7807.8814,
+          "center_of_mass": {
+            "x": -0.0,
+            "y": -0.0,
+            "z": 5.1945
+          },
+          "face_count": 17,
+          "edge_count": 42,
+          "is_valid": true,
+          "reliable": true
+        },
+        "validation": {
+          "profile": "deliverable",
+          "is_valid": true,
+          "first_failure": null,
+          "undetermined_layer": null,
+          "layers": {
+            "file_parse": {
+              "status": "pass",
+              "duration_ms": 0
+            },
+            "kernel_load": {
+              "status": "pass",
+              "duration_ms": 0
+            },
+            "brep_check": {
+              "status": "pass",
+              "errors": [],
+              "entities": [],
+              "entity_count": 0,
+              "evidence_truncated": false,
+              "duration_ms": 1
+            },
+            "shell_closure": {
+              "status": "pass",
+              "closed_shell_count": 1,
+              "open_shell_count": 0,
+              "loose_face_count": 0,
+              "loose_face_ids": [],
+              "free_edge_count": 0,
+              "free_edge_ids": [],
+              "free_edges": [],
+              "evidence_truncated": false,
+              "duration_ms": 0
+            },
+            "mesh_manifold": {
+              "deflection_mm": 0.075392,
+              "triangle_count": 260,
+              "vertex_count": 128,
+              "status": "pass",
+              "ladder_divisor": 1,
+              "requested_deflection_mm": 0.075392,
+              "worker": "in_process",
+              "duration_ms": 4
+            },
+            "structure": {
+              "status": "pass",
+              "solid_count": 1,
+              "shell_count": 1,
+              "face_count": 17,
+              "edge_count": 42,
+              "faces_outside_solids": 0,
+              "solids": [
+                {
+                  "id": 1,
+                  "volume": 17107.5323,
+                  "bbox": {
+                    "x": [
+                      -30.0,
+                      30.0
+                    ],
+                    "y": [
+                      -20.0,
+                      20.0
+                    ],
+                    "z": [
+                      0.0,
+                      22.0
+                    ]
+                  }
+                }
+              ],
+              "evidence_truncated": false,
+              "duration_ms": 0
+            },
+            "advisory": {
+              "status": "pass",
+              "min_face_area_mm2": 41.469,
+              "max_tolerance_mm": 0.0,
+              "flags": [],
+              "duration_ms": 1
+            }
+          },
+          "message": "The shape passed every deliverable validation layer.",
+          "repairs": [],
+          "worker": "in_process",
+          "step_round_trip": {
+            "status": "pass",
+            "matches": true,
+            "before": {
+              "is_valid": true,
+              "solid_count": 1,
+              "layers": {
+                "brep_check": "pass",
+                "shell_closure": "pass",
+                "mesh_manifold": "pass",
+                "structure": "pass",
+                "advisory": "pass"
+              }
+            },
+            "after": {
+              "is_valid": true,
+              "solid_count": 1,
+              "layers": {
+                "brep_check": "pass",
+                "shell_closure": "pass",
+                "mesh_manifold": "pass",
+                "structure": "pass",
+                "advisory": "pass"
+              }
+            },
+            "differences": [],
+            "skipped_layers": [],
+            "skipped_reason": null,
+            "message": "STEP layer outcomes and solid count match the source."
+          }
+        },
+        "outputs": {
+          "step": "v1_part/output.step",
+          "script": "v1_part/script.py",
+          "geometry_manifest": "v1_part/geometry_manifest.json"
+        },
+        "promotion": {
+          "blockers": [],
+          "candidate": {
+            "content_sha256": "560c37a9985b34f54d2953a4a08f26b64d145bbcd87d8f44307b9a070dbc75f4",
+            "model_fingerprint": "59c9592fbbe0b9ddc844d6a84f4c7ea10991a5b14cd72c3e7f110e99ce81f00e",
+            "revision_id": "r_070addeba5264379abeb2c36a1ed89b8"
+          },
+          "candidate_retained": true,
+          "check_receipt_sha256": "298f792c461c04a5cd10d55b11555afaacce986807590bf067a37ce876af0527",
+          "content_sha256": "53cca3f0897c6bafe9a2b7824c75462e1f8455f5462ce3dfe46a6065d1a1ec69",
+          "kind": "promotion_receipt",
+          "lifecycle": "completed",
+          "operation_diagnostics": [],
+          "outcome": "promoted",
+          "policy": {
+            "policy_id": "legacy-core-retention-deliverable",
+            "sha256": "71d0ff21d72a98eb190cd86958dc183e1589ce5178b716c3720e126220d12965",
+            "version": 1
+          },
+          "project_id": "p_3d499a289d3849bea4e1880605c4e480",
+          "promoted_revision_after": "r_070addeba5264379abeb2c36a1ed89b8",
+          "promoted_revision_before": null,
+          "promotion_mode": "automatic",
+          "reason_codes": [],
+          "request_key": "auto:r_070addeba5264379abeb2c36a1ed89b8",
+          "request_sha256": "8edcbe6df4e2c470798e6d4ea651b9c63c245b772f27acbe7dbf93d0c29037e1",
+          "review_states": {},
+          "schema_version": 1,
+          "target_id": "cad",
+          "validation_state": "valid",
+          "verified_artifacts": [
+            {
+              "name": "output.step",
+              "path": ".agentcad/changes/attempts/r_070addeba5264379abeb2c36a1ed89b8/geometry/output.step",
+              "role": "geometry",
+              "sha256": "3d26d3e9581c7bc404ac8fad7ac284a56d1f6ce4d6f1518a0c3f5f9fd70c6d7c",
+              "size_bytes": 51416
+            }
+          ],
+          "warnings": []
+        },
+        "current_advanced": true
+      },
+      "measure": {
+        "status": "success",
+        "metrics": {
+          "bounding_box": {
+            "x": [
+              -30.0,
+              30.0
+            ],
+            "y": [
+              -20.0,
+              20.0
+            ],
+            "z": [
+              0.0,
+              22.0
+            ]
+          },
+          "dimensions": {
+            "x": 60.0,
+            "y": 40.0,
+            "z": 22.0
+          },
+          "volume": 17107.5323,
+          "surface_area": 7807.8814,
+          "center_of_mass": {
+            "x": -0.0,
+            "y": -0.0,
+            "z": 5.1945
+          },
+          "face_count": 17,
+          "edge_count": 42,
+          "is_valid": true,
+          "reliable": true
+        }
+      },
+      "partial_spec": {
+        "passed": true,
+        "structure_checks": [
+          {
+            "expectation": "expect_solids",
+            "expected": 1,
+            "actual": 1,
+            "passed": true
+          }
+        ],
+        "validity": {
+          "is_valid": true,
+          "first_failure": null,
+          "profile": "deliverable"
+        },
+        "matched_features": [
+          {
+            "name": "through_holes",
+            "type": "cylinder",
+            "target": {
+              "name": "through_holes",
+              "diameter_mm": 4.4,
+              "count": 1,
+              "axis": null,
+              "diameter_tolerance_mm": 0.1,
+              "count_tolerance": 0
+            },
+            "measured": {
+              "diameter_mm": 4.4,
+              "count": 1,
+              "axis": "+z"
+            },
+            "diameter_error_mm": 0.0,
+            "count_error": 0,
+            "passed": true
+          },
+          {
+            "name": "counterbore",
+            "type": "cylinder",
+            "target": {
+              "name": "counterbore",
+              "diameter_mm": 9.0,
+              "count": 1,
+              "axis": null,
+              "diameter_tolerance_mm": 0.1,
+              "count_tolerance": 0
+            },
+            "measured": {
+              "diameter_mm": 9.0,
+              "count": 1,
+              "axis": "+z"
+            },
+            "diameter_error_mm": 0.0,
+            "count_error": 0,
+            "passed": true
+          }
+        ],
+        "missing_features": []
+      },
+      "tool_timings_s": [
+        {
+          "tool": "run",
+          "elapsed_s": 1.2334742499515414
+        },
+        {
+          "tool": "measure",
+          "elapsed_s": 0.016214916948229074
+        },
+        {
+          "tool": "inspect",
+          "elapsed_s": 0.02621941699180752
+        },
+        {
+          "tool": "check_spec",
+          "elapsed_s": 0.018592749955132604
+        }
+      ]
+    }
+  ]
+}
