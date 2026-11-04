@@ -8,6 +8,7 @@ license = "Apache-2.0"
 dependencies = [
     "aiad-drafting==0.1.0",
     "aiad-engine==0.1.0",
+    "aiad-quality==0.1.0",
     "aiad-render[vtk]==0.0.1",
     "mcp==2.3.0",
     "pyyaml>=6",
@@ -30,4 +31,5 @@ packages = ["src/aiad_platform"]
 [tool.uv.sources]
 aiad-drafting = { workspace = true }
 aiad-engine = { workspace = true }
+aiad-quality = { workspace = true }
 aiad-render = { workspace = true }

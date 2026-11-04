@@ -8,6 +8,27 @@ from aiad.engine.types import BuildRequest
 SOURCE = "from build123d import *\nwith BuildPart() as bp:\n    Box(10, 10, 10)\n    {operation}\nresult = bp.part\n"
 
 
+def test_named_part_publishes_nested_sketch_and_tracks_extrusion(tmp_path):
+    from build123d import import_brep
+
+    source = '''from aiad import *
+with part("block"):
+    with feature("stock"):
+        with BuildSketch():
+            Rectangle(10, 8)
+        extrude(amount=4)
+'''
+    result = run_build(BuildRequest(source=source, project_dir=tmp_path, job_dir=tmp_path / "job"))
+    assert result.ok, result.failure
+    actual = import_brep(str(tmp_path / "job" / "part.brep"))
+    assert actual.is_valid
+    assert actual.volume == pytest.approx(320, abs=1e-6)
+    assert result.context.part_name == "block"
+    stock, = result.context.features
+    assert stock.name == "stock"
+    assert len(stock.faces) == len(actual.faces()) == 6
+
+
 @pytest.mark.parametrize(
     "operation",
     [

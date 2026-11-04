@@ -77,8 +77,37 @@ jobs:
       - name: Install headless graphics runtime
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libosmesa6 bubblewrap
-      - name: Run smoke test
-        run: uv run --locked --all-packages --all-extras python -m pytest tests/e2e
+      - name: Run integrated workspace and smoke tests
+        env:
+          AIAD_TEST_PACKAGES: ${{ needs.discover.outputs.packages }}
+        run: |
+          uv run --locked --all-packages --all-extras python - <<'PY'
+          import json
+          import os
+          import subprocess
+          import sys
+
+          packages = json.loads(os.environ["AIAD_TEST_PACKAGES"])
+          tests = [f"packages/{package['dir']}/tests" for package in packages]
+          raise SystemExit(subprocess.call([sys.executable, "-m", "pytest", *tests, "tests/e2e"]))
+          PY
+
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+      - name: Check standalone harness lock file
+        run: uv lock --project evals/benchmark/harness --check
+      - name: Run offline harness and SDK controls
+        run: >-
+          uv run --locked --project evals/benchmark/harness --with pytest-timeout
+          python -m pytest evals/benchmark/tests/test_agent_loop.py evals/benchmark/tests/test_provider_sdk.py
+      - name: Run statistics and native corpus controls
+        run: >-
+          uv run --locked --all-packages --all-extras python -m pytest
+          evals/benchmark/tests/test_statistics.py evals/benchmark/tests/test_corpus.py
 
   viewer:
     needs: discover
@@ -101,7 +130,7 @@ jobs:
   # One stable check name that covers the dynamic matrix, including skipped legs.
   ci-ok:
     if: always()
-    needs: [discover, packages, e2e, viewer]
+    needs: [discover, packages, e2e, viewer, benchmark]
     runs-on: ubuntu-latest
     steps:
       - name: All required jobs passed or were skipped
@@ -109,7 +138,7 @@ jobs:
           echo '${{ toJSON(needs) }}' | python3 -c '
           import json, sys
           needs = json.load(sys.stdin)
-          required = {"discover", "e2e"}
+          required = {"discover", "e2e", "benchmark"}
           bad = {k: v["result"] for k, v in needs.items()
                  if v["result"] != "success" and (k in required or v["result"] != "skipped")}
           print("results:", {k: v["result"] for k, v in needs.items()})

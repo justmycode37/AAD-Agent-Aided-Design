@@ -7,10 +7,11 @@ The `aiad` command provides the CLI, local daemon, and MCP adapter for [AIAD](..
 The `aiad` wheel declares these default runtime requirements:
 
 - `aiad-engine==0.1.0`
+- `aiad-quality==0.1.0`
 - `aiad-drafting==0.1.0`
 - `aiad-render[vtk]==0.0.1`; its `vtk` extra pins `vtk==9.7.1`
 
-The workspace source mappings keep repository resolution tied to these local packages instead of similarly named registry packages. Built wheel metadata uses normal versioned distribution requirements. A registry install such as `uv tool install aiad` also requires these component distributions to be available on the configured index; this change does not publish them. `aiad_quality` is not in the current workspace and is not added as a dependency.
+The workspace source mappings keep repository resolution tied to these local packages instead of similarly named registry packages. Built wheel metadata uses normal versioned distribution requirements. A registry install such as `uv tool install aiad` also requires these component distributions to be available on the configured index; this change does not publish them. The quality package and its on-demand catalog are included in the installed runtime. Optional standard-part construction still requires the quality package's `parts` extra.
 
 ## Installed-wheel smoke
 
@@ -20,7 +21,7 @@ Run the local build and isolated install check with:
 uv run --no-project --python 3.12 --script .github/scripts/packaging_smoke.py
 ```
 
-The helper builds all four workspace wheels, passes the component wheels directly to `uv tool install`, and verifies `direct_url.json` provenance and site-packages imports. It uses temporary tool, home, AIAD, and client-config directories and suppresses browser launch. It prints and writes a schema-versioned JSON result to `<work-dir>/packaging-result.json` (or the path supplied with `--result`). The runtime disk measure covers `UV_TOOL_DIR` and `UV_TOOL_BIN_DIR`; it excludes the uv package cache, Python interpreter, and `AIAD_HOME` data.
+The helper builds all five workspace wheels, passes the component wheels directly to `uv tool install`, and verifies `direct_url.json` provenance and site-packages imports. It uses temporary tool, home, AIAD, and client-config directories and suppresses browser launch. It prints and writes a schema-versioned JSON result to `<work-dir>/packaging-result.json` (or the path supplied with `--result`). The runtime disk measure covers `UV_TOOL_DIR` and `UV_TOOL_BIN_DIR`; it excludes the uv package cache, Python interpreter, and `AIAD_HOME` data.
 
 ### Measurement on macOS arm64
 
@@ -42,7 +43,7 @@ The 320.606 s install command completed, but that earlier run stopped before the
 
 The doctor warns that the viewer is a stub. The draft build also reports `scene_generation_failed` while retaining the valid BREP; scene integrity, render, and export each pass afterward. Package imports, wheel provenance, and `aiad version` were verified from the installed tool. `aiad_quality` is absent and was not installed or verified.
 
-The smoke workflow covers `macos-latest` (asserted arm64) and `ubuntu-latest` (asserted x86_64, with `libosmesa6`). This local measurement covers macOS arm64 only. It does not establish Linux results or release readiness.
+The smoke workflow covers `macos-15-intel` and `ubuntu-latest` (both asserted x86_64, with Linux `libosmesa6` and `bubblewrap`). The historical local measurements above cover macOS arm64 before the integration of the quality and scene packages. They do not establish current runtime measurements or release readiness.
 
 ## Release blockers
 

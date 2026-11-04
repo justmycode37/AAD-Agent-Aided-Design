@@ -197,7 +197,10 @@ def test_mass_is_skipped_without_identified_material_data():
     assert "g from" not in check.actual
 
 
-def test_custom_measure_skips_without_s1_resolver():
+def test_custom_measure_skips_without_s1_resolver(monkeypatch):
+    import sys
+
+    monkeypatch.setitem(sys.modules, "aiad.engine.select", None)
     check = spec_checks(
         _ctx(
             {
@@ -214,6 +217,20 @@ def test_custom_measure_skips_without_s1_resolver():
     )[0]
     assert check.status == "skip"
     assert "resolver" in check.message
+
+
+def test_custom_measure_uses_the_installed_s1_resolver():
+    from build123d import Box
+
+    requirement = {
+        "id": "height",
+        "measure": {"kind": "distance", "a": "face(where='max_z')", "b": "face(where='min_z')"},
+        "equals": "4 ± 0.01",
+    }
+    ctx = _ctx({"requirements": [requirement]}, Box(10, 8, 4))
+    assert spec_checks(ctx)[0].status == "pass"
+    requirement["equals"] = "12 ± 0.01"
+    assert spec_checks(ctx)[0].status == "fail"
 
 
 def test_zero_difference_volume_is_diagnostic_not_a_pointwise_symmetry_proof():

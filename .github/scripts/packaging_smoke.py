@@ -30,6 +30,7 @@ EXPECTED_WHEELS = {
     "aiad-engine": "0.1.0",
     "aiad-render": "0.0.1",
     "aiad-drafting": "0.1.0",
+    "aiad-quality": "0.1.0",
 }
 RUNTIME_PINS = {
     "mcp": "2.3.0",
@@ -232,6 +233,7 @@ module_names = {
     "aiad.engine.jobs",
     "aiad_render",
     "aiad_drafting",
+    "aiad_quality",
 }
 site_roots = [pathlib.Path(p).resolve() for p in sys.path if "site-packages" in p or "dist-packages" in p]
 modules = {}
@@ -272,18 +274,14 @@ if viewer_html_bytes <= 0:
 
 aiad_metadata = metadata.distribution("aiad").metadata
 requires_dist = aiad_metadata.get_all("Requires-Dist") or []
-required_runtime = ["aiad-engine==0.1.0", "aiad-drafting==0.1.0", "aiad-render[vtk]==0.0.1"]
+required_runtime = ["aiad-engine==0.1.0", "aiad-drafting==0.1.0", "aiad-quality==0.1.0", "aiad-render[vtk]==0.0.1"]
 for requirement in required_runtime:
     if not any(line.lower().replace(" ", "") == requirement.lower() for line in requires_dist):
         raise SystemExit(f"Installed aiad wheel is missing runtime requirement {requirement}: {requires_dist}")
-if any("aiad-quality" in line.lower() or "aiad_quality" in line.lower() for line in requires_dist):
-    raise SystemExit(f"Installed aiad wheel must not resolve the unavailable quality package: {requires_dist}")
-try:
-    metadata.version("aiad-quality")
-except metadata.PackageNotFoundError:
-    pass
-else:
-    raise SystemExit("An aiad-quality distribution was installed even though it is absent from this workspace")
+from aiad_quality import library
+for kind in ("part", "material", "playbook", "api"):
+    if not library("search", kind=kind)["items"]:
+        raise SystemExit(f"Installed quality catalog is empty for {kind}")
 
 print(json.dumps({
     "versions": versions,
@@ -695,6 +693,8 @@ def main() -> int:
             str(wheels["aiad-render"]),
             "--with",
             str(wheels["aiad-drafting"]),
+            "--with",
+            str(wheels["aiad-quality"]),
             str(wheels["aiad"]),
         ])
         install_started = time.monotonic()
@@ -875,7 +875,7 @@ def main() -> int:
         result["scope"]["release_blockers"] = blockers
         result["scope"]["quality_component"] = {
             "status": "available" if (ROOT / "packages" / "quality" / "pyproject.toml").is_file() else "not_present_in_workspace",
-            "installed": False,
+            "installed": "aiad-quality" in result.get("installed_artifact", {}).get("versions", {}),
             "verified": False,
         }
         result["status"] = "failed" if functional_errors else ("passed_with_release_blockers" if blockers else "passed")

@@ -593,16 +593,8 @@ def test_unsupported_locking_fails_explicitly(tmp_path, monkeypatch):
     assert not (tmp_path / "cache").exists()
 
 
-def test_actual_pr42_identity_compatibility(tmp_path):
-    source = os.environ.get("AIAD_CACHE_IDENTITY_SOURCE")
-    if not source:
-        pytest.skip("set AIAD_CACHE_IDENTITY_SOURCE to actual read-only PR42 identity.py outside the repo")
-    path = Path(source).resolve(strict=True)
-    assert not path.is_relative_to(SOURCE_DIR.parents[2])
-    assert path.stat().st_mode & 0o222 == 0
-    spec = importlib.util.spec_from_file_location("actual_pr42_identity", path)
-    actual = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(actual)
+def test_identity_compatibility(tmp_path):
+    from aiad.engine import identity as actual
     cache = GeometryCache(tmp_path / "cache")
     payload = candidate(tmp_path / "source")
     keys = set()

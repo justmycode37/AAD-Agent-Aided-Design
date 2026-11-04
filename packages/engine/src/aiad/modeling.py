@@ -167,6 +167,9 @@ class _NamedPart:
         import build123d
 
         self.builder = build123d.BuildPart(*self.placements, **self.kwargs)
+        # Nested builders publish only within their original Python scope.
+        # The named-part wrapper must expose its caller's construction frame.
+        self.builder._python_frame = inspect.currentframe().f_back
         self.builder.label = self.name
         _state.named_builder = self.builder
         entered = self.builder.__enter__()

@@ -24,6 +24,7 @@ source = { editable = "packages/platform" }
 dependencies = [
     { name = "aiad-drafting" },
     { name = "aiad-engine" },
+    { name = "aiad-quality" },
     { name = "aiad-render", extra = ["vtk"] },
     { name = "mcp" },
     { name = "pyyaml" },
@@ -37,6 +38,7 @@ dependencies = [
 requires-dist = [
     { name = "aiad-drafting", editable = "packages/drafting" },
     { name = "aiad-engine", editable = "packages/engine" },
+    { name = "aiad-quality", editable = "packages/quality" },
     { name = "aiad-render", extras = ["vtk"], editable = "packages/render" },
     { name = "mcp", specifier = "==2.3.0" },
     { name = "pyyaml", specifier = ">=6" },

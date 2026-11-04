@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: [macos-15-intel, ubuntu-latest]
     name: Installed wheel (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
@@ -32,14 +32,14 @@ jobs:
           enable-cache: true
       - name: Install headless graphics runtime
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libosmesa6
+        run: sudo apt-get update && sudo apt-get install -y libosmesa6 bubblewrap
       - name: Confirm packaging runner architecture
         run: |
           python3 - <<'PY'
           import platform
           import sys
 
-          expected = "arm64" if sys.platform == "darwin" else "x86_64"
+          expected = "x86_64"
           actual = platform.machine().lower()
           if actual != expected:
               raise SystemExit(f"Expected {expected} packaging runner, got {actual}")
