@@ -174,11 +174,6 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
                 tracked_build_parts.append(self)
             return result
 
-    # build123d decides which operations a context allows from its class name, so a subclass with
-    # another name makes fillet() and chamfer() refuse to run inside `with BuildPart()`.
-    TrackedBuildPart.__name__ = original_build_part.__name__
-    TrackedBuildPart.__qualname__ = original_build_part.__qualname__
-
         def _add_to_context(self, *args: Any, **kwargs: Any) -> Any:
             before = self._obj
             result = super()._add_to_context(*args, **kwargs)
