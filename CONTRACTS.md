@@ -37,6 +37,8 @@ tests/e2e/                           S2  end-to-end smoke tests
 - **Never** change repo settings or visibility, publish packages, or create releases without asking the user.
 - **Tooling:** use Python 3.12 and `uv`. If `uv` is missing, run `brew install uv`. The root workspace uses `members = ["packages/*"]`, so a new `packages/<name>/pyproject.toml` needs no root edit. Develop in a local venv until S2's root workspace is on `main`.
 
+**Distribution names:** `aiad` (`packages/platform`, provides the `aiad` command and depends on the others), `aiad-engine` (imports as `aiad`), `aiad-render`, `aiad-drafting`, `aiad-quality`. To depend on another workspace package, list it in `dependencies` and add `[tool.uv.sources] <name> = { workspace = true }`.
+
 **Pinned versions** (raise only with a changelog entry): `build123d==0.13.0`, `cadquery-ocp-novtk==8.0.1.1.0`, `mcp==2.3.0`, `ezdxf==1.4.5`, `three-cad-viewer@5.1.3`, `@modelcontextprotocol/ext-apps@2.0.4`.
 
 ---
@@ -386,6 +388,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 
 ## 11. Changelog
 
+- 2026-11-04: S2 added distribution names to section 1, because workspace packages must not collide and `uv tool install aiad` must get the CLI.
 - 2026-11-04: S1 removed the mandatory stop-and-ask GitHub access note at the user's request; agents may run repository connection and authentication setup themselves.
 - 2026-11-04: v0 written with `PLAN.md`.
 - 2026-11-04: renamed to AIAD. Switched from a shared working tree to per-sector worktrees and PRs into `main`. Cross-sector messages moved to GitHub issues.
