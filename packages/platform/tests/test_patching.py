@@ -27,3 +27,27 @@ def test_stale_context_fails_instead_of_guessing():
 def test_no_hunks_fails():
     with pytest.raises(PatchError, match="no hunks"):
         apply_patch(SOURCE, "not a diff")
+
+
+def test_header_like_source_lines_are_applied():
+    assert apply_patch("-- old\n", "@@ -1 +1 @@\n--- old\n+++ new\n") == "++ new\n"
+
+
+def test_untouched_eof_without_newline_is_preserved():
+    assert apply_patch("a\nb", "@@ -1 +1 @@\n-a\n+A\n") == "A\nb"
+
+
+def test_no_newline_marker_changes_eof():
+    patch = "@@ -1 +1 @@\n-old\n\\ No newline at end of file\n+new\n\\ No newline at end of file\n"
+    assert apply_patch("old", patch) == "new"
+
+
+@pytest.mark.parametrize("patch", [
+    "@@ -1,2 +1,2 @@\n-a\n+A\n",
+    "@@ -1 +1 @@\n-a\n+A\n+extra\n",
+    "@@ -1 +7 @@\n-a\n+A\n",
+    "@@ -1 +1 @@\n-a\n+A\ndiff --git a/other b/other\n--- a/other\n+++ b/other\n",
+])
+def test_inconsistent_or_multifile_hunks_fail(patch):
+    with pytest.raises(PatchError):
+        apply_patch(SOURCE, patch)

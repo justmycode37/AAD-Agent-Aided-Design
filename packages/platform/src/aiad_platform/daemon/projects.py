@@ -90,12 +90,28 @@ class Project:
     def checkout(self, rev: int) -> None:
         """Move the head to an existing revision. Later revisions stay in history."""
         source = self.rev_dir(rev)
+        # Read every required artifact before changing the working copy or head.
+        model = (source / "model.py").read_bytes().decode("utf-8")
+        spec_path = source / "spec.yaml"
+        spec = spec_path.read_bytes().decode("utf-8") if spec_path.exists() else None
         meta = self.meta()
         meta["head_rev"] = rev
-        self.write_meta(meta)
-        write_atomic(self.path / "model.py", (source / "model.py").read_text())
-        if (source / "spec.yaml").exists():
-            write_atomic(self.path / "spec.yaml", (source / "spec.yaml").read_text())
+        targets = [self.path / "model.py", self.path / "spec.yaml", self.meta_path]
+        originals = {path: path.read_bytes().decode("utf-8") if path.exists() else None for path in targets}
+        try:
+            write_atomic(targets[0], model)
+            if spec is None:
+                targets[1].unlink(missing_ok=True)
+            else:
+                write_atomic(targets[1], spec)
+            self.write_meta(meta)
+        except OSError:
+            for path, original in originals.items():
+                if original is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    write_atomic(path, original)
+            raise
 
     def new_job_dir(self) -> tuple[str, Path]:
         job = uuid.uuid4().hex[:12]
@@ -111,14 +127,7 @@ class Project:
         if spec is not None:
             (job_dir / "spec.yaml").write_text(spec)
         os.replace(job_dir, target)
-        # The head is authoritative and moves first. The root files are derived from it, so a
-        # crash here leaves them one revision behind rather than ahead of the head.
-        meta = self.meta()
-        meta["head_rev"] = rev
-        self.write_meta(meta)
-        write_atomic(self.path / "model.py", source)
-        if spec is not None:
-            write_atomic(self.path / "spec.yaml", spec)
+        self.checkout(rev)
         return rev
 
     def discard_job(self, job_dir: Path) -> None:

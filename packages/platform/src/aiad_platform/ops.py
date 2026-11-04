@@ -70,9 +70,9 @@ def load_context(request: dict[str, Any]) -> Any:
         shape = import_brep(str(brep))
     spec: dict[str, Any] = {}
     if (rev_dir / "spec.yaml").exists():
-        import yaml
+        from .specs import parse_spec
 
-        spec = yaml.safe_load((rev_dir / "spec.yaml").read_text()) or {}
+        spec = parse_spec((rev_dir / "spec.yaml").read_text())
     features = []
     for item in meta.get("features") or []:
         known = {f.name for f in dataclasses.fields(FeatureInfo)}

@@ -126,6 +126,10 @@ class Handlers:
 
     async def aiad_new(self, params: dict[str, Any]) -> dict[str, Any]:
         client = params.get("client")
+        try:
+            _parse_spec(params.get("spec"))
+        except ValueError as exc:
+            return reply(failure_envelope(params.get("name", ""), "BAD_INPUT", "input", f"spec is not valid YAML: {exc}"))
         project = create_project(
             params.get("name", ""),
             client=client,
@@ -754,14 +758,11 @@ class Handlers:
             if failure.get("code") == "RUNTIME_ERROR":
                 failure["code"] = "EXPORT_FAILED"
             return self._op_failed(project, rev, result)
-        exports = project.path / "exports"
-        exports.mkdir(exist_ok=True)
-        files: dict[str, str] = {}
-        for fmt, path in result["files"].items():
-            source = Path(path)
-            target = exports / (source.name if source.name.startswith(stem) else f"{stem}.{fmt}")
-            os.replace(source, target)
-            files[fmt] = str(target)
+        try:
+            exports = _project_directory(project, "exports")
+            files = _publish_exports(exports, out, result["files"], stem)
+        except (OSError, ValueError) as exc:
+            return reply(failure_envelope(project.name, "EXPORT_FAILED", "runtime", str(exc), head_rev=project.head_rev))
         note = "" if status == "verified" else " Files are marked UNVERIFIED."
         return reply(
             {
@@ -780,10 +781,18 @@ class Handlers:
         if not path.is_file():
             return reply(failure_envelope(name, "IMPORT_FAILED", "input", f"No file at {path}."))
         project = open_project(params["project"], params.get("client")) if params.get("project") else create_project(name, client=params.get("client"))
-        imports = project.path / "imports"
-        imports.mkdir(exist_ok=True)
-        target = imports / path.name
-        await asyncio.to_thread(shutil.copyfile, path, target)
+        try:
+            imports = _project_directory(project, "imports")
+            target = imports / path.name
+            # Replace the destination itself, so an existing symlink is never followed.
+            temporary = imports / f".import-{uuid.uuid4().hex}.tmp"
+            try:
+                await asyncio.to_thread(shutil.copyfile, path, temporary)
+                os.replace(temporary, target)
+            finally:
+                temporary.unlink(missing_ok=True)
+        except (OSError, ValueError) as exc:
+            return reply(failure_envelope(project.name, "IMPORT_FAILED", "input", str(exc)))
         out = project.path / ".aiad" / "cache" / "ops" / uuid.uuid4().hex[:12]
         args = {"path": str(target), "name": params.get("name"), "as": params.get("as", "base")}
         result = await run_op(job_request(project, 0, "import", args, out))
@@ -811,7 +820,7 @@ class Handlers:
             message = failure.get("message", "The library failed.")
             if failure.get("code") == "NOT_READY":
                 message = f"Not implemented in this install. {message}"
-            return reply(failure_envelope("", "BAD_INPUT", "input", message))
+            return reply(failure_envelope("", "BAD_INPUT" if failure.get("code") == "NOT_READY" else failure.get("code", "RUNTIME_ERROR"), failure.get("phase", "runtime"), message))
         data = result["library"]
         return {"structured": {"ok": True, "project": "", "status": "draft", "summary": "Library result.", "library": data}, "text": json.dumps(data, default=str)[:6000]}
 
@@ -843,7 +852,10 @@ class Handlers:
 
     async def aiad_file_read(self, params: dict[str, Any]) -> dict[str, Any]:
         project = open_project(params.get("project", ""), params.get("client"))
-        exports = (project.path / "exports").resolve()
+        try:
+            exports = _project_directory(project, "exports", create=False)
+        except (OSError, ValueError) as exc:
+            raise RpcError(INVALID_PARAMS, str(exc)) from exc
         target = (exports / params.get("path", "")).resolve()
         if not target.is_relative_to(exports) or not target.is_file():
             raise RpcError(INVALID_PARAMS, f"{params.get('path')!r} is not a file under exports/.")
@@ -852,6 +864,59 @@ class Handlers:
         except ValueError as exc:
             raise RpcError(INVALID_PARAMS, str(exc)) from exc
         return {"structured": chunk, "text": f"File chunk at {chunk['offset']}: {chunk['byte_count']} of {chunk['total_bytes']} bytes."}
+
+
+def _project_directory(project: Project, name: str, *, create: bool = True) -> Path:
+    directory = project.path / name
+    if directory.is_symlink() or not directory.resolve().is_relative_to(project.path.resolve()):
+        raise ValueError(f"{name}/ must stay inside the project and cannot be a symlink.")
+    if create:
+        directory.mkdir(exist_ok=True)
+    if directory.exists() and not directory.is_dir():
+        raise ValueError(f"{name}/ must be a directory.")
+    return directory.resolve()
+
+
+def _publish_exports(exports: Path, out: Path, files: dict[str, str], stem: str) -> dict[str, str]:
+    """Preflight the entire set, then roll back every public file on failure."""
+    planned: dict[str, tuple[Path, Path]] = {}
+    targets: set[Path] = set()
+    for fmt, raw in files.items():
+        source = Path(raw)
+        if source.is_symlink() or not source.resolve().is_relative_to(out.resolve()) or not source.is_file():
+            raise ValueError("The export worker returned a file outside its output directory.")
+        if Path(fmt).name != fmt or fmt in {".", ".."}:
+            raise ValueError("Invalid export format.")
+        target = exports / (source.name if source.name.startswith(stem + ".") else f"{stem}.{fmt}")
+        if target.is_symlink() or (target.exists() and not target.is_file()) or target in targets:
+            raise ValueError(f"Cannot replace export destination {target.name}.")
+        targets.add(target)
+        planned[fmt] = (source, target)
+    backup_dir = out / f".publish-{uuid.uuid4().hex}"
+    backup_dir.mkdir()
+    backups: dict[Path, Path] = {}
+    published: list[Path] = []
+    try:
+        for index, (_, target) in enumerate(planned.values()):
+            if target.exists():
+                backup = backup_dir / str(index)
+                os.replace(target, backup)
+                backups[target] = backup
+        for source, target in planned.values():
+            os.replace(source, target)
+            published.append(target)
+    except OSError:
+        for target in published:
+            target.unlink(missing_ok=True)
+        for target, backup in backups.items():
+            os.replace(backup, target)
+        raise
+    finally:
+        # Keep any backup whose restoration failed for manual recovery.
+        if not any(backup_dir.iterdir()):
+            backup_dir.rmdir()
+    shutil.rmtree(backup_dir, ignore_errors=True)
+    return {fmt: str(target) for fmt, (_, target) in planned.items()}
 
 
 def _rev_meta(project: Project, rev: int) -> dict[str, Any]:
@@ -872,19 +937,9 @@ def _previous_rev(project: Project, rev: int) -> int | None:
 
 
 def _parse_spec(text: str | None) -> dict[str, Any]:
-    if not text:
-        return {}
-    import yaml
+    from ..specs import parse_spec
 
-    try:
-        data = yaml.safe_load(text)
-    except yaml.YAMLError as exc:
-        raise ValueError(str(exc)) from exc
-    if data is None:
-        return {}
-    if not isinstance(data, dict):
-        raise ValueError("the document must be a mapping")
-    return data
+    return parse_spec(text)
 
 
 def _failure_head(result: dict[str, Any]) -> tuple[str, str, str]:
