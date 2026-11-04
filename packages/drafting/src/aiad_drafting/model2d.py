@@ -511,6 +511,17 @@ class Sheet2D:
             )
         )
 
+    def add_constraint(self, name: str, kind: str, entities: Sequence[str],
+                       value: float | None = None, **options: Any) -> dict[str, Any]:
+        """Add a named constraint; polygon edges use ``<name>.edge0`` aliases."""
+        from .sheet_constraints import add_constraint
+        return add_constraint(self, name, kind, entities, value, **options)
+
+    def solve(self, tolerance: float = 1e-6, inplace: bool = True) -> Any:
+        """Solve named sheet geometry, applying only a consistent solution."""
+        from .sheet_constraints import solve
+        return solve(self, tolerance=tolerance, inplace=inplace)
+
     def to_shape(self, layers: Iterable[str] = ("cut",)) -> Any:
         """Return exact build123d edge/wire geometry from selected layers.
 

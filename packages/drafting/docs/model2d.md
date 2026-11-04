@@ -81,8 +81,19 @@ I/O. Metadata, history, and constraints must be finite JSON data; non-serializab
 objects are rejected when the sheet is serialized or used as operation
 provenance.
 
-The `constraints` list is preserved for the separate constraint solver. This
-module does not solve or reinterpret constraints. Offset and boolean-derived
+Use `sheet.add_constraint(name, kind, entities, value=None, **options)` and
+`sheet.solve(tolerance=1e-6, inplace=True)` to solve shared named points and
+circle radii with SciPy. Polygon segments have aliases such as `outline.edge0`.
+All sheet points are solver variables, including standalone points. Arc and text
+entities are unsupported constraint references; their named points can still be
+constrained. Ambiguous names fail explicitly. The report contains public names,
+residuals, rank, DOF, conflicts, redundancies and free coordinates. A preview
+solve or a failed/inconsistent solve leaves all live sheet data unchanged.
+Fixed snapshots and tangency branches persist through JSON round trips. Returned
+constraint dictionaries are editable; change a distance/angle `value` before
+solving again. See [constraints.md](constraints.md) for supported combinations.
+
+Offset and boolean-derived
 sheets start with an empty active constraint list because source constraints
 cannot be mapped reliably to changed topology; their source geometry and
 history remain available. Pattern copies leave the original constraints
