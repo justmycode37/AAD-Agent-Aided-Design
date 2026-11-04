@@ -328,3 +328,62 @@ def test_svg_sheared_conics_have_correct_exact_basis_and_arc_midpoint(tmp_path):
     y = arc["center"][1] + arc["rx"] * math.cos(t) * math.sin(phi) + arc["ry"] * math.sin(t) * math.cos(phi)
     value = 20 + 5 / math.sqrt(2)
     assert (x, y) == pytest.approx((1.6 * value, 100 - 1.3 * value))
+
+
+@pytest.mark.parametrize("style", ["constant", "vertex"])
+def test_dxf_nonzero_polyline_width_is_retained_and_never_flattened(tmp_path, style):
+    import ezdxf
+    from aiad_drafting import sheet2d, latest_sheet
+    document = ezdxf.new("R2013")
+    document.header["$INSUNITS"] = 4
+    if style == "constant":
+        document.modelspace().add_lwpolyline([(0, 0), (10, 0)], dxfattribs={"const_width": 4})
+    else:
+        document.modelspace().add_lwpolyline([(0, 0, 4, 2), (10, 0, 0, 0)], format="xyse")
+    path = tmp_path / "wide.dxf"
+    document.saveas(path)
+    imported = parse_dxf(path, units="in")
+    metadata = imported.entities[0]["metadata"]
+    if style == "constant":
+        assert metadata["source_const_width"] == pytest.approx(4)
+        assert metadata["const_width"] == pytest.approx(4 / 25.4)
+    else:
+        assert metadata["widths"][0] == pytest.approx((4 / 25.4, 2 / 25.4))
+    previous = sheet2d("previous")
+    with pytest.raises(NotImplementedError, match="nonzero polyline width"):
+        imported.to_sheet()
+    assert latest_sheet() is previous
+
+
+@pytest.mark.parametrize("spelling", ["viewbox", "VIEWBOX"])
+def test_svg_misspelled_viewbox_never_infers_a_physical_scale(tmp_path, spelling):
+    path = tmp_path / "case.svg"
+    path.write_text(f'<svg xmlns="http://www.w3.org/2000/svg" width="100mm" {spelling}="0 0 100 50">'
+                    '<line x1="0" y1="0" x2="100" y2="50"/></svg>')
+    with pytest.raises(Import2DError, match="case-sensitive.*viewBox"):
+        parse_svg(path)
+
+
+@pytest.mark.parametrize("closed", ["false", "true", 0, 1, None, [], {}])
+def test_imported_json_rejects_non_boolean_closed_flags(closed):
+    data = {"units": "mm", "entities": [{"name": "path", "kind": "polyline", "layer": "cut",
+            "points": [(0, 0), (10, 0), (10, 5)], "closed": closed}], "layers": ["cut"]}
+    with pytest.raises(Import2DError, match="closed must be a boolean"):
+        Imported2D.from_dict(data)
+
+
+def test_imported_json_open_polyline_remains_open():
+    data = {"units": "mm", "entities": [{"name": "path", "kind": "polyline", "layer": "cut",
+            "points": [(0, 0), (10, 0), (10, 5)], "closed": False}], "layers": ["cut"]}
+    sheet = Imported2D.from_dict(data).to_sheet()
+    assert not sheet.entities["path"].closed
+    assert len(sheet.to_shape().edges()) == 2
+
+
+def test_namespaced_metadata_is_not_a_physical_svg_viewport(tmp_path):
+    path = tmp_path / "namespace.svg"
+    path.write_text('<svg xmlns="http://www.w3.org/2000/svg" xmlns:custom="urn:custom" '
+                    'width="100mm" custom:viewBox="0 0 100 50">'
+                    '<line x1="0" y1="0" x2="10" y2="0"/></svg>')
+    with pytest.raises(Import2DError, match="unqualified.*viewBox"):
+        parse_svg(path)

@@ -44,6 +44,10 @@ original values remain in `source_bulges`. Unsupported modelspace entities,
 tilted OCS planes, and nonplanar lines are rejected with `Import2DError`.
 DXF paper-space layouts are outside the import scope; geometry is read from
 modelspace.
+Both constant and per-vertex polyline widths are retained, including their
+source values and converted physical widths. The native adapter rejects
+nonzero widths because the current Sheet2D polyline represents a centerline,
+not a filled ribbon. It never silently discards a width.
 
 SVG supports mechanical primitives, text data, and paths with line, cubic,
 quadratic, and elliptical-arc segments. An SVG circular arc is recorded as an
@@ -77,6 +81,8 @@ dimension is sufficient when a `viewBox` supplies the aspect ratio. A
 `viewBox` alone or percentage dimensions without an outer physical viewport do
 not establish scale and are rejected. Output is converted to the requested
 millimeters or inches.
+SVG attribute names are case-sensitive; a misspelled `viewbox` is rejected
+rather than being used to infer scale.
 
 ## Layers
 
