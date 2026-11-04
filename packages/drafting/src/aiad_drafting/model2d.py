@@ -113,7 +113,7 @@ class Entity2D:
         self.name = _checked_name(self.name, "entity name")
         self.kind = _checked_name(self.kind, "entity kind").lower()
         self.layer = _checked_name(self.layer, "layer name")
-        if self.kind not in {"line", "circle", "arc", "polyline", "rectangle", "text"}:
+        if self.kind not in {"line", "circle", "arc", "polyline", "rectangle", "text", "bezier", "ellipse"}:
             raise ValueError(f"Unsupported 2D entity kind {self.kind!r}.")
         if isinstance(self.points, (str, bytes)):
             raise ValueError("Entity points must be a sequence of point names.")
@@ -124,13 +124,23 @@ class Entity2D:
             raise ValueError("Entity metadata must be a dictionary.")
         self.metadata = copy.deepcopy(self.metadata)
 
-        expected_points = {"line": 2, "circle": 1, "arc": 1, "text": 1}
+        expected_points = {"line": 2, "circle": 1, "arc": 1, "text": 1, "ellipse": 1}
         if self.kind in expected_points and len(self.points) != expected_points[self.kind]:
             raise ValueError(
                 f"A {self.kind} entity must reference {expected_points[self.kind]} point(s)."
             )
         if self.kind == "rectangle" and (len(self.points) != 4 or not self.closed):
             raise ValueError("A rectangle entity must have four points and be closed.")
+        if self.kind == "bezier" and len(self.points) not in {3, 4}:
+            raise ValueError("A Bezier entity requires three or four control points.")
+        if self.kind == "ellipse":
+            self.metadata["rx"] = _positive(self.metadata.get("rx"), "ellipse rx")
+            self.metadata["ry"] = _positive(self.metadata.get("ry"), "ellipse ry")
+            self.metadata["rotation_deg"] = _finite(self.metadata.get("rotation_deg", 0), "ellipse rotation")
+            self.start_angle = _finite(self.start_angle, "ellipse start_angle")
+            self.end_angle = _finite(self.end_angle, "ellipse end_angle")
+            if not self.closed and math.isclose((self.end_angle - self.start_angle) % 360, 0, abs_tol=1e-10):
+                raise ValueError("An open elliptical arc requires a nonzero sweep below 360 degrees.")
         if self.kind == "polyline" and len(self.points) < (3 if self.closed else 2):
             raise ValueError("A polyline needs at least two points, or three when closed.")
         if self.kind in {"circle", "arc"}:
@@ -551,6 +561,36 @@ class Sheet2D:
         """Solve named sheet geometry, applying only a consistent solution."""
         from .sheet_constraints import solve
         return solve(self, tolerance=tolerance, inplace=inplace)
+
+    @_atomic_primitive
+    def bezier(self, name: str, control_points: Sequence[CoordinateInput], layer: str = "cut") -> Entity2D:
+        """Add an exact quadratic or cubic Bezier, retaining named controls."""
+        entity_name = _checked_name(name, "entity name")
+        if len(control_points) not in {3, 4}:
+            raise ValueError("A Bezier requires three or four control points.")
+        points = [self._resolve_point(value, f"{entity_name}.p{index}")
+                  for index, value in enumerate(control_points)]
+        if all(math.dist(points[0].as_tuple(), point.as_tuple()) <= _POINT_TOLERANCE for point in points[1:]):
+            raise ValueError("Bezier controls cannot all coincide.")
+        return self._add_entity(Entity2D(entity_name, "bezier", self._ensure_layer(layer),
+                                        tuple(point.name for point in points)))
+
+    @_atomic_primitive
+    def ellipse(self, name: str, center: CoordinateInput, rx: float, ry: float,
+                rotation: float = 0, start_angle: float = 0, end_angle: float = 360,
+                layer: str = "cut", *, clockwise: bool = False) -> Entity2D:
+        """Add an exact ellipse or elliptical arc; angles are conic parameters."""
+        entity_name = _checked_name(name, "entity name")
+        start, end = _finite(start_angle, "ellipse start_angle"), _finite(end_angle, "ellipse end_angle")
+        span = abs(end - start)
+        if not isinstance(clockwise, bool):
+            raise ValueError("clockwise must be a boolean")
+        if span <= 1e-10 or span > 360 + 1e-10:
+            raise ValueError("Ellipse span must be nonzero and at most 360 degrees")
+        point = self._resolve_point(center, f"{entity_name}.center")
+        return self._add_entity(Entity2D(entity_name, "ellipse", self._ensure_layer(layer), (point.name,),
+            start_angle=start, end_angle=end, closed=math.isclose(span, 360, abs_tol=1e-10),
+            metadata={"rx": rx, "ry": ry, "rotation_deg": rotation, "clockwise": clockwise}))
 
     def to_shape(self, layers: Iterable[str] = ("cut",)) -> Any:
         """Return exact build123d edge/wire geometry from selected layers.
@@ -1112,6 +1152,21 @@ def _entity_to_native(sheet: Sheet2D, entity: Entity2D) -> Any:
     if entity.kind in {"polyline", "rectangle"}:
         vertices = [(point.x, point.y, 0) for point in points]
         return Wire.make_polygon(vertices, close=entity.closed)
+    if entity.kind == "bezier":
+        return Edge.make_bezier(*[(point.x, point.y, 0) for point in points])
+    if entity.kind == "ellipse":
+        center = points[0]
+        phi = math.radians(entity.metadata["rotation_deg"])
+        plane = Plane(origin=(center.x, center.y, 0), x_dir=(math.cos(phi), math.sin(phi), 0))
+        if entity.closed:
+            return Edge.make_ellipse(entity.metadata["rx"], entity.metadata["ry"], plane)
+        start, end = float(entity.start_angle), float(entity.end_angle)
+        if entity.metadata.get("clockwise", False):
+            edge = Edge.make_ellipse(entity.metadata["rx"], entity.metadata["ry"], plane,
+                                     start_angle=end, end_angle=start)
+            return Edge(edge.wrapped.Reversed())
+        return Edge.make_ellipse(entity.metadata["rx"], entity.metadata["ry"], plane,
+                                  start_angle=start, end_angle=end)
     if entity.kind == "text":
         raise ValueError("Editable text is not native cutting geometry; outline it explicitly first.")
     raise ValueError(f"Unsupported entity kind {entity.kind!r}.")
@@ -1528,6 +1583,8 @@ def _copy_entities_transformed(
         metadata = copy.deepcopy(entity.metadata)
         if entity.kind == "text" and rotate_arcs and angle:
             metadata["rotation_deg"] = float(metadata.get("rotation_deg", 0.0)) + angle
+        if entity.kind == "ellipse" and rotate_arcs and angle:
+            metadata["rotation_deg"] += angle
         start_angle = entity.start_angle
         end_angle = entity.end_angle
         if entity.kind == "arc" and rotate_arcs and angle:

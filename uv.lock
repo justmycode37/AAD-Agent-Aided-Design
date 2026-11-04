@@ -58,6 +58,7 @@ dependencies = [
     { name = "pillow" },
     { name = "reportlab" },
     { name = "scipy" },
+    { name = "svgelements" },
 ]
 
 [package.optional-dependencies]
@@ -75,6 +76,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8,<9" },
     { name = "reportlab", specifier = ">=4,<5" },
     { name = "scipy", specifier = ">=1.14,<2" },
+    { name = "svgelements", specifier = ">=1.9.6,<2" },
 ]
 provides-extras = ["test"]
 
