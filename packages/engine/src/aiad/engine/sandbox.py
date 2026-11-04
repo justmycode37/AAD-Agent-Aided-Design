@@ -73,7 +73,10 @@ def runtime_reads(extra: Sequence[Path] = ()) -> tuple[Path, ...]:
         if spec is not None and spec.origin is not None:
             paths.append(Path(spec.origin).parent)
     paths.extend(extra)
-    return tuple(sorted({p.resolve() for p in paths if p.exists()}, key=str))
+    # Keep caller-visible aliases as Linux mount destinations, and their
+    # canonical targets for symlinks reached from inside mounted runtimes.
+    reads = {candidate for p in paths if p.exists() for candidate in (p.absolute(), p.resolve())}
+    return tuple(sorted(reads, key=str))
 
 
 def command(args: Sequence[str], job_dir: Path, *, read_paths: Sequence[Path] = ()) -> list[str]:
@@ -105,6 +108,8 @@ def command(args: Sequence[str], job_dir: Path, *, read_paths: Sequence[Path] = 
         # Restore merged-/usr entry points without exposing their host parents.
         for alias in ("/bin", "/sbin", "/lib", "/lib64"):
             path = Path(alias)
+            if path in reads:
+                continue
             if path.is_symlink():
                 wrapped.extend(["--symlink", os.readlink(path), alias])
             elif path.exists() and path.resolve() not in reads:

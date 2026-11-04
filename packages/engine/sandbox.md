@@ -32,9 +32,10 @@ a security boundary.
 
 ## Other platforms and limits
 
-Linux argv uses bubblewrap: read-only runtime mounts, one writable job mount,
-private PID/network/user and other namespaces, no capabilities, and a supervisor
-that dies with its parent. Missing bwrap raises SandboxUnavailable. Kernel/user
+Linux argv uses bubblewrap: read-only runtime mounts at supplied aliases and
+canonical targets, one writable job mount, private PID/network/user and other
+namespaces, no capabilities, and a supervisor that dies with its parent.
+Missing bwrap raises SandboxUnavailable. Kernel/user
 namespace restrictions may also reject launch; callers must retain that failure
 and never retry the original unsandboxed argv. Linux execution is not verified
 by this Mac run; CI runner support is requested in GitHub issue #21.

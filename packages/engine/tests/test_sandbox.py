@@ -42,6 +42,29 @@ class SandboxPolicyTests(unittest.TestCase):
             with self.assertRaises(sandbox.SandboxUnavailable):
                 sandbox.command([sys.executable], Path(temporary))
 
+    def test_linux_read_mounts_preserve_asset_alias_and_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            job = root / "job"
+            job.mkdir()
+            target = root / "actual.step"
+            target.write_text("asset fixture")
+            alias = root / "asset.step"
+            alias.symlink_to(target)
+            with patch.object(sandbox.sys, "platform", "linux"), patch.object(sandbox.shutil, "which", return_value="/usr/bin/bwrap"):
+                argv = sandbox.command([sys.executable, "-c", "pass"], job, read_paths=(alias,))
+            mounts = {argv[i + 2] for i, arg in enumerate(argv) if arg == "--ro-bind"}
+            self.assertIn(str(alias), mounts)
+            self.assertIn(str(target), mounts)
+
+    def test_read_alias_to_filesystem_root_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            alias = root / "root-alias"
+            alias.symlink_to("/", target_is_directory=True)
+            with self.assertRaises(ValueError):
+                sandbox.command([sys.executable], root, read_paths=(alias,))
+
 
 @unittest.skipUnless(sys.platform == "darwin", "macOS Seatbelt escape tests")
 class MacSandboxTests(unittest.TestCase):
