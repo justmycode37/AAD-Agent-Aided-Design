@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  UV_PYTHON: "3.12"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.discover.outputs.packages }}
+      e2e: ${{ steps.discover.outputs.e2e }}
+      viewer: ${{ steps.discover.outputs.viewer }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+      - name: Lock file is current
+        run: uv lock --check
+      - id: discover
+        run: python3 .github/scripts/discover.py
+
+  packages:
+    needs: discover
+    if: needs.discover.outputs.packages != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        package: ${{ fromJSON(needs.discover.outputs.packages) }}
+    name: ${{ matrix.package.dir }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+      - name: Run package tests
+        run: >-
+          uv run --locked --package "${{ matrix.package.name }}" --all-extras
+          --with pytest --with pytest-timeout
+          python -m pytest "packages/${{ matrix.package.dir }}/tests"
+
+  e2e:
+    needs: discover
+    if: needs.discover.outputs.e2e == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    name: e2e smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+      - name: Run smoke test
+        run: uv run --locked --all-packages --all-extras python -m pytest tests/e2e
+
+  viewer:
+    needs: discover
+    if: needs.discover.outputs.viewer == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: viewer/package-lock.json
+      - working-directory: viewer
+        run: |
+          npm ci
+          npm run build
+          npm test --if-present
+
+  # One stable check name that covers the dynamic matrix, including skipped legs.
+  ci-ok:
+    if: always()
+    needs: [discover, packages, e2e, viewer]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All required jobs passed or were skipped
+        run: |
+          echo '${{ toJSON(needs) }}' | python3 -c '
+          import json, sys
+          needs = json.load(sys.stdin)
+          bad = {k: v["result"] for k, v in needs.items() if v["result"] not in ("success", "skipped")}
+          print("results:", {k: v["result"] for k, v in needs.items()})
+          sys.exit(f"failed: {bad}" if bad else 0)
+          '
