@@ -150,6 +150,20 @@ result = Box(2, 3, 4)
             self.assertIn('fixture pipe error', result.checks[-1].actual)
             self.assertIn('drained diagnostic', result.stderr)
 
+    def test_cleanup_exception_preserves_the_built_result(self):
+        with tempfile.TemporaryDirectory(prefix='aiad-preview-protocol-') as temporary:
+            result = self._result(Path(temporary))
+            process = Mock(returncode=None)
+            process.poll.return_value = None
+            process.communicate.side_effect = OSError('fixture pipe error')
+            with patch.object(_preview.sandbox, 'popen', return_value=process), patch('aiad.engine.jobs._kill_worker', side_effect=OSError('fixture cleanup error')):
+                _preview.add_preview(result, timeout_s=60)
+            self.assertTrue(result.ok)
+            self.assertEqual(result.status, 'draft')
+            self.assertEqual(set(result.artifacts), {'part.brep'})
+            self.assertEqual(result.checks[-1].actual, 'OSError: fixture cleanup error')
+            self.assertIn('cleanup failed', result.checks[-1].message)
+
     @staticmethod
     def _wire(check, artifacts):
         return _preview._MARKER + json.dumps({'check': asdict(check), 'artifacts': artifacts}).encode() + b'\n'

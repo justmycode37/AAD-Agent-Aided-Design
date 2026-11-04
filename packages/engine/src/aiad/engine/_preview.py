@@ -88,9 +88,13 @@ def add_preview(result: BuildResult, *, timeout_s: float) -> None:
         artifacts = {}
         check = _warning("render_failed", "Agent rendering failed; the built BREP artifact was retained.", actual=f"{type(exc).__name__}: {exc}")
     finally:
-        if process is not None and process.poll() is None:
-            _kill_worker(process)
-            stdout, stderr = _drain_killed_worker(process)
+        try:
+            if process is not None and process.poll() is None:
+                _kill_worker(process)
+                stdout, stderr = _drain_killed_worker(process)
+        except Exception as exc:
+            artifacts = {}
+            check = _warning("render_failed", "Optional preview cleanup failed; the built BREP artifact was retained.", actual=f"{type(exc).__name__}: {exc}")
 
     # Replace the internal not-requested placeholder; do not erase unrelated
     # validation checks or change status/requirements_proven/failure.
@@ -140,5 +144,5 @@ def main() -> None:
         except Exception as exc:
             artifacts = {}
             check = _warning("render_failed", "Agent rendering failed; the built BREP artifact was retained.", actual=f"{type(exc).__name__}: {exc}")
-    sys.stdout.buffer.write(_MARKER + json.dumps({"check": asdict(check), "artifacts": artifacts}).encode() + b"\n")
+    sys.stdout.buffer.write(b"\n" + _MARKER + json.dumps({"check": asdict(check), "artifacts": artifacts}).encode() + b"\n")
     sys.stdout.buffer.flush()
