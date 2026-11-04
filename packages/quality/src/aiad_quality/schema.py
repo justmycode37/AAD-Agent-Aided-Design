@@ -49,6 +49,11 @@ class _UniqueSafeLoader(yaml.SafeLoader):
             raise yaml.YAMLError("ambiguous YAML 1.1 integer; use decimal without leading zeros")
         return super().construct_yaml_int(node)
 
+    def construct_yaml_float(self, node):
+        if ':' in self.construct_scalar(node):
+            raise yaml.YAMLError("ambiguous YAML 1.1 float; use ordinary decimal notation")
+        return super().construct_yaml_float(node)
+
     def construct_mapping(self, node: MappingNode, deep: bool = False) -> dict[Any, Any]:
         if not isinstance(node, MappingNode):
             raise ConstructorError(None, None, "expected a mapping node", node.start_mark)
@@ -77,6 +82,7 @@ class _UniqueSafeLoader(yaml.SafeLoader):
 
 
 _UniqueSafeLoader.add_constructor('tag:yaml.org,2002:int', _UniqueSafeLoader.construct_yaml_int)
+_UniqueSafeLoader.add_constructor('tag:yaml.org,2002:float', _UniqueSafeLoader.construct_yaml_float)
 
 
 @dataclass(frozen=True)
@@ -490,7 +496,7 @@ def _parse_input(value: str | bytes | dict[str, Any]) -> tuple[dict[str, Any] | 
         plain = _to_plain_data(loaded)
         if not isinstance(plain, dict):
             raise ValueError("spec document must be a mapping")
-    except (UnicodeDecodeError, ValueError, TypeError, RecursionError) as exc:
+    except (UnicodeError, ValueError, TypeError, RecursionError) as exc:
         return None, (SpecIssue(str(exc)),)
 
     issues: list[SpecIssue] = []

@@ -1,0 +1,859 @@
+{
+  "run_id": "1f7b313d-6dde-4085-b673-2561ce77c069",
+  "passed": false,
+  "summaries": [
+    {
+      "case": "honest_control",
+      "repetitions": 3,
+      "native_x_mean_mm": 10.0,
+      "native_x_sample_sd_mm": 0.0,
+      "false_verified_control_count": 0,
+      "false_requirement_proof_control_count": 0,
+      "metrics_mismatch_count": 0
+    },
+    {
+      "case": "overridden_wrapper_metric",
+      "repetitions": 3,
+      "native_x_mean_mm": 10.0,
+      "native_x_sample_sd_mm": 0.0,
+      "false_verified_control_count": 0,
+      "false_requirement_proof_control_count": 0,
+      "metrics_mismatch_count": 3
+    },
+    {
+      "case": "mutated_checker_state",
+      "repetitions": 3,
+      "native_x_mean_mm": 5.0,
+      "native_x_sample_sd_mm": 0.0,
+      "false_verified_control_count": 0,
+      "false_requirement_proof_control_count": 0,
+      "metrics_mismatch_count": 0
+    }
+  ],
+  "scope": "authored deterministic trust-boundary controls, not sampled agent outcomes; no model-quality variance estimated",
+  "reproduce": "packages/quality/.venv/bin/python evals/quality/probe_worker_evidence.py",
+  "environment": {
+    "python": "3.12.10",
+    "packages": {
+      "aiad-engine": "0.1.0",
+      "aiad-quality": "0.1.0",
+      "build123d": "0.13.0",
+      "cadquery-ocp-novtk": "8.0.1.1.0"
+    }
+  },
+  "complete": true,
+  "source_files_sha256": {
+    "engine/__init__.py": "5326d3446f8285222ea34d6d92c4d95961636a99b3146facad8f42aed17ed0fa",
+    "engine/_runtime.py": "4af3d74a9fde0bba571eb6b88e2e4753925c87084775ac447690b02c019b63cd",
+    "engine/engine/__init__.py": "bc07cff7a706daa488febe4d908deb37df4cade9c138ebdd50d26515c1ac3c92",
+    "engine/engine/_worker.py": "cbfaf0ba6c8c63d0d55ce3e9b48f671975cff199b10a0262bb52fd0e97a6032d",
+    "engine/engine/gate.py": "7a2089a06373bec33d1be212d1e44c73d4415657034742708e799824952dd579",
+    "engine/engine/jobs.py": "fef4e452d2df96e7767f932943efc663b5ee757762fec5555606c301f69398d4",
+    "engine/engine/sandbox.py": "3e67b38c349f7ceffb07d6dcbbdbb9711992fee57343ce212be41fc069b3977b",
+    "engine/engine/types.py": "01683525fc82e68d0596293fa100e44790671b9a30a13aac93ebd19a2b7da424",
+    "quality/__init__.py": "4d5b9609703d4ed1278ab32157c97817b24c9bd0dd4862624d92325ca0567331",
+    "quality/_checks.py": "fdaab2a285853137876c74d4be9aec48f0caba88c53a4233692d0b068214216b",
+    "quality/process.py": "5ce1b9525f52a1ff4f5f8e1d8cdc145de4885ccba68e9e30826e79489b449f07",
+    "quality/process_geometry.py": "8989456327d256b992d532c0f0d6884df3ec2b005849565aef5f0b91a9453e2c",
+    "quality/process_profiles.py": "fd33d1195299f6148f6f3818ad8448e413ffe39cdcfe0f13b25b1fdb0eae7dfa",
+    "quality/schema.py": "f5d567ae774891763fbc154eb0f360d69b7234591138c16cfc7dec3e7d39d868",
+    "quality/spec.py": "04353370f8942d75e46f88418330b64f2cf888289d8428ca7f4bd2cef125dd50",
+    "quality/spec_geometry.py": "974810849f65b416bc27f1fd74aff734ad8902c3b820ef8ec5241963bfa324de"
+  },
+  "probe_source_sha256": "9f654177fe0a2a940def6ebbcd8263e30b6036977f4a603e0f896e27e04b118a",
+  "engine_worker_sha256": "cbfaf0ba6c8c63d0d55ce3e9b48f671975cff199b10a0262bb52fd0e97a6032d",
+  "records": [
+    {
+      "case": "honest_control",
+      "repeat": 1,
+      "status": "draft",
+      "requirements_proven": false,
+      "expected_x_mm": 10,
+      "independent_bbox_mm": [
+        10.0,
+        8.0,
+        4.0
+      ],
+      "reported_bbox_mm": [
+        10.0,
+        8.0,
+        4.0
+      ],
+      "reported_metrics_match_artifact": true,
+      "false_verified_control": false,
+      "false_requirement_proof_control": false,
+      "source_sha256": "fa2a95bfe002265a688387cb21d0fff38a94c6f018e823b2081cc59b877687c1",
+      "artifact_sha256": "db377ff00b4ab76ad99c7efe68786f238caf590e5db962d2f078b0858d3c9eb7",
+      "checks": [
+        {
+          "id": "shape_present",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "brep_valid",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "solid_count",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "closed_shells",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "edge_quality",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "face_quality",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "step_volume_drift",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "mesh_watertight",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "size",
+          "suite": "spec",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "process_checks_no_results",
+          "suite": "process",
+          "level": "warn",
+          "status": "skip"
+        },
+        {
+          "id": "scene_generation_failed",
+          "suite": "hard",
+          "level": "warn",
+          "status": "warn"
+        },
+        {
+          "id": "render_not_requested",
+          "suite": "hard",
+          "level": "warn",
+          "status": "skip"
+        },
+        {
+          "id": "worker_verification_unattested",
+          "suite": "hard",
+          "level": "error",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "case": "honest_control",
+      "repeat": 2,
+      "status": "draft",
+      "requirements_proven": false,
+      "expected_x_mm": 10,
+      "independent_bbox_mm": [
+        10.0,
+        8.0,
+        4.0
+      ],
+      "reported_bbox_mm": [
+        10.0,
+        8.0,
+        4.0
+      ],
+      "reported_metrics_match_artifact": true,
+      "false_verified_control": false,
+      "false_requirement_proof_control": false,
+      "source_sha256": "fa2a95bfe002265a688387cb21d0fff38a94c6f018e823b2081cc59b877687c1",
+      "artifact_sha256": "db377ff00b4ab76ad99c7efe68786f238caf590e5db962d2f078b0858d3c9eb7",
+      "checks": [
+        {
+          "id": "shape_present",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "brep_valid",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "solid_count",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "closed_shells",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "edge_quality",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "face_quality",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "step_volume_drift",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "mesh_watertight",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "size",
+          "suite": "spec",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "process_checks_no_results",
+          "suite": "process",
+          "level": "warn",
+          "status": "skip"
+        },
+        {
+          "id": "scene_generation_failed",
+          "suite": "hard",
+          "level": "warn",
+          "status": "warn"
+        },
+        {
+          "id": "render_not_requested",
+          "suite": "hard",
+          "level": "warn",
+          "status": "skip"
+        },
+        {
+          "id": "worker_verification_unattested",
+          "suite": "hard",
+          "level": "error",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "case": "honest_control",
+      "repeat": 3,
+      "status": "draft",
+      "requirements_proven": false,
+      "expected_x_mm": 10,
+      "independent_bbox_mm": [
+        10.0,
+        8.0,
+        4.0
+      ],
+      "reported_bbox_mm": [
+        10.0,
+        8.0,
+        4.0
+      ],
+      "reported_metrics_match_artifact": true,
+      "false_verified_control": false,
+      "false_requirement_proof_control": false,
+      "source_sha256": "fa2a95bfe002265a688387cb21d0fff38a94c6f018e823b2081cc59b877687c1",
+      "artifact_sha256": "db377ff00b4ab76ad99c7efe68786f238caf590e5db962d2f078b0858d3c9eb7",
+      "checks": [
+        {
+          "id": "shape_present",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "brep_valid",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "solid_count",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "closed_shells",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "edge_quality",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "face_quality",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "step_volume_drift",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "mesh_watertight",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "size",
+          "suite": "spec",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "process_checks_no_results",
+          "suite": "process",
+          "level": "warn",
+          "status": "skip"
+        },
+        {
+          "id": "scene_generation_failed",
+          "suite": "hard",
+          "level": "warn",
+          "status": "warn"
+        },
+        {
+          "id": "render_not_requested",
+          "suite": "hard",
+          "level": "warn",
+          "status": "skip"
+        },
+        {
+          "id": "worker_verification_unattested",
+          "suite": "hard",
+          "level": "error",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "case": "overridden_wrapper_metric",
+      "repeat": 1,
+      "status": "draft",
+      "requirements_proven": false,
+      "expected_x_mm": 10,
+      "independent_bbox_mm": [
+        10.0,
+        8.0,
+        4.0
+      ],
+      "reported_bbox_mm": [
+        123.0,
+        8.0,
+        4.0
+      ],
+      "reported_metrics_match_artifact": false,
+      "false_verified_control": false,
+      "false_requirement_proof_control": false,
+      "source_sha256": "04236a3e01e17a718e79c712ffe4a597f3896af2b31eed0b89363ab5dfaa6908",
+      "artifact_sha256": "db377ff00b4ab76ad99c7efe68786f238caf590e5db962d2f078b0858d3c9eb7",
+      "checks": [
+        {
+          "id": "shape_present",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "brep_valid",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "solid_count",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "closed_shells",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "edge_quality",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "face_quality",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "step_volume_drift",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "mesh_watertight",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "size",
+          "suite": "spec",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "process_checks_no_results",
+          "suite": "process",
+          "level": "warn",
+          "status": "skip"
+        },
+        {
+          "id": "scene_generation_failed",
+          "suite": "hard",
+          "level": "warn",
+          "status": "warn"
+        },
+        {
+          "id": "render_not_requested",
+          "suite": "hard",
+          "level": "warn",
+          "status": "skip"
+        },
+        {
+          "id": "worker_verification_unattested",
+          "suite": "hard",
+          "level": "error",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "case": "overridden_wrapper_metric",
+      "repeat": 2,
+      "status": "draft",
+      "requirements_proven": false,
+      "expected_x_mm": 10,
+      "independent_bbox_mm": [
+        10.0,
+        8.0,
+        4.0
+      ],
+      "reported_bbox_mm": [
+        123.0,
+        8.0,
+        4.0
+      ],
+      "reported_metrics_match_artifact": false,
+      "false_verified_control": false,
+      "false_requirement_proof_control": false,
+      "source_sha256": "04236a3e01e17a718e79c712ffe4a597f3896af2b31eed0b89363ab5dfaa6908",
+      "artifact_sha256": "db377ff00b4ab76ad99c7efe68786f238caf590e5db962d2f078b0858d3c9eb7",
+      "checks": [
+        {
+          "id": "shape_present",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "brep_valid",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "solid_count",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "closed_shells",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "edge_quality",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "face_quality",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "step_volume_drift",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "mesh_watertight",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "size",
+          "suite": "spec",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "process_checks_no_results",
+          "suite": "process",
+          "level": "warn",
+          "status": "skip"
+        },
+        {
+          "id": "scene_generation_failed",
+          "suite": "hard",
+          "level": "warn",
+          "status": "warn"
+        },
+        {
+          "id": "render_not_requested",
+          "suite": "hard",
+          "level": "warn",
+          "status": "skip"
+        },
+        {
+          "id": "worker_verification_unattested",
+          "suite": "hard",
+          "level": "error",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "case": "overridden_wrapper_metric",
+      "repeat": 3,
+      "status": "draft",
+      "requirements_proven": false,
+      "expected_x_mm": 10,
+      "independent_bbox_mm": [
+        10.0,
+        8.0,
+        4.0
+      ],
+      "reported_bbox_mm": [
+        123.0,
+        8.0,
+        4.0
+      ],
+      "reported_metrics_match_artifact": false,
+      "false_verified_control": false,
+      "false_requirement_proof_control": false,
+      "source_sha256": "04236a3e01e17a718e79c712ffe4a597f3896af2b31eed0b89363ab5dfaa6908",
+      "artifact_sha256": "db377ff00b4ab76ad99c7efe68786f238caf590e5db962d2f078b0858d3c9eb7",
+      "checks": [
+        {
+          "id": "shape_present",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "brep_valid",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "solid_count",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "closed_shells",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "edge_quality",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "face_quality",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "step_volume_drift",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "mesh_watertight",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "size",
+          "suite": "spec",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "process_checks_no_results",
+          "suite": "process",
+          "level": "warn",
+          "status": "skip"
+        },
+        {
+          "id": "scene_generation_failed",
+          "suite": "hard",
+          "level": "warn",
+          "status": "warn"
+        },
+        {
+          "id": "render_not_requested",
+          "suite": "hard",
+          "level": "warn",
+          "status": "skip"
+        },
+        {
+          "id": "worker_verification_unattested",
+          "suite": "hard",
+          "level": "error",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "case": "mutated_checker_state",
+      "repeat": 1,
+      "status": "draft",
+      "requirements_proven": false,
+      "expected_x_mm": 10,
+      "independent_bbox_mm": [
+        5.0,
+        8.0,
+        4.0
+      ],
+      "reported_bbox_mm": [
+        5.0,
+        8.0,
+        4.0
+      ],
+      "reported_metrics_match_artifact": true,
+      "false_verified_control": false,
+      "false_requirement_proof_control": false,
+      "source_sha256": "359178518e53f91678e71a1cb3620e242d3fd374ddee923287b6e82d6d660305",
+      "artifact_sha256": "d2d579aa653e989a64c01cb0a0ea7582f31ec4363e8dff445d219b1b4c8a6764",
+      "checks": [
+        {
+          "id": "injected_hard",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "size",
+          "suite": "spec",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "process_checks_no_results",
+          "suite": "process",
+          "level": "warn",
+          "status": "skip"
+        },
+        {
+          "id": "scene_generation_failed",
+          "suite": "hard",
+          "level": "warn",
+          "status": "warn"
+        },
+        {
+          "id": "render_not_requested",
+          "suite": "hard",
+          "level": "warn",
+          "status": "skip"
+        },
+        {
+          "id": "worker_verification_unattested",
+          "suite": "hard",
+          "level": "error",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "case": "mutated_checker_state",
+      "repeat": 2,
+      "status": "draft",
+      "requirements_proven": false,
+      "expected_x_mm": 10,
+      "independent_bbox_mm": [
+        5.0,
+        8.0,
+        4.0
+      ],
+      "reported_bbox_mm": [
+        5.0,
+        8.0,
+        4.0
+      ],
+      "reported_metrics_match_artifact": true,
+      "false_verified_control": false,
+      "false_requirement_proof_control": false,
+      "source_sha256": "359178518e53f91678e71a1cb3620e242d3fd374ddee923287b6e82d6d660305",
+      "artifact_sha256": "d2d579aa653e989a64c01cb0a0ea7582f31ec4363e8dff445d219b1b4c8a6764",
+      "checks": [
+        {
+          "id": "injected_hard",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "size",
+          "suite": "spec",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "process_checks_no_results",
+          "suite": "process",
+          "level": "warn",
+          "status": "skip"
+        },
+        {
+          "id": "scene_generation_failed",
+          "suite": "hard",
+          "level": "warn",
+          "status": "warn"
+        },
+        {
+          "id": "render_not_requested",
+          "suite": "hard",
+          "level": "warn",
+          "status": "skip"
+        },
+        {
+          "id": "worker_verification_unattested",
+          "suite": "hard",
+          "level": "error",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "case": "mutated_checker_state",
+      "repeat": 3,
+      "status": "draft",
+      "requirements_proven": false,
+      "expected_x_mm": 10,
+      "independent_bbox_mm": [
+        5.0,
+        8.0,
+        4.0
+      ],
+      "reported_bbox_mm": [
+        5.0,
+        8.0,
+        4.0
+      ],
+      "reported_metrics_match_artifact": true,
+      "false_verified_control": false,
+      "false_requirement_proof_control": false,
+      "source_sha256": "359178518e53f91678e71a1cb3620e242d3fd374ddee923287b6e82d6d660305",
+      "artifact_sha256": "d2d579aa653e989a64c01cb0a0ea7582f31ec4363e8dff445d219b1b4c8a6764",
+      "checks": [
+        {
+          "id": "injected_hard",
+          "suite": "hard",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "size",
+          "suite": "spec",
+          "level": "error",
+          "status": "pass"
+        },
+        {
+          "id": "process_checks_no_results",
+          "suite": "process",
+          "level": "warn",
+          "status": "skip"
+        },
+        {
+          "id": "scene_generation_failed",
+          "suite": "hard",
+          "level": "warn",
+          "status": "warn"
+        },
+        {
+          "id": "render_not_requested",
+          "suite": "hard",
+          "level": "warn",
+          "status": "skip"
+        },
+        {
+          "id": "worker_verification_unattested",
+          "suite": "hard",
+          "level": "error",
+          "status": "skip"
+        }
+      ]
+    }
+  ]
+}

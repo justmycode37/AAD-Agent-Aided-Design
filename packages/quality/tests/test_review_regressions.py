@@ -63,7 +63,7 @@ def test_separated_mirror_is_a_proven_symmetry_violation():
     assert result.status == 'fail', result
 
 
-@pytest.mark.parametrize('text', ['074', '1:00'])
+@pytest.mark.parametrize('text', ['074', '1:00', '1:00.0'])
 def test_ambiguous_yaml_11_numbers_are_rejected(text):
     with pytest.raises(SpecValidationError):
         load_spec('requirements: [{id: size, bbox: {x: ' + text + '}}]')
@@ -222,3 +222,18 @@ def test_injection_local_draft_does_not_certify_undercuts():
     shape = extrude(Rectangle(20,20), amount=10, taper=3)
     result = process_check(shape, 'injection', 'draft')
     assert result.status != 'pass', result
+
+
+def test_unpaired_unicode_is_a_diagnostic():
+    with pytest.raises(SpecValidationError):
+        load_spec('requirements: [] # ' + chr(0xD800))
+
+
+def test_dictionary_input_has_the_same_work_limits_as_yaml():
+    nested = 1
+    for _ in range(100):
+        nested = [nested]
+    with pytest.raises(SpecValidationError):
+        load_spec({'requirements': nested})
+    with pytest.raises(SpecValidationError):
+        load_spec({'requirements': [dict(id=str(i), solids=1) for i in range(4000)]})
