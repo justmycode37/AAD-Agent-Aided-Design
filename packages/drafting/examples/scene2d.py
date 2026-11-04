@@ -31,7 +31,7 @@ def build_panel() -> Sheet2D:
     panel.rectangle("switch_opening", width=16, height=8, origin=(-8, 19), layer="cut")
     panel.line("fold_score", (0, -35), (0, 35), layer="score")
     panel.line("alignment_score", (-35, 0), (35, 0), layer="score")
-    panel.text("panel_label", "AIAD LASER PANEL", (-31, -17), height=3, layer="engrave")
+    panel.text("panel_label", "AIAD LASER PANEL", (-62, -41), height=3, layer="engrave")
     panel.text("revision_mark", "REV A", (47, 38), height=2, layer="engrave")
     return panel
 

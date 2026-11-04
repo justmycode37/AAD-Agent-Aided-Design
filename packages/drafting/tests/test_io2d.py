@@ -51,9 +51,9 @@ def test_svg_physical_viewbox_escaping_layers_roundtrip_and_read_only(tmp_path):
     assert latest_sheet() is latest
     raw = path.read_text(encoding="utf-8")
     root = ET.fromstring(raw)
-    assert root.attrib["width"] == "30mm"
-    assert root.attrib["height"] == "20mm"
-    assert [float(value) for value in root.attrib["viewBox"].split()] == pytest.approx([-15, -10, 30, 20])
+    viewbox = [float(value) for value in root.attrib["viewBox"].split()]
+    assert viewbox[0] <= -15 and viewbox[1] <= -10
+    assert viewbox[2] >= 30 and viewbox[3] >= 20
     assert "onclick" not in raw and "https://invalid.example" not in raw
     assert "data-original" not in raw and "<script>" not in raw
     assert "&lt;script&gt;" in raw and "&amp;" in raw
@@ -75,6 +75,7 @@ def test_svg_physical_viewbox_escaping_layers_roundtrip_and_read_only(tmp_path):
 
     cut_only = io2d.export_2d(ctx, "svg", tmp_path / "cut-only.svg", layers=("cut",))
     cut_root = ET.parse(cut_only).getroot()
+    assert cut_root.attrib["width"] == "30mm" and cut_root.attrib["height"] == "20mm"
     assert {node.attrib["data-layer"] for node in cut_root.findall(f".//{SVG_NS}g")} == {"cut"}
     assert cut_root.find(f".//{SVG_NS}text") is None
     restored = parse_svg(cut_only).to_sheet()

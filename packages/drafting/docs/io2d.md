@@ -61,6 +61,9 @@ editable text is omitted from that bound because its glyph layout is not native
 geometry. Bezier extrema and rotated ellipse extrema are calculated from their
 analytic curves. A text-only scene has a zero geometry bbox, even though the SVG
 viewport can still show its insertion point.
+The viewport includes a conservative text envelope so annotation is not clipped
+at its insertion point. This visual padding never changes the manifest's native
+geometry bbox or a part measurement.
 
 Scene gzip bytes use `mtime=0`; `scene_id` is their SHA-256. Scene status is
 always `draft`. Metrics, status claims, and verification claims on the caller

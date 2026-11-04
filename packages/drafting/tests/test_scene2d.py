@@ -181,5 +181,17 @@ def test_scene_invalid_units_and_text_only_geometry_bbox(tmp_path):
     manifest = scene2d.make_scene(ctx, tmp_path / "text-only")
     assert manifest["bbox"] == [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     payload = _decompress(tmp_path / "text-only" / "scene.bin.gz")
-    assert payload["sheet"] == {"w": 1.0, "h": 1.0, "units": "in"}
+    assert payload["sheet"]["units"] == "in"
+    assert payload["sheet"]["w"] >= len("text only") * 2
+    assert payload["sheet"]["h"] > 2
     assert payload["entities"][0]["text"] == "text only"
+
+
+def test_public_scene_and_export_entrypoints_keep_the_same_contract(tmp_path):
+    from aiad_drafting import export_2d, make_scene
+    sheet = _sample_sheet()
+    ctx = _ctx(sheet)
+    path = export_2d(ctx, "svg", tmp_path / "public.svg")
+    manifest = make_scene(ctx, tmp_path / "public-scene")
+    assert path.is_file() and manifest["format"] == "svg-1"
+    assert manifest["status"] == "draft"

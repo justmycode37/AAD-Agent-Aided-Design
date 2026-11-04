@@ -24,6 +24,11 @@ __all__ = [
     "ConstraintSketch",
     "checks",
     "measurement_evidence",
+    "make_scene",
+    "export_2d",
+    "parse_dxf",
+    "parse_svg",
+    "Imported2D",
 ]
 
 
@@ -34,6 +39,9 @@ def __getattr__(name: str):
     if name == "ConstraintSketch":
         from .constraints import ConstraintSketch
         return ConstraintSketch
+    if name == "Imported2D":
+        from .import2d import Imported2D
+        return Imported2D
     raise AttributeError(name)
 
 
@@ -70,3 +78,25 @@ def measurement_evidence(ctx: Any):
     """Return actual cut-geometry measurements with provenance and coverage."""
     from .validation2d import measurement_evidence as measure
     return measure(ctx)
+
+
+def make_scene(ctx: Any, out: str | Path):
+    """Create a deterministic svg-1 package with draft status."""
+    from .scene2d import make_scene as write
+    return write(ctx, Path(out))
+
+
+def export_2d(ctx: Any, fmt: str, out: str | Path, *, layers=None):
+    """Export exact native geometry and layers to raw SVG or R2013 DXF."""
+    from .io2d import export_2d as write
+    return write(ctx, fmt, Path(out), layers=layers)
+
+
+def parse_dxf(path: str | Path, units=None, layer_map=None):
+    from .import2d import parse_dxf as parse
+    return parse(path, units=units, layer_map=layer_map)
+
+
+def parse_svg(path: str | Path, units="mm", layer_map=None):
+    from .import2d import parse_svg as parse
+    return parse(path, units=units, layer_map=layer_map)

@@ -522,8 +522,19 @@ def _viewport(sheet: _Sheet, entities: Iterable[_Entity] | None = None) -> tuple
     ys = [] if bounds is None else [bounds.ymin, bounds.ymax]
     for entity in selected:
         if entity.kind == "text":
-            xs.append(entity.points[0][0])
-            ys.append(entity.points[0][1])
+            # Text is not native cut geometry, but its viewport must contain
+            # more than the insertion point. Use a conservative font envelope
+            # (including fallback Unicode glyphs), without altering model bbox.
+            height = float(entity.height)
+            content = (entity.text or "").expandtabs(8)
+            width = max(1, len(content)) * 2 * height
+            below = (0.4 + 1.3 * max(0, len(content.splitlines()) - 1)) * height
+            phi = math.radians(float(entity.metadata.get("rotation_deg", 0)))
+            cx, cy = entity.points[0]
+            for x, y in ((-.3*height, -below), (width+.3*height, -below),
+                         (width+.3*height, 1.2*height), (-.3*height, 1.2*height)):
+                xs.append(cx + x * math.cos(phi) - y * math.sin(phi))
+                ys.append(cy + x * math.sin(phi) + y * math.cos(phi))
     if not xs:
         return (0.0, 0.0, 1.0, 1.0)
     xmin, xmax, ymin, ymax = min(xs), max(xs), min(ys), max(ys)
@@ -664,6 +675,7 @@ def _append_svg_entity(parent: ET.Element, entity: _Entity) -> None:
         rotation = float(entity.metadata.get("rotation_deg", 0.0))
         attrs = {
             **attributes, "x": _fmt(x), "y": _fmt(y), "font-size": _fmt(entity.height),
+            "font-family": "sans-serif",
             "fill": "#000000", "stroke": "none", f"{{{_XML_NS}}}space": "preserve",
         }
         if abs(rotation) > _EPS:
