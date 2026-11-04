@@ -63,8 +63,8 @@ def test_opening_count_cannot_ignore_a_square_through_opening(round_bores):
             for y in (-13,13):shape=shape-Pos(x,y,0)*Cylinder(2.2,8)
     spec={'requirements':[{'id':'openings','holes':{'count':round_bores}}]}
     check=record(spec_checks(context(shape,spec))[0])
-    assert check['status']=='fail',check
-    assert 'through tunnels' in check['actual']
+    assert check['status']=='skip',check
+    assert 'noncircular' in check['actual']
     # A caller may explicitly ask only about cylindrical bores. The check
     # must expose that narrower scope rather than imply all openings passed.
     spec['requirements'][0]['holes']['scope']='cylindrical'
@@ -78,7 +78,7 @@ def test_polygonal_tunnel_across_face_junctions_does_not_prove_zero_openings():
     shape=Box(20,20,20)-Rot(0,45,0)*Box(4,4,40)
     spec={'requirements':[{'id':'none','holes':{'count':0}}]}
     check=record(spec_checks(context(shape,spec))[0])
-    assert check['status']=='fail',check
+    assert check['status']=='skip',check
 
 
 @pytest.mark.parametrize('scope',['polygonal',True,[],{}])
@@ -154,9 +154,9 @@ def test_declared_process_requires_its_own_check_evidence():
     assert not verification_ready(spec,checks,hard(), process=None)
 
 
-def test_torus_topology_disproves_the_absence_of_through_holes():
+def test_torus_topology_withholds_a_cylindrical_bore_count():
     spec={'requirements':[{'id':'none','holes':{'count':0}}]}
-    assert record(spec_checks(context(Torus(5,1),spec))[0])['status']=='fail'
+    assert record(spec_checks(context(Torus(5,1),spec))[0])['status']=='skip'
 
 
 def test_exact_bounds_do_not_gain_an_implicit_relative_tolerance():

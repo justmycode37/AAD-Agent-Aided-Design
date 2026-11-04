@@ -214,8 +214,12 @@ def closed_shell_tunnels(shape: Any) -> int:
         raise UnsupportedGeometry('through-hole coverage requires valid volumetric solids')
     allowed = {GeomType.PLANE, GeomType.CYLINDER, GeomType.CONE, GeomType.SPHERE, GeomType.TORUS}
     total = 0
+    from OCP.BRepClass3d import BRepClass3d
     for solid in solids:
-        for shell in solid.shells():
+        outer = BRepClass3d.OuterShell_s(solid.wrapped)
+        if outer.IsNull():
+            raise UnsupportedGeometry('solid has no recognized exterior shell')
+        for shell in [Shape.cast(outer)]:
             faces = list(shell.faces())
             if not faces or any(face.geom_type not in allowed for face in faces):
                 raise UnsupportedGeometry('nonanalytic face topology has no established through-tunnel coverage')
@@ -277,6 +281,7 @@ def unique_hole_axes(
     cylinders: list[HoleCylinder],
     *,
     diameter_mm: tuple[float | None, float | None] | None = None,
+    diameter_resolution_mm: float = 0.0,
     shape: Any = None,
     mm_per_native_unit: float = 1.0,
     through: bool = True,
@@ -314,27 +319,65 @@ def unique_hole_axes(
             components[-1].append(cylinder)
             upper = max(upper, cylinder.axial_max_mm)
         for component in components:
-            if shape is not None:
-                lower = min(c.axial_min_mm for c in component)
-                upper_end = max(c.axial_max_mm for c in component)
-                # The ends of a sealed void both have material beyond them;
-                # a dimple/blind bore has only one open end. No bbox proxy.
-                ends = [lower - 1e-5, upper_end + 1e-5]
-                states = [material_state_at_point(shape, tuple(
-                    (component[0].point[i] + component[0].axis[i] * end) / mm_per_native_unit
-                    for i in range(3))) for end in ends]
-                if 'boundary' in states:
-                    raise UnsupportedGeometry('bore end classification is within kernel resolution')
-                if states.count('void') < (2 if through else 1):
-                    continue
+            matching = component
             if diameter_mm is not None:
                 lower, upper_d = diameter_mm
-                resolution = 1e-6 if lower == upper_d else 0.0
-                if not any((lower is None or 2*c.radius_mm >= lower-resolution)
-                           and (upper_d is None or 2*c.radius_mm <= upper_d+resolution) for c in component):
+                matching = [c for c in component
+                    if (lower is None or 2*c.radius_mm >= lower-diameter_resolution_mm)
+                    and (upper_d is None or 2*c.radius_mm <= upper_d+diameter_resolution_mm)]
+                if not matching:
                     continue
+            if shape is not None and not _bore_channel_clear(
+                shape, component, matching, mm_per_native_unit, through=through
+            ):
+                continue
             hole_points.append(component[0].point)
     return hole_points
+
+
+def _bore_channel_clear(shape: Any, group: list[HoleCylinder], matching: list[HoleCylinder],
+                        factor: float, *, through: bool) -> bool:
+    """Test the requested bore radius, including caps/waists, out to exterior.
+
+    A point just past a wall can still be inside a sealed chamber or can jump
+    across a thin cap. A finite cylindrical solid crossing the entire model
+    bounds cannot miss either. The radial inset is OCCT's native 1e-7 length
+    resolution; this is native B-rep evidence, not a subresolution guarantee.
+    """
+    from OCP.Bnd import Bnd_Box
+    from OCP.BRepBndLib import BRepBndLib
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeCylinder
+    from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt
+    from itertools import product
+
+    bounds = Bnd_Box()
+    BRepBndLib.AddOptimal_s(_raw(shape), bounds, False, False)
+    low, high = _xyz(bounds.CornerMin()), _xyz(bounds.CornerMax())
+    axis, point = group[0].axis, group[0].point
+    projections = [sum(corner[i]*axis[i] for i in range(3))*factor
+                   for corner in product(*[(low[i], high[i]) for i in range(3)])]
+    margin = max(factor, max(projections)-min(projections))
+    outside_low, outside_high = min(projections)-margin, max(projections)+margin
+
+    def clear(first: float, last: float, radius_mm: float) -> bool:
+        radius = radius_mm/factor - 1e-7
+        if radius <= 1e-7:
+            raise UnsupportedGeometry('bore radius is below native channel-classification resolution')
+        direction = axis if last > first else tuple(-x for x in axis)
+        start = tuple((point[i]+axis[i]*first)/factor for i in range(3))
+        builder = BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(*start), gp_Dir(*direction)), radius, abs(last-first)/factor)
+        builder.Build()
+        if not builder.IsDone():
+            raise UnsupportedGeometry('OCCT could not construct the axial channel probe')
+        return distance_mm(builder.Solid(), _raw(shape), factor) > factor*1e-9
+
+    radius = min(c.radius_mm for c in matching)
+    if through:
+        return clear(outside_low, outside_high, radius)
+    # A blind bore must have a matching-radius path to at least one exterior
+    # side. Probe from its interior, not from a smaller coaxial pilot's end.
+    return any(clear((c.axial_min_mm+c.axial_max_mm)/2, outside, c.radius_mm)
+               for c in matching for outside in (outside_low, outside_high))
 
 
 def distance_mm(first: Any, second: Any, mm_per_native_unit: float) -> float:

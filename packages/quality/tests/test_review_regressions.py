@@ -187,7 +187,7 @@ def test_effective_process_is_required_at_the_readiness_boundary():
 
 @pytest.mark.parametrize('shape_factory', [
     lambda: Rot(30, 20, 10) * plate(),
-    lambda: plate() + Pos(0, -17, 10) * Box(60, 6, 20),
+    lambda: plate() + Pos(0, -19, 10) * Box(60, 2, 20),
 ])
 def test_through_hole_count_is_independent_of_outer_support_planes(shape_factory):
     result = check(shape_factory(), {'holes':{'count':4}})

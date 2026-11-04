@@ -119,6 +119,7 @@ class NumericRange:
     display_unit: str
     nominal: float | None = None
     tolerance: float | None = None
+    implicit_exact: bool = False
 
     def __post_init__(self):
         if any(value is not None and not math.isfinite(value) for value in (self.minimum,self.maximum,self.nominal,self.tolerance)):
@@ -262,7 +263,7 @@ def parse_numeric_range(
         return NumericRange(minimum, maximum, power, display_unit)
 
     exact = _quantity(value, default_unit=default_unit, power=power, path=path)
-    return NumericRange(exact, exact, power, display_unit)
+    return NumericRange(exact, exact, power, display_unit, implicit_exact=True)
 
 
 def _require_mapping(value: Any, path: tuple[str | int, ...]) -> dict[str, Any]:

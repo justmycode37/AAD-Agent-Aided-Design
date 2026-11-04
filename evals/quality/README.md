@@ -14,8 +14,7 @@ The false-verified audit for release must sample real agent outputs and test the
 
 
 The separate `worker-evidence-gate46.json` repeats the controls on PR #46 head
-`c7301d165615c7b9ab8fcba0b3b79802ed1bdd13` merged with quality commit
-`0b78f55`. It retains the distinct engine and quality source fingerprints.
+`c7301d165615c7b9ab8fcba0b3b79802ed1bdd13` merged with the quality source revision recorded in that evidence manifest. It retains the distinct engine and quality source fingerprints.
 It is compatibility evidence, not a dependency of #34 and not permission to
 promote model-worker evidence. Reproduce in a separate worktree from
 `origin/main`: merge that #46 commit, merge the quality commit, sync the
