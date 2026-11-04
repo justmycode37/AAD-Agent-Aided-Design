@@ -28,6 +28,7 @@ The gate checks:
   proxy are heuristics; they are not manufacturing limits or measured minimum
   wall thicknesses.
 - A real STEP export and re-import. Source and imported volume must be
+  summed over their native solids, including deeper assembly levels, and
   positive, and absolute drift must be at most the greater of the configured
   absolute tolerance and the relative tolerance times source volume. The
   measured volumes, drift, and comparison values are reported. A non-positive

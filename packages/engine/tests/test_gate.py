@@ -5,7 +5,6 @@ import math
 import tempfile
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 from build123d import Box, Compound, Cylinder, Face, Shell, Solid, Sphere
@@ -205,6 +204,24 @@ class GeometricGateTests(unittest.TestCase):
         self.assertEqual(unknown["solid_count"].status, "skip")
         self.assertEqual(unknown["solid_count"].level, "error")
 
+    def test_nested_assemblies_use_native_solid_volumes_in_gate_and_metrics(self) -> None:
+        source = 'result = Compound(children=[Compound(children=[Box(2,3,4).translate((3,5,7))])])'
+        for units, factor in (("mm", 1), ("in", 25.4)):
+            with self.subTest(units=units), tempfile.TemporaryDirectory(prefix="aiad-gate-nested-") as temporary:
+                nested = Compound(children=[Compound(children=[Box(2, 3, 4)])])
+                ctx = context(nested, Path(temporary), kind="assembly", units=units)
+                step = check_map(hard_checks(ctx))["step_volume_drift"]
+                self.assertEqual(step.status, "pass", step.actual)
+                self.assertAlmostEqual(actual_number(step, "source_volume") / factor**3, 24)
+                self.assertAlmostEqual(actual_number(step, "step_volume") / factor**3, 24)
+                result = run_build(BuildRequest(source=source, project_dir=Path(temporary), kind="assembly", units=units))
+                self.assertTrue(result.ok, result.failure)
+                self.assertEqual(result.status, "draft")
+                self.assertFalse(result.requirements_proven)
+                self.assertAlmostEqual(result.metrics["volume"], 24)
+                for actual, expected in zip(result.metrics["center_of_mass"], (3, 5, 7)):
+                    self.assertAlmostEqual(actual, expected)
+
     def test_step_roundtrip_drift_fault_injection_fails_with_measured_volumes(self) -> None:
         source = Box(10, 10, 10)
         with tempfile.TemporaryDirectory(prefix="aiad-gate-test-") as tmp:
@@ -256,7 +273,7 @@ class GeometricGateTests(unittest.TestCase):
         shape = Box(2, 3, 4)
         with tempfile.TemporaryDirectory(prefix="aiad-gate-test-") as tmp:
             ctx = context(shape, Path(tmp))
-            with patch("aiad.engine.gate._import_step_shape", return_value=SimpleNamespace(volume=0)):
+            with patch("aiad.engine.gate._import_step_shape", return_value=Compound(children=[])):
                 zero = check_map(hard_checks(ctx, {"step_volume_abs_mm3": 1e10}))["step_volume_drift"]
             overflow = check_map(hard_checks(ctx, {"step_volume_rel": 1e308}))["step_volume_drift"]
         self.assertEqual(zero.status, "fail")

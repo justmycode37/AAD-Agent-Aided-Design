@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass, fields
-from math import dist, floor, hypot, isfinite
+from math import dist, floor, fsum, hypot, isfinite
 from operator import index as integer_index
 from pathlib import Path
 import tempfile
@@ -489,7 +489,7 @@ def _step_volume_check(ctx: ModelContext, tolerance: GateTolerances, unit_scale:
     try:
         from build123d import Unit, export_step
 
-        source_volume = float(ctx.shape.volume) * unit_scale**3
+        source_volume = fsum(float(solid.volume) for solid in ctx.shape.solids()) * unit_scale**3
         if not isfinite(source_volume):
             raise ValueError("the source volume was not finite")
         if source_volume <= 0:
@@ -516,7 +516,7 @@ def _step_volume_check(ctx: ModelContext, tolerance: GateTolerances, unit_scale:
             roundtrip_shape = _import_step_shape(step_path)
             # build123d's STEP importer returns geometry in mm even when the
             # exported document declared inch coordinates.
-            roundtrip_volume = float(roundtrip_shape.volume)
+            roundtrip_volume = fsum(float(solid.volume) for solid in roundtrip_shape.solids())
             if not isfinite(roundtrip_volume):
                 raise ValueError("the re-imported STEP volume was not finite")
 
