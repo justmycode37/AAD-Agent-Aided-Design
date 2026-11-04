@@ -154,15 +154,18 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
             self._python_frame = sys._getframe(1)
             self._aiad_completed = False
             self._aiad_nested = False
-            tracked_build_parts.append(self)
 
         def __exit__(self, exception_type: Any, exception_value: Any, traceback: Any) -> Any:
+            # A failed reentry must not retain an earlier successful outcome.
+            self._aiad_completed = False
             result = super().__exit__(exception_type, exception_value, traceback)
             self._aiad_completed = exception_type is None
             # The original exit has restored the enclosing builder context.
             # Record actual nesting independently of same-scope publication:
             # helper functions can have an enclosing context but no parent.
             self._aiad_nested = original_build_part._get_context() is not None
+            if self._aiad_completed:
+                tracked_build_parts.append(self)
             return result
 
     # build123d decides which operations a context allows from its class name, so a subclass with

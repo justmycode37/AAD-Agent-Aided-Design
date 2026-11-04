@@ -92,6 +92,36 @@ result = helper.part
 ]
 
 
+NESTED_MODELS.extend([
+    ('failed_reentered_exit', """with BuildPart() as earlier:
+    Box(2,2,2)
+with BuildPart() as bp:
+    Box(10,10,10)
+def fail_exit():
+    raise ValueError('discard failed exit')
+bp._exit_extras = fail_exit
+try:
+    with bp:
+        pass
+except ValueError:
+    pass
+""", 'earlier'),
+    ('constructed_early_completed_last', """last = BuildPart()
+with BuildPart() as bp:
+    Box(10,10,10)
+with last:
+    Box(2,2,2)
+""", 'last'),
+    ('reentered_root_completed_last', """with BuildPart() as bp:
+    Box(10,10,10)
+with BuildPart():
+    Box(2,2,2)
+with bp:
+    pass
+""", 'bp'),
+])
+
+
 @pytest.mark.parametrize('name,body,expected_builder', NESTED_MODELS, ids=[row[0] for row in NESTED_MODELS])
 def test_nested_models_preserve_plain_build123d_geometry(tmp_path, name, body, expected_builder):
     """The exported native artifact must match plain build123d, not a helper or cached metric."""
