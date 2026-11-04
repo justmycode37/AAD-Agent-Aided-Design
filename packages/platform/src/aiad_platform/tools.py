@@ -313,6 +313,20 @@ TOOLS: list[dict[str, Any]] = [
     },
 ]
 
+# Hosts may skip approval prompts for read-only tools. Everything else writes project state.
+_READ_ONLY = {
+    "aiad_inspect", "aiad_query", "aiad_measure", "aiad_check", "aiad_render", "aiad_show", "aiad_library",
+    "aiad_scene_read", "aiad_pick_info", "aiad_file_read",
+}  # fmt: skip
+for _tool in TOOLS:
+    _read_only = _tool["name"] in _READ_ONLY
+    _tool["annotations"] = {
+        "readOnlyHint": _read_only,
+        "destructiveHint": False,
+        "idempotentHint": _read_only,
+        "openWorldHint": False,
+    }
+
 TOOL_NAMES = frozenset(tool["name"] for tool in TOOLS)
 
 INSTRUCTIONS = (

@@ -115,8 +115,18 @@ class Daemon:
             log.warning("bad request: %s", exc)
             return
         response: dict[str, Any] = {"jsonrpc": "2.0", "id": request.get("id")}
+        started = time.monotonic()
         try:
             response["result"] = await self._dispatch(method, params)
+            client = params.get("client") or {}
+            log.info(
+                "%s client=%s/%s ui=%s %.0f ms",
+                method,
+                client.get("name"),
+                client.get("version"),
+                client.get("supports_ui"),
+                (time.monotonic() - started) * 1000,
+            )
         except KeyError:
             response["error"] = {"code": METHOD_NOT_FOUND, "message": f"unknown method {method!r}"}
         except RpcError as exc:
