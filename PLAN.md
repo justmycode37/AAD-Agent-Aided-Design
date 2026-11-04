@@ -4,11 +4,11 @@ CAD for agents.
 
 Master plan, written 2026-11-04. Read this and `CONTRACTS.md` before working on any sector. `CONTRACTS.md` is binding for interfaces; this file is binding for scope and priorities.
 
-**Goal:** any agent can install AIAD, design real 2D and 3D parts through MCP, prove they meet the request, and show the result to the user in an interactive viewer inside the chat.
+**Goal:** any agent can install AIAD, design real 2D and 3D parts through MCP, and prove they meet the request. AIAD runs in the background and has no interface of its own. When the user asks to see a part, the agent shows it inline in the chat.
 
 **The bar for v1:** a user asks for a mechanical part or a 2D drawing, and gets an exact, editable, manufacturable result they can orbit in chat and export as STEP, STL, 3MF, GLB, DXF, SVG or PDF. Parity with Fusion, NX or SolidWorks is not a v1 goal. CAM, simulation, advanced surfacing and PLM are out of scope (see section 12).
 
-**What makes AIAD different:** the geometry comes from an existing kernel, so that is not the moat. The moat is three things together: output that is verified rather than assumed, reliable edits, and a viewer that lives in the conversation and lets the user point at geometry.
+**What makes AIAD different:** the geometry comes from an existing kernel, so that is not the moat. The moat is three things together: output that is verified rather than assumed, reliable edits, and CAD the user can see in the conversation when they ask for it.
 
 ---
 
@@ -28,7 +28,7 @@ aiad install                 # sets up everything else
 1. Downloads and pins the runtime (kernel, renderer, viewer).
 2. Pre-warms it. First imports took about 60 s on this Mac and later ones about 1 s (section 5), and that wait must never land on an MCP startup.
 3. Detects installed agents and writes each one's MCP config, with a backup. Writes are idempotent.
-4. Starts the local daemon and runs `aiad doctor`: build a test part, render it, export it, open the viewer.
+4. Starts the local daemon and runs `aiad doctor`: build a test part, render it, export it, check the viewer bundle. Nothing opens on screen.
 5. Tells the user which clients need a new session, because most read MCP config at session start.
 
 ### Use
@@ -38,8 +38,8 @@ The user just talks to their agent: "Design a wall bracket for a 60 mm fan, 3 mm
 1. The agent writes `spec.yaml`, the request as checkable requirements.
 2. The agent writes `model.py` and calls `aiad_build`. It gets back numbers, check results and exact failures.
 3. The agent looks at its own renders and sections, then fixes what is wrong.
-4. When the checks pass, the agent calls `aiad_show`. A 3D viewer appears in the chat, with orbit, zoom, pan, section, measure and a fullscreen button.
-5. The user clicks a face and types "make this thicker". The agent receives the selection and edits the named feature.
+4. If the user asks to see the part, the agent calls `aiad_show`. A 3D viewer appears inline in the chat, with orbit, zoom, pan, section, measure and a fullscreen button. Nothing is shown otherwise.
+5. The user says what to change in words, and the agent edits the named feature.
 6. The agent calls `aiad_export`, and files land in the project folder.
 
 ### Seeing the output
@@ -49,9 +49,11 @@ The user just talks to their agent: "Design a wall bracket for a 60 mm fan, 3 mm
 | Claude Desktop, VS Code Copilot, Cursor, Goose, MCPJam | Inline interactive viewer (MCP Apps) |
 | claude.ai, ChatGPT, and web or enterprise hosts on the matrix | Same inline viewer, but web hosts can't reach a local process, so they need the remote server from milestone M3 |
 | T3 Code with Codex | Inline viewer expected, not tested yet (section 5) |
-| T3 Code with Claude, Claude Code, Codex CLI, any host without MCP Apps | Live viewer window beside the chat, plus PNG renders in the tool result |
+| T3 Code with Claude, Claude Code, Codex CLI, any host without MCP Apps | PNG renders in the tool result. On request, a local URL from `aiad_show` or a standalone page from `aiad_export`. Nothing opens by itself. |
 
 Hosts control iframe size. Fullscreen only works after a user click inside the viewer, so it is a button and never automatic.
+
+`aiad config viewer=window` is a manual opt-in: `aiad_show` then opens the local page in a browser. Nothing else opens a window.
 
 ---
 
@@ -67,7 +69,7 @@ Hosts control iframe size. Fullscreen only works after a user click inside the v
  └───────┬─────────┘
          │ JSON-RPC over unix socket
          ▼
- ┌─────────────────┐   HTTP + WebSocket on 127.0.0.1 ──► viewer window (fallback)
+ ┌─────────────────┐   HTTP + WebSocket on 127.0.0.1 ──► local page (only from aiad_show)
  │ aiadd daemon     │   projects, revisions, job queue, cache, scene store
  └───────┬─────────┘
          │ one job per worker, killable
@@ -85,16 +87,15 @@ Hosts control iframe size. Fullscreen only works after a user click inside the v
 3. A warm worker runs `model.py` in the sandbox. `feature()` records which faces and edges each named feature produced.
 4. The worker runs validity, spec and process checks, then tessellates a scene and optionally renders a preview sheet.
 5. The daemon stores the result as an immutable revision if the build ran. A failure never moves the head revision.
-6. The agent gets a short text summary, plus an image when requested. Any open viewer window updates live.
+6. The agent gets a short text summary, plus an image when requested.
 
 **Life of a view:**
 
-1. The agent calls `aiad_show`, which declares a `ui://` resource.
+1. The user asks to see the part, and the agent calls `aiad_show`, which declares a `ui://` resource.
 2. The host loads the single-file viewer into a sandboxed iframe and passes it the result, which holds a scene manifest but no mesh.
 3. The viewer pulls the mesh through the app-only tool `aiad_scene_read` in chunks, then renders it with WebGL. The model never sees mesh bytes.
-4. User picks go back through `ui/update-model-context`. Typed requests go through `ui/message`. Slider changes go through the app-only tool `aiad_set_param`.
 
-**Why only `aiad_show` has a UI, and not `aiad_build`:** agents build many times per task. A UI on `aiad_build` would drop a WebGL iframe into the chat on every iteration. The agent iterates using numbers and renders, then shows the result on purpose. The optional viewer window can still update on every build.
+**Why only `aiad_show` has a UI, and not `aiad_build`:** agents build many times per task. A UI on `aiad_build` would drop a WebGL iframe into the chat on every iteration. The agent iterates using numbers and renders, and shows the result only when the user asks.
 
 ---
 
@@ -117,6 +118,7 @@ Hosts control iframe size. Fullscreen only works after a user click inside the v
 | D13 | **Name, package and command: `aiad`** | `aad` is taken on PyPI (an Azure AD B2C SDK) and on npm. `aiad` was free on both on 2026-11-04. `aiad-cli` is a placeholder package someone else holds on both, so avoid it. This is a registry check only, not a trademark check. |
 | D14 | **Constraint solver: our own layer on `scipy.optimize.least_squares`** | build123d has no global sketch solver. `python-solvespace` and `py-slvs` are GPL. SciPy is already a dependency. `@salusoft89/planegcs` (LGPL) is the fallback if convergence is poor. |
 | D15 | **Stdio first; Streamable HTTP in M3** | Local hosts cover most of the matrix. claude.ai and ChatGPT need a remote server, which requires auth, so it comes later. |
+| D17 | **Background MCP, with inline display only on request.** No automatic windows. No picking, sliders, Ask box or review tools. | The user's direction, recorded in issue #35. Agents do the work, and people see a part when they ask to. The app-only tools and selection types in `CONTRACTS.md` stay reserved and the viewer does not call them. |
 | D16 | **Reuse and benchmark against agentcad and build123d-mcp** (both Apache-2.0) | They already cover install, CLI, validation and local viewing. The README summaries read so far mention no in-chat MCP App viewer. S5 tears them down in week 1, and anything they do better gets adopted with attribution. |
 
 ---
@@ -134,14 +136,14 @@ Thirteen model-visible tools and four app-only tools. Exact schemas are in `CONT
 | `aiad_measure` | Distance, angle, radius, area, volume, mass, thickness, clearance |
 | `aiad_check` | Run spec, DFM, interference or 2D suites |
 | `aiad_render` | Images for the agent: 4-up sheet, sections, face labels, heatmaps |
-| `aiad_show` | Show the interactive viewer to the user (the only UI tool) |
+| `aiad_show` | Show the part inline when the user asks to see it (the only UI tool) |
 | `aiad_drawing` | Create a drawing from 3D or from a 2D model; returns a preview and files |
 | `aiad_history` | List, diff, checkout, branch, job status |
 | `aiad_import` | STEP, BREP, STL, DXF, SVG |
 | `aiad_export` | STEP, STL, 3MF, GLB, BREP, DXF, SVG, PDF, standalone viewer HTML |
 | `aiad_library` | Standard parts, materials, playbooks and API docs on demand |
 
-App-only: `aiad_scene_read`, `aiad_set_param`, `aiad_pick_info`, `aiad_file_read`.
+App-only: `aiad_scene_read`, `aiad_set_param`, `aiad_pick_info`, `aiad_file_read`. The viewer uses `aiad_scene_read` only; the others stay registered per `CONTRACTS.md`.
 
 Keep large data out of the model's context. Tool text stays near 200 tokens and images come only on request. Everything else is a handle.
 
@@ -265,7 +267,7 @@ Owns `packages/platform/`, root config, `.github/`, `tests/e2e/`, `README.md`. A
 4. **MCP adapter.** Official `mcp` Python SDK (2.3.0 today). Implement all tools and resources from the contract. Must work with both the pre-2026-07-28 `initialize` handshake and the stateless protocol; verify this against the SDK and real hosts. Serve `ui://aiad/viewer` with `text/html;profile=mcp-app`. Write the tool descriptions with S5.
 5. **Long jobs.** `aiad_build(wait_s)` returns `running` plus a job id when it takes too long, and polling goes through `aiad_history`. Add the Tasks extension later if hosts support it.
 6. **Daemon.** Auto-start, single-instance lock, unix socket or named pipe, per-project queue, idle exit, logs at `~/.aiad/logs`, version handshake with the adapter.
-7. **Viewer fallback.** Serve the viewer on `127.0.0.1` with a per-launch token, Origin checks and DNS-rebinding protection. Open once per project. Live updates over WebSocket. Mode set by `aiad config viewer=auto|inline|window|off`. Decide what `auto` does on each host from test results. Tauri window is a later option.
+7. **Viewer modes.** `aiad config viewer=auto|inline|window|off`. `auto` means inline on hosts that advertise MCP Apps. Elsewhere `aiad_show` serves the viewer on `127.0.0.1` with a per-launch token, Origin checks and DNS-rebinding protection, and returns the URL; nothing opens. `window` is the manual opt-in that also opens a browser. The server starts only when `aiad_show` asks for it.
 8. **Project location.** MCP roots when available, else `~/AIAD/<project>`, never an arbitrary working directory for GUI hosts.
 9. **Packaging.** `uv tool` install on macOS arm64 first, Linux x86_64 and arm64, Windows and Intel Mac by M3. Report install size and time. Target at most 1 GB and 3 minutes. Build CI.
 10. **Remote mode (M3).** `aiad serve --http`, Streamable HTTP, authentication, per-user isolation, for claude.ai and ChatGPT.
@@ -282,22 +284,19 @@ Owns `packages/platform/`, root config, `.github/`, `tests/e2e/`, `README.md`. A
 Owns `viewer/`, `packages/render/`.
 
 1. **Bundle.** Vite + `vite-plugin-singlefile` + three-cad-viewer + `@modelcontextprotocol/ext-apps`. At most 3 MiB single HTML (T3's limit is 5 MiB). Audit dependencies for `eval`, `new Function`, WASM, workers and network use. Patch or configure them out.
-2. **One app, three transports.** MCP App (postMessage), local window (HTTP and WebSocket), standalone exported HTML with an embedded scene. Same UI code.
+2. **One app, three transports.** MCP App (postMessage), opt-in local page (HTTP), standalone exported HTML with an embedded scene. Same UI code.
 3. **Tessellation.** `make_scene()` using ocp-tessellate where it fits. Deflection scales with the part's size. Each face and edge maps to its feature for picking. Gzip. Coarse level first for large models.
 4. **Chunk loader.** Per contract: 128 KiB raw chunks, at most 4 in flight, retries, progress bar. Never put mesh bytes in `content` or `structuredContent` of a model-visible tool.
-5. **Interaction.** Orbit, zoom, pan, view cube, ortho and perspective, section planes, explode, measure, tree, edges, studio mode. Fullscreen button via `requestDisplayMode` on a user click only. Reports size changes. Follows host theme. Pauses rendering and releases WebGL when off-screen, since browsers cap contexts.
-6. **User to agent.** Pick a face or edge, and send its selector and geometry to the model through `ui/update-model-context`. Include a small "Ask" box that sends `ui/message` with the selection. Parameter sliders call `aiad_set_param`. In window mode, selections go to the daemon and are attached to the next tool result, since there is no model-context channel there.
-7. **Review tools.** Revision compare (slider or ghost overlay), check badges that highlight the failing feature, file download via host capability, with a link as fallback.
-8. **2D mode.** Same app shows SVG sheets: pan, zoom, layers, measure.
-9. **Agent renders.** `render()` for the agent: deterministic cameras, 4-up orthographic and iso sheet with labels, scale bar and axis triad. Sections with hatching, ephemeral face and edge labels, thickness and overhang heatmaps. Backend is VTK first, with a one-day test of lighter options (OCCT V3d offscreen, moderngl). Keep VTK if nothing beats it. Check Linux headless.
-10. **Visual finish.** Good defaults so a first render looks professional: lighting, AO, edges, ground shadow, materials from the part's process.
-11. **Export.** Standalone `viewer.html`. Turntable GIF or MP4 later.
+5. **Interaction.** Orbit, zoom, pan, view cube, ortho and perspective, section planes, explode, measure, tree, edges, studio mode: what three-cad-viewer already provides. Fullscreen button via `requestDisplayMode` on a user click only. Reports size changes. Follows host theme. Pauses rendering and releases WebGL when off-screen, since browsers cap contexts. Picking, sliders, an Ask box and review tools are not built (D17).
+6. **2D mode.** Same app shows SVG sheets: pan, zoom, layers, measure.
+7. **Agent renders.** `render()` for the agent: deterministic cameras, 4-up orthographic and iso sheet with labels, scale bar and axis triad. Sections with hatching, ephemeral face and edge labels, thickness and overhang heatmaps. Backend is VTK first, with a one-day test of lighter options (OCCT V3d offscreen, moderngl). Keep VTK if nothing beats it. Check Linux headless.
+8. **Visual finish.** Good defaults so a first render looks professional: lighting, AO, edges, ground shadow, materials from the part's process.
+9. **Export.** Standalone `viewer.html`. Turntable GIF or MP4 later.
 
 **Done when:**
 - The viewer renders and responds on MCPJam, Goose and T3 + Codex (screenshots required).
 - A 5 MB scene loads within 2 s of the tool result, on this Mac, in a real host.
 - A 500k-triangle scene orbits smoothly on this Mac.
-- A pick reaches the model and an agent acts on it in a real conversation.
 - Render output is byte-stable for the same revision and camera, on one machine.
 
 ### S4: 2D and drawings
@@ -354,8 +353,8 @@ Target durations are guesses, not derived from data.
 | Milestone | Target | Must be true |
 |---|---|---|
 | **M0: walking skeleton** | Day 1–2 | `aiad_build` runs a build123d script in a worker, `aiad_show` displays the real part in an inline viewer on MCPJam or Goose and T3 + Codex, and the viewer loads by chunks. Everything else can be stubbed. Proves the riskiest assumption first. |
-| **M1: one good part** | Week 1 | Full part loop on macOS: gates, failures, sandbox, renders, STEP/STL/GLB, install on 5 clients, fallback window. First eval baseline. |
-| **M2: reliable edits and 2D** | Weeks 2–3 | Selectors and edit chains, spec and process checks, picks and sliders, drawings v1, 2D v1, playbooks, comparison with baselines. |
+| **M1: one good part** | Week 1 | Full part loop on macOS: gates, failures, sandbox, renders, STEP/STL/GLB, install on 5 clients. First eval baseline. |
+| **M2: reliable edits and 2D** | Weeks 2–3 | Selectors and edit chains, spec and process checks, drawings v1, 2D v1, playbooks, comparison with baselines. |
 | **M3: reach** | Weeks 4–6 | Assemblies, BOM, drawings v2, standard parts, Linux and Windows, remote mode for claude.ai and ChatGPT. |
 | **M4: public 0.1** | When gates pass | All done-when criteria met, docs and demo. License review complete. Public package and any leaderboard submission need the user's sign-off. |
 
@@ -418,7 +417,7 @@ On this Mac, for a typical part (at most 200 faces).
 
 ## 12. Not in v1
 
-CAM and toolpaths, FEA and CFD, advanced surfacing, PMI and semantic GD&T, large assemblies (thousands of parts), PDM and PLM, native CAD formats, collaboration, a hosted cloud, a dedicated desktop app. Each one needs a real user asking for it first.
+CAM and toolpaths, FEA and CFD, advanced surfacing, PMI and semantic GD&T, large assemblies (thousands of parts), PDM and PLM, native CAD formats, collaboration, a hosted cloud, a dedicated desktop app, automatic viewer windows, picking, parameter sliders, an Ask box, revision-compare and other review tools. Each one needs a real user asking for it first.
 
 ---
 
