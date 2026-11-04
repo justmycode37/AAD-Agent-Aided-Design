@@ -12,6 +12,7 @@ import tempfile
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from evidence import _search_response, validate_mcp_records
 
 BASE = Path(__file__).resolve().parent
 
@@ -21,9 +22,12 @@ def fingerprints():
     import aiad_platform
     roots = {"quality": Path(aiad_quality.__file__).parent, "platform": Path(aiad_platform.__file__).parent,
              "guidance": Path(str(aiad_quality.catalog._guidance_root()))}
-    return {f"{name}/{path.relative_to(root)}": hashlib.sha256(path.read_bytes()).hexdigest()
+    hashes = {f"{name}/{path.relative_to(root)}": hashlib.sha256(path.read_bytes()).hexdigest()
             for name, root in roots.items() for path in sorted(root.rglob("*"))
             if path.is_file() and (path.suffix == ".py" or name == "guidance")}
+    for name in ("evidence.py", "check_evidence.py"):
+        hashes[f"validation/{name}"] = hashlib.sha256((BASE / name).read_bytes()).hexdigest()
+    return hashes
 
 
 async def exercise(state):
@@ -37,20 +41,16 @@ async def exercise(state):
                 args = {"action": "search", "kind": kind}
                 result = await session.call_tool("aiad_library", args)
                 envelope = result.structured_content
-                assert envelope["ok"], envelope
-                listing = envelope["library"]
-                assert listing["total"] > 0 and 0 < len(listing["items"]) <= 5
-                records.append({"args": args, "ok": True, "total": listing["total"]})
-                args = {"action": "get", "kind": kind, "id": listing["items"][0]["id"]}
-                result = await session.call_tool("aiad_library", args)
-                envelope = result.structured_content
-                assert envelope["ok"] and envelope["library"]["found"], envelope
-                records.append({"args": args, "ok": True, "returned_id": envelope["library"]["item"]["id"]})
-            result = await session.call_tool("aiad_library", {"action": "get", "kind": "material", "id": "missing"})
-            assert result.structured_content["ok"] and result.structured_content["library"]["found"] is False
-            result = await session.call_tool("aiad_library", {"action": "get", "id": "../secret"})
-            assert result.structured_content["ok"] is False, result
-            assert result.structured_content["failure"]["code"] == "BAD_INPUT", result
+                requested_id = _search_response(envelope,kind)
+                records.append({"args":args,"response":envelope})
+                args = {"action":"get","kind":kind,"id":requested_id}
+                result = await session.call_tool("aiad_library",args)
+                records.append({"args":args,"response":result.structured_content})
+            for args in ({"action":"get","kind":"material","id":"missing"},
+                         {"action":"get","id":"../secret"}):
+                result = await session.call_tool("aiad_library",args)
+                records.append({"args":args,"response":result.structured_content})
+    validate_mcp_records(records)
     return records
 
 
@@ -79,9 +79,9 @@ def main():
             "versions": {name: version(name) for name in ("aiad", "aiad-quality", "mcp")},
             "catalog_sha256": hashlib.sha256(catalog.read_bytes()).hexdigest(),
             "probe_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-            "unknown_id_returned_not_found": True, "path_id_rejected_as_bad_input": True, "records": records}
-    output.write_text(json.dumps(data, indent=2) + "\n")
-    print(json.dumps(data, indent=2))
+            "records": records}
+    output.write_text(json.dumps(data, indent=2, allow_nan=False) + "\n")
+    print(json.dumps(data, indent=2, allow_nan=False))
 
 
 if __name__ == "__main__":

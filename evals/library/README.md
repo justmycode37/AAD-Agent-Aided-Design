@@ -15,7 +15,7 @@ UV_PROJECT_ENVIRONMENT=packages/quality/.workspace-venv uv run --locked --all-pa
 
 `mcp-evidence.json` records actual SDK stdio calls through the adapter/daemon, with runtime/guidance hashes. It covers all catalog kinds, exact retrieval, missing IDs and invalid path IDs. It contains no model-token or timing estimate. Reproduction uses an isolated temporary daemon state and stops that daemon afterward.
 
-Runs invalidate prior output at startup. Source changes prevent a completed MCP/constructor record. `check_evidence.py` refuses mismatched sources or missing/changed local artifacts. Raw BREP artifacts are ignored under `.runs/`; reproduce them before checking evidence from a fresh clone.
+Runs invalidate prior output at startup. Source changes prevent a completed MCP/constructor record. Fingerprints include upstream Python and CSV data tables and the validation code. `check_evidence.py` requires the exact three-trial matrix per part, canonical UUID run paths, strict boolean flags, current versions, and a complete recorded MCP call sequence. It reimports the local BREPs, recomputes native measurements and summaries, and rejects mismatches. Missing/changed artifacts, wrong retrieval IDs, duplicate JSON keys and non-finite values fail validation. Checks use explicit errors and also run under `python -O`. Raw BREP artifacts are ignored under `.runs/`; reproduce them before checking evidence from a fresh clone.
 
 Package resources must also work outside the checkout:
 

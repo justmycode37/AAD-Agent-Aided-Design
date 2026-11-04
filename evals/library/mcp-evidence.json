@@ -44,7 +44,7 @@
     "guidance/playbooks/core-workflow.md": "bc7db46a12f178ffc1f063438242269c3bc51314c1dfe6fdb752d155d28a9172",
     "guidance/playbooks/failure-recipes.md": "11bb02dea8955c1674393dd90f9a206a97607e204084b88439d6e74b4cf4faf6",
     "guidance/playbooks/family-brackets.md": "5a092b89b1019a8bc63f9958b614fcb3903a44ea6bb1270da3571e78a959785b",
-    "guidance/playbooks/family-enclosures.md": "0ad316df506fecea4ef76d056677a7cf996adaba19fb343bfbe720afd434eec7",
+    "guidance/playbooks/family-enclosures.md": "959bdc420e46fcd0e26768eccbb590eb445b248c23d22165fa876e89834bb808",
     "guidance/playbooks/family-gears.md": "1e9072a4b5b53cc1109141781a5d219871c0379a37b1b3d868ccc418a7617515",
     "guidance/playbooks/family-hinges.md": "0e0880f97f1f91da9662904b9cf09ee7a64fd0659f26c5248f0b2d176d669eb5",
     "guidance/playbooks/family-snap-fits.md": "5dd6167bc69aef017af5c81cc37a9ad1f9cf665d2cd394ea728a03013b0375d9",
@@ -55,10 +55,12 @@
     "guidance/playbooks/process-laser.md": "4d93c9143e1a3f533cf0f48b343926ea3daf7a6b6ea1d2ef0e0a1a871341c1fc",
     "guidance/playbooks/process-sheet-metal.md": "2a98557afef449e3fd402e1d312ebd44d97a4eef5944f59db26e5d5bf58bd476",
     "guidance/playbooks/process-sla.md": "f7bf6ed6f6475b470fbed5dce59da142e475044b414cd6ce654c2bf858b33156",
-    "guidance/playbooks/render-review-rubric.md": "efbc1a59a7f92b9c08ac2b4061d294bd7d4182eaf801b4694cb42f09be8a7fd8",
+    "guidance/playbooks/render-review-rubric.md": "85f1ede0346fda294ae70140a27e18135357979d7b3b5e29f8e79f7eae759577",
     "guidance/playbooks/spec-evidence.md": "056f5f19a12e8037cf46536a86b16a3e21e4bd8840e1f70575b0b4ae10cfdcf4",
     "guidance/server-instructions.txt": "a84a525340b151e3da34deb5cc7ee7ee48f5ee1aa212cebe3ec35968b0926158",
-    "guidance/tool-descriptions.json": "846b47afd7bc25f593ac5f39339c82fc345f26549dc44afcecc83888d1dafc27"
+    "guidance/tool-descriptions.json": "846b47afd7bc25f593ac5f39339c82fc345f26549dc44afcecc83888d1dafc27",
+    "validation/evidence.py": "6d6cc3b2d825ab9fa382f3fca65a2cce9f3ec0b4493e995696a10d1941cd8aca",
+    "validation/check_evidence.py": "169f471451a64bb05b2b27b2fdbfdbf79fb0fc8b8812f34524f9aaae1f04e3be"
   },
   "complete": true,
   "passed": true,
@@ -70,17 +72,44 @@
     "mcp": "2.3.0"
   },
   "catalog_sha256": "c81fe4bf2d5f5e5c2538668a65e230fb7713db20168333f3a089e529ac81556b",
-  "probe_sha256": "09230afa542e7d15bb73049e90c699121b81292a8d146a4e6fb475c245f630d7",
-  "unknown_id_returned_not_found": true,
-  "path_id_rejected_as_bad_input": true,
+  "probe_sha256": "15476e5691fa343542f32c4c94e71bb5c4346fb1b17cd5dd80ea8b018841f733",
   "records": [
     {
       "args": {
         "action": "search",
         "kind": "part"
       },
-      "ok": true,
-      "total": 3
+      "response": {
+        "ok": true,
+        "project": "",
+        "status": "draft",
+        "summary": "Library result.",
+        "library": {
+          "query": "",
+          "items": [
+            {
+              "id": "bearing.deep_groove_ball.skt",
+              "kind": "part",
+              "title": "Single-row deep-groove ball bearing",
+              "summary": "SKT-table bearing; default size key M8-22-7 (bore x outside diameter x width, mm)."
+            },
+            {
+              "id": "fastener.iso4762.socket_head_cap_screw",
+              "kind": "part",
+              "title": "ISO 4762 socket-head cap screw",
+              "summary": "Metric socket-head cap screw; length is measured from under the head. Default: M6-1 x 20 mm."
+            },
+            {
+              "id": "thread.iso_metric_external",
+              "kind": "part",
+              "title": "ISO metric external thread form",
+              "summary": "External right-hand helical thread; default M6-1 x 8 mm."
+            }
+          ],
+          "total": 3,
+          "truncated": false
+        }
+      }
     },
     {
       "args": {
@@ -88,16 +117,99 @@
         "kind": "part",
         "id": "bearing.deep_groove_ball.skt"
       },
-      "ok": true,
-      "returned_id": "bearing.deep_groove_ball.skt"
+      "response": {
+        "ok": true,
+        "project": "",
+        "status": "draft",
+        "summary": "Library result.",
+        "library": {
+          "found": true,
+          "id": "bearing.deep_groove_ball.skt",
+          "kind": "part",
+          "item": {
+            "id": "bearing.deep_groove_ball.skt",
+            "family": "bearing",
+            "title": "Single-row deep-groove ball bearing",
+            "summary": "SKT-table bearing; default size key M8-22-7 (bore x outside diameter x width, mm).",
+            "source": {
+              "package": "bd_warehouse",
+              "version": "0.4.0",
+              "url": "https://github.com/gumyr/bd_warehouse/tree/v0.4.0",
+              "commit": "8e9be0645b53db3d7414f74828c2d67b0da21138",
+              "license": "Apache-2.0",
+              "constructor": "bd_warehouse.bearing.SingleRowDeepGrooveBallBearing"
+            },
+            "parameters": {
+              "size": {
+                "type": "enum",
+                "default": "M8-22-7",
+                "choices": [
+                  "M3-10-4",
+                  "M4-12-4",
+                  "M5-16-5",
+                  "M6-15-5",
+                  "M8-22-7",
+                  "M10-30-9"
+                ]
+              }
+            },
+            "fixed": {
+              "bearing_type": "SKT"
+            },
+            "example": "from aiad_quality.standard_parts import make_part\nbearing = make_part(\n    'bearing.deep_groove_ball.skt', size='M8-22-7'\n)",
+            "limitations": [
+              "The upstream model simplifies internal structure; it does not establish a load rating or fit."
+            ],
+            "units": "mm",
+            "requires": "aiad-quality[parts]",
+            "builder_usage": "Construct outside every active builder; then use add(prebuilt_part) explicitly.",
+            "kind": "part"
+          }
+        }
+      }
     },
     {
       "args": {
         "action": "search",
         "kind": "material"
       },
-      "ok": true,
-      "total": 4
+      "response": {
+        "ok": true,
+        "project": "",
+        "status": "draft",
+        "summary": "Library result.",
+        "library": {
+          "query": "",
+          "items": [
+            {
+              "id": "aluminum_6061",
+              "kind": "material",
+              "title": "Wrought aluminum alloy 6061, temper unspecified",
+              "summary": "Wrought aluminum alloy designation 6061. The nominal-density reference does not specify a temper or particular product form."
+            },
+            {
+              "id": "pla",
+              "kind": "material",
+              "title": "NatureWorks Ingeo 3D700 PLA base resin",
+              "summary": "NatureWorks Ingeo biopolymer grade 3D700 for large-format additive manufacturing, treated here as the unfilled base resin. This ID is specific to that grade and is not a density cl"
+            },
+            {
+              "id": "stainless_304_4301",
+              "kind": "material",
+              "title": "Outokumpu Core 304/4301 stainless steel",
+              "summary": "Outokumpu Core 304/4301, EN 1.4301, ASTM Type 304, UNS S30400. This is the 304 grade; it is distinct from Core 304L/4307 and other stainless grades."
+            },
+            {
+              "id": "steel_1018",
+              "kind": "material",
+              "title": "AISI 1018 mild steel reference",
+              "summary": "AISI 1018 mild steel, scoped to the source table's associated nominal composition Fe-0.18 wt% C-0.8 wt% Mn-0.18 wt% Si. The source does not specify a rolled product form or heat-tr"
+            }
+          ],
+          "total": 4,
+          "truncated": false
+        }
+      }
     },
     {
       "args": {
@@ -105,16 +217,93 @@
         "kind": "material",
         "id": "aluminum_6061"
       },
-      "ok": true,
-      "returned_id": "aluminum_6061"
+      "response": {
+        "ok": true,
+        "project": "",
+        "status": "draft",
+        "summary": "Library result.",
+        "library": {
+          "found": true,
+          "id": "aluminum_6061",
+          "kind": "material",
+          "item": {
+            "id": "aluminum_6061",
+            "name": "Wrought aluminum alloy 6061, temper unspecified",
+            "definition": "Wrought aluminum alloy designation 6061. The nominal-density reference does not specify a temper or particular product form.",
+            "density_g_cm3": 2.7,
+            "density_unit": "g/cm^3",
+            "density_basis": "The Aluminum Association's Teal Sheets list calculated nominal density 2.70 x 10^3 kg/m^3 for designation 6061, equivalent to 2.70 g/cm^3.",
+            "source_title": "International Alloy Designations (Teal Sheets, December 2025)",
+            "source_url": "https://www.aluminum.org/sites/default/files/2026-01/Teal%20Sheets%20December%202025.pdf",
+            "provenance": "Uses the Aluminum Association's calculated nominal density for wrought alloy designation 6061. The source does not identify a temper-specific or part-specific density.",
+            "assumptions": {
+              "bulk_vs_printed": "Use the nominal density for wrought 6061 alloy; this is not a powder-bed or additively manufactured part density.",
+              "porosity": "The B-rep is treated as a fully dense solid. Porosity, casting or additive defects, voids, cladding, and coatings are not modeled.",
+              "moisture": "No moisture correction is applied; surface water, oil, and contamination are excluded.",
+              "composition": "The definition is alloy 6061 with temper unspecified. It does not alias 6063, 7075, or another alloy; heat chemistry, temper, and product-form differences are not modeled.",
+              "temperature": "The source labels this a calculated nominal density without a density reference temperature; thermal expansion is not modeled.",
+              "mass_guarantee": "This is a nominal-density estimate, not a guaranteed finished-part mass."
+            },
+            "title": "Wrought aluminum alloy 6061, temper unspecified",
+            "summary": "Wrought aluminum alloy designation 6061. The nominal-density reference does not specify a temper or particular product form.",
+            "tags": [
+              "density",
+              "nominal",
+              "aluminum_6061"
+            ],
+            "kind": "material"
+          }
+        }
+      }
     },
     {
       "args": {
         "action": "search",
         "kind": "playbook"
       },
-      "ok": true,
-      "total": 17
+      "response": {
+        "ok": true,
+        "project": "",
+        "status": "draft",
+        "summary": "Library result.",
+        "library": {
+          "query": "",
+          "items": [
+            {
+              "id": "build123d.mistakes.v1",
+              "kind": "playbook",
+              "title": "Common build123d mistakes",
+              "summary": "Unmeasured candidate guidance; request the entry to read its assumptions."
+            },
+            {
+              "id": "failure.recipes.v1",
+              "kind": "playbook",
+              "title": "Failure recipes",
+              "summary": "Unmeasured candidate guidance; request the entry to read its assumptions."
+            },
+            {
+              "id": "family.bracket.v1",
+              "kind": "playbook",
+              "title": "Brackets",
+              "summary": "Unmeasured candidate guidance; request the entry to read its assumptions."
+            },
+            {
+              "id": "family.enclosure.v1",
+              "kind": "playbook",
+              "title": "Enclosures",
+              "summary": "Unmeasured candidate guidance; request the entry to read its assumptions."
+            },
+            {
+              "id": "family.gear.v1",
+              "kind": "playbook",
+              "title": "Gears",
+              "summary": "Unmeasured candidate guidance; request the entry to read its assumptions."
+            }
+          ],
+          "total": 17,
+          "truncated": true
+        }
+      }
     },
     {
       "args": {
@@ -122,16 +311,69 @@
         "kind": "playbook",
         "id": "build123d.mistakes.v1"
       },
-      "ok": true,
-      "returned_id": "build123d.mistakes.v1"
+      "response": {
+        "ok": true,
+        "project": "",
+        "status": "draft",
+        "summary": "Library result.",
+        "library": {
+          "found": true,
+          "id": "build123d.mistakes.v1",
+          "kind": "playbook",
+          "item": {
+            "id": "build123d.mistakes.v1",
+            "title": "Common build123d mistakes",
+            "tags": [
+              "build123d",
+              "builder-mode",
+              "algebra-mode",
+              "locations",
+              "topology"
+            ],
+            "summary": "Unmeasured candidate guidance; request the entry to read its assumptions.",
+            "candidate_status": "unmeasured",
+            "text": "# Common build123d mistakes\n\nUnmeasured candidate guidance for the pinned build123d 0.13.0 runtime.\n\n- In Builder mode, new objects publish into the active builder when created. Do not expect Cylinder(...).moved(...) afterward to move the geometry already added; place it inside Locations before creation.\n- BuildPart is the construction context. Read or assign its result through builder.part after the context, or assign the finished Shape to result.\n- Builder coordinates are plain numeric values. AIAD units metadata does not convert coordinates.\n- Keep algebra operations outside an active Builder context; build123d documents Builder and Algebra as separate construction modes.\n- Boolean cutters must intersect the target where intended. A through-cut cylinder may extend beyond both faces, but only the intersecting material is removed; measure the result instead of computing removed volume from cutter length.\n- A geometry filter or face/edge index is not a persistent AIAD feature reference. The planned feature() and semantic face(feature=...) selectors are not implemented in the current tree.\n\nSources: [BuildPart 0.13.0 documentation](https://build123d.readthedocs.io/en/stable/build_part.html), [Builder-mode key concepts](https://build123d.readthedocs.io/en/latest/key_concepts_builder.html), and [build123d 0.13.0 release](https://github.com/gumyr/build123d/releases/tag/v0.13.0).",
+            "kind": "playbook"
+          }
+        }
+      }
     },
     {
       "args": {
         "action": "search",
         "kind": "api"
       },
-      "ok": true,
-      "total": 3
+      "response": {
+        "ok": true,
+        "project": "",
+        "status": "draft",
+        "summary": "Library result.",
+        "library": {
+          "query": "",
+          "items": [
+            {
+              "id": "api.build123d",
+              "kind": "api",
+              "title": "build123d modeling API",
+              "summary": "Builder and algebra modeling, topology and units for pinned build123d 0.13.0."
+            },
+            {
+              "id": "api.quality.process",
+              "kind": "api",
+              "title": "AIAD process settings",
+              "summary": "Finite heuristic manufacturing screens and declared assumptions."
+            },
+            {
+              "id": "api.quality.spec",
+              "kind": "api",
+              "title": "AIAD requirement evidence",
+              "summary": "Spec parsing, measured requirements, unsupported evidence and readiness."
+            }
+          ],
+          "total": 3,
+          "truncated": false
+        }
+      }
     },
     {
       "args": {
@@ -139,8 +381,67 @@
         "kind": "api",
         "id": "api.build123d"
       },
-      "ok": true,
-      "returned_id": "api.build123d"
+      "response": {
+        "ok": true,
+        "project": "",
+        "status": "draft",
+        "summary": "Library result.",
+        "library": {
+          "found": true,
+          "id": "api.build123d",
+          "kind": "api",
+          "item": {
+            "id": "api.build123d",
+            "title": "build123d modeling API",
+            "summary": "Builder and algebra modeling, topology and units for pinned build123d 0.13.0.",
+            "tags": [
+              "python",
+              "builder",
+              "algebra",
+              "topology",
+              "units"
+            ],
+            "source_url": "https://build123d.readthedocs.io/",
+            "text": "Use build123d 0.13.0 with cadquery-ocp-novtk 8.0.1.1.0. Model coordinates are numeric; project units do not rescale Python literals. Resolve current geometry after a rebuild. A valid B-rep establishes kernel validity, not the original request or manufacturability.",
+            "kind": "api"
+          }
+        }
+      }
+    },
+    {
+      "args": {
+        "action": "get",
+        "kind": "material",
+        "id": "missing"
+      },
+      "response": {
+        "ok": true,
+        "project": "",
+        "status": "draft",
+        "summary": "Library result.",
+        "library": {
+          "found": false,
+          "id": "missing",
+          "kind": "material",
+          "item": null
+        }
+      }
+    },
+    {
+      "args": {
+        "action": "get",
+        "id": "../secret"
+      },
+      "response": {
+        "ok": false,
+        "status": "failed",
+        "summary": "BAD_INPUT: id must be a catalog ID, not a file path",
+        "failure": {
+          "code": "BAD_INPUT",
+          "phase": "input",
+          "message": "id must be a catalog ID, not a file path"
+        }
+      }
     }
   ]
 }

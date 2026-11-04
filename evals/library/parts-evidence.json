@@ -1,5 +1,6 @@
 {
-  "run_id": "48117669-c492-44b4-ad6c-6b3397fdf452",
+  "run_id": "bb29676f-a17c-4069-8f09-9a78a2d243af",
+  "repetitions": 3,
   "complete": true,
   "passed": true,
   "scope": "deterministic constructor/BREP round-trip controls; no agent-quality or manufacturing-compliance estimate",
@@ -11,9 +12,87 @@
   },
   "source_sha256": {
     "adapter": "3c4442b5bde2e2eb8e608b93381f7fd56b954f24e766cae5d27cf780c3716914",
-    "probe": "6a8975c87da0a5bb26d3d4ea05c773370c17b5e64fd11b3d2e00cec67b9168f4",
-    "upstream/fastener.py": "c643e71c7054b05d2392f312d52e8150f9e1e0671c3d26b47bf50fc5d400fb9c",
+    "probe": "8d8955a39e52f4d82f8169f40f067415d24687c0e990f64344b3f243be3b16a4",
+    "validation/evidence.py": "6d6cc3b2d825ab9fa382f3fca65a2cce9f3ec0b4493e995696a10d1941cd8aca",
+    "validation/check_evidence.py": "169f471451a64bb05b2b27b2fdbfdbf79fb0fc8b8812f34524f9aaae1f04e3be",
+    "upstream/__init__.py": "c0bfad7d972052a2d09400bb5bc290102f80e35be508e885a0fab6934fc68e52",
+    "upstream/_version.py": "1c606556f66943c376921d67fcb6393cce2cf658dc22075b38281737eb858dee",
     "upstream/bearing.py": "5f14288a8ea941fa8eed5e58040f366bb94cd528f46c92b77c49c27b4bc2d621",
+    "upstream/bushing.py": "5701a20d1bcb41ca06c6e42df0a75c155d69491892c8eecca2eb08ed92a26606",
+    "upstream/data/brad_tee_nut_parameters.csv": "ebeeaca34171d79fab71bcd061961d0a60a22753a632dcd19dc3dd1bc65c6010",
+    "upstream/data/button_head_parameters.csv": "245958a9d13c8e8965195c174d4fdfcb2074018f561d9c3222efb95f8e0e8049",
+    "upstream/data/button_head_with_collar_parameters.csv": "4357f046bb622b5361538389c219e04efc6b26d75dbc8efdad1ea4d86375532d",
+    "upstream/data/chamfered_washer_parameters.csv": "df21d3d5d732ac1da51ca41ee6075fa156982c51c4bc5f05b9e1949bb7db8783",
+    "upstream/data/cheese_head_parameters.csv": "2dc49a7024c195a221b4e2a423622ed459ff48f6ecb56f071bf82e7cd5a13f36",
+    "upstream/data/cheese_head_washer_parameters.csv": "bf8cceffd3b5d51c08f3fe08925b34fb8fe5501a95fededa36ff44033f25d00e",
+    "upstream/data/clearance_hole_sizes.csv": "cfd1b513a3c82b7d83c2cd9a35ff282edc2e399840803dc513e09962c0bd4a68",
+    "upstream/data/countersunk_head_parameters.csv": "6f4192c5459cf5625437b2a04fbe1801a8c7cf01a6a2fc316547d5d782210cd4",
+    "upstream/data/din471.csv": "744d2c9f5332f3b49e2b171007e69c67402ad3e560b9368a6242c4a35e0bdfce",
+    "upstream/data/din472.csv": "9a89eebf5e39453d664b5a9a9d2a6c06cce4a5ea4b5011cca44b7066c6e8e659",
+    "upstream/data/domed_cap_nut_parameters.csv": "58e46619c2f57011604413ef90295d39a69dbbdbdb5fd22c8563f7d8476096ed",
+    "upstream/data/drill_sizes.csv": "516a0fb1c3c58320afb6884839d5dd1e13726b6e668cf29e1b3d3edb38aef14b",
+    "upstream/data/heatset_nut_parameters.csv": "fde77a20b635145332a686f0fffe74cc392288a23e670b782f6c2b120382a79b",
+    "upstream/data/hex_head_parameters.csv": "0004b9d7f7dbf7ec054ddc88439e64c293330813915b6e5caf57c7340b501c1c",
+    "upstream/data/hex_head_with_flange_parameters.csv": "ca63fb72489230a027948e4928f8801a6ff0b4cee5935d3d96f5b541123a6c74",
+    "upstream/data/hex_nut_parameters.csv": "d43fb52182ea302af0ac9e9ce102c2743abb84060e8f90a16c0e42d90c0388ea",
+    "upstream/data/hex_nut_with_flange_parameters.csv": "5a7dd2bed88f0496e32e77542fa3da9ed878241b8b36ed205be3b47a009ae414",
+    "upstream/data/imperial_set_screw_parameters.csv": "d6a21f200cd6d7ffe75592f3aa7f06a5887c467de5e7ea288625f22501be906e",
+    "upstream/data/internal_tooth_lock_washer_parameters.csv": "d40239dc8453cb1558f92009985f35894a2e06d3d1bf7b3c431ee4d4db99678c",
+    "upstream/data/iso10664def.csv": "0d6100566b9f22f9b50e2e86776c8d67a19f6975adf1ef7a10f4afa907d579ee",
+    "upstream/data/iso_228_1.csv": "cf38a27b8af0d5b37b3636caa6a00599cedaff44a64d31cff2f938ac53b81134",
+    "upstream/data/low_profile_parameters.csv": "f5a6935c40cac7379de030fb3e34118090c73a0a13fd3a121a7f11281722ce6f",
+    "upstream/data/metric_set_screw_parameters.csv": "f539efc79bd1c15159b6b80ff274a476023b4f8e9bb2e9bd7aa6035fbc148c45",
+    "upstream/data/nominal_screw_lengths.csv": "c193c1dae84b5aa5427a4d90743f491ffe00c4f62f67e85a144e61e54e09f280",
+    "upstream/data/o-ring_dynamic_gland_parameters.csv": "3254143c6552e3338bc8b3426e5271e1f91ab25c1eb850b523a8a7caab32eee6",
+    "upstream/data/o-ring_parameters.csv": "fa9b3a9240476885de2e0f67216175c90ba4761b8b7461ae7d169922e19aed70",
+    "upstream/data/o-ring_static_gland_parameters.csv": "8915a273c37072c24fef962ba80a223d783d70f1ed6ebf966c1cb919f2e77d77",
+    "upstream/data/pan_head_parameters.csv": "55654cbd1813cefb379c77c9ddf748fdc8c66fd0b9788e76be4f919880884663",
+    "upstream/data/pan_head_with_collar_parameters.csv": "8af2a974ce39b412b28a10ccaf6c5cf6584f8f5ff3ac1358a75f1559cd32fd4b",
+    "upstream/data/plain_washer_parameters.csv": "d40ece8029ec2c64723bd42490dcbf6bf11090d4ecf6c746779e520ecbd1fb55",
+    "upstream/data/plastic_bottle_thread_astm_d2911_dimensions.csv": "c5f100a522b9b92470b04e65c02bd432baa7602732aebd7dba4ad294fb851134",
+    "upstream/data/plastic_bottle_thread_astm_d2911_finishes.csv": "37678bd0309df969a930865f27b3f258e9e4110e5217b2d574c26a2af0c502ac",
+    "upstream/data/plastic_bottle_thread_astm_d2911_profiles.csv": "89f6c97f094d000736bc92caeefb5a15d2315c6dff0e53dce124314319f3e0f0",
+    "upstream/data/plastic_bottle_thread_pco1881.csv": "498c0f516608756e0eaf63dc55ecbc519a3532bb3156cf6cbfd2593c75d287de",
+    "upstream/data/raised_cheese_head_parameters.csv": "237842b1a3c7a42dcc713fc1160efd72b24f838b3aa50bd37e8730453d7deb3b",
+    "upstream/data/raised_countersunk_oval_head_parameters.csv": "e437142cb2740ac12d7546c0a72c87ff5dd177e7324e2ae984ed6a2f66825e2f",
+    "upstream/data/setscrew_parameters.csv": "cf9a90a4b5be274d3432b0345c3d07b8e580f5b76ff4960d31dcd317bb764a0c",
+    "upstream/data/shaft_key_parameters.csv": "aa2a2bc63e06348768e6d76f75aafb5f6392b7c1bb8f0f945840785f1d68205b",
+    "upstream/data/shoulder_screw.csv": "0a4b7ab21100a785c64ec832cfc17e2bbdfaa18f73e7840eee5d981548797755",
+    "upstream/data/single_row_angular_contact_ball_bearing_parameters.csv": "8381a6f851f4f52b4f7f7ad22b87e83121c0c6b1ac0febbf5d19b572f47e30e2",
+    "upstream/data/single_row_capped_deep_groove_ball_bearing_parameters.csv": "c2e2015894f4fecb099df7040011a9f12dea26b602fb2ca75d6ab8868881f7bf",
+    "upstream/data/single_row_cylindrical_roller_bearing_parameters.csv": "c959881ac1270e4c1ab0d65bdaac96086db3bfa139873fc0aa4f1b5fe276bca8",
+    "upstream/data/single_row_deep_groove_ball_bearing_parameters.csv": "56c8eb0360d6e5348643ac2a5e5fed69db3929d38f66a0e632530630af9a60fe",
+    "upstream/data/single_row_tapered_roller_bearing_parameters.csv": "0205c5b21c061fe61f472ad3d4a690fa158961d8c6bf723c34123d41980c7738",
+    "upstream/data/socket_head_cap_parameters.csv": "3b98b4a4bc913ad25afdcef6d9937e2d45909deae8f0e5a68f800b1fc85579c6",
+    "upstream/data/square_nut_parameters.csv": "4f65801d7bccd292c898d8487dbd4f5cd064b1b574b9e8e52617435ff34a75ba",
+    "upstream/data/tap_hole_sizes.csv": "8972b5b7484e0b708d6c73c13faaa9a58d4fee40b45104e5de6dffa856fa69a1",
+    "upstream/data/unchamfered_hex_nut_parameters.csv": "b86cbca91f47f61a8612beb026d5d4f7bcbdae11063770787130d5c2231085ba",
+    "upstream/data_flange/drilling_class_150.csv": "f921c5d25028f6820b290212e72554a879342e3e39402102599b129b04b551ba",
+    "upstream/data_flange/drilling_class_1500.csv": "4803d26f52a851801ba2ac69f43ec672b930800a1cdc9e9cf232b023212540c3",
+    "upstream/data_flange/drilling_class_2500.csv": "047ba6d363ea44f255eccb90534a8edb0353053ce386004a8919b389d20facc2",
+    "upstream/data_flange/drilling_class_300.csv": "d6351c11eb1d20e045ea19f7725790d9abec06e729d2fccfa0b19889e532ab2f",
+    "upstream/data_flange/drilling_class_400.csv": "6a2492b1bdbb9cad14bce91f8d4d822ff7d7ac237da6fb221d8ba3061c233081",
+    "upstream/data_flange/drilling_class_600.csv": "6c542e2697d7224266aea40cddf651a4995ba2f7ea8d67370227587785369786",
+    "upstream/data_flange/drilling_class_900.csv": "67d6965505400014e0a48958ce11b6b92b359edb12fb69e5fab9aea748cfa87d",
+    "upstream/data_flange/flange_data_class_150.csv": "45e8df32c53bc8f6e5da6fd00f45490e0eb0f005e2b7d1dc0c15a66cae89b2e9",
+    "upstream/data_flange/flange_data_class_1500.csv": "949d598c155b6c75d3c0617ea1d2bc4c4ed4f65bd1fbfbb2ebbf53e3ec57866d",
+    "upstream/data_flange/flange_data_class_2500.csv": "4cfa452bf04dcd2e0c29440398903c5861376604b695a0208c60dcb6d1f0e811",
+    "upstream/data_flange/flange_data_class_300.csv": "4477e7f11e19b27dbc51ed26bcecf4a2618529f93e15cc008f1efa62d98ce390",
+    "upstream/data_flange/flange_data_class_400.csv": "681c10d3ab7dfd8eb11458598c5d1f94cd732e5307648f8547ae576b213a81c6",
+    "upstream/data_flange/flange_data_class_600.csv": "9f449f83a3a7a4760e60b86ba12e4ab0ee5e71e949b9b6bf0f0d46a9338a2d99",
+    "upstream/data_flange/flange_data_class_900.csv": "df3e9746fc5c5188130e9b690bcb82c969b5b886c8c157f9caf6d0fa74b87188",
+    "upstream/data_flange/ring_joint_facings_class_150.csv": "06d60562afac5fee3195fa13d32af0059fbd6ab5ef782ebae63b8c2708a20a46",
+    "upstream/data_flange/ring_joint_facings_class_300.csv": "1e216a73d0fc8e65affa9522027d9c745847c40e4b7b7f76fc24d71470619809",
+    "upstream/fastener.py": "c643e71c7054b05d2392f312d52e8150f9e1e0671c3d26b47bf50fc5d400fb9c",
+    "upstream/flange.py": "2a986f8bd864aa44d2d6bff2a999332a1b62cf6a409b65e9020d80101524c068",
+    "upstream/gear.py": "975b5469dfb180c16e9500a744536e341a23b25881b9da0ca4a4cf1a7559213a",
+    "upstream/o_rings.py": "d5f2c4b3a6b835c98e9daf5e5b7d6184eaca94b4c98c96651523a52577319dfb",
+    "upstream/open_builds.py": "3f1d196b07d2adcc5c5cfa46a2ca50df24c4f920117d010933299f9b792a8fee",
+    "upstream/pipe.csv": "73a75fe80a20e2656d08b48428b7794b93894c24f10c9b8929bce1d9ef6b1ab3",
+    "upstream/pipe.py": "5b3daf59f9e198d9419ad5298f9d9436b39b10b3f64511b03ee520c93a035981",
+    "upstream/retaining_ring.py": "45914d84770476c8ef2a7766c4d392b4624b9b07400cba8c3b995930361592b2",
+    "upstream/shaft_key.py": "cc1c9fe762b0c83c7ab6c9ea0ee660f626b896c9f42ca261aa0fc850ca8d7494",
+    "upstream/sprocket.py": "02893a37cb5aee2dfbe249f1b60106a6cb5d326a75939e7ee450aaf93b04eae6",
     "upstream/thread.py": "6462f4cf78b7da85f722f56b25f6912d5936edc62f591231a54566247ac13d7d"
   },
   "summaries": [
@@ -98,9 +177,9 @@
           "actual_solid": false
         }
       ],
-      "artifact": ".runs/48117669-c492-44b4-ad6c-6b3397fdf452/fastener.iso4762.socket_head_cap_screw-1.brep",
-      "artifact_sha256": "ba3559ad6c9d1ae230c698675e2e834540bf5931a9ef10a37808591b0c5beabd",
-      "passed": true
+      "passed": true,
+      "artifact": ".runs/bb29676f-a17c-4069-8f09-9a78a2d243af/fastener.iso4762.socket_head_cap_screw-1.brep",
+      "artifact_sha256": "ba3559ad6c9d1ae230c698675e2e834540bf5931a9ef10a37808591b0c5beabd"
     },
     {
       "id": "fastener.iso4762.socket_head_cap_screw",
@@ -136,9 +215,9 @@
           "actual_solid": false
         }
       ],
-      "artifact": ".runs/48117669-c492-44b4-ad6c-6b3397fdf452/fastener.iso4762.socket_head_cap_screw-2.brep",
-      "artifact_sha256": "ba3559ad6c9d1ae230c698675e2e834540bf5931a9ef10a37808591b0c5beabd",
-      "passed": true
+      "passed": true,
+      "artifact": ".runs/bb29676f-a17c-4069-8f09-9a78a2d243af/fastener.iso4762.socket_head_cap_screw-2.brep",
+      "artifact_sha256": "ba3559ad6c9d1ae230c698675e2e834540bf5931a9ef10a37808591b0c5beabd"
     },
     {
       "id": "fastener.iso4762.socket_head_cap_screw",
@@ -174,9 +253,9 @@
           "actual_solid": false
         }
       ],
-      "artifact": ".runs/48117669-c492-44b4-ad6c-6b3397fdf452/fastener.iso4762.socket_head_cap_screw-3.brep",
-      "artifact_sha256": "ba3559ad6c9d1ae230c698675e2e834540bf5931a9ef10a37808591b0c5beabd",
-      "passed": true
+      "passed": true,
+      "artifact": ".runs/bb29676f-a17c-4069-8f09-9a78a2d243af/fastener.iso4762.socket_head_cap_screw-3.brep",
+      "artifact_sha256": "ba3559ad6c9d1ae230c698675e2e834540bf5931a9ef10a37808591b0c5beabd"
     },
     {
       "id": "bearing.deep_groove_ball.skt",
@@ -209,9 +288,9 @@
           "actual_solid": true
         }
       ],
-      "artifact": ".runs/48117669-c492-44b4-ad6c-6b3397fdf452/bearing.deep_groove_ball.skt-1.brep",
-      "artifact_sha256": "0e9034288673a0f176941ceb527da6a19f6d962fca55c3cd85edcdfbf2c0bfd1",
-      "passed": true
+      "passed": true,
+      "artifact": ".runs/bb29676f-a17c-4069-8f09-9a78a2d243af/bearing.deep_groove_ball.skt-1.brep",
+      "artifact_sha256": "0e9034288673a0f176941ceb527da6a19f6d962fca55c3cd85edcdfbf2c0bfd1"
     },
     {
       "id": "bearing.deep_groove_ball.skt",
@@ -244,9 +323,9 @@
           "actual_solid": true
         }
       ],
-      "artifact": ".runs/48117669-c492-44b4-ad6c-6b3397fdf452/bearing.deep_groove_ball.skt-2.brep",
-      "artifact_sha256": "0e9034288673a0f176941ceb527da6a19f6d962fca55c3cd85edcdfbf2c0bfd1",
-      "passed": true
+      "passed": true,
+      "artifact": ".runs/bb29676f-a17c-4069-8f09-9a78a2d243af/bearing.deep_groove_ball.skt-2.brep",
+      "artifact_sha256": "0e9034288673a0f176941ceb527da6a19f6d962fca55c3cd85edcdfbf2c0bfd1"
     },
     {
       "id": "bearing.deep_groove_ball.skt",
@@ -279,9 +358,9 @@
           "actual_solid": true
         }
       ],
-      "artifact": ".runs/48117669-c492-44b4-ad6c-6b3397fdf452/bearing.deep_groove_ball.skt-3.brep",
-      "artifact_sha256": "0e9034288673a0f176941ceb527da6a19f6d962fca55c3cd85edcdfbf2c0bfd1",
-      "passed": true
+      "passed": true,
+      "artifact": ".runs/bb29676f-a17c-4069-8f09-9a78a2d243af/bearing.deep_groove_ball.skt-3.brep",
+      "artifact_sha256": "0e9034288673a0f176941ceb527da6a19f6d962fca55c3cd85edcdfbf2c0bfd1"
     },
     {
       "id": "thread.iso_metric_external",
@@ -295,9 +374,9 @@
       "thread_zone_xy_mm": null,
       "solids": 9,
       "material_probes": [],
-      "artifact": ".runs/48117669-c492-44b4-ad6c-6b3397fdf452/thread.iso_metric_external-1.brep",
-      "artifact_sha256": "b0c7dc1097762d7a973ac83e696c6bf1b373ae4c77862aa99408f46352a3e339",
-      "passed": true
+      "passed": true,
+      "artifact": ".runs/bb29676f-a17c-4069-8f09-9a78a2d243af/thread.iso_metric_external-1.brep",
+      "artifact_sha256": "b0c7dc1097762d7a973ac83e696c6bf1b373ae4c77862aa99408f46352a3e339"
     },
     {
       "id": "thread.iso_metric_external",
@@ -311,9 +390,9 @@
       "thread_zone_xy_mm": null,
       "solids": 9,
       "material_probes": [],
-      "artifact": ".runs/48117669-c492-44b4-ad6c-6b3397fdf452/thread.iso_metric_external-2.brep",
-      "artifact_sha256": "b0c7dc1097762d7a973ac83e696c6bf1b373ae4c77862aa99408f46352a3e339",
-      "passed": true
+      "passed": true,
+      "artifact": ".runs/bb29676f-a17c-4069-8f09-9a78a2d243af/thread.iso_metric_external-2.brep",
+      "artifact_sha256": "b0c7dc1097762d7a973ac83e696c6bf1b373ae4c77862aa99408f46352a3e339"
     },
     {
       "id": "thread.iso_metric_external",
@@ -327,9 +406,9 @@
       "thread_zone_xy_mm": null,
       "solids": 9,
       "material_probes": [],
-      "artifact": ".runs/48117669-c492-44b4-ad6c-6b3397fdf452/thread.iso_metric_external-3.brep",
-      "artifact_sha256": "b0c7dc1097762d7a973ac83e696c6bf1b373ae4c77862aa99408f46352a3e339",
-      "passed": true
+      "passed": true,
+      "artifact": ".runs/bb29676f-a17c-4069-8f09-9a78a2d243af/thread.iso_metric_external-3.brep",
+      "artifact_sha256": "b0c7dc1097762d7a973ac83e696c6bf1b373ae4c77862aa99408f46352a3e339"
     }
   ]
 }
