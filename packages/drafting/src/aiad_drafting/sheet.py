@@ -301,7 +301,14 @@ def _normalize_request(req: Any) -> _NormalizedRequest:
     )
 
 
+def _display_precision(value: float, precision: int) -> int:
+    if value != 0 and round(float(value), precision) == 0:
+        return max(precision, 1 - math.floor(math.log10(abs(value))))
+    return precision
+
+
 def _format_number(value: float, precision: int) -> str:
+    precision = _display_precision(value, precision)
     rounded = round(float(value), precision)
     if precision == 0:
         return f"{rounded:.0f}"
@@ -325,6 +332,9 @@ def _dimension_record(
     holes: tuple[int, ...] = (),
 ) -> dict[str, Any]:
     numeric_value = float(value)
+    precision = _display_precision(numeric_value, precision)
+    if tolerance is not None:
+        precision = _display_precision(tolerance, precision)
     label = _format_number(numeric_value, precision)
     if tolerance is not None:
         label = f"{label} +/- {_format_number(tolerance, precision)}"

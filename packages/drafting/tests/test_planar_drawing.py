@@ -100,3 +100,50 @@ def test_tiny_source_annotation_is_not_enlarged_to_change_the_model(tmp_path):
     with pytest.raises(ValueError, match="below 2.5 mm"):
         make_drawing(context(sheet), DrawingRequest(sheet="A4"), tmp_path / "tiny")
     assert sheet.to_dict() == before
+
+
+@pytest.mark.parametrize('units,factor,diameter', [('mm', 1.0, .004), ('in', 1/25.4, .0004)])
+def test_small_nonzero_holes_remain_nonzero_on_the_sheet(tmp_path, units, factor, diameter):
+    import xml.etree.ElementTree as ET
+    sheet = sheet2d('small hole', units=units)
+    sheet.rectangle('outline', 10*factor, 10*factor)
+    sheet.circle('hole', (5*factor, 5*factor), diameter/2)
+    result = make_drawing(context(sheet), DrawingRequest(sheet='A3'), tmp_path/units)
+    assert result.ok, result.checks
+    measured = next(record for record in result.dimensions if record['kind'] == 'hole_diameter')
+    assert measured['value'] == pytest.approx(diameter)
+    assert float(measured['display']) == pytest.approx(diameter)
+    assert measured['precision'] >= len(measured['display'].split('.')[1])
+    root = ET.parse(result.artifacts['svg']).getroot()
+    svg = [node.text or '' for node in root.findall('.//{http://www.w3.org/2000/svg}text')
+           if node.attrib.get('data-dimension-id') == measured['id']]
+    dxf = [entity.dxf.text for entity in ezdxf.readfile(result.artifacts['dxf']).modelspace().query('TEXT')]
+    expected = 'DIA ' + measured['display']
+    assert any(expected in value for value in svg)
+    assert any(expected in value for value in dxf)
+
+
+@pytest.mark.parametrize('rotation', [45, 90, -30])
+@pytest.mark.parametrize('align', ['left', 'center', 'right'])
+def test_sheet_writers_preserve_rotated_text_and_its_baseline(tmp_path, rotation, align):
+    import xml.etree.ElementTree as ET
+    import numpy as np
+    from PIL import Image
+    from aiad_drafting.export import text, write_png, write_svg, write_dxf
+    from aiad_drafting.layout import text_bounds
+    label = text('ROTATED', 35, 35, 3, rotation=rotation, align=align)
+    write_svg(tmp_path/'label.svg', 70, 70, [label])
+    write_dxf(tmp_path/'label.dxf', 70, 70, [label])
+    write_png(tmp_path/'label.png', 70, 70, [label])
+    node = ET.parse(tmp_path/'label.svg').getroot().find('.//{http://www.w3.org/2000/svg}text')
+    assert node.attrib['transform'] == f'rotate({-rotation} 35 35)'
+    dxf = ezdxf.readfile(tmp_path/'label.dxf').modelspace().query('TEXT')[0]
+    assert dxf.dxf.rotation == rotation
+    with Image.open(tmp_path/'label.png') as preview:
+        y, x = np.nonzero(np.asarray(preview.convert('L')) < 180)
+    _, vectors = np.linalg.eigh(np.cov(np.column_stack((x,y)).T))
+    angle = math.degrees(math.atan2(vectors[1,-1], vectors[0,-1])) % 180
+    assert abs((angle+rotation+90) % 180 - 90) < 10
+    bounds = text_bounds(label)
+    assert x.min()/4 >= bounds.xmin-.5 and x.max()/4 <= bounds.xmax+.5
+    assert (280-y.max())/4 >= bounds.ymin-.5 and (280-y.min())/4 <= bounds.ymax+.5
