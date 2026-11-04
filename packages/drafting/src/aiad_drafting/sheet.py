@@ -761,40 +761,19 @@ def _draw_overall_dimensions(
             or dimension["kind"] == "hole_spacing" and dimension["axis"] == "y"
             for dimension in dimensions
         )
-        if has_y_ordinates:
-            x_dim = bounds.xmax + 14.0
-            entities.append(line(bounds.xmax, bounds.ymin, x_dim + 1.0, bounds.ymin, "DIMENSIONS", 0.12))
-            entities.append(line(bounds.xmax, bounds.ymax, x_dim + 1.0, bounds.ymax, "DIMENSIONS", 0.12))
-            _dimension_line(entities, (x_dim, bounds.ymin), (x_dim, bounds.ymax), style)
-            entities.append(
-                text(
-                    by_axis["y"]["display"],
-                    x_dim + 2.2,
-                    (bounds.ymin + bounds.ymax) / 2 - 1,
-                    2.8,
-                    "DIMENSIONS",
-                    dimension_id=by_axis["y"]["id"],
-                )
-            )
-        else:
-            x_dim = bounds.xmin - 14.0
-            entities.append(line(bounds.xmin, bounds.ymin, x_dim - 1.0, bounds.ymin, "DIMENSIONS", 0.12))
-            entities.append(line(bounds.xmin, bounds.ymax, x_dim - 1.0, bounds.ymax, "DIMENSIONS", 0.12))
-            _dimension_line(entities, (x_dim, bounds.ymin), (x_dim, bounds.ymax), style)
-            entities.append(
-                text(
-                    by_axis["y"]["display"],
-                    x_dim - 2.2,
-                    (bounds.ymin + bounds.ymax) / 2 - 1,
-                    2.8,
-                    "DIMENSIONS",
-                    "right",
-                    dimension_id=by_axis["y"]["id"],
-                )
-            )
+        from .layout import _view_padding
+        left_reserve=_view_padding("top",dimensions)[0]
+        label_width=text_width_mm(by_axis["y"]["display"],2.8)
+        x_dim=bounds.xmin-left_reserve+label_width+3.0
+        entities.append(line(bounds.xmin,bounds.ymin,x_dim-1,bounds.ymin,"DIMENSIONS",0.12))
+        entities.append(line(bounds.xmin,bounds.ymax,x_dim-1,bounds.ymax,"DIMENSIONS",0.12))
+        _dimension_line(entities,(x_dim,bounds.ymin),(x_dim,bounds.ymax),style)
+        entities.append(text(by_axis["y"]["display"],x_dim-2.2,(bounds.ymin+bounds.ymax)/2-1,2.8,
+                             "DIMENSIONS","right",dimension_id=by_axis["y"]["id"]))
 
 
-def _arrowed_hole_leader(entities, path):
+def _arrowed_hole_leader(entities, path, dimension_id):
+    first_entity=len(entities)
     tip, next_point = path[:2]
     for first,last in zip(path,path[1:]):
         entities.append(line(*first,*last,"DIMENSIONS",0.12))
@@ -805,6 +784,7 @@ def _arrowed_hole_leader(entities, path):
     base=(tip[0]+ux*arrow_length,tip[1]+uy*arrow_length)
     entities.append(line(*tip,base[0]+normal[0],base[1]+normal[1],"DIMENSIONS",0.12))
     entities.append(line(*tip,base[0]-normal[0],base[1]-normal[1],"DIMENSIONS",0.12))
+    entities[first_entity:]=[replace(entity,dimension_id=dimension_id) for entity in entities[first_entity:]]
 
 
 def _ordinate_count_prefix(dimension: dict[str, Any]) -> str:
@@ -827,25 +807,6 @@ def _draw_hole_dimensions(
     if not top:
         return set()
     leader_ids: set[str] = set()
-    diameters = [d for d in dimensions if d["kind"] == "hole_diameter"]
-    for index, diameter in enumerate(diameters):
-        selected = [hole for hole in holes if hole.index in diameter["hole_indices"]]
-        if not selected:
-            continue
-        label = hole_callout_text(diameter)
-        label_x = top.bounds.xmax + 25.0
-        label_y = top.bounds.ymax - 5.0 - 8.0 * index
-        from .routing import hole_leader_path
-        circles=[(h.index,_sheet_point(top,project_point((h.x,h.y,0),top.projection)),h.radius*top.factor) for h in holes]
-        blocked=[Rect(v.bounds.xmin-0.5,v.bounds.ymin-0.5,v.bounds.xmax+0.5,v.bounds.ymax+0.5)
-                 for name,v in placed.items() if name != "top"]
-        route=hole_leader_path(circles,diameter["hole_indices"],(label_x-1.5,label_y),blocked)
-        if route is not None:
-            _,path=route
-            _arrowed_hole_leader(entities,path)
-            leader_ids.add(diameter["id"])
-
-        entities.append(text(label, label_x, label_y, 2.8, "DIMENSIONS", dimension_id=diameter["id"]))
 
     top_view = top.projection
     left, bottom = top.bounds.xmin, top.bounds.ymin
@@ -1014,6 +975,35 @@ def _draw_hole_dimensions(
         entities.append(
             text(dimension["display"], station_x - 2.0, (a[1] + b[1]) / 2, 2.8, "DIMENSIONS", "right", dimension_id=dimension["id"])
         )
+    diameters = [d for d in dimensions if d["kind"] == "hole_diameter"]
+    diameters.sort(key=lambda d:max(h.y for h in holes if h.index in d["hole_indices"]),reverse=True)
+    planned_labels=[]
+    for i,d in enumerate(diameters):
+        rectangle=text_bounds(text(hole_callout_text(d),top.bounds.xmax+25,top.bounds.ymax-5-8*i,2.8))
+        planned_labels.append(Rect(rectangle.xmin-0.35,rectangle.ymin-0.35,rectangle.xmax+0.35,rectangle.ymax+0.35))
+    for index, diameter in enumerate(diameters):
+        selected = [hole for hole in holes if hole.index in diameter["hole_indices"]]
+        if not selected:
+            continue
+        label = hole_callout_text(diameter)
+        label_x = top.bounds.xmax + 25.0
+        label_y = top.bounds.ymax - 5.0 - 8.0 * index
+        from .routing import hole_leader_path
+        circles=[(h.index,_sheet_point(top,project_point((h.x,h.y,0),top.projection)),h.radius*top.factor) for h in holes]
+        blocked=[Rect(v.bounds.xmin-0.5,v.bounds.ymin-0.5,v.bounds.xmax+0.5,v.bounds.ymax+0.5)
+                 for name,v in placed.items() if name != "top"]
+        text_obstacles=[text_bounds(e) for e in entities if e.kind == "text"]
+        blocked.extend(Rect(r.xmin-0.35,r.ymin-0.35,r.xmax+0.35,r.ymax+0.35) for r in text_obstacles if r)
+        blocked.extend(planned_labels)
+        occupied_segments=[e.points for e in entities if e.layer == "DIMENSIONS" and e.kind == "line"]
+        route=hole_leader_path(circles,diameter["hole_indices"],(label_x-1.5,label_y),blocked,occupied_segments)
+        if route is not None:
+            _,path=route
+            _arrowed_hole_leader(entities,path,diameter["id"])
+            leader_ids.add(diameter["id"])
+
+        entities.append(text(label, label_x, label_y, 2.8, "DIMENSIONS", dimension_id=diameter["id"]))
+
     return leader_ids
 
 
@@ -1352,6 +1342,19 @@ def _drawing_checks(
     add_check("dimension_view_collisions","fail" if dimension_view_collisions else "pass",
               "Dimension strokes intersect a different view." if dimension_view_collisions else "Dimension strokes stay clear of other views.",
               str(dimension_view_collisions) if dimension_view_collisions else None)
+
+    from .routing import segments_distance
+    leader_strokes=[(i,e) for i,e in enumerate(entities) if e.kind == "line" and e.dimension_id in hole_leader_ids]
+    leader_collisions=[]
+    for offset,(index,first) in enumerate(leader_strokes):
+        for other_index,second in leader_strokes[offset+1:]:
+            if first.dimension_id != second.dimension_id and segments_distance(*first.points,*second.points)<0.1:
+                leader_collisions.append((index,other_index))
+        if any(primitive_intersects_rect(first,text_bounds(e)) for e in entities if e.kind == "text"):
+            leader_collisions.append((index,"text"))
+    add_check("hole_leader_collisions","fail" if leader_collisions else "pass",
+              "Hole leaders cross each other or text." if leader_collisions else "Hole leaders stay clear of other leaders and text.",
+              str(leader_collisions) if leader_collisions else None)
 
     ruling_collisions=[]
     for index,entity in enumerate(entities):

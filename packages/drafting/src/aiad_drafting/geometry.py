@@ -209,8 +209,16 @@ def through_holes(shape: Any, bounds: Bounds3D) -> list[Hole]:
     from OCP.TopExp import TopExp_Explorer
     from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt
 
+    from .features import measure_cylinders
+    cylindrical_surfaces=measure_cylinders(shape)
     through = []
     for candidate in candidates.values():
+        matching=[feature for feature in cylindrical_surfaces if feature.interior
+                  and abs(feature.axis[2]-1)<1e-7
+                  and math.dist(feature.axis_origin[:2],(candidate["x"],candidate["y"]))<tolerance
+                  and abs(feature.radius-candidate["radius"])<tolerance]
+        if not matching or not all(feature.full_circle for feature in matching):
+            continue
         radius = candidate["radius"] - 2 * tolerance
         if radius <= tolerance:
             continue

@@ -274,7 +274,7 @@ def _view_padding(name: str, dimensions: Sequence[Mapping[str, Any]]) -> tuple[f
             if not y_coordinates and not y_spacings:
                 left = max(left, overall_y_reserve)
             else:
-                right = max(right, overall_y_reserve)
+                left += overall_y_reserve
         if diameter_dims:
             right = max(
                 right,

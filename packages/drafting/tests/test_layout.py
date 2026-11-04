@@ -180,3 +180,29 @@ def test_cylinder_schedule_dimensions_are_rendered_and_table_rules_clear(tmp_pat
     assert _check(result,"table_rule_collisions")["status"]=="pass"
     assert _check(result,"dimension_view_collisions")["status"]=="pass"
     assert result.ok,result.checks
+
+
+def test_open_cylindrical_cut_is_a_radius_not_a_through_hole(tmp_path):
+    from build123d import Cylinder, Pos
+    from aiad_drafting.features import measure_cylinders
+    shape=Box(20,20,10)-Cylinder(4,12)-Pos(-5,0,0)*Box(10,4,12)
+    assert any(not f.full_circle for f in measure_cylinders(shape))
+    result=make_drawing(SimpleNamespace(shape=shape,units="mm"),
+                        DrawingRequest(sheet="A3",formats=("svg",)),tmp_path)
+    labels=[node.text or "" for node in ET.parse(result.artifacts["svg"]).getroot().findall(".//{http://www.w3.org/2000/svg}text")]
+    assert result.sheet["hole_count"]==0
+    assert not any("THRU" in value for value in labels)
+    assert "R 4" in labels
+    assert result.ok,result.checks
+
+
+def test_vertical_mixed_holes_have_non_crossing_leaders(tmp_path):
+    from build123d import Cylinder, Pos
+    shape=Box(80,80,8)
+    for y,radius in ((-25,3),(0,4),(25,5)):
+        shape-=Pos(0,y,0)*Cylinder(radius,10)
+    result=make_drawing(SimpleNamespace(shape=shape,units="mm"),
+                        DrawingRequest(sheet="A3",formats=("svg",)),tmp_path)
+    assert _check(result,"hole_leader_collisions")["status"]=="pass"
+    assert _check(result,"hole_leader_coverage")["status"]=="pass"
+    assert result.ok,result.checks

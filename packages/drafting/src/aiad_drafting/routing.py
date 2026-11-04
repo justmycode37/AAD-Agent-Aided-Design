@@ -11,7 +11,17 @@ def segment_distance(center, start, end):
     return math.dist(center,(start[0]+t*dx,start[1]+t*dy))
 
 
-def hole_leader_path(circles, selected_indices, end, blocked=()):
+def segments_distance(a,b,c,d):
+    def turn(p,q,r):
+        return (q[0]-p[0])*(r[1]-p[1])-(q[1]-p[1])*(r[0]-p[0])
+    t1,t2,t3,t4=turn(a,b,c),turn(a,b,d),turn(c,d,a),turn(c,d,b)
+    if t1*t2 < 0 and t3*t4 < 0:
+        return 0.0
+    return min(segment_distance(a,c,d),segment_distance(b,c,d),
+               segment_distance(c,a,b),segment_distance(d,a,b))
+
+
+def hole_leader_path(circles, selected_indices, end, blocked=(), segments=()):
     """Return (hole index, points) or None, keeping all other bores clear.
 
     circles contains (index, center, radius) in sheet mm. The stock's outer
@@ -32,11 +42,15 @@ def hole_leader_path(circles, selected_indices, end, blocked=()):
                 continue
             if any(rect.xmin<=point[0]<=rect.xmax and rect.ymin<=point[1]<=rect.ymax for rect in blocked):
                 continue
+            if any(segment_distance(point,a,b)<0.25 for a,b in segments):
+                continue
             node=len(nodes)
             nodes.append(point)
             if index in selected_indices:
                 tip=(center[0]+radius*ux,center[1]+radius*uy)
-                if all(other==index or segment_distance(c,tip,point)>=r+clearance for other,c,r in circles):
+                if (all(other==index or segment_distance(c,tip,point)>=r+clearance for other,c,r in circles)
+                    and all(segments_distance(tip,point,a,b)>=0.25 for a,b in segments)
+                    and not any(_segment_intersects_rect(tip,point,rect) for rect in blocked)):
                     sources[node]=(index,tip)
     target=len(nodes)
     nodes.append(end)
@@ -69,6 +83,8 @@ def hole_leader_path(circles, selected_indices, end, blocked=()):
             if any(segment_distance(c,first,last)<r+clearance-1e-8 for _,c,r in circles):
                 continue
             if any(_segment_intersects_rect(first,last,rect) for rect in blocked):
+                continue
+            if any(segments_distance(first,last,a,b)<0.25 for a,b in segments):
                 continue
             distance[other]=cost+weight
             previous[other]=node

@@ -158,7 +158,7 @@ def cylindrical_schedule(shape, bounds, holes, units="mm"):
     records=[]
     fmt=lambda value:f"{value:.6g}"
     for feature in measure_cylinders(shape,units):
-        if feature.interior and abs(feature.axis[2]-1)<1e-7 and any(
+        if feature.interior and feature.full_circle and abs(feature.axis[2]-1)<1e-7 and any(
             math.dist(feature.axis_origin[:2],(hole.x,hole.y))<1e-6 and abs(feature.radius-hole.radius)<1e-6
             for hole in holes):
             continue  # Already covered by the through-hole diameter and datums.

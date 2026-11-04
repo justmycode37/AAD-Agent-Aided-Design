@@ -28,8 +28,9 @@ BOM or a quantity and raises a ValueError.
   view curves come from OCCT hidden-line removal. Isometric curves are projected
   from the model edges, with visible/hidden classification left to OCCT.
 - Automatic hole discovery targets Z-axis cylindrical through-holes. A kernel
-  clearance check excludes blind holes and counterbores even when raised
-  geometry changes the overall Z bounds. Other cylindrical features remain
+  clearance check and complete circumferential coverage exclude open radial
+  cuts, blind holes and counterbores, even when raised geometry changes the
+  overall Z bounds. Other cylindrical features remain
   projected geometry but are not guessed to be holes.
 - Automatic dimensions cover the overall x/y/z size, hole diameter and hole
   datum coordinates. Dimensions are measured from the supplied shape. No
@@ -47,7 +48,8 @@ BOM or a quantity and raises a ValueError.
   circular detail crops preserve circles and arcs. Sections currently support
   XY, XZ, and YZ planes; non-circular freeform cut curves are sampled polylines.
 - Hole diameter callouts use arrowed leaders routed around neighboring bores.
-  Other cylindrical surfaces get measured size and axial station schedules.
+  Leaders also avoid already placed leaders and labels; residual crossings
+  fail a separate check. Other cylindrical surfaces get measured size and axial station schedules.
   Complete cylinders are labeled DIA; partial surfaces are labeled R. Stations
   and perpendicular centers use minimum model bounds as datums. The schedule
   measures the finished B-rep, including Boolean-trimmed cylindrical spans;
