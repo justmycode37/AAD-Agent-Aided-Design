@@ -25,6 +25,8 @@ jobs:
       viewer: ${{ steps.discover.outputs.viewer }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v10.3.3
       - name: Lock file is current
         run: uv lock --check
