@@ -240,7 +240,16 @@ type Envelope = {
   scene?: SceneManifest,               // aiad_show, aiad_set_param
   viewer?: { mode: "inline"|"window"|"none", url?: string },
   user_selection?: Selection[],        // picks from window mode since the last call
-  next?: string[]                      // at most 3 short hints
+  next?: string[],                     // at most 3 short hints
+  // Tool-specific payloads, each small and only on its own tool's result:
+  entities?: unknown[],                // aiad_query
+  measurement?: unknown,               // aiad_measure
+  topology?: unknown,                  // aiad_inspect what: "topology"
+  features?: unknown[],                // aiad_inspect what: "features"
+  params?: unknown,                    // aiad_inspect what: "params"
+  diff?: { source: string, params: unknown, metrics: unknown },  // aiad_history, aiad_inspect
+  imported?: unknown,                  // aiad_import
+  library?: unknown                    // aiad_library
 }
 
 type Check = {
@@ -397,6 +406,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 
 ## 11. Changelog
 
+- 2026-11-04: S2 added optional tool-specific fields to the envelope in section 6, so that results of query, measure, inspect, history, import and library have named places.
 - 2026-11-04: S2 specified the window transport's routes in section 8, because S3's transport and S2's server need the same paths and shapes.
 - 2026-11-04: S2 tightened `verified` in section 6 (issue #5), because an untested `error`-level requirement must never pass as proven.
 - 2026-11-04: S2 added distribution names to section 1, because workspace packages must not collide and `uv tool install aiad` must get the CLI.
