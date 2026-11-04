@@ -131,7 +131,7 @@ result = Box(4, 5, 6)
                     project_dir=root,
                     job_dir=root / "job",
                     spec={"requirements": [{"id": "fit"}]},
-                    preview=True,
+                    preview=False,
                 )
             )
             self.assertTrue(result.ok, result.summary)
@@ -140,8 +140,6 @@ result = Box(4, 5, 6)
             warnings = {check.id: check for check in result.checks if check.status == "warn"}
             self.assertIn("spec_checks_hook_failed", warnings)
             self.assertIn("scene_generation_failed", warnings)
-            self.assertIn("render_failed", warnings)
-            self.assertIn("retained", warnings["render_failed"].message)
 
     @unittest.skipUnless(os.name == "posix", "POSIX process-group cleanup")
     def test_cleanup_kills_descendants_after_the_worker_leader_exits(self) -> None:
@@ -218,26 +216,50 @@ sys.path.insert(0, str(Path.cwd()))
 result = Box(2, 3, 4)
 """
         with tempfile.TemporaryDirectory(prefix="aiad-engine-test-") as temporary:
-            built = run_build(BuildRequest(source=source, project_dir=Path(temporary), preview=True))
+            built = run_build(BuildRequest(source=source, project_dir=Path(temporary)))
             self.assertTrue(built.ok, built.summary)
             self.assertIsNotNone(built.context)
             self.assertEqual(built.status, "draft")
             self.assertTrue(Path(built.artifacts['part.brep']).is_file())
             warnings = {c.id for c in built.checks if c.status == "warn"}
             self.assertTrue({'spec_checks_hook_failed', 'process_checks_hook_failed',
-                             'scene_generation_failed', 'render_failed'} <= warnings)
+                             'scene_generation_failed'} <= warnings)
 
     def test_empty_optional_outputs_warn_instead_of_reporting_success(self) -> None:
         module = "def make_scene(ctx, out):\n    return {}\ndef render(ctx, req, out):\n    return []\n"
         source = "from pathlib import Path\nimport sys\n" + f"Path('aiad_render.py').write_text({module!r})\n" + "sys.path.insert(0, str(Path.cwd()))\nresult = Box(2, 2, 2)\n"
         with tempfile.TemporaryDirectory(prefix="aiad-engine-test-") as temporary:
-            built = run_build(BuildRequest(source=source, project_dir=Path(temporary), preview=True))
+            built = run_build(BuildRequest(source=source, project_dir=Path(temporary)))
             self.assertTrue(built.ok, built.summary)
             self.assertIsNone(built.scene)
             self.assertTrue(Path(built.artifacts['part.brep']).is_file())
             checks = {c.id: c.status for c in built.checks}
             self.assertEqual(checks['scene_generation_failed'], 'warn')
-            self.assertEqual(checks['render_failed'], 'warn')
+            self.assertEqual(checks['render_not_requested'], 'skip')
+
+    def test_optional_render_hook_errors_and_empty_outputs_warn(self) -> None:
+        from types import SimpleNamespace
+        from aiad.engine._worker import _optional_render
+        from aiad.engine.types import ModelContext
+
+        with tempfile.TemporaryDirectory(prefix="aiad-render-hook-test-") as temporary:
+            context = ModelContext(job_dir=Path(temporary))
+            for effect in (RuntimeError('render import failed'), None):
+                with self.subTest(import_error=effect is not None):
+                    with patch('aiad.engine._worker.importlib.import_module',
+                               side_effect=effect, return_value=SimpleNamespace(render=lambda *args: [])):
+                        artifacts, check = _optional_render(context, True)
+                    self.assertEqual(artifacts, {})
+                    self.assertEqual((check.id, check.level, check.status), ('render_failed', 'warn', 'warn'))
+                    self.assertIn('retained', check.message)
+
+            def broken_hook(*args):
+                raise RuntimeError('render hook fixture')
+
+            with patch('aiad.engine._worker.importlib.import_module', return_value=SimpleNamespace(render=broken_hook)):
+                artifacts, check = _optional_render(context, True)
+            self.assertEqual(artifacts, {})
+            self.assertEqual(check.actual, 'RuntimeError: render hook fixture')
 
     def test_incomplete_spec_coverage_never_promotes_verified(self) -> None:
         cases = [

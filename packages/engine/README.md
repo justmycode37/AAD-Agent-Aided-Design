@@ -71,10 +71,12 @@ not add one. See [sandbox.md](sandbox.md) for the boundary and its tests.
 - `aiad_quality` and `aiad_render` hooks are optional. Missing hooks produce
   explicit `skip` checks; hook exceptions produce `warn` checks and retain the
   BREP. An unavailable or skipped spec check cannot produce `verified`.
-  A Mac public-preview probe with an editable workspace installation returned
-  `render_unavailable` / `ModuleNotFoundError: No module named 'aiad_render'`
-  while retaining the draft BREP. The launcher's editable optional-package
-  discovery still needs correction; see the observed limit in `sandbox.md`.
+  Editable optional-package imports receive a directory-only search grant.
+  Native previews run after the model exits in a separate sandboxed process,
+  with at most 10 seconds and the remaining build budget. Preview hangs and
+  native exits become warnings while preserving the BREP and geometry checks.
+  Successful VTK rendering inside the Mac policy remains unproven; a native
+  import probe hung. See the observed limits in `sandbox.md`.
 - Scene and render hook records use the existing `Check` shape with IDs such as
   `scene_generation_unavailable` and `render_not_requested`; they describe
   pipeline availability, not additional geometry checks.

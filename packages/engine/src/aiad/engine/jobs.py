@@ -76,7 +76,9 @@ def run_build(req: BuildRequest) -> BuildResult:
             "spec": request.spec,
             "material": request.material,
             "process": request.process,
-            "preview": request.preview,
+            # Optional native rendering must not abort or hang this process
+            # after it has already produced a usable BREP.
+            "preview": False,
         }
         input_bytes = (json.dumps(payload, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
     except (TypeError, ValueError, OSError, OverflowError) as exc:
@@ -153,7 +155,7 @@ def run_build(req: BuildRequest) -> BuildResult:
 
     try:
         result = _result_from_wire(response, job_dir=job_dir, elapsed_ms=elapsed_ms, process_stderr=_decode(stderr_bytes))
-        return _constrain_worker_evidence(result, job_dir, project_dir)
+        result = _constrain_worker_evidence(result, job_dir, project_dir)
     except (KeyError, TypeError, ValueError, AttributeError) as exc:
         return _failed(
             Failure(
@@ -168,6 +170,14 @@ def run_build(req: BuildRequest) -> BuildResult:
             stdout=_decode(stdout_bytes),
             stderr=_decode(stderr_bytes),
         )
+
+    if request.preview and "part.brep" in result.artifacts:
+        from ._preview import add_preview
+
+        remaining_s = max(0.0, request.timeout_s - (time.perf_counter() - started))
+        add_preview(result, timeout_s=remaining_s)
+    result.build_ms = _elapsed_ms(started)
+    return result
 
 
 def _coerce_request(req: BuildRequest | Mapping[str, Any]) -> BuildRequest:

@@ -58,17 +58,35 @@ explicitly trusted test `Popen` processes outside the model launcher to exercise
 descendants after leader exit and orphaned pipes from a detached descendant;
 production isolation is not relaxed to run those fixtures.
 
-### Observed editable dependency limit
+### Editable packages and bounded optional previews
 
-On macOS 26.6.2 / Python 3.12.10, a public Box build with `preview=True` and all
-workspace packages installed returned a draft BREP but no preview:
-`render_unavailable` / `ModuleNotFoundError: No module named 'aiad_render'`.
-The parent resolved the editable renderer package, while a sandboxed import
-probe returned no module. A directory-read probe got `PermissionError:
-[Errno 1] Operation not permitted` for `packages/render/src`; the enclosed
-`aiad_render` package directory was readable. The launcher's editable
-optional-package discovery needs a follow-up. This probe does not establish
-the behavior of installed wheels, and no project-wide read grant is added here.
+Python's package finder must list the directory containing an editable package.
+The Mac policy permits reading that directory itself, while retaining the
+subtree grant only for the package. A native regression imports a fixture package
+and confirms that a sibling private file remains unreadable. No project-wide
+read grant is added.
+
+The model worker does not import the native renderer. After the model exits,
+the parent creates a fresh private preview directory and starts another process
+through `sandbox.popen`. That process reloads only the BREP and context metadata;
+it does not execute `model.py` or import Python modules from the model job. Its
+read grant covers the BREP, and its only writable directory is the preview job.
+The optional preview gets at most 10 seconds, further bounded by the remaining
+build timeout. This is a configured optional-work budget, not a measured renderer
+limit. A timeout, native exit, missing hook, malformed output or launch failure
+becomes a warning and cannot discard geometry, checks or the original failure.
+Accepted preview files must be private regular files with a PNG signature.
+Preview results cannot promote a build's status or prove requirements.
+
+On macOS 26.6.2 / Python 3.12.10, an import trace reached the native extension
+`vtkmodules.vtkIOXdmf2` without returning before the diagnostic budget expired.
+An earlier public probe timed out during renderer import and retained its BREP.
+The cause of that native hang is unknown. S2 separately observed a native render
+abort in [issue #56](https://github.com/justmycode37/AIAD-AI-Aided-Design-/issues/56).
+No graphics, network or Mach exception is added in response to either observation.
+The separate preview worker bounds their effect; successful native preview
+rendering inside this Mac policy remains unproven. Scene generation still runs
+inside the model worker and has no separate optional-step timeout yet.
 
 ## Other platforms and limits
 
