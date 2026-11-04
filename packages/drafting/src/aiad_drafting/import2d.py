@@ -131,6 +131,8 @@ def _mapped_layer(source: str | None, layer_map: Mapping[str, str]) -> tuple[str
 
 
 def _finite(value: Any, *, label: str) -> float:
+    if isinstance(value, bool):
+        raise Import2DError(f"{label} must be a finite number, not a boolean.")
     try:
         result = float(value)
     except (TypeError, ValueError) as exc:
@@ -160,7 +162,12 @@ def _record(
     height: float | None = None,
     metadata: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if not isinstance(closed, bool):
+        raise Import2DError(f"{name}.closed must be a boolean.")
     metadata_copy = deepcopy(dict(metadata or {}))
+    for flag in ("ccw", "text_is_similarity_transform"):
+        if flag in metadata_copy and not isinstance(metadata_copy[flag], bool):
+            raise Import2DError(f"{name}.metadata.{flag} must be a boolean.")
     # Keep tuples in the in-memory records, but validate that provenance can be
     # serialized without leaking parser objects or non-finite values.
     _json_safe(metadata_copy)
@@ -172,7 +179,7 @@ def _record(
         "radius": _finite(radius, label=f"{name}.radius") if radius is not None else None,
         "start_angle": _finite(start_angle, label=f"{name}.start_angle") if start_angle is not None else None,
         "end_angle": _finite(end_angle, label=f"{name}.end_angle") if end_angle is not None else None,
-        "closed": bool(closed),
+        "closed": closed,
         "text": str(text) if text is not None else None,
         "height": _finite(height, label=f"{name}.height") if height is not None else None,
         "metadata": metadata_copy,
@@ -251,7 +258,7 @@ class Imported2D:
                 radius=raw.get("radius"),
                 start_angle=raw.get("start_angle"),
                 end_angle=raw.get("end_angle"),
-                closed=bool(raw.get("closed", False)),
+                closed=raw.get("closed", False),
                 text=raw.get("text"),
                 height=raw.get("height"),
                 metadata=metadata,
@@ -285,6 +292,11 @@ class Imported2D:
             metadata = entity["metadata"]
             if kind == "svg_arc":
                 unsupported.append(f"{entity['name']} ({kind})")
+            elif kind == "polyline" and (
+                abs(float(metadata.get("const_width", 0))) > 0 or
+                any(abs(float(width)) > 0 for pair in metadata.get("widths", ()) for width in pair)
+            ):
+                unsupported.append(f"{entity['name']} (nonzero polyline width)")
             elif kind == "text" and abs(float(metadata.get("rotation", 0.0))) > 1e-12:
                 unsupported.append(f"{entity['name']} (rotated text)")
             elif kind == "text" and metadata.get("text_is_similarity_transform") is False:
@@ -669,6 +681,8 @@ def parse_dxf(
                     "bulges": bulges,
                     "source_widths": source_widths,
                     "widths": [(start * scale, end * scale) for start, end in source_widths],
+                    "source_const_width": float(entity.dxf.get("const_width", 0)),
+                    "const_width": float(entity.dxf.get("const_width", 0)) * scale,
                     "extrusion": _vec3(entity.dxf.get("extrusion", (0, 0, 1))),
                     "ocs_determinant": determinant,
                 },
@@ -742,8 +756,12 @@ def _svg_local_name(value: str) -> str:
 
 
 def _svg_attribute(attributes: Mapping[str, Any], wanted: str) -> str | None:
+    if wanted in attributes:
+        return str(attributes[wanted])
+    if wanted not in {"label", "groupmode"}:
+        return None
     for key, value in attributes.items():
-        if _svg_local_name(str(key)) == wanted.casefold():
+        if str(key).split("}")[-1].split(":")[-1] == wanted:
             return str(value)
     return None
 
@@ -849,6 +867,9 @@ def _validate_svg(data: bytes, path: Path) -> ET.Element:
             raise Import2DError(f"SVG element <{tag}> is active or external content and is rejected.")
         if tag not in _SVG_TAGS:
             raise Import2DError(f"SVG element <{tag}> is unsupported.")
+        actual_tag = str(element.tag).split("}")[-1].split(":")[-1]
+        if actual_tag != tag:
+            raise Import2DError(f"SVG element <{actual_tag}> has an unsupported case-sensitive name.")
         if tag == "defs" and len(element):
             raise Import2DError("SVG defs with referenced or hidden content are unsupported.")
         if tag == "tspan":
@@ -864,6 +885,8 @@ def _validate_svg(data: bytes, path: Path) -> ET.Element:
 
         for key, raw_value in element.attrib.items():
             local = _svg_local_name(str(key))
+            if local == "viewbox" and str(key) != "viewBox":
+                raise Import2DError("SVG attribute names are case-sensitive and unqualified; use viewBox.")
             value = str(raw_value)
             normalized_value = value.strip().casefold()
             if local.startswith("on"):
