@@ -1120,8 +1120,39 @@ def _view_markers(entities, shape, placed, request):
             nx, ny = -dy/length, dx/length
             for x,y in (start,end):
                 entities.append(line(x,y,x+3*nx,y+3*ny,layer="SECTION_MARKERS",width=0.3))
-            entities.append(text(spec.label or spec.name.upper(), start[0]-3, start[1]+4,
-                                 2.6, "SECTION_MARKERS", "right"))
+            label = spec.label or spec.name.upper()
+            width, height = SHEET_SIZES_MM[request.sheet]
+            candidates = [
+                text(label, x, y, 2.6, "SECTION_MARKERS", align)
+                for x, y, align in (
+                    (start[0]-3, start[1]+4, "right"),
+                    (end[0]+3, end[1]+4, "left"),
+                    (start[0]+3, start[1]+7, "left"),
+                    (end[0]-3, end[1]+7, "right"),
+                    (start[0]+3, start[1]+10, "left"),
+                    (end[0]-3, end[1]+10, "right"),
+                    (start[0]+3, start[1]+14, "left"),
+                    (end[0]-3, end[1]+14, "right"),
+                    (start[0]+3, start[1]-7, "left"),
+                    (end[0]-3, end[1]-7, "right"),
+                )
+            ]
+            selected = None
+            for candidate in candidates:
+                rectangle = text_bounds(candidate)
+                if (rectangle.xmin < MARGIN_MM or rectangle.xmax > width-MARGIN_MM or
+                    rectangle.ymin < MARGIN_MM or rectangle.ymax > height-MARGIN_MM):
+                    continue
+                if any(primitive_intersects_rect(entity, rectangle) for entity in entities if entity.kind != "text"):
+                    continue
+                if any(rectangle.intersects(other, .15) for entity in entities if entity.kind == "text"
+                       and (other := text_bounds(entity)) is not None):
+                    continue
+                selected = candidate
+                break
+            # Retain a visible label if no candidate fits; drawing checks report
+            # its collision instead of silently omitting the section identity.
+            entities.append(selected or candidates[0])
         elif spec.kind == "detail":
             parent = placed.get(spec.parent or "front")
             if parent is None:
@@ -1503,12 +1534,6 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
             from .drawing2d import emit_labels
             emit_labels(entities, planar, view)
         view_geometry[name] = entities[first_entity:]
-    marker_start = len(entities)
-    _view_markers(entities, shape, placed, request)
-    marker_geometry = [entity for entity in entities[marker_start:] if entity.kind != "text"]
-    if marker_geometry:
-        view_geometry["_markers"] = marker_geometry
-    _view_label_entities(entities, placed, request, view_geometry, page_width, page_height)
     for dimension in dimensions:
         if dimension["kind"] != "overall":
             continue
@@ -1530,6 +1555,12 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
         page_height,
     )
     entities[first_hole_entity:]=[replace(e,view_name="top") for e in entities[first_hole_entity:]]
+    marker_start = len(entities)
+    _view_markers(entities, shape, placed, request)
+    marker_geometry = [entity for entity in entities[marker_start:] if entity.kind != "text"]
+    if marker_geometry:
+        view_geometry["_markers"] = marker_geometry
+    _view_label_entities(entities, placed, request, view_geometry, page_width, page_height)
     entities.extend(auxiliary.entities)
     checks = _drawing_checks(
         entities,
