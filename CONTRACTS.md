@@ -308,6 +308,8 @@ type SceneManifest = {
 
 ## 8. Viewer behavior
 
+The viewer only displays (`PLAN.md` D17). Picking, sliders, the Ask box and review tools are not built. `Selection`, `aiad_set_param`, `aiad_pick_info` and `POST /context` stay reserved so that their names and shapes don't change if the user later asks for them.
+
 **Transport interface** (S3 defines it in TypeScript; there is one UI over three implementations):
 
 ```ts
@@ -406,6 +408,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 
 ## 11. Changelog
 
+- 2026-11-04: Marked the viewer as display-only in section 8, following the user's direction in issue #35. No interface was removed.
 - 2026-11-04: S2 added optional tool-specific fields to the envelope in section 6, so that results of query, measure, inspect, history, import and library have named places.
 - 2026-11-04: S2 specified the window transport's routes in section 8, because S3's transport and S2's server need the same paths and shapes.
 - 2026-11-04: S2 tightened `verified` in section 6 (issue #5), because an untested `error`-level requirement must never pass as proven.

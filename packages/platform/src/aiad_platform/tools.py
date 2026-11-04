@@ -161,8 +161,8 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "aiad_show",
         "description": (
-            "Show the user an interactive 3D or 2D viewer of a revision. Call this on purpose when a "
-            "result is ready for review, not on every build."
+            "Show the user a revision inline, in an interactive 3D or 2D viewer. Call this only when the "
+            "user asks to see the part, never as a routine step. Hosts without inline support get a local URL to offer."
         ),
         "inputSchema": _schema(
             {
@@ -331,7 +331,7 @@ TOOL_NAMES = frozenset(tool["name"] for tool in TOOLS)
 
 INSTRUCTIONS = (
     "AIAD is CAD for agents. Workflow: aiad_new with a spec, write model.py, aiad_build, read the "
-    "numbers and failures, review with aiad_render, then aiad_show for the user and aiad_export for "
-    "files. Report the status honestly: draft means built but not proven, verified means the hard gate "
+    "numbers and failures, review with aiad_render, and aiad_export for files. Call aiad_show only when "
+    "the user asks to see the part. Report the status honestly: draft means built but not proven, verified means the hard gate "
     "and every error-level requirement passed. Fetch playbooks with aiad_library."
 )

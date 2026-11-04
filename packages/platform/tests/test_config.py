@@ -70,3 +70,26 @@ def test_browser_opens_only_when_windows_were_requested(setting, opens, monkeypa
     viewer = asyncio.run(handlers._viewer_for("p", {"supports_ui": False}))
     assert viewer == {"mode": "window", "url": "http://127.0.0.1:1/p/p"}
     assert bool(opened) is opens
+
+
+def test_set_param_shows_with_the_callers_client(monkeypatch):
+    """Regression: a nested aiad_show without a client looked like a call from an open local page."""
+    import asyncio
+
+    from aiad_platform.daemon.handlers import Handlers
+
+    handlers = Handlers()
+    seen = []
+
+    async def build(_params):
+        return {"structured": {"ok": True, "status": "draft", "rev": 2}}
+
+    async def show(params):
+        seen.append(params)
+        return {"structured": {"ok": True}}
+
+    monkeypatch.setattr(handlers, "aiad_build", build)
+    monkeypatch.setattr(handlers, "aiad_show", show)
+    client = {"supports_ui": True}
+    asyncio.run(handlers.aiad_set_param({"project": "p", "base_rev": 1, "name": "w", "value": 2, "client": client}))
+    assert seen == [{"project": "p", "rev": 2, "client": client}]

@@ -1,6 +1,6 @@
 # AIAD
 
-CAD for agents: an MCP server that lets any agent design real 2D and 3D parts, prove they meet the request, and show them to the user in an interactive viewer in the chat.
+CAD for agents: a background MCP server that lets any agent design real 2D and 3D parts and prove they meet the request. When the user asks to see a part, the agent shows it inline in the chat.
 
 Pre-release and not yet published. `PLAN.md` is the scope and `CONTRACTS.md` is the binding set of interfaces.
 
