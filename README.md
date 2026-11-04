@@ -17,4 +17,4 @@ uv run pytest tests/e2e             # end-to-end smoke test
 
 A new package needs only `packages/<name>/pyproject.toml`; the root workspace picks it up. After changing dependencies, run `uv lock` and commit `uv.lock`.
 
-CI runs each package's tests on macOS and Linux for every PR, plus the smoke test and the viewer build. `.github/scripts/discover.py` finds packages by looking for `packages/<dir>/tests/`.
+CI runs on macOS Intel (`macos-15-intel`) and Linux. Hosted arm64 jobs exhausted runner capacity (issue #60); local macOS arm64 smoke results remain separate evidence. Every PR runs the smoke test. Documentation skips package tests; platform and viewer changes run their own tests. Shared CAD, root config and CI changes run all package tests, as does `main`.
