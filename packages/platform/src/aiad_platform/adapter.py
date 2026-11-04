@@ -6,7 +6,6 @@ import asyncio
 import base64
 import logging
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -18,6 +17,7 @@ from mcp.server import Server, ServerRequestContext
 from mcp.server.stdio import stdio_server
 
 from . import __version__, paths, viewer
+from .daemon_ctl import spawn_daemon
 from .rpc import INVALID_PARAMS, PROTOCOL, RpcClient, RpcError
 from .tools import INSTRUCTIONS, TOOL_NAMES, TOOLS, UI_EXTENSION, VIEWER_MIME, VIEWER_URI
 
@@ -26,21 +26,6 @@ DAEMON_START_TIMEOUT_S = 15.0
 REPLAYABLE = frozenset(
     {"aiad_inspect", "aiad_query", "aiad_measure", "aiad_library", "aiad_scene_read", "aiad_pick_info", "aiad_file_read"}
 )
-
-
-def spawn_daemon() -> None:
-    paths.ensure_private_dir(paths.aiad_home())
-    paths.ensure_private_dir(paths.run_dir())
-    paths.ensure_private_dir(paths.logs_dir())
-    with open(paths.logs_dir() / "aiadd.out", "ab") as out:
-        subprocess.Popen(
-            [sys.executable, "-m", "aiad_platform.daemon"],
-            stdin=subprocess.DEVNULL,
-            stdout=out,
-            stderr=out,
-            start_new_session=True,
-            close_fds=True,
-        )
 
 
 class DaemonLink:
