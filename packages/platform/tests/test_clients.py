@@ -23,6 +23,8 @@ def isolated_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("APPDATA", str(home / "AppData" / "Roaming"))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(home / ".config"))
     monkeypatch.setenv("AIAD_HOME", str(home / ".aiad"))
+    for name in ("CODEX_HOME", "CLINE_DIR", "CLINE_DATA_DIR", "CLINE_MCP_SETTINGS_PATH"):
+        monkeypatch.delenv(name, raising=False)
     return home
 
 
@@ -420,3 +422,94 @@ def test_zed_handles_escaped_quotes_and_nested_trailing_commas(isolated_home: Pa
 
     assert uninstall("zed").action == "restored"
     assert path.read_text() == original
+
+
+@pytest.mark.parametrize("client_id", CLIENT_IDS)
+def test_uninstall_keeps_user_fields_inside_aiad(client_id, isolated_home):
+    path, _ = _write_seed(client_id)
+    assert install(client_id, _entry(isolated_home)).action == "installed"
+    definition = _CLIENTS[client_id]
+    current = get_entry(definition, _document(client_id, path))
+    current["note"] = "keep me"
+    path.write_text(set_entry(definition, path.read_text(), current))
+    before = path.read_bytes()
+    assert uninstall(client_id).action == "skipped"
+    assert path.read_bytes() == before
+    assert _manifest_path(client_id).exists()
+
+
+@pytest.mark.parametrize("delimiter", ['"""', "'''"])
+def test_codex_preserves_multiline_strings_with_table_like_lines(delimiter, isolated_home):
+    description = f'description = {delimiter}\n[mcp_servers.aiad]\nlost text\n[ui]\n{delimiter}\n'
+    original = "[agents.researcher]\n" + description
+    path, _ = _write_seed("codex", original)
+    assert install("codex", _entry(isolated_home)).action == "installed"
+    assert description in path.read_text()
+    path.write_text('user_edit = "keep me"\n' + path.read_text())
+    assert uninstall("codex").action == "removed"
+    assert description in path.read_text()
+    document = _document("codex", path)
+    assert "lost text" in document["agents"]["researcher"]["description"]
+    assert document["user_edit"] == "keep me"
+
+
+def test_zed_windows_uses_appdata(isolated_home):
+    assert _client_config_path("zed", platform="win32") == isolated_home / "AppData" / "Roaming" / "Zed" / "settings.json"
+
+
+@pytest.mark.parametrize("client_id, variable, suffix", [
+    ("codex", "CODEX_HOME", ("config.toml",)),
+    ("cline", "CLINE_MCP_SETTINGS_PATH", ()),
+    ("cline", "CLINE_DATA_DIR", ("settings", "cline_mcp_settings.json")),
+    ("cline", "CLINE_DIR", ("data", "settings", "cline_mcp_settings.json")),
+])
+def test_client_path_override_is_used_for_install(client_id, variable, suffix, isolated_home, monkeypatch):
+    custom = isolated_home / "custom"
+    monkeypatch.setenv(variable, str(custom))
+    expected = custom.joinpath(*suffix)
+    assert _client_config_path(client_id) == expected
+    assert install(client_id, _entry(isolated_home)).action == "installed"
+    assert expected.is_file()
+    assert uninstall(client_id).action == "restored"
+
+
+@pytest.mark.parametrize("operation", ["install", "uninstall"])
+def test_client_save_before_replace_is_preserved(operation, isolated_home, monkeypatch):
+    from aiad_platform.clients import _writers
+
+    path, _ = _write_seed("claude-code")
+    if operation == "uninstall":
+        assert install("claude-code", _entry(isolated_home)).action == "installed"
+    original_assert = _writers._assert_unchanged
+    saved = None
+
+    def save_before_replace(target, expected):
+        nonlocal saved
+        if target == path and saved is None:
+            _add_unrelated_edit("claude-code", path)
+            saved = path.read_bytes()
+        original_assert(target, expected)
+
+    monkeypatch.setattr(_writers, "_assert_unchanged", save_before_replace)
+    result = install("claude-code", _entry(isolated_home)) if operation == "install" else uninstall("claude-code")
+    assert result.action == "failed"
+    assert saved is not None and path.read_bytes() == saved
+
+
+def test_manifest_failure_keeps_backup_when_client_prevents_rollback(isolated_home, monkeypatch):
+    from aiad_platform.clients import _writers
+
+    path, original = _write_seed("claude-code")
+    atomic_write = _writers._atomic_write
+
+    def fail_manifest(target, *args, **kwargs):
+        if target == _manifest_path("claude-code"):
+            _add_unrelated_edit("claude-code", path)
+            raise OSError("manifest write failed")
+        return atomic_write(target, *args, **kwargs)
+
+    monkeypatch.setattr(_writers, "_atomic_write", fail_manifest)
+    result = install("claude-code", _entry(isolated_home))
+    assert result.action == "failed"
+    assert result.backup_path.read_bytes() == original
+    assert _document("claude-code", path)["user_edit"] == "keep me"

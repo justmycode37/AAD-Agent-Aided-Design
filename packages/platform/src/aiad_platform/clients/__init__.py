@@ -214,8 +214,9 @@ _CLIENTS: dict[str, _ClientDefinition] = {
         "Restart Zed or open a new Agent thread.",
         (".config", "zed", "settings.json"),
         ("zed", "settings.json"),
-        (".config", "zed", "settings.json"),
+        ("Zed", "settings.json"),
         linux_base="xdg",
+        windows_base="appdata",
         detected_dir=("zed",),
         mac_app="Zed.app",
     ),
@@ -278,6 +279,16 @@ def _client_config_path(client_id: str, *, platform: str | None = None) -> Path 
     if definition is None:
         return None
     current_platform = sys.platform if platform is None else platform
+    if client_id == "codex" and os.environ.get("CODEX_HOME"):
+        return Path(os.environ["CODEX_HOME"]).expanduser().resolve() / "config.toml"
+    if client_id == "cline":
+        # https://docs.cline.bot/cli/cli-reference (configuration paths/overrides)
+        if os.environ.get("CLINE_MCP_SETTINGS_PATH"):
+            return Path(os.environ["CLINE_MCP_SETTINGS_PATH"]).expanduser().resolve()
+        if os.environ.get("CLINE_DATA_DIR"):
+            return Path(os.environ["CLINE_DATA_DIR"]).expanduser().resolve() / "settings" / "cline_mcp_settings.json"
+        if os.environ.get("CLINE_DIR"):
+            return Path(os.environ["CLINE_DIR"]).expanduser().resolve() / "data" / "settings" / "cline_mcp_settings.json"
     base, relative = _base_path(definition, current_platform, _home())
     return base.joinpath(*relative) if relative is not None else None
 

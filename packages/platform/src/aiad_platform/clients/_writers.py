@@ -28,6 +28,7 @@ from ._formats import ABSENT, ConfigError, empty_text, get_entry, parse_document
 
 
 _MANIFEST_VERSION = 1
+_UNCONDITIONAL = object()
 
 
 def _entry_for_client(client_id: str, entry: ServerEntry) -> dict[str, Any]:
@@ -163,7 +164,13 @@ def _fsync_directory(directory: Path) -> None:
         os.close(descriptor)
 
 
-def _atomic_write(path: Path, data: bytes, mode: int = 0o600) -> None:
+def _assert_unchanged(path: Path, expected: bytes | None) -> None:
+    current, _ = _read_regular_file(path)
+    if current != expected:
+        raise ConfigError(f"{path} changed while AIAD was editing it; retry after the client finishes saving.")
+
+
+def _atomic_write(path: Path, data: bytes, mode: int = 0o600, *, expected: Any = _UNCONDITIONAL) -> None:
     _ensure_dirs(path.parent)
     descriptor, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
     temp_path = Path(temp_name)
@@ -173,6 +180,8 @@ def _atomic_write(path: Path, data: bytes, mode: int = 0o600) -> None:
             stream.flush()
             os.fsync(stream.fileno())
         os.chmod(temp_path, mode)
+        if expected is not _UNCONDITIONAL:
+            _assert_unchanged(path, expected)
         os.replace(temp_path, path)
         _fsync_directory(path.parent)
     finally:
@@ -335,14 +344,15 @@ def _make_manifest(
     }
 
 
-def _safe_rollback_config(path: Path, previous_data: bytes | None, previous_mode: int | None) -> str | None:
+def _safe_rollback_config(path: Path, previous_data: bytes | None, previous_mode: int | None, *, expected: bytes | None) -> str | None:
     try:
         if previous_data is None:
             if os.path.lexists(path):
+                _assert_unchanged(path, expected)
                 _unlink(path)
         else:
-            _atomic_write(path, previous_data, previous_mode or 0o600)
-    except OSError as exc:
+            _atomic_write(path, previous_data, previous_mode or 0o600, expected=expected)
+    except (OSError, ConfigError) as exc:
         return str(exc)
     return None
 
@@ -468,16 +478,16 @@ def _install(client_id: str, entry: ServerEntry, *, dry_run: bool = False) -> Wr
             new_manifest["original_mode"] = manifest.get("original_mode")
             new_manifest["original_backup"] = manifest.get("original_backup")
         if write_config:
-            _atomic_write(config_path, new_data, config_mode)
+            _atomic_write(config_path, new_data, config_mode, expected=current_data)
             changed_config = True
         encoded_manifest = _json_bytes(new_manifest)
         if encoded_manifest != manifest_bytes:
-            _atomic_write(manifest_path, encoded_manifest, manifest_mode or 0o600)
+            _atomic_write(manifest_path, encoded_manifest, manifest_mode or 0o600, expected=manifest_bytes)
             changed_manifest = True
     except (OSError, ConfigError, ValueError, TypeError) as exc:
         rollback_problem = None
         if changed_config:
-            rollback_problem = _safe_rollback_config(config_path, current_data, current_mode)
+            rollback_problem = _safe_rollback_config(config_path, current_data, current_mode, expected=new_data)
         if changed_manifest:
             try:
                 if manifest_bytes is None:
@@ -487,14 +497,14 @@ def _install(client_id: str, entry: ServerEntry, *, dry_run: bool = False) -> Wr
                     _atomic_write(manifest_path, manifest_bytes, manifest_mode or 0o600)
             except OSError as rollback_exc:
                 rollback_problem = str(rollback_exc)
-        if new_backup is not None:
+        if new_backup is not None and rollback_problem is None:
             try:
                 _unlink(new_backup)
             except (FileNotFoundError, OSError):
                 pass
         _cleanup_dirs([*config_dirs_made, *backup_dirs_made])
         suffix = f" Rollback issue: {rollback_problem}" if rollback_problem else ""
-        return _result(client_id, "failed", config_path, None, diff, f"Could not write AIAD config: {exc}.{suffix}")
+        return _result(client_id, "failed", config_path, new_backup if rollback_problem else None, diff, f"Could not write AIAD config: {exc}.{suffix}")
 
     backup_for_result = original_backup
     return _result(
@@ -526,6 +536,7 @@ def _manifest_original_bytes(client_id: str, manifest: dict[str, Any]) -> bytes 
 
 
 def _remove_manifest(path: Path, old_manifest: bytes, old_mode: int | None) -> None:
+    _assert_unchanged(path, old_manifest)
     _unlink(path)
     _fsync_directory(path.parent)
 
@@ -572,13 +583,14 @@ def _uninstall(client_id: str, *, dry_run: bool = False) -> WriteResult:
             return _result(client_id, action, config_path, None, diff, "Dry run: original config would be restored.")
         try:
             if new_data is None:
+                _assert_unchanged(config_path, current_data)
                 _unlink(config_path)
             else:
                 original_mode = manifest.get("original_mode") or 0o600
-                _atomic_write(config_path, new_data, int(original_mode))
+                _atomic_write(config_path, new_data, int(original_mode), expected=current_data)
             _remove_manifest(_manifest_path(client_id), manifest_bytes or b"", manifest_mode)
-        except OSError as exc:
-            rollback_problem = _safe_rollback_config(config_path, current_data, current_mode)
+        except (OSError, ConfigError) as exc:
+            rollback_problem = _safe_rollback_config(config_path, current_data, current_mode, expected=new_data)
             suffix = f" Rollback issue: {rollback_problem}" if rollback_problem else ""
             return _result(client_id, "failed", config_path, backup_path, diff, f"Could not restore original config: {exc}.{suffix}")
         if new_data is None:
@@ -586,7 +598,7 @@ def _uninstall(client_id: str, *, dry_run: bool = False) -> WriteResult:
         return _result(client_id, action, config_path, backup_path, diff, "Original config restored exactly.")
 
     managed = manifest.get("managed_entry")
-    if not isinstance(managed, dict) or not _managed_matches(current_entry, managed):
+    if not isinstance(managed, dict) or current_entry != managed:
         return _result(
             client_id,
             "skipped",
@@ -607,10 +619,10 @@ def _uninstall(client_id: str, *, dry_run: bool = False) -> WriteResult:
     if dry_run:
         return _result(client_id, "removed", config_path, None, diff, "Dry run: only the aiad entry would be removed.")
     try:
-        _atomic_write(config_path, new_data, current_mode or 0o600)
+        _atomic_write(config_path, new_data, current_mode or 0o600, expected=current_data)
         _remove_manifest(_manifest_path(client_id), manifest_bytes or b"", manifest_mode)
-    except OSError as exc:
-        rollback_problem = _safe_rollback_config(config_path, current_data, current_mode)
+    except (OSError, ConfigError) as exc:
+        rollback_problem = _safe_rollback_config(config_path, current_data, current_mode, expected=new_data)
         suffix = f" Rollback issue: {rollback_problem}" if rollback_problem else ""
         return _result(client_id, "failed", config_path, backup_path, diff, f"Could not remove aiad: {exc}.{suffix}")
     return _result(client_id, "removed", config_path, backup_path, diff, "AIAD entry removed; unrelated config was kept.")
