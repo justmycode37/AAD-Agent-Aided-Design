@@ -23,6 +23,8 @@ uv run --no-project --python 3.12 --script .github/scripts/packaging_smoke.py
 
 The helper builds all five workspace wheels, passes the component wheels directly to `uv tool install`, and verifies `direct_url.json` provenance and site-packages imports. It uses temporary tool, home, AIAD, and client-config directories and suppresses browser launch. It prints and writes a schema-versioned JSON result to `<work-dir>/packaging-result.json` (or the path supplied with `--result`). The runtime disk measure covers `UV_TOOL_DIR` and `UV_TOOL_BIN_DIR`; it excludes the uv package cache, Python interpreter, and `AIAD_HOME` data.
 
+Doctor allows 30 seconds for a valid MCP initialize response and reports the separate one-second reference-Mac target as a performance warning when missed. Packaging retains that warning as a release blocker. Missing or malformed responses fail the functional check. Render/export diagnostics wait up to 130 seconds to cover the workers' 120-second limit and transport cleanup; control calls retain their 15-second limit.
+
 ### Measurement on macOS arm64
 
 Measured 2026-11-04 on macOS 25.6.0, CPython 3.12.10. The uv package cache was empty for the fresh-install timing; the host page cache was not flushed or controlled, so this is not a clean-machine benchmark. The full doctor run used a provisioned uv cache.

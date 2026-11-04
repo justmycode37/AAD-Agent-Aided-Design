@@ -866,6 +866,9 @@ def main() -> int:
                 f"MCP initialize after pre-warm took {result.get('mcp', {}).get('initialize_seconds')} s, "
                 "over the 1-second budget, which PLAN section 9 sets for the reference Mac"
             )
+        for check in (doctor or {}).get("checks", []):
+            if check.get("id") == "mcp_startup" and check.get("within_budget") is False:
+                blockers.append(f"Doctor observed MCP startup over the reference-Mac budget: {check['message']}")
         if not result["budget"]["runtime_disk_within_target"]:
             blockers.append(
                 f"Installed runtime is {result['runtime_disk_bytes']} bytes, over the 1,000,000,000-byte target"

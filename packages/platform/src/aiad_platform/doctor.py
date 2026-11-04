@@ -21,7 +21,11 @@ from typing import Any
 from . import __version__, config, daemon_ctl, paths, viewer
 
 MCP_FIRST_RESPONSE_LIMIT_S = 1.0
+MCP_INITIALIZE_TIMEOUT_S = 30.0
 IMPORT_TIMEOUT_S = 120.0
+CONTROL_RPC_TIMEOUT_S = 15.0
+# Native operation workers allow 120 seconds; include transport/cleanup time.
+CAD_RPC_TIMEOUT_S = 130.0
 SCENE_CHUNK_BYTES = 128 * 1024
 # An inline-capable client makes aiad_show return the scene without asking the
 # daemon to launch a desktop browser. AIAD_NO_BROWSER is also set for subprocesses.
@@ -149,7 +153,7 @@ def _mcp_startup_check() -> dict[str, Any]:
         assert process.stdin is not None and process.stdout is not None
         process.stdin.write(json.dumps(request, separators=(",", ":")) + "\n")
         process.stdin.flush()
-        deadline = started + MCP_FIRST_RESPONSE_LIMIT_S
+        deadline = started + MCP_INITIALIZE_TIMEOUT_S
         received = bytearray()
         with selectors.DefaultSelector() as selector:
             selector.register(process.stdout, selectors.EVENT_READ)
@@ -178,7 +182,7 @@ def _mcp_startup_check() -> dict[str, Any]:
                         error = f"adapter returned an invalid initialize response: {candidate!r}"
                 break
             if response is None and error is None:
-                error = "no initialize response within 1.0 s"
+                error = f"no initialize response within {MCP_INITIALIZE_TIMEOUT_S:g} s"
     except (OSError, AssertionError) as exc:
         error = f"could not run aiad mcp: {exc}"
     finally:
@@ -194,11 +198,19 @@ def _mcp_startup_check() -> dict[str, Any]:
             for stream in (process.stdin, process.stdout, process.stderr):
                 if stream is not None:
                     stream.close()
-    if response is not None and elapsed < MCP_FIRST_RESPONSE_LIMIT_S:
-        return _check("mcp_startup", "pass", f"First initialize response in {elapsed:.3f} s (limit 1.000 s).")
+    if response is not None and elapsed < MCP_INITIALIZE_TIMEOUT_S:
+        within_budget = elapsed < MCP_FIRST_RESPONSE_LIMIT_S
+        check = _check(
+            "mcp_startup",
+            "pass" if within_budget else "warn",
+            f"First initialize response in {elapsed:.3f} s; reference-Mac performance target <{MCP_FIRST_RESPONSE_LIMIT_S:g} s.",
+            None if within_budget else "MCP responds, but misses the reference-Mac startup budget. Check startup performance before release.",
+        )
+        check.update(elapsed_seconds=elapsed, budget_seconds=MCP_FIRST_RESPONSE_LIMIT_S, within_budget=within_budget)
+        return check
     if response is not None:
-        error = f"first initialize response took {elapsed:.3f} s (limit 1.000 s)"
-    return _check("mcp_startup", "fail", error or "adapter did not initialize.", "Reinstall AIAD and check `aiad mcp` dependencies; MCP startup must stay under 1 s.")
+        error = f"first initialize response took {elapsed:.3f} s (timeout {MCP_INITIALIZE_TIMEOUT_S:g} s)"
+    return _check("mcp_startup", "fail", error or "adapter did not initialize.", "Check `aiad mcp` dependencies and its initialize response.")
 
 
 def _engine_check() -> dict[str, Any]:
@@ -294,14 +306,15 @@ async def _rpc_calls(calls: list[tuple[str, dict[str, Any]]]) -> list[Any]:
     try:
         answers = []
         for method, params in calls:
-            timeout = 130.0 if method == "aiad_build" else 15.0
-            answers.append(await asyncio.wait_for(client.call(method, params), timeout=timeout))
+            answers.append(await _rpc_call(client, method, params))
         return answers
     finally:
         await client.close()
 
 
-async def _rpc_call(client: Any, method: str, params: dict[str, Any], timeout_s: float = 15.0) -> Any:
+async def _rpc_call(client: Any, method: str, params: dict[str, Any], timeout_s: float | None = None) -> Any:
+    if timeout_s is None:
+        timeout_s = CAD_RPC_TIMEOUT_S if method in {"aiad_build", "aiad_render", "aiad_export"} else CONTROL_RPC_TIMEOUT_S
     return await asyncio.wait_for(client.call(method, params), timeout=timeout_s)
 
 
