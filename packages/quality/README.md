@@ -4,6 +4,8 @@ Request checks and explicitly assumed process screens for AIAD. Public functions
 
 Each requirement keeps its own ID and severity. Unsupported geometry or requirements remain unproven. The readiness helper in `aiad_quality.spec` enforces complete requirement coverage alongside the hard gate; a valid solid alone is insufficient. [Process evidence and limitations](PROCESS.md) describe finite manufacturing screens.
 
+Call readiness with `verification_ready(ctx.spec, checks, hard_checks, process=ctx.process)` so a process set only on the project/context still requires evidence. This helper cannot attest checks from an interpreter that also executes model code.
+
 Development uses Python 3.12 and the contractual geometry pins:
 
 ```sh

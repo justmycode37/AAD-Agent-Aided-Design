@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from aiad_quality._checks import make_check
 from aiad_quality.spec import spec_checks, verification_ready
 
@@ -98,3 +100,23 @@ def test_unproven_warning_requirement_still_withholds_readiness():
     checks, hard = _valid_checks(spec)
     assert [check.status for check in checks] == ["pass", "skip"]
     assert not verification_ready(spec, checks, hard)
+
+
+@pytest.mark.parametrize('actual',[None,'','unknown','UNKNOWN wall thickness','query exception',1])
+def test_passing_process_status_cannot_hide_unproven_measurement(actual):
+    spec={'process':'fdm_pla','requirements':[{'id':'size','bbox':{'x':10}}]}
+    checks,hard=_valid_checks(spec)
+    process=_check('process.fdm_pla.wall','process','pass',actual=actual)
+    assert not verification_ready(spec,checks+[process],hard)
+
+
+def test_context_process_requires_matching_evidence_even_without_spec_process():
+    spec={'requirements':[{'id':'size','bbox':{'x':10}}]}
+    checks,hard=_valid_checks(spec)
+    assert not verification_ready(spec,checks,hard,process='fdm_pla')
+    process=_check('process.fdm_pla.wall','process','pass',actual='minimum sampled thickness 10 mm')
+    assert verification_ready(spec,checks+[process],hard,process='fdm_pla')
+    assert not verification_ready(spec,checks+[process],hard,process='sla')
+    assert not verification_ready(spec,checks+[process],hard,process='unknown_profile')
+    spec['process']='sla'
+    assert not verification_ready(spec,checks+[process],hard,process='fdm_pla')

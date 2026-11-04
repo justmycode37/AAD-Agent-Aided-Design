@@ -191,6 +191,48 @@ def inward_full_cylinders(shape: Any, mm_per_native_unit: float) -> list[HoleCyl
     return cylinders
 
 
+def require_round_planar_openings(shape: Any) -> None:
+    """Refuse a general opening count if planar inner loops are not circular.
+
+    This is a conservative coverage check, not a polygonal-hole recognizer.
+    Native wrappers discard any instance-level method overrides.
+    """
+    from build123d import Shape, GeomType
+    from OCP.Bnd import Bnd_Box
+    from OCP.BRepBndLib import BRepBndLib
+    from OCP.BRepAdaptor import BRepAdaptor_Surface
+    if not _solids(shape):
+        raise UnsupportedGeometry("3D hole counts require volumetric solids; 2D contours need a separate evaluator")
+    try:
+        bounds = Bnd_Box()
+        BRepBndLib.AddOptimal_s(_raw(shape), bounds, False, False)
+        low, high = _xyz(bounds.CornerMin()), _xyz(bounds.CornerMax())
+        for face in Shape.cast(_raw(shape)).faces():
+            if face.geom_type != GeomType.PLANE:
+                continue
+            for wire in face.inner_wires():
+                edges = list(wire.edges())
+                if not edges or any(edge.geom_type != GeomType.CIRCLE for edge in edges):
+                    raise UnsupportedGeometry("noncircular planar inner boundaries are present; the complete opening count is not established")
+            plane = BRepAdaptor_Surface(face.wrapped, True).Plane()
+            normal, origin = _xyz(plane.Axis().Direction()), _xyz(plane.Location())
+            outer_support = any(
+                abs(normal[axis]) == 1
+                and all(normal[j] == 0 for j in range(3) if j != axis)
+                and origin[axis] in (low[axis], high[axis])
+                for axis in range(3)
+            )
+            if not outer_support and any(edge.geom_type != GeomType.CIRCLE for edge in face.edges()):
+                # Polygonal tunnels can straddle exterior face junctions and
+                # leave no inner wire on any one face. Unclassified interior
+                # planar boundaries must therefore withhold a general count.
+                raise UnsupportedGeometry("noncircular planar features outside the outer support planes are not classified as openings or bosses")
+    except UnsupportedGeometry:
+        raise
+    except Exception as exc:
+        raise UnsupportedGeometry(f"could not enumerate planar opening boundaries: {exc}") from exc
+
+
 def unique_hole_axes(
     cylinders: list[HoleCylinder],
     *,

@@ -1,7 +1,7 @@
 """Parent audit of spec/process integration and plausible false proofs."""
 from types import SimpleNamespace
 import pytest
-from build123d import Axis, Box, Cylinder, GridLocations, Hole, BuildPart, Pos, Rectangle, Torus, export_step
+from build123d import Axis, Box, Cylinder, GridLocations, Hole, BuildPart, Pos, Rot, Rectangle, Torus, export_step
 from aiad_quality._checks import make_check,record
 from aiad_quality.spec import load_spec,spec_checks,verification_ready
 from aiad_quality.process import process_checks
@@ -46,6 +46,45 @@ def test_zero_volume_cannot_prove_surface_symmetry():
     spec={'requirements':[{'id':'mirror','symmetric':{'plane':'YZ','tolerance':.01}}]}
     check=record(spec_checks(context(Pos(5,0)*Rectangle(2,3),spec))[0])
     assert check['status']=='skip'
+
+
+def test_subresolution_shift_cannot_satisfy_zero_symmetry_tolerance():
+    spec={'requirements':[{'id':'mirror','symmetric':{'plane':'YZ','tolerance':0}}]}
+    check=record(spec_checks(context(Pos(1e-7,0,0)*Box(10,8,6),spec))[0])
+    assert check['status']=='skip',check
+    assert not verification_ready(spec,[check],hard())
+
+
+@pytest.mark.parametrize('round_bores',[0,4])
+def test_opening_count_cannot_ignore_a_square_through_opening(round_bores):
+    shape=Box(60,40,6)-Box(6,6,8)
+    if round_bores:
+        for x in (-23,23):
+            for y in (-13,13):shape=shape-Pos(x,y,0)*Cylinder(2.2,8)
+    spec={'requirements':[{'id':'openings','holes':{'count':round_bores}}]}
+    check=record(spec_checks(context(shape,spec))[0])
+    assert check['status']=='skip',check
+    assert 'noncircular' in check['message']
+    # A caller may explicitly ask only about cylindrical bores. The check
+    # must expose that narrower scope rather than imply all openings passed.
+    spec['requirements'][0]['holes']['scope']='cylindrical'
+    check=record(spec_checks(context(shape,spec))[0])
+    assert check['status']=='pass',check
+    assert 'Cylindrical bore' in check['message']
+    assert 'other opening types are outside' in check['expected']
+
+
+def test_polygonal_tunnel_across_face_junctions_does_not_prove_zero_openings():
+    shape=Box(20,20,20)-Rot(0,45,0)*Box(4,4,40)
+    spec={'requirements':[{'id':'none','holes':{'count':0}}]}
+    check=record(spec_checks(context(shape,spec))[0])
+    assert check['status']=='skip',check
+
+
+@pytest.mark.parametrize('scope',['polygonal',True,[],{}])
+def test_invalid_hole_scope_is_rejected(scope):
+    with pytest.raises(ValueError):
+        load_spec({'requirements':[{'id':'none','holes':{'count':0,'scope':scope}}]})
 
 
 @pytest.mark.parametrize('center,expected',[(0,'fail'),(6,'pass'),(8,'pass')])

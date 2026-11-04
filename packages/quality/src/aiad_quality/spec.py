@@ -215,6 +215,11 @@ def _eval_holes(req_id: str, level: str, req: dict[str, Any], unit: str, factor:
     if factor is None:
         raise geometry.UnsupportedGeometry("context units are not known")
     body = req["holes"]
+    scope = body.get("scope", "all")
+    if scope == "all":
+        geometry.require_round_planar_openings(_shape_or_skip(ctx))
+    elif geometry.solid_count(_shape_or_skip(ctx)) == 0:
+        raise geometry.UnsupportedGeometry("cylindrical bore counts require 3D solids")
     requested_count = body.get("count")
     diameter = _range(body["diameter"], unit=unit, path=("requirements", req_id, "holes", "diameter")) if "diameter" in body else None
     cylinders = geometry.inward_full_cylinders(_shape_or_skip(ctx), factor)
@@ -235,7 +240,10 @@ def _eval_holes(req_id: str, level: str, req: dict[str, Any], unit: str, factor:
         ]
     failures: list[str] = []
     skips: list[str] = []
-    expected_parts = []
+    expected_parts = [
+        "all enclosed openings (noncircular openings withhold coverage)" if scope == "all"
+        else "cylindrical bores only; other opening types are outside this requirement"
+    ]
     actual_parts = []
     if requested_count is not None:
         expected_parts.append(f"{requested_count} recognized hole(s)")
@@ -271,7 +279,7 @@ def _eval_holes(req_id: str, level: str, req: dict[str, Any], unit: str, factor:
     status = _comparison_status(matches, level) if not skips else "skip"
     if failures and skips:
         status = _comparison_status(False, level)
-    message = f"Hole requirement {req_id!r} "
+    message = f"{'Cylindrical bore' if scope == 'cylindrical' else 'Opening-count'} requirement {req_id!r} "
     if status == "pass":
         message += "is satisfied by analytic inward cylindrical faces."
     elif status == "skip":
@@ -376,20 +384,14 @@ def _eval_symmetry(req_id: str, level: str, req: dict[str, Any], unit: str, fact
         raise geometry.UnsupportedGeometry("symmetry tolerance is invalid")
     difference_mm3 = geometry.symmetry_difference_volume(_shape_or_skip(ctx), body["plane"], factor)
     expected = (
-        f"mirror equality about {body['plane']} within {_actual_value(tolerance_mm, power=1, unit=unit)}; "
-        "pass requires zero B-rep symmetric-difference volume"
+        f"a certified pointwise mirror-deviation bound about {body['plane']} ≤ {_actual_value(tolerance_mm, power=1, unit=unit)}"
     )
     actual = f"B-rep symmetric-difference volume {_text_number(difference_mm3)} mm^3"
-    # A zero symmetric-difference volume is sufficient evidence of symmetry
-    # within any non-negative distance tolerance. A nonzero volume cannot be
-    # converted into a pointwise distance bound, so it is explicitly skipped.
-    if difference_mm3 == 0:
-        status = "pass"
-        message = f"Symmetry requirement {req_id!r} is supported by an exact B-rep mirror comparison."
-    else:
-        status = "skip"
-        message = f"Symmetry requirement {req_id!r} could not be confirmed within a pointwise tolerance from volume comparison alone."
-        actual += f"; pointwise deviation relative to {_actual_value(tolerance_mm, power=1, unit=unit)} is unknown"
+    # Booleans may erase differences below kernel resolution. No certified
+    # pointwise error bound is exposed here, including when volume is zero.
+    status = "skip"
+    message = f"Symmetry requirement {req_id!r} has only a volume diagnostic; its pointwise tolerance is unproven."
+    actual += f"; pointwise deviation relative to {_actual_value(tolerance_mm, power=1, unit=unit)} and the kernel error bound are unknown"
     return _check(
         req_id,
         level=level,
@@ -397,7 +399,7 @@ def _eval_symmetry(req_id: str, level: str, req: dict[str, Any], unit: str, fact
         message=message,
         expected=expected,
         actual=actual,
-        fix_hint="Use a mirrored B-rep about the requested plane or provide a comparison method that bounds pointwise deviation.",
+        fix_hint="Keep this requirement unverified and inspect a mirror overlay until a comparison bounds pointwise deviation and kernel error.",
         selector=f"B-rep reflected about {body['plane']}",
     )
 
@@ -666,17 +668,21 @@ def _check_mapping(value: Any) -> dict[str, Any] | None:
     return mapping if isinstance(mapping, dict) else None
 
 
-def verification_ready(spec: Any, checks: Sequence[Any], hard_checks: Sequence[Any]) -> bool:
+def verification_ready(spec: Any, checks: Sequence[Any], hard_checks: Sequence[Any], *, process: str | None = None) -> bool:
     """Return true only when every declared error requirement is proven.
 
     Readiness requires a valid non-empty spec, exact unique coverage by spec
     checks, at least one measured passing requirement, an entirely passing
     non-empty hard gate, and pass status for every error-level check supplied
-    from every suite.
+    from every suite. Pass the context process explicitly so a project-only
+    process cannot bypass evidence requirements. Unknown warning-level spec
+    and process results also withhold readiness.
     """
     try:
         document = load_spec(spec)
     except Exception:
+        return False
+    if process is not None and (not isinstance(process,str) or not process.strip()):
         return False
     requirements = document.get("requirements")
     if not isinstance(requirements, list) or not requirements:
@@ -709,11 +715,15 @@ def verification_ready(spec: Any, checks: Sequence[Any], hard_checks: Sequence[A
     spec_checks_only = [check for check in check_maps if check.get("suite") == "spec"]
     if any(check.get('status')=='skip' for check in check_maps if check.get('suite') in {'spec','process'}):
         return False
-    if (document.get('process') or document.get('process_settings')) and not any(check.get('suite')=='process' for check in check_maps):
+    declared=document.get('process')
+    if process and declared and process!=declared:
         return False
-    if document.get('process'):
+    effective_process=process or declared
+    if (effective_process or document.get('process_settings')) and not any(check.get('suite')=='process' for check in check_maps):
+        return False
+    if effective_process:
         from .process_profiles import PROCESS_NAMES
-        requested=document['process']
+        requested=effective_process
         if requested not in PROCESS_NAMES or not any(
             check.get('suite')=='process' and str(check.get('id','')).startswith(f'process.{requested}.') for check in check_maps
         ):
@@ -758,6 +768,10 @@ def verification_ready(spec: Any, checks: Sequence[Any], hard_checks: Sequence[A
             return False
         if check.get('status')=='pass':
             actual=check.get('actual')
+            if actual is not None and not isinstance(actual,str):
+                return False
+            if check.get('suite') in {'spec','process'} and (not isinstance(actual,str) or not actual.strip() or 'unknown' in actual.lower() or 'exception' in actual.lower()):
+                return False
             if isinstance(actual,str) and (re.search(r'(?<![\w])[-+]?(?:nan|inf(?:inity)?)(?![\w])',actual,re.IGNORECASE) or '∞' in actual):
                 return False
         if check.get('suite')=='spec' and check.get('level')=='error' and check.get('heuristic') is True:

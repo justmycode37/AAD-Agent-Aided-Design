@@ -128,7 +128,7 @@ def test_external_boss_is_not_counted_as_a_hole():
     from build123d import Box, Cylinder, Pos
 
     shape = Box(20, 20, 5) + Pos(0, 0, 4.5) * Cylinder(3, 4)
-    check = spec_checks(_ctx({"requirements": [{"id": "no_bore", "holes": {"count": 0}}]}, shape))[0]
+    check = spec_checks(_ctx({"requirements": [{"id": "no_bore", "holes": {"count": 0, "scope": "cylindrical"}}]}, shape))[0]
     assert check.status == "pass"
     assert "0 matching analytic hole axis/axes" in check.actual
 
@@ -216,14 +216,15 @@ def test_custom_measure_skips_without_s1_resolver():
     assert "resolver" in check.message
 
 
-def test_symmetric_shape_passes_only_after_brep_mirror_comparison():
+def test_zero_difference_volume_is_diagnostic_not_a_pointwise_symmetry_proof():
     from build123d import Box
 
     check = spec_checks(
         _ctx({"requirements": [{"id": "mirror", "symmetric": {"plane": "YZ", "tolerance": "0.01 mm"}}]}, Box(10, 8, 6))
     )[0]
-    assert check.status == "pass"
+    assert check.status == "skip"
     assert "symmetric-difference volume 0 mm^3" in check.actual
+    assert "kernel error bound" in check.actual
 
 
 def test_project_contained_step_clearance_passes_and_wrong_limit_fails(tmp_path):

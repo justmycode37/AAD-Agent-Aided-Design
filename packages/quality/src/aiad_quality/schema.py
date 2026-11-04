@@ -320,7 +320,9 @@ def _validate_requirement(req: dict[str, Any], index: int, units: str) -> list[S
             _count(value, path + (field,))
         elif field == "holes":
             values = _require_mapping(body, path + (field,))
-            _check_keys(values, {"count", "diameter", "pattern"}, path + (field,))
+            _check_keys(values, {"count", "diameter", "pattern", "scope"}, path + (field,))
+            if values.get("scope", "all") not in {"all", "cylindrical"}:
+                raise ValueError("holes.scope must be all or cylindrical")
             if "count" not in values and "diameter" not in values:
                 raise ValueError(f"{_path_text(path + (field,))} requires count or diameter")
             if "count" in values:
