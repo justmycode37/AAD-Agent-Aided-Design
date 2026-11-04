@@ -15,6 +15,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from . import sandbox
 from .types import (
     BuildRequest,
     BuildResult,
@@ -39,8 +40,9 @@ def run_build(req: BuildRequest) -> BuildResult:
     """Build a model in a new subprocess and return its checks and artifacts.
 
     The worker receives one JSON request on stdin and returns one marked JSON
-    record on stdout. Model code never executes in this process. This bootstrap
-    does not provide an OS sandbox, memory limit, warm pool, or revision store.
+    record on stdout. Every model process uses the OS sandbox launcher; an
+    unavailable boundary fails closed. Memory limits, a warm pool, a revision
+    store, and independent validation remain separate requirements.
     """
     try:
         request = _coerce_request(req)
@@ -85,28 +87,18 @@ def run_build(req: BuildRequest) -> BuildResult:
         )
 
     started = time.perf_counter()
-    popen_options: dict[str, Any] = {
-        "stdin": subprocess.PIPE,
-        "stdout": subprocess.PIPE,
-        "stderr": subprocess.PIPE,
-        "cwd": str(job_dir),
-        "close_fds": True,
-    }
-    if os.name == "posix":
-        popen_options["start_new_session"] = True
-
     try:
-        process = subprocess.Popen(
+        process = sandbox.popen(
             [sys.executable, "-I", "-B", "-c", _WORKER_BOOTSTRAP, str(_SOURCE_ROOT)],
-            **popen_options,
+            job_dir,
         )
-    except OSError as exc:
+    except (sandbox.SandboxUnavailable, OSError) as exc:
         return _failed(
             Failure(
-                code="WORKER_CRASH",
-                phase="crash",
-                message="The build worker could not be started.",
-                kernel_message=str(exc),
+                code="SANDBOX_DENIED",
+                phase="sandbox",
+                message=f"The build sandbox could not be started: {exc}",
+                kernel_message=f"{type(exc).__name__}: {exc}",
             ),
             job_dir=job_dir,
             build_ms=_elapsed_ms(started),
@@ -133,16 +125,26 @@ def run_build(req: BuildRequest) -> BuildResult:
     elapsed_ms = _elapsed_ms(started)
     response = _find_response(stdout_bytes)
     if process.returncode != 0 or response is None:
+        failure = Failure(
+            code="WORKER_CRASH",
+            phase="crash",
+            message=f"The build worker exited with status {process.returncode} without returning a valid result; no exit cause was inferred.",
+        )
+        if response is None and process.returncode != 0 and any(
+            line.startswith((b"bwrap:", b"sandbox-exec:")) for line in stderr_bytes.splitlines()
+        ):
+            failure = Failure(
+                code="SANDBOX_DENIED",
+                phase="sandbox",
+                message=f"The sandbox launch returned no worker result (exit status {process.returncode}); inspect the retained launcher diagnostic.",
+                kernel_message=_decode(stderr_bytes),
+            )
         return _failed(
-            Failure(
-                code="WORKER_CRASH",
-                phase="crash",
-                message="The build worker exited without returning a valid result; no exit cause was inferred.",
-            ),
+            failure,
             job_dir=job_dir,
             artifacts=_preserved_artifacts(job_dir),
             build_ms=elapsed_ms,
-            stdout="",
+            stdout=_decode(stdout_bytes),
             stderr=_decode(stderr_bytes),
         )
 
@@ -160,6 +162,7 @@ def run_build(req: BuildRequest) -> BuildResult:
             job_dir=job_dir,
             artifacts=_preserved_artifacts(job_dir),
             build_ms=elapsed_ms,
+            stdout=_decode(stdout_bytes),
             stderr=_decode(stderr_bytes),
         )
 
@@ -305,7 +308,7 @@ def _kill_worker(process: subprocess.Popen[bytes]) -> None:
 
 def _drain_killed_worker(process: subprocess.Popen[bytes]) -> tuple[bytes, bytes]:
     # A descendant can leave the worker's process group. Pipe cleanup must
-    # remain bounded even before the OS sandbox is introduced.
+    # remain bounded even when the leader has already exited.
     try:
         return process.communicate(timeout=1.0)
     except subprocess.TimeoutExpired as exc:

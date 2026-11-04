@@ -9,6 +9,8 @@ import unittest
 from unittest.mock import patch
 
 from aiad.engine import sandbox
+from aiad.engine.jobs import run_build
+from aiad.engine.types import BuildRequest
 
 
 class SandboxPolicyTests(unittest.TestCase):
@@ -64,6 +66,73 @@ class SandboxPolicyTests(unittest.TestCase):
             alias.symlink_to("/", target_is_directory=True)
             with self.assertRaises(ValueError):
                 sandbox.command([sys.executable], root, read_paths=(alias,))
+
+
+class PublicBuildSandboxFailureTests(unittest.TestCase):
+    def test_missing_or_unsupported_boundary_returns_failure_without_popen(self) -> None:
+        cases = [
+            ("darwin", "macOS sandbox-exec is unavailable"),
+            ("linux", "Linux bubblewrap (bwrap) is unavailable"),
+            ("win32", "No supported filesystem/network sandbox is implemented for win32"),
+        ]
+        for platform, reason in cases:
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as temporary:
+                with patch.object(sandbox.sys, "platform", platform), \
+                     patch.object(sandbox.shutil, "which", return_value=None), \
+                     patch.object(sandbox.subprocess, "Popen") as popen:
+                    built = run_build(BuildRequest(source="result = Box(2, 3, 4)",
+                                                   project_dir=Path(temporary)))
+                    popen.assert_not_called()
+                self.assertFalse(built.ok)
+                self.assertEqual(built.status, "failed")
+                self.assertEqual(built.failure.code, "SANDBOX_DENIED")
+                self.assertEqual(built.failure.phase, "sandbox")
+                self.assertIn(reason, built.failure.message)
+                self.assertIn(reason, built.failure.kernel_message)
+                self.assertEqual(built.artifacts, {})
+
+    def test_os_launch_error_returns_observed_reason_without_fallback(self) -> None:
+        error = PermissionError(1, "fixture sandbox launch rejected")
+        with tempfile.TemporaryDirectory() as temporary, \
+             patch.object(sandbox, "popen", side_effect=error) as launcher, \
+             patch.object(subprocess, "Popen") as direct_popen:
+            built = run_build(BuildRequest(source="result = Box(2, 3, 4)", project_dir=Path(temporary)))
+            launcher.assert_called_once()
+            direct_popen.assert_not_called()
+        self.assertEqual(built.failure.code, "SANDBOX_DENIED")
+        self.assertEqual(built.failure.phase, "sandbox")
+        self.assertEqual(built.failure.kernel_message, f"PermissionError: {error}")
+
+    def test_native_launcher_diagnostics_are_retained_without_inferring_a_cause(self) -> None:
+        diagnostics = [
+            b"sandbox-exec: sandbox_apply: Operation not permitted\n",
+            b"bwrap: Creating new namespace failed: Operation not permitted\n",
+        ]
+        for diagnostic in diagnostics:
+            with self.subTest(diagnostic=diagnostic), tempfile.TemporaryDirectory() as temporary, \
+                 patch.object(sandbox, "popen") as launcher:
+                launcher.return_value.returncode = 1
+                launcher.return_value.communicate.return_value = (b"launch log\n", diagnostic)
+                built = run_build(BuildRequest(source="fixture", project_dir=Path(temporary)))
+                launcher.assert_called_once()
+            self.assertFalse(built.ok)
+            self.assertEqual(built.failure.code, "SANDBOX_DENIED")
+            self.assertEqual(built.failure.phase, "sandbox")
+            self.assertEqual(built.failure.kernel_message, diagnostic.decode())
+            self.assertEqual(built.stderr, diagnostic.decode())
+            self.assertEqual(built.stdout, "launch log\n")
+
+    def test_unexplained_worker_death_is_not_classified_as_sandbox_or_oom(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary, patch.object(sandbox, "popen") as launcher:
+            launcher.return_value.returncode = -9
+            launcher.return_value.communicate.return_value = (b"before exit\n", b"")
+            built = run_build(BuildRequest(source="fixture", project_dir=Path(temporary)))
+            launcher.assert_called_once()
+        self.assertEqual(built.failure.code, "WORKER_CRASH")
+        self.assertEqual(built.failure.phase, "crash")
+        self.assertIn("-9", built.failure.message)
+        self.assertIn("no exit cause was inferred", built.failure.message)
+        self.assertEqual(built.stdout, "before exit\n")
 
 
 @unittest.skipUnless(sys.platform == "darwin", "macOS Seatbelt escape tests")
@@ -195,3 +264,40 @@ else: raise RuntimeError('profile injected')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), 'True 24.0')
         self.assertGreater((self.job/'part.brep').stat().st_size, 0)
+
+    def test_public_run_build_denies_outside_io_and_completes_real_brep(self) -> None:
+        outside_output = self.root / "escaped.txt"
+        source = f'''import os, subprocess
+from pathlib import Path
+assert "AIAD_TEST_SECRET" not in os.environ
+assert Path.cwd() == Path({str(self.job)!r})
+assert Path(os.environ["HOME"]) == Path.cwd()
+assert Path(os.environ["TMPDIR"]).is_relative_to(Path.cwd())
+for name, operation in [
+    ("read", lambda: Path({str(self.secret)!r}).read_text()),
+    ("overwrite", lambda: Path({str(self.secret)!r}).write_text("escaped")),
+    ("create", lambda: Path({str(outside_output)!r}).write_text("escaped")),
+    ("traversal", lambda: Path("../outside.txt").read_text()),
+    ("subprocess", lambda: subprocess.run(["/usr/bin/true"], check=True)),
+]:
+    try: operation()
+    except PermissionError: print(name + " denied")
+    else: raise AssertionError(name + " escaped the public build sandbox")
+result = Box(2, 3, 4)
+'''
+        with patch.dict(os.environ, {"AIAD_TEST_SECRET": "private-fixture"}):
+            built = run_build(BuildRequest(source=source, project_dir=self.root, job_dir=self.job))
+        self.assertTrue(built.ok, f"{built.summary}\n{built.failure}\n{built.stderr}")
+        self.assertEqual(built.status, "draft")
+        self.assertFalse(built.requirements_proven)
+        self.assertEqual(built.stdout.splitlines(), ["read denied", "overwrite denied", "create denied",
+                                                    "traversal denied", "subprocess denied"])
+        self.assertEqual(self.secret.read_text(), "outside-fixture")
+        self.assertFalse(outside_output.exists())
+        self.assertEqual(built.metrics["bbox"], [2.0, 3.0, 4.0])
+        self.assertEqual(Path(built.artifacts["part.brep"]), self.job / "part.brep")
+        from build123d import import_brep
+        shape = import_brep(built.artifacts["part.brep"])
+        self.assertTrue(shape.is_valid)
+        self.assertEqual(len(shape.solids()), 1)
+        self.assertAlmostEqual(shape.volume, 24.0, places=5)

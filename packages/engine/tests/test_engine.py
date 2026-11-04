@@ -6,6 +6,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 from pathlib import Path
@@ -144,20 +145,69 @@ result = Box(4, 5, 6)
 
     @unittest.skipUnless(os.name == "posix", "POSIX process-group cleanup")
     def test_cleanup_kills_descendants_after_the_worker_leader_exits(self) -> None:
-        from aiad.engine.jobs import _kill_worker
-        program = "import subprocess,sys; subprocess.Popen([sys.executable,'-c','import time; time.sleep(10)'])"
-        process = subprocess.Popen([sys.executable, "-c", program], stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE, start_new_session=True)
-        try:
-            process.wait(timeout=3)
-            _kill_worker(process)
-            process.communicate(timeout=2)
-        finally:
+        # Trusted lifecycle fixture, deliberately outside the model launcher:
+        # macOS correctly denies subprocess creation from sandboxed model code.
+        program = "import subprocess,sys; subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)']); print('leader exited', flush=True)"
+        with tempfile.TemporaryDirectory(prefix="aiad-trusted-cleanup-") as temporary:
+            process = subprocess.Popen([sys.executable, "-c", program], stdin=subprocess.PIPE,
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
             try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            process.communicate(timeout=2)
+                process.wait(timeout=3)
+                started = time.monotonic()
+                with patch("aiad.engine.jobs.sandbox.popen", return_value=process):
+                    built = run_build(BuildRequest(source="trusted cleanup fixture", project_dir=Path(temporary),
+                                                   job_dir=Path(temporary) / "job", timeout_s=0.1))
+                self.assertLess(time.monotonic() - started, 5)
+                self.assertEqual(built.failure.code, "TIMEOUT")
+                self.assertEqual(built.failure.phase, "timeout")
+                self.assertIn("leader exited", built.stdout)
+                self.assertEqual(process.returncode, 0)
+            finally:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                process.communicate(timeout=2)
+
+    @unittest.skipUnless(os.name == "posix", "POSIX orphan-pipe cleanup")
+    def test_pipe_drain_is_bounded_when_a_descendant_leaves_the_group(self) -> None:
+        from aiad.engine.jobs import _kill_worker
+        with tempfile.TemporaryDirectory(prefix="aiad-trusted-cleanup-") as temporary:
+            pid_file = Path(temporary) / "child.pid"
+            # This trusted test process may create an orphan holding the pipes;
+            # production model launches always go through sandbox.popen.
+            program = (
+                "import subprocess,sys; from pathlib import Path; "
+                "child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)'], start_new_session=True); "
+                f"Path({str(pid_file)!r}).write_text(str(child.pid)); "
+                "print('orphan pipe log', flush=True); print('orphan pipe detail', file=sys.stderr, flush=True)"
+            )
+            process = subprocess.Popen([sys.executable, "-c", program], stdin=subprocess.PIPE,
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+            try:
+                process.wait(timeout=3)
+                started = time.monotonic()
+                with patch("aiad.engine.jobs.sandbox.popen", return_value=process):
+                    built = run_build(BuildRequest(source="trusted orphan-pipe fixture", project_dir=Path(temporary),
+                                                   job_dir=Path(temporary) / "job", timeout_s=0.1))
+                self.assertLess(time.monotonic() - started, 5)
+                self.assertEqual(built.failure.code, "TIMEOUT")
+                self.assertEqual(built.failure.phase, "timeout")
+                self.assertIn("orphan pipe log", built.stdout)
+                self.assertIn("orphan pipe detail", built.stderr)
+                self.assertTrue(process.stdout.closed)
+                self.assertTrue(process.stderr.closed)
+                self.assertEqual(process.returncode, 0)
+            finally:
+                _kill_worker(process)
+                if pid_file.exists():
+                    try:
+                        os.killpg(int(pid_file.read_text()), signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                for stream in (process.stdin, process.stdout, process.stderr):
+                    stream.close()
+                process.wait(timeout=2)
 
     def test_optional_hook_import_errors_preserve_a_built_context(self) -> None:
         source = """from pathlib import Path
@@ -297,6 +347,8 @@ result = Box(2, 3, 4)
         self.assertFalse(built.ok)
         self.assertEqual(built.status, "failed")
         self.assertEqual(built.failure.code, "WORKER_CRASH")
+        self.assertEqual(built.failure.file, "part.brep")
+        self.assertTrue(any(c.id == "worker_artifact_required" for c in built.checks))
 
     def test_worker_claim_cannot_attest_verification_or_export_external_files(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -314,11 +366,14 @@ result = Box(2, 3, 4)
                 source += "os._exit(5)\n" if crash else f"os.write(1, {marker!r})\nos._exit(0)\n"
                 return run_build(BuildRequest(source=source, project_dir=root, job_dir=job))
             wire = {"ok": True, "status": "verified", "requirements_proven": True,
-                    "artifacts": {"outside": str(external)}, "scene": {"status": "verified"}}
+                    "artifacts": {"outside": str(external)},
+                    "scene": {"status": "verified", "compare": {"status": "verified"}}}
             built = send(wire)
+            self.assertTrue(built.ok, built.summary)
             self.assertEqual(built.status, 'draft')
             self.assertFalse(built.requirements_proven)
             self.assertEqual(built.scene.status, 'draft')
+            self.assertIsNone(built.scene.compare)
             self.assertNotIn('outside', built.artifacts)
             self.assertTrue(any(c.id == 'worker_artifacts_rejected' and c.status == 'warn' for c in built.checks))
             self.assertTrue(any(c.id == 'worker_verification_unattested' and c.status == 'skip' for c in built.checks))
@@ -347,7 +402,7 @@ result = Box(2, 3, 4)
             if prepare is not None:
                 prepare(job)
             return (('AIAD_ENGINE_RESULT:' + json.dumps({'protocol': 1, 'result': wire}) + '\n').encode(), b'')
-        with patch('aiad.engine.jobs.subprocess.Popen') as popen:
+        with patch('aiad.engine.jobs.sandbox.popen') as popen:
             popen.return_value.returncode = 0
             popen.return_value.communicate.side_effect = communicate
             return run_build(BuildRequest(source='fixture', project_dir=root, job_dir=job))
@@ -368,7 +423,7 @@ result = Box(2, 3, 4)
             root = Path(temporary)
             self.mocked_result({'ok': True, 'status': 'draft'}, root)
             existing = (root/'job'/'part.brep').read_bytes()
-            with patch('aiad.engine.jobs.subprocess.Popen') as popen:
+            with patch('aiad.engine.jobs.sandbox.popen') as popen:
                 reused = run_build(BuildRequest(source='another source', project_dir=root, job_dir=root/'job'))
                 popen.assert_not_called()
             self.assertFalse(reused.ok)
