@@ -333,6 +333,15 @@ type Selection = { project: string, rev: number, kind: "face"|"edge"|"vertex"|"p
 
 **Local window:** `GET http://127.0.0.1:<port>/p/<project>?token=<token>`; the daemon sends WebSocket updates on `/ws`. Tokens come from `~/.aiad/run/aiadd.json`. The daemon rejects a missing token or a foreign `Origin`.
 
+The window transport talks to these same-origin routes:
+
+- `GET /p/<project>?token=<token>` returns the viewer HTML with `window.__AIAD_WINDOW__ = {project, token}` set before the app script runs.
+- `POST /rpc` with `Authorization: Bearer <token>` and body `{method, params}` returns `{content, structuredContent, isError}`, shaped like an MCP tool result. Allowed methods: `aiad_show` and the four app-only tools.
+- `POST /context` with `Authorization: Bearer <token>` and body `{project, selection: Selection[], text?}` replaces the stored selection. It is attached as `user_selection` to the next tool result for that project, then cleared.
+- `GET /ws?token=<token>&project=<project>` is a WebSocket that sends `{type: "result", envelope: Envelope}` for each new revision of that project.
+
+The daemon also rejects any `Host` other than `127.0.0.1:<port>` or `localhost:<port>`, which blocks DNS rebinding.
+
 ---
 
 ## 9. Python interfaces between packages
@@ -388,6 +397,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 
 ## 11. Changelog
 
+- 2026-11-04: S2 specified the window transport's routes in section 8, because S3's transport and S2's server need the same paths and shapes.
 - 2026-11-04: S2 tightened `verified` in section 6 (issue #5), because an untested `error`-level requirement must never pass as proven.
 - 2026-11-04: S2 added distribution names to section 1, because workspace packages must not collide and `uv tool install aiad` must get the CLI.
 - 2026-11-04: S1 removed the mandatory stop-and-ask GitHub access note at the user's request; agents may run repository connection and authentication setup themselves.
