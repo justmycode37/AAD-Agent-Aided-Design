@@ -26,9 +26,14 @@ values and their geometry sources.
   datum coordinates. Dimensions are measured from the supplied shape. No
   supplied text or dimension value is treated as a measurement.
 - The common scale is selected from the requested sheet's usable drawing area.
-  The sheet has a margin and a compact title block. This first release does not
-  implement sections, details, revision tables, BOMs, tolerance classes, or
-  automated collision resolution for arbitrary dense drawings.
+  The sheet has a margin and a compact title block. Sections and details are
+  supported through DrawingView(kind="section", plane="XY", offset=0) and
+  DrawingView(kind="detail", parent="top", center=(x,y), radius=r, scale=2).
+  Sections use true OCCT plane intersections with hatching clipped to material;
+  circular detail crops preserve circles and arcs. Sections currently support
+  XY, XZ and YZ planes; non-circular freeform cut curves are sampled polylines.
+  Revision tables, BOMs, tolerance classes and automated collision resolution
+  for arbitrary dense drawings follow separately.
 - Units are represented in mm or in. Sheet sizes are physical ISO/ANSI sizes.
 - Named views retain their conventional axes; custom direction vectors require
   a custom view name. Dimensions that cannot be displayed in the selected

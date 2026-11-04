@@ -349,8 +349,9 @@ def _clip_circular_curve(
         return []
     tolerance = max(radius, clip_radius, 1.0) * 1e-10
     if math.dist(center, clip_center) <= tolerance and abs(radius - clip_radius) <= tolerance:
-        # The crop boundary itself is added once below as a true CIRCLE.
-        return []
+        # Keep coincident model edges as selected geometry. Deduplication
+        # merges the crop boundary later, and an exact crop stays nonempty.
+        return [curve]
     if math.dist(center, clip_center) + radius <= clip_radius + tolerance:
         return [curve]
 

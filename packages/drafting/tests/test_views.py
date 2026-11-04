@@ -261,3 +261,9 @@ def test_mapping_section_outside_model_is_not_silently_orthographic(tmp_path):
     with pytest.raises(ValueError, match="does not intersect"):
         make_drawing(SimpleNamespace(shape=plate, units="mm"), {
             "dimensions":"none", "views":[{"name":"outside", "kind":"section", "plane":"XY", "offset":8}]}, tmp_path)
+
+
+def test_detail_coincident_with_model_circle_keeps_selected_geometry():
+    detail = project_drawing_view(Cylinder(10,6), DrawingView(
+        name="coincident", kind="detail", parent="top", center=(0,0), radius=10))
+    assert any(c.kind == "circle" and c.radius == 10 for c in detail.curves)
