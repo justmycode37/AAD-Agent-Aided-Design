@@ -22,7 +22,7 @@ worker capture a sheet when a script does not return it explicitly.
 `Point2D` stores `name`, `x` and `y`. `Entity2D` stores a kind, layer, point
 names, optional radius and arc angles, a closed flag, optional editable text and
 height, and JSON-native metadata. Supported kinds are `line`, `circle`, `arc`,
-`polyline`, `rectangle`, and `text`.
+`polyline`, `rectangle`, `bezier`, `ellipse`, and `text`.
 
 Coordinate arguments accept an existing point name, a `Point2D`, or an `(x, y)`
 sequence. Tuple coordinates create stable automatic points: line endpoints use
@@ -32,7 +32,12 @@ so on. Explicitly shared point names remain shared in each entity's
 `points: tuple[str, ...]`.
 
 Primitive methods are `point`, `line`, `circle`, `arc`, `polyline`,
-`rectangle`, and `text`. The default units are millimeters; inches are also
+`rectangle`, `bezier`, `ellipse`, and `text`. `bezier(name, control_points)`
+accepts three or four named controls for exact quadratic/cubic curves.
+`ellipse(name, center, rx, ry, rotation=0, start_angle=0, end_angle=360,
+clockwise=False)` creates a full ellipse or a trimmed elliptical arc. Its angles
+are conic parameters in degrees, not polar angles. Native curves remain analytic.
+The default units are millimeters; inches are also
 accepted. Coordinates are planar at z=0 and are interpreted in the sheet's
 units. Zero-length lines, zero-area closed polylines, zero or non-finite
 radii/dimensions, and zero or non-finite extrusion heights raise `ValueError`.
@@ -110,8 +115,9 @@ the existing permissively licensed stack and does not outline text, import
 paid-standard content, or use a GPL solver.
 
 The model is planar in XY, and booleans require equal units. The editable output
-schema covers exact lines, circular arcs, and circles. General ellipses and
-freeform splines are not converted to tessellated entities; operations that
-produce those curves report an unsupported native result. Offsetting operates
+schema also retains exact quadratic/cubic Beziers and ellipses. Offset and
+boolean result extraction currently supports only lines and circular curves;
+other resulting curves raise instead of becoming tessellated entities.
+Offsetting operates
 on the selected paths independently, so a positive offset expands an inner
 circle contour as well as an outer boundary.

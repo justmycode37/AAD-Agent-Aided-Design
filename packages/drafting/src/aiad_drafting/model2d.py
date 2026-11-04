@@ -562,6 +562,7 @@ class Sheet2D:
         from .sheet_constraints import solve
         return solve(self, tolerance=tolerance, inplace=inplace)
 
+    @_atomic_primitive
     def bezier(self, name: str, control_points: Sequence[CoordinateInput], layer: str = "cut") -> Entity2D:
         """Add an exact quadratic or cubic Bezier, retaining named controls."""
         entity_name = _checked_name(name, "entity name")
@@ -574,6 +575,7 @@ class Sheet2D:
         return self._add_entity(Entity2D(entity_name, "bezier", self._ensure_layer(layer),
                                         tuple(point.name for point in points)))
 
+    @_atomic_primitive
     def ellipse(self, name: str, center: CoordinateInput, rx: float, ry: float,
                 rotation: float = 0, start_angle: float = 0, end_angle: float = 360,
                 layer: str = "cut", *, clockwise: bool = False) -> Entity2D:

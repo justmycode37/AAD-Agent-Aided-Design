@@ -95,20 +95,23 @@ imported units and layers, then calls its `line`, `circle`, `arc`, `polyline`,
 and `text` methods with coordinate tuples. Source entity names and parser
 provenance are attached to entity metadata where supported.
 
-The current adapter can convert lines, circles, counterclockwise circular
-arcs, straight-segment polylines, and unrotated text. It raises
-`NotImplementedError` for Beziers, ellipses, elliptical arcs, bulged
-polylines, clockwise arcs, rotated or nonuniformly transformed text, and any
-other record type the backend cannot preserve exactly. Parsing and JSON
-serialization do not require the Sheet2D backend. In this prepared checkout
-`model2d.py` is not present, so integration of supported records with the live
-backend must be verified when that implementation lands.
+The adapter converts lines, circles, circular arcs in either direction,
+polylines, quadratic/cubic Beziers, ellipses, elliptical arcs and unrotated
+text. DXF bulges become exact line/arc segments with source handle, segment
+index and bulge metadata. Entity names survive import, and the sheet history
+records source hashes and warnings. Failed imports leave the previously active
+sheet intact. Rotated or nonuniformly transformed text remains unsupported and
+raises `NotImplementedError`; it is never silently outlined or flattened.
+
+General affine transforms of conics are normalized from their transformed
+radius vectors into an orthogonal ellipse basis. This preserves sheared circles
+and elliptical arc endpoints. Native integration tests measure curve types,
+endpoints, areas, extrusion volume, units, layers and serialization.
 
 ## Runtime dependencies
 
 DXF parsing uses `ezdxf==1.4.5`. SVG parsing uses the MIT-licensed
 `svgelements` parser; this implementation was exercised with version 1.9.6.
-`svgelements` is currently present transitively in the local environment and
-should be declared as a direct runtime dependency by the package owner. It is
+`svgelements` is a direct runtime dependency. It is
 imported lazily, so DXF parsing and the `Imported2D` data model do not require
 it.
