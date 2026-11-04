@@ -78,6 +78,36 @@ class GeometryInspectionTests(unittest.TestCase):
             self.assertEqual(result.metrics['solids'], 2)
             self.assertAlmostEqual(result.metrics['volume'], 12)
 
+    def test_positive_body_cannot_mask_a_reversed_solid(self):
+        import build123d as bd
+        from copy import deepcopy
+        positive = bd.Box(2, 3, 4).solid()
+        small = bd.Box(1, 2, 3).solid().moved(bd.Location((10, 0, 0)))
+        reversed_solid = deepcopy(small)
+        reversed_solid.wrapped.Reverse()
+        self.assertAlmostEqual(reversed_solid.volume, -6)
+        cases = [('forward', bd.Compound(children=[positive, small]), True),
+                 ('reversed', bd.Compound(children=[positive, reversed_solid]), False),
+                 ('reversed-alone', reversed_solid, False)]
+        with tempfile.TemporaryDirectory(prefix='aiad-inspect-oriented-solids-') as temporary:
+            for name, shape, expected_ok in cases:
+                for units in ('mm', 'in'):
+                    with self.subTest(case=name, units=units):
+                        root = Path(temporary) / (name + '-' + units)
+                        root.mkdir()
+                        path = self._brep(root, shape)
+                        result = inspect_brep(path, candidate_dir=root, kind='assembly', units=units)
+                        self.assertEqual(result.ok, expected_ok, result.failure)
+                        if expected_ok:
+                            self.assertAlmostEqual(result.metrics['volume'], 30)
+                            self.assertAlmostEqual(result.metrics['center_of_mass'][0], 2)
+                        else:
+                            self.assertEqual((result.failure.code, result.failure.phase), ('INVALID_SOLID', 'validate'))
+                            self.assertIn('solid volume', result.failure.kernel_message)
+                            self.assertEqual(result.failure.feature, 'unknown')
+                            self.assertNotIn('center_of_mass', result.metrics)
+                            self.assertTrue((result.inspection_dir / 'part.brep').is_file())
+
     def test_wrapper_metrics_cannot_change_native_inspection(self):
         import build123d as bd
         from types import SimpleNamespace

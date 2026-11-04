@@ -27,7 +27,11 @@ Its job directory is the only writable tree. No model source, model module path,
 claimed metrics, feature ownership, parameter declarations or claimed checks
 are accepted. Native import computes bbox, validity, body/topology counts,
 surface area, solid volume and center of mass. Volumes and weighted centers
-enumerate all solids, including nested assemblies. Native BRepCheck_Analyzer
+enumerate all solids, including nested assemblies. Each body's native signed
+volume must be finite and positive before aggregation: a forward body cannot
+mask a reversed, negative-volume body. Reversed bodies are rejected rather
+than silently changing their orientation or taking absolute volumes.
+Native BRepCheck_Analyzer
 and build123d's `is_valid` property both contribute to validity. The child runs
 the installed `hard_checks` against caller inputs and its reloaded shape.
 

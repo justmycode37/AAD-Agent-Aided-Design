@@ -37,10 +37,15 @@ def main() -> None:
             if shape is None or shape.wrapped is None or shape.wrapped.IsNull():
                 raise ValueError("the imported BREP has no native shape")
             solids = list(shape.solids())
-            volumes = [float(solid.volume) for solid in solids]
-            volume = math.fsum(volumes)
-            if not solids or volume <= 0:
+            if not solids:
                 raise ValueError("the imported BREP has no positive-volume solid")
+            volumes = []
+            for index, solid in enumerate(solids):
+                solid_volume = float(solid.volume)
+                if not math.isfinite(solid_volume) or solid_volume <= 0:
+                    raise ValueError(f"solid volume at native body index {index} must be finite and positive; observed {solid_volume!r}")
+                volumes.append(solid_volume)
+            volume = math.fsum(volumes)
             centers = [solid.center(bd.CenterOf.MASS) for solid in solids]
             center = [math.fsum(v * getattr(c, axis) for v, c in zip(volumes, centers, strict=True)) / volume for axis in ("X", "Y", "Z")]
             size = shape.bounding_box().size
