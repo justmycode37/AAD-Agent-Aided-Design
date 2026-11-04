@@ -1,0 +1,231 @@
+{
+  "manifest_run_id": "13f7b547-9332-4aa4-845a-5bd2613ee983",
+  "environment": {
+    "python": "3.12.10",
+    "build123d": "0.13.0",
+    "cadquery-ocp-novtk": "8.0.1.1.0"
+  },
+  "method": "fresh STEP import, BRepCheck, occupancy and analytic volume; no competitor recognizer",
+  "scope": "deterministic teardown artifacts, not an independent sampled agent audit",
+  "records": [
+    {
+      "file": "/Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/agentcad/outputs/step/plate/plate-r1.step",
+      "task": "plate",
+      "step_sha256": "f90284b3f45111dbb9454c4a41d4e204797355133fa867a06c248bb4315c3b56",
+      "checks": {
+        "brep_valid": true,
+        "one_solid": true,
+        "bbox": true,
+        "four_through_axes_void": true,
+        "diameter_bracketed_4_4": true,
+        "analytic_volume": true
+      },
+      "evidence": {
+        "bbox_mm": [
+          60.0,
+          40.0,
+          6.0
+        ],
+        "volume_mm3": 14035.072597359002,
+        "expected_volume_mm3": 14035.072597359009
+      },
+      "requirements_pass": true
+    },
+    {
+      "file": "/Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/agentcad/outputs/step/plate/plate-r2.step",
+      "task": "plate",
+      "step_sha256": "6dc35b030ee0688a03db4ef6a99bf235823aa53a6f53974e37a24bc3f6efdd4d",
+      "checks": {
+        "brep_valid": true,
+        "one_solid": true,
+        "bbox": true,
+        "four_through_axes_void": true,
+        "diameter_bracketed_4_4": true,
+        "analytic_volume": true
+      },
+      "evidence": {
+        "bbox_mm": [
+          60.0,
+          40.0,
+          6.0
+        ],
+        "volume_mm3": 14035.072597359002,
+        "expected_volume_mm3": 14035.072597359009
+      },
+      "requirements_pass": true
+    },
+    {
+      "file": "/Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/agentcad/outputs/step/plate/plate-r3.step",
+      "task": "plate",
+      "step_sha256": "f000957d61737d68064e8f5b8c74f23d51573c668c577da7c3db23f7a6ec28b1",
+      "checks": {
+        "brep_valid": true,
+        "one_solid": true,
+        "bbox": true,
+        "four_through_axes_void": true,
+        "diameter_bracketed_4_4": true,
+        "analytic_volume": true
+      },
+      "evidence": {
+        "bbox_mm": [
+          60.0,
+          40.0,
+          6.0
+        ],
+        "volume_mm3": 14035.072597359002,
+        "expected_volume_mm3": 14035.072597359009
+      },
+      "requirements_pass": true
+    },
+    {
+      "file": "/Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/agentcad/outputs/step/edit_plate/edit_plate-r1.step",
+      "task": "edit_plate",
+      "step_sha256": "10c7a7224c9bd1cb6c945c0b11678dd6ae66b6ccdd5b84ed156acb4b2bbf2502",
+      "checks": {
+        "brep_valid": true,
+        "one_solid": true,
+        "bbox": true,
+        "four_through_axes_void": true,
+        "diameter_bracketed_4_4": true,
+        "analytic_volume": true
+      },
+      "evidence": {
+        "bbox_mm": [
+          80.0,
+          40.0,
+          6.0
+        ],
+        "volume_mm3": 18835.072597359,
+        "expected_volume_mm3": 18835.07259735901
+      },
+      "requirements_pass": true
+    },
+    {
+      "file": "/Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/agentcad/outputs/step/edit_plate/edit_plate-r2.step",
+      "task": "edit_plate",
+      "step_sha256": "e8ce857551b9eba4e4a4314af062e20b2f39feb5241346797519b9588b491716",
+      "checks": {
+        "brep_valid": true,
+        "one_solid": true,
+        "bbox": true,
+        "four_through_axes_void": true,
+        "diameter_bracketed_4_4": true,
+        "analytic_volume": true
+      },
+      "evidence": {
+        "bbox_mm": [
+          80.0,
+          40.0,
+          6.0
+        ],
+        "volume_mm3": 18835.072597359,
+        "expected_volume_mm3": 18835.07259735901
+      },
+      "requirements_pass": true
+    },
+    {
+      "file": "/Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/agentcad/outputs/step/edit_plate/edit_plate-r3.step",
+      "task": "edit_plate",
+      "step_sha256": "04831066327b002aa698e4527c605705f515d2bddf9b2eb1916aadaaeedefe80",
+      "checks": {
+        "brep_valid": true,
+        "one_solid": true,
+        "bbox": true,
+        "four_through_axes_void": true,
+        "diameter_bracketed_4_4": true,
+        "analytic_volume": true
+      },
+      "evidence": {
+        "bbox_mm": [
+          80.0,
+          40.0,
+          6.0
+        ],
+        "volume_mm3": 18835.072597359,
+        "expected_volume_mm3": 18835.07259735901
+      },
+      "requirements_pass": true
+    },
+    {
+      "file": "/Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/agentcad/outputs/step/blocked_counterbore/blocked_counterbore-r1.step",
+      "task": "blocked_counterbore",
+      "step_sha256": "cf6a5aac88500614c1a4af48c6f7e91efaf880863f0e071e9159e5ea74f6c455",
+      "checks": {
+        "brep_valid": true,
+        "one_solid": true,
+        "bbox": true,
+        "through_bore_4_4": true,
+        "counterbore_9_0": true,
+        "counterbore_depth_3_0": true,
+        "analytic_volume": true,
+        "coaxial_access": false
+      },
+      "evidence": {
+        "bbox_mm": [
+          60.0,
+          40.0,
+          22.0
+        ],
+        "volume_mm3": 17107.53232096429,
+        "expected_volume_mm3": 17107.532320964296,
+        "approach_probe_intersection_mm3": 50.26548245743668,
+        "obstruction_point_inside": true
+      },
+      "requirements_pass": false
+    },
+    {
+      "file": "/Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/agentcad/outputs/step/blocked_counterbore/blocked_counterbore-r2.step",
+      "task": "blocked_counterbore",
+      "step_sha256": "3fa22653a1b2f10092c001b367b6b86677e01ac02f0bd5c237e63b991dff16e9",
+      "checks": {
+        "brep_valid": true,
+        "one_solid": true,
+        "bbox": true,
+        "through_bore_4_4": true,
+        "counterbore_9_0": true,
+        "counterbore_depth_3_0": true,
+        "analytic_volume": true,
+        "coaxial_access": false
+      },
+      "evidence": {
+        "bbox_mm": [
+          60.0,
+          40.0,
+          22.0
+        ],
+        "volume_mm3": 17107.53232096429,
+        "expected_volume_mm3": 17107.532320964296,
+        "approach_probe_intersection_mm3": 50.26548245743668,
+        "obstruction_point_inside": true
+      },
+      "requirements_pass": false
+    },
+    {
+      "file": "/Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/agentcad/outputs/step/blocked_counterbore/blocked_counterbore-r3.step",
+      "task": "blocked_counterbore",
+      "step_sha256": "3d26d3e9581c7bc404ac8fad7ac284a56d1f6ce4d6f1518a0c3f5f9fd70c6d7c",
+      "checks": {
+        "brep_valid": true,
+        "one_solid": true,
+        "bbox": true,
+        "through_bore_4_4": true,
+        "counterbore_9_0": true,
+        "counterbore_depth_3_0": true,
+        "analytic_volume": true,
+        "coaxial_access": false
+      },
+      "evidence": {
+        "bbox_mm": [
+          60.0,
+          40.0,
+          22.0
+        ],
+        "volume_mm3": 17107.53232096429,
+        "expected_volume_mm3": 17107.532320964296,
+        "approach_probe_intersection_mm3": 50.26548245743668,
+        "obstruction_point_inside": true
+      },
+      "requirements_pass": false
+    }
+  ]
+}
