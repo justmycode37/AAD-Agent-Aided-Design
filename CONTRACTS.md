@@ -267,7 +267,7 @@ type Failure = {
 
 **Honesty rules:** unknown stays `unknown` or is omitted. Never invent a limit, an edge name or a cause. `probes` holds only values actually tested.
 
-**`verified`** means the hard gate passes, at least one requirement exists, and no `error`-level check fails.
+**`verified`** means the hard gate passes, at least one requirement exists, and no `error`-level check fails. Every `error`-level requirement must also have been evaluated: an `error`-level `skip` or `warn`, a missing result, a duplicate requirement ID, a malformed spec, a non-finite measurement or an evaluator exception leaves the revision `draft`.
 
 ---
 
@@ -388,6 +388,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 
 ## 11. Changelog
 
+- 2026-11-04: S2 tightened `verified` in section 6 (issue #5), because an untested `error`-level requirement must never pass as proven.
 - 2026-11-04: S2 added distribution names to section 1, because workspace packages must not collide and `uv tool install aiad` must get the CLI.
 - 2026-11-04: S1 removed the mandatory stop-and-ask GitHub access note at the user's request; agents may run repository connection and authentication setup themselves.
 - 2026-11-04: v0 written with `PLAN.md`.
