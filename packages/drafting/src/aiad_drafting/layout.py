@@ -21,7 +21,7 @@ MARGIN_MM = 10.0
 TITLE_BLOCK_WIDTH_MM = 80.0
 MIN_TEXT_HEIGHT_MM = 2.5
 VIEW_GAP_MM = 5.0
-TEXT_LINE_MM = 3.5
+TEXT_LINE_MM = 4.0
 
 
 @dataclass(frozen=True)
@@ -92,6 +92,7 @@ def _font_at_size(size: int) -> Any:
     return _font(size)
 
 
+@lru_cache(maxsize=4096)
 def _text_metrics(value: str, height: float) -> tuple[float, float, float, float, float]:
     """Return advance, glyph left/right, ascent, and descent in sheet mm.
 
@@ -126,6 +127,13 @@ def _text_metrics(value: str, height: float) -> tuple[float, float, float, float
         descent=max(descent,-pdf_descent)
     except (ImportError, KeyError, ValueError):
         pass
+    # DXF TEXT height is a cap height; raster/vector fonts commonly interpret
+    # it as an em size. Reserve a conservative CAD stroke-font envelope too,
+    # so font substitution in an independent CAD reader does not put glyphs
+    # through table rules. This is layout space, never a geometry measurement.
+    advance = advance * 1.55 + len(value) * height * 0.05
+    ascent = max(ascent, height)
+    descent = max(descent, height * 0.35)
     right = max(right, advance)
     return advance, min(0.0, left), right, ascent, descent
 
@@ -851,7 +859,7 @@ def compose_auxiliary_layout(
     title_bounds = Rect(title_x0, title_y0, title_x0 + title_width, title_y0 + title_height)
     entities: list[Primitive] = []
     _draw_rect(entities, title_bounds, "TITLE")
-    cursor = title_bounds.ymax - 2.3
+    cursor = title_bounds.ymax - 3.0
     for index, (_, lines) in enumerate(title_lines):
         for line_index, value in enumerate(lines):
             entities.append(
@@ -859,7 +867,7 @@ def compose_auxiliary_layout(
             )
         cursor -= len(lines) * TEXT_LINE_MM + 0.9
         if index + 1 < len(title_lines):
-            entities.append(line(title_x0, cursor + 2.2, title_x0 + title_width, cursor + 2.2, "TITLE", 0.12))
+            entities.append(line(title_x0, cursor + 2.9, title_x0 + title_width, cursor + 2.9, "TITLE", 0.12))
 
     schedule_sections: list[tuple[str, str, Any]] = []
     if notes:
@@ -893,7 +901,7 @@ def compose_auxiliary_layout(
                 section_heights.append(5 + _table_rows(headers, rows, widths)[1] + 1.5)
                 table_specs.append((headers, rows, widths, [row["dimension_ids"] for row in data]))
             elif _.startswith("CYLINDRICAL FEATURES"):
-                widths=[(schedule_width-2)*fraction for fraction in (0.10,0.12,0.08,0.24,0.15,0.15,0.16)]
+                widths=[(schedule_width-2)*fraction for fraction in (0.18,0.13,0.08,0.23,0.11,0.11,0.16)]
                 rows=[[str(row[key]) for key in ("surface","size","axis","center","from","to","length")] for row in data]
                 headers=("SURFACE","SIZE","AXIS","CENTER PERP.","FROM","TO","LENGTH")
                 section_heights.append(5.0+_table_rows(headers,rows,widths)[1]+1.5)
@@ -908,7 +916,7 @@ def compose_auxiliary_layout(
                 section_heights.append(5.0 + body_height + 1.5)
                 table_specs.append((("REV", "DATE", "DESCRIPTION", "BY"), rows, widths))
             else:
-                widths = [10.0, 28.0, max(20.0, schedule_width - 54.0), 14.0]
+                widths = [14.0, 28.0, max(20.0, schedule_width - 58.0), 14.0]
                 rows = [
                     [str(row.get("item", "")), str(row.get("part_number", "")), str(row.get("description", "")), str(row.get("quantity", ""))]
                     for row in data

@@ -271,9 +271,10 @@ def write_dxf(path: Path, width_mm: float, height_mm: float, entities: list[Prim
     document.header["$MEASUREMENT"] = 1
     document.header["$LUNITS"] = 2
     document.header["$LUPREC"] = 2
-    if "AIAD_HIDDEN" not in document.linetypes:
+    # Some CAD readers recognize conventional names instead of custom patterns.
+    if "HIDDEN" not in document.linetypes:
         document.linetypes.new(
-            "AIAD_HIDDEN",
+            "HIDDEN",
             dxfattribs={"description": "AIAD hidden edges", "pattern": [2.3, 1.4, -0.9]},
         )
 
@@ -302,7 +303,7 @@ def write_dxf(path: Path, width_mm: float, height_mm: float, entities: list[Prim
             "lineweight": max(9, min(50, int(entity.width * 100))),
         }
         if entity.dash:
-            attributes["linetype"] = "AIAD_HIDDEN"
+            attributes["linetype"] = "HIDDEN"
 
         if entity.kind == "line":
             modelspace.add_line(entity.points[0], entity.points[1], dxfattribs=attributes)

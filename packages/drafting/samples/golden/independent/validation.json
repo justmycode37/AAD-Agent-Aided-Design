@@ -1,0 +1,112 @@
+{
+  "viewer": "LibreCAD 2.2.1.6 arm64",
+  "command": "dxf2pdf -a -m -p <sheet width>x<sheet height>",
+  "dmg_sha256": "2c5049f5d38346b6152e5b000bb60060f3a2113484bba4bcb388cb690f275879",
+  "drawings": [
+    {
+      "name": "01-native-laser-panel",
+      "dxf_sha256": "ba23d25c4135f82ddf3f3d0e7181c2b584755ef46b37d3681ddd2f95b13d1d2e",
+      "opened": true,
+      "rendered_pdf": "01-native-laser-panel.pdf",
+      "previewed": true
+    },
+    {
+      "name": "02-obround-panel",
+      "dxf_sha256": "2ec85e8ce659b2009c57045eccf4bd07dda0e2f514df3bf87fbe8de4a642d169",
+      "opened": true,
+      "rendered_pdf": "02-obround-panel.pdf",
+      "previewed": true
+    },
+    {
+      "name": "03-flange-ring",
+      "dxf_sha256": "eb465c87e3fba7159f738e121d09c3f2daa6b58430f310726083c0232f673e7b",
+      "opened": true,
+      "rendered_pdf": "03-flange-ring.pdf",
+      "previewed": true
+    },
+    {
+      "name": "04-scored-strip",
+      "dxf_sha256": "dfc0250659c4a26ea8a9233e4154471485bf3c2079f12f0514408246a234238d",
+      "opened": true,
+      "rendered_pdf": "04-scored-strip.pdf",
+      "previewed": true
+    },
+    {
+      "name": "05-s1-fan-mount",
+      "dxf_sha256": "262d3a04f174694f35469c29f2ac749477782c8d271206e7c2ade28f086ab96a",
+      "opened": true,
+      "rendered_pdf": "05-s1-fan-mount.pdf",
+      "previewed": true
+    },
+    {
+      "name": "06-asymmetric-plate",
+      "dxf_sha256": "70c00b5d33adb839274c802b386f72e900741fcea0ee54c37f4c10bf513a32fb",
+      "opened": true,
+      "rendered_pdf": "06-asymmetric-plate.pdf",
+      "previewed": true
+    },
+    {
+      "name": "07-dense-fixture-plate",
+      "dxf_sha256": "81b222b6c9968a6b859ee5919e93a3244d417db86c6061138792742b972c7b12",
+      "opened": true,
+      "rendered_pdf": "07-dense-fixture-plate.pdf",
+      "previewed": true
+    },
+    {
+      "name": "08-section-detail-plate",
+      "dxf_sha256": "2f7b4b2ee7d86e9130fdd74a0ebc91af49e06aeeacdb474f0181423fa3a5aaec",
+      "opened": true,
+      "rendered_pdf": "08-section-detail-plate.pdf",
+      "previewed": true
+    },
+    {
+      "name": "09-stepped-shaft",
+      "dxf_sha256": "c0d5e739a20449bc76e8067738beb5a5234cd84b50fa41295c0d56960537c6f5",
+      "opened": true,
+      "rendered_pdf": "09-stepped-shaft.pdf",
+      "previewed": true
+    },
+    {
+      "name": "10-bored-spacer",
+      "dxf_sha256": "b9e83381043a97b415a7b69811bcf4d26682588a6db9be9db934f17f4d35ffb9",
+      "opened": true,
+      "rendered_pdf": "10-bored-spacer.pdf",
+      "previewed": true
+    },
+    {
+      "name": "11-shouldered-bushing",
+      "dxf_sha256": "db07e91523edbce55d826329416296947c66caed8947e06b4fe99ffc13379ce4",
+      "opened": true,
+      "rendered_pdf": "11-shouldered-bushing.pdf",
+      "previewed": true
+    },
+    {
+      "name": "12-grooved-spindle",
+      "dxf_sha256": "f778f73c7b5eba3a7560ac73b1fc97cd1e05c26d62d19d1082dcc9e13195c999",
+      "opened": true,
+      "rendered_pdf": "12-grooved-spindle.pdf",
+      "previewed": true
+    },
+    {
+      "name": "13-locating-fixture",
+      "dxf_sha256": "6f796f1b7e7835aac1153c3f21c6172693cc6fb8f25c9a83c66e23b01e28ffd2",
+      "opened": true,
+      "rendered_pdf": "13-locating-fixture.pdf",
+      "previewed": true
+    },
+    {
+      "name": "14-twin-pin-fixture",
+      "dxf_sha256": "4678be063f575e4bcc66dacce463899198fc993d265ed1b7f03f33b798ca626c",
+      "opened": true,
+      "rendered_pdf": "14-twin-pin-fixture.pdf",
+      "previewed": true
+    },
+    {
+      "name": "15-spacer-stack",
+      "dxf_sha256": "c73142295acb2c6007fbcb4ed0081532316b802866d9a74af04d04ead0d24020",
+      "opened": true,
+      "rendered_pdf": "15-spacer-stack.pdf",
+      "previewed": true
+    }
+  ]
+}

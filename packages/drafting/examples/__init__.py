@@ -1,1 +1,1 @@
-"""Runnable examples for the aiad-drafting package."""
+"""Reproducible drafting examples kept with the source checkout."""

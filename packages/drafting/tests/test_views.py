@@ -302,5 +302,6 @@ def test_hidden_arc_png_is_dashed_and_dxf_pattern_has_strokes(tmp_path):
         assert 10 < count(d) < count(solid)*0.9
     write_dxf(tmp_path/"hidden.dxf",50,40,[a])
     doc=readfile(tmp_path/"hidden.dxf")
-    pattern=doc.linetypes.get("AIAD_HIDDEN").pattern_tags.compile()
+    assert next(iter(doc.modelspace())).dxf.linetype == "HIDDEN"
+    pattern=doc.linetypes.get("HIDDEN").pattern_tags.compile()
     assert pattern == pytest.approx((1.4,0.9))

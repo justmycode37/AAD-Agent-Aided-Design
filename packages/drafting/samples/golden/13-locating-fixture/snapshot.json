@@ -1,0 +1,226 @@
+{
+  "bom": [
+    {
+      "description": "Machined base plate",
+      "item": 1,
+      "part_number": "BASE-01",
+      "quantity": 1
+    },
+    {
+      "description": "Vertical locating pin",
+      "item": 2,
+      "part_number": "PIN-01",
+      "quantity": 1
+    }
+  ],
+  "category": "assembly",
+  "checks": [
+    {
+      "id": "layout_fit",
+      "status": "pass"
+    },
+    {
+      "id": "sheet_margins",
+      "status": "pass"
+    },
+    {
+      "id": "text_margins",
+      "status": "pass"
+    },
+    {
+      "id": "title_block_bounds",
+      "status": "pass"
+    },
+    {
+      "id": "title_block_text_overflow",
+      "status": "pass"
+    },
+    {
+      "id": "schedule_bounds",
+      "status": "pass"
+    },
+    {
+      "id": "schedule_text_overflow",
+      "status": "pass"
+    },
+    {
+      "id": "view_view_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "view_auxiliary_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "dimension_coverage",
+      "status": "pass"
+    },
+    {
+      "id": "dimension_sources",
+      "status": "pass"
+    },
+    {
+      "id": "hole_leader_coverage",
+      "status": "pass"
+    },
+    {
+      "id": "dimension_text_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "text_view_geometry_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "dimension_view_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "hole_leader_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "table_rule_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "minimum_text_height",
+      "status": "pass"
+    },
+    {
+      "id": "bom_quantities",
+      "status": "pass"
+    }
+  ],
+  "dimensions": [
+    {
+      "axis": "x",
+      "count": null,
+      "display": "80",
+      "id": "overall.x.80.",
+      "kind": "overall",
+      "unit": "mm",
+      "value": 80.0
+    },
+    {
+      "axis": "y",
+      "count": null,
+      "display": "50",
+      "id": "overall.y.50.",
+      "kind": "overall",
+      "unit": "mm",
+      "value": 50.0
+    },
+    {
+      "axis": "z",
+      "count": null,
+      "display": "19",
+      "id": "overall.z.19.",
+      "kind": "overall",
+      "unit": "mm",
+      "value": 19.0
+    },
+    {
+      "axis": "Z",
+      "count": null,
+      "display": "DIA 10",
+      "id": "cylinder.1.size",
+      "kind": "cylinder_size",
+      "unit": "mm",
+      "value": 10.0
+    },
+    {
+      "axis": "Z",
+      "count": null,
+      "display": "7",
+      "id": "cylinder.1.from",
+      "kind": "cylinder_from",
+      "unit": "mm",
+      "value": 7.0
+    },
+    {
+      "axis": "Z",
+      "count": null,
+      "display": "19",
+      "id": "cylinder.1.to",
+      "kind": "cylinder_to",
+      "unit": "mm",
+      "value": 19.0
+    },
+    {
+      "axis": "Z",
+      "count": null,
+      "display": "12",
+      "id": "cylinder.1.length",
+      "kind": "cylinder_length",
+      "unit": "mm",
+      "value": 12.0
+    },
+    {
+      "axis": "Z",
+      "count": null,
+      "display": "DIA 10.2",
+      "id": "cylinder.2.size",
+      "kind": "cylinder_size",
+      "unit": "mm",
+      "value": 10.2
+    },
+    {
+      "axis": "Z",
+      "count": null,
+      "display": "0",
+      "id": "cylinder.2.from",
+      "kind": "cylinder_from",
+      "unit": "mm",
+      "value": 0.0
+    },
+    {
+      "axis": "Z",
+      "count": null,
+      "display": "8",
+      "id": "cylinder.2.to",
+      "kind": "cylinder_to",
+      "unit": "mm",
+      "value": 8.0
+    },
+    {
+      "axis": "Z",
+      "count": null,
+      "display": "8",
+      "id": "cylinder.2.length",
+      "kind": "cylinder_length",
+      "unit": "mm",
+      "value": 8.0
+    }
+  ],
+  "hole_count": 0,
+  "name": "13-locating-fixture",
+  "sheet": "A3",
+  "units": "mm",
+  "views": [
+    {
+      "hidden_edges": 7,
+      "kind": "orthographic",
+      "name": "front",
+      "visible_edges": 7
+    },
+    {
+      "hidden_edges": 0,
+      "kind": "orthographic",
+      "name": "top",
+      "visible_edges": 6
+    },
+    {
+      "hidden_edges": 16,
+      "kind": "orthographic",
+      "name": "right",
+      "visible_edges": 9
+    },
+    {
+      "hidden_edges": 16,
+      "kind": "orthographic",
+      "name": "iso",
+      "visible_edges": 19
+    }
+  ]
+}
