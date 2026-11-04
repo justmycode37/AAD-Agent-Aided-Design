@@ -1,0 +1,317 @@
+{
+  "artifact": "part.brep",
+  "context": {
+    "features": [
+      {
+        "deps": [],
+        "edges": [
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 0,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 1,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 2,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 3,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 4,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 5,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 6,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 7,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 8,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 9,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 10,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 11,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 12,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 13,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 14,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 15,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 16,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 17,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 18,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 19,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 20,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 21,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 22,
+            "kind": "edge",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 23,
+            "kind": "edge",
+            "selector": null
+          }
+        ],
+        "faces": [
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 0,
+            "kind": "face",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 1,
+            "kind": "face",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 2,
+            "kind": "face",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 3,
+            "kind": "face",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 4,
+            "kind": "face",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 5,
+            "kind": "face",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 6,
+            "kind": "face",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 7,
+            "kind": "face",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 8,
+            "kind": "face",
+            "selector": null
+          },
+          {
+            "feature": "main",
+            "geometry": {},
+            "index": 9,
+            "kind": "face",
+            "selector": null
+          }
+        ],
+        "line_end": 33,
+        "line_start": 1,
+        "name": "main"
+      }
+    ],
+    "job_dir": "<job_dir>",
+    "kind": "part",
+    "material": null,
+    "metrics": {
+      "area": 6210.1097166720865,
+      "bbox": [
+        60.0,
+        40.0,
+        6.0
+      ],
+      "build_ms": 2092.7857500500977,
+      "center_of_mass": [
+        3.240078366050164e-17,
+        -2.1060509379326067e-16,
+        3.000000000000001
+      ],
+      "edges": 24,
+      "faces": 10,
+      "solids": 1,
+      "units": "mm",
+      "valid": true,
+      "volume": 14035.072597359009
+    },
+    "params": {
+      "height": 40.0,
+      "hole_diameter": 4.4,
+      "hole_spacing_x": 46.0,
+      "hole_spacing_y": 26.0,
+      "thickness": 6.0,
+      "width": 60.0
+    },
+    "process": "cnc_3axis",
+    "project_dir": "<project_dir>",
+    "rev": 1,
+    "shape": null,
+    "sheet": null,
+    "spec": {
+      "process": "cnc_3axis",
+      "requirements": [
+        {
+          "bbox": {
+            "x": 60.0,
+            "y": 40.0
+          },
+          "id": "overall_size"
+        },
+        {
+          "id": "one_body",
+          "solids": 1
+        },
+        {
+          "holes": {
+            "count": 4,
+            "diameter": 4.4
+          },
+          "id": "mount_holes"
+        }
+      ],
+      "units": "mm"
+    },
+    "units": "mm"
+  },
+  "note": "ModelContext snapshot from the worker boundary; shape is worker-local and part.brep is the loadable artifact."
+}

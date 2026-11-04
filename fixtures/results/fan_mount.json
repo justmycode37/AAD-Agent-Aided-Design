@@ -1,0 +1,151 @@
+{
+  "artifacts": {
+    "part.brep": "part.brep"
+  },
+  "checks": [
+    {
+      "actual": "true",
+      "assumptions": null,
+      "expected": "valid B-rep",
+      "feature": null,
+      "fix_hint": null,
+      "heuristic": null,
+      "id": "brep_valid",
+      "level": "error",
+      "message": "BRepCheck reports the shape as valid.",
+      "selector": null,
+      "status": "pass",
+      "suite": "hard"
+    },
+    {
+      "actual": "1",
+      "assumptions": null,
+      "expected": "at least 1",
+      "feature": null,
+      "fix_hint": null,
+      "heuristic": null,
+      "id": "solid_count",
+      "level": "error",
+      "message": "The shape contains one or more solids.",
+      "selector": null,
+      "status": "pass",
+      "suite": "hard"
+    },
+    {
+      "actual": null,
+      "assumptions": null,
+      "expected": null,
+      "feature": null,
+      "fix_hint": null,
+      "heuristic": null,
+      "id": "hard_gate_incomplete",
+      "level": "error",
+      "message": "The M0 gate does not yet check closed shells, small topology, STEP round trips, or mesh watertightness; verification is withheld.",
+      "selector": null,
+      "status": "skip",
+      "suite": "hard"
+    },
+    {
+      "actual": "ModuleNotFoundError: No module named 'aiad_quality'",
+      "assumptions": null,
+      "expected": null,
+      "feature": null,
+      "fix_hint": null,
+      "heuristic": null,
+      "id": "spec_checks_unavailable",
+      "level": "warn",
+      "message": "Specification checks are unavailable because aiad_quality is not installed.",
+      "selector": null,
+      "status": "skip",
+      "suite": "spec"
+    },
+    {
+      "actual": "ModuleNotFoundError: No module named 'aiad_quality'",
+      "assumptions": null,
+      "expected": null,
+      "feature": null,
+      "fix_hint": null,
+      "heuristic": null,
+      "id": "process_checks_unavailable",
+      "level": "warn",
+      "message": "Process checks are unavailable because aiad_quality is not installed.",
+      "selector": null,
+      "status": "skip",
+      "suite": "process"
+    },
+    {
+      "actual": "ModuleNotFoundError: No module named 'aiad_render'",
+      "assumptions": null,
+      "expected": null,
+      "feature": null,
+      "fix_hint": null,
+      "heuristic": null,
+      "id": "scene_generation_unavailable",
+      "level": "warn",
+      "message": "Scene generation is unavailable because aiad_render is not installed.",
+      "selector": null,
+      "status": "skip",
+      "suite": "hard"
+    },
+    {
+      "actual": null,
+      "assumptions": null,
+      "expected": null,
+      "feature": null,
+      "fix_hint": null,
+      "heuristic": null,
+      "id": "render_not_requested",
+      "level": "warn",
+      "message": "Agent rendering was not requested for this build.",
+      "selector": null,
+      "status": "skip",
+      "suite": "hard"
+    },
+    {
+      "actual": null,
+      "assumptions": null,
+      "expected": null,
+      "feature": null,
+      "fix_hint": null,
+      "heuristic": null,
+      "id": "requirements_not_provided",
+      "level": "warn",
+      "message": "No requirements were supplied, so the model remains a draft.",
+      "selector": null,
+      "status": "skip",
+      "suite": "spec"
+    }
+  ],
+  "checks_summary": {
+    "fail": 0,
+    "pass": 2,
+    "skip": 6,
+    "warn": 0
+  },
+  "failure": null,
+  "metrics": {
+    "area": 6210.1097166720865,
+    "bbox": [
+      60.0,
+      40.0,
+      6.0
+    ],
+    "build_ms": 3397.0014590304345,
+    "center_of_mass": [
+      3.240078366050164e-17,
+      -2.1060509379326067e-16,
+      3.000000000000001
+    ],
+    "edges": 24,
+    "faces": 10,
+    "solids": 1,
+    "units": "mm",
+    "valid": true,
+    "volume": 14035.072597359009
+  },
+  "note": "Observed M0 result for fixtures/models/fan_mount.py; build_ms is one run, not a performance limit.",
+  "ok": true,
+  "requirements_proven": false,
+  "status": "draft",
+  "summary": "The model built and passed the available hard checks; requirements are not fully proven."
+}
