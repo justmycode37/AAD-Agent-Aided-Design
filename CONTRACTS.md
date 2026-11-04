@@ -1,0 +1,391 @@
+# AIAD contracts
+
+These interfaces let five threads work in parallel without talking to each other. Build against them and stub what is not ready.
+
+**Changing a contract:** make the smallest additive change that works, in its own small PR that edits this file and adds a line to the changelog at the bottom with the date, sector and reason. Merge it quickly so others can rebase. A breaking change also needs a GitHub issue labelled for each affected sector. S2 arbitrates conflicts.
+
+---
+
+## 1. Repository and ownership
+
+```
+PLAN.md, CONTRACTS.md                shared; edit only per the rule above
+pyproject.toml, README.md, .github/  S2 (uv workspace root, CI)
+uv.lock                              generated; any sector may regenerate it
+docs/                                each sector's own named files
+packages/engine/src/aiad/             S1  public modeling API and engine
+packages/platform/src/aiad_platform/  S2  CLI, daemon, MCP adapter
+packages/render/src/aiad_render/      S3  tessellation and agent renders
+packages/drafting/src/aiad_drafting/  S4  2D, constraints, drawings
+packages/quality/src/aiad_quality/    S5  spec, process checks
+viewer/                              S3  TypeScript; builds dist/aiad-viewer.html
+skills/                              S5  playbooks
+evals/                               S5  corpus, harness, results
+fixtures/                            S1  sample models, scenes, revisions
+tests/e2e/                           S2  end-to-end smoke tests
+```
+
+**Git workflow (GitHub, PRs into `main`):**
+- **Use your own worktree.** Threads do not share a checkout. From the main checkout, run `git fetch origin && git worktree add "../AIAD-worktrees/<sector>" -b <sector>/<topic> origin/main` and do all work there. Skip this if your thread already runs in its own worktree. Never switch branches in the main checkout.
+- **Keep branches small.** One topic per branch, such as `s3/chunk-loader`, merged within hours rather than days. Run `git fetch origin && git rebase origin/main` often to pick up other sectors' work.
+- **Open a PR for every change:** `gh pr create --base main`, titled `s3: ...`. The body says what changed, how it was tested, and any contract changes.
+- **Merge your own PRs.** Merge when the branch is rebased on the latest `main`, your tests pass and CI is green. For anything beyond a small change, have a sub-agent review the diff first and fix what it finds. Then run `gh pr merge --squash --delete-branch`. If branch protection requires a human, tell the user rather than bypassing it.
+- **Never** push directly to `main`, force-push `main`, merge with failing checks, bypass protection with `--admin`, or rewrite another sector's branch. `--force-with-lease` is fine on your own branch after a rebase.
+- **Stay in your paths.** Write only under paths you own. If another sector's code blocks you, open an issue labelled for that sector. A minimal fix in their path is allowed only when it is needed to unbreak `main`, and the PR must say so.
+- **Message other sectors with GitHub issues** labelled `s1` to `s5`. Check yours when you start and between PRs.
+- **Lock file conflicts:** rebase, run `uv lock`, and commit the result.
+- **Never** change repo settings or visibility, publish packages, or create releases without asking the user.
+- **Tooling:** use Python 3.12 and `uv`. If `uv` is missing, run `brew install uv`. The root workspace uses `members = ["packages/*"]`, so a new `packages/<name>/pyproject.toml` needs no root edit. Develop in a local venv until S2's root workspace is on `main`.
+
+**Pinned versions** (raise only with a changelog entry): `build123d==0.13.0`, `cadquery-ocp-novtk==8.0.1.1.0`, `mcp==2.3.0`, `ezdxf==1.4.5`, `three-cad-viewer@5.1.3`, `@modelcontextprotocol/ext-apps@2.0.4`.
+
+---
+
+## 2. Project on disk
+
+```
+<root>/<project>/
+  project.json     {id, name, kind, units, process, head_rev, created, aiad_version}
+  model.py         current source
+  spec.yaml        requirements
+  exports/         files for the user
+  .aiad/
+    revs/000007/   model.py, spec.yaml, meta.json, part.brep, scene.bin.gz, scene.json, sheet.png
+    cache/         content-addressed, safe to delete
+    jobs/          job dirs, the only place sandboxed code may write
+```
+
+`<root>` comes from MCP roots, else `~/AIAD`. `model.py` and `spec.yaml` should work well in git. `.aiad/` is a cache plus history and is listed in a generated `.gitignore`.
+
+Global state: `~/.aiad/` containing `config.toml`, `run/aiadd.sock`, `run/aiadd.json` (pid, http port, token, version), `logs/`.
+
+---
+
+## 3. `model.py`
+
+```python
+from aiad import *                 # build123d plus the helpers below
+
+P = params(width=60.0, depth=40.0, t=6.0, hole_d=4.4, spacing=(46.0, 26.0))
+meta(name="fan_bracket", units="mm", material="steel_1018", process="cnc_3axis")
+
+with part("bracket") as bp:
+    with feature("plate"):
+        Box(P.width, P.depth, P.t)
+
+    with feature("mount_holes", intent="M4 clearance"):
+        top = face(feature="plate", where="max_z", expect=1)
+        with Locations(top):
+            with GridLocations(*P.spacing, 2, 2):
+                Hole(radius=P.hole_d / 2)
+
+    with feature("edge_round"):
+        fillet(edge(feature="plate", where="parallel_z", expect=4), radius=2.0)
+```
+
+- `params()` declares every adjustable number; overrides come from tools. A param may be a `Param(value, min, max, unit)` so that sliders get ranges.
+- `feature(name)` must be unique. It records created and modified faces and edges, source lines and dependencies.
+- `face()`, `edge()`, `vertex()` resolve semantically. `expect=n` turns a count mismatch into a `SELECTOR_AMBIGUOUS` or `SELECTOR_EMPTY` failure with candidates.
+- A script produces one `part`, one `assembly`, or (for `kind: "2d"`) one `sheet2d`.
+- The script must not do I/O. Files come in through `asset("name")`, which reads from the project's imports.
+- Plain build123d is valid, and everything lands in an implicit `main` feature. Named features are what make edits reliable.
+
+---
+
+## 4. `spec.yaml`
+
+```yaml
+units: mm
+process: fdm_pla              # optional: fdm_pla, sla, cnc_3axis, sheet_metal, laser, injection
+material: pla                 # optional
+requirements:
+  - id: overall_size
+    bbox: {x: 60 ± 0.1, y: 40 ± 0.1}
+  - id: one_body
+    solids: 1
+  - id: mount_holes
+    holes: {count: 4, diameter: 4.4 ± 0.1, pattern: {grid: [46, 26]}}
+  - id: stiffness_wall
+    min_wall: 2.0
+  - id: motor_clearance
+    clearance: {with: assets/motor.step, min: 0.3}
+  - id: mass_limit
+    mass_g: {max: 120}
+  - id: mirror_x
+    symmetric: {plane: YZ, tolerance: 0.01}
+  - id: custom_fit
+    level: warn               # error (default) or warn
+    measure: {kind: distance, a: "face(feature='a', where='max_z')", b: "face(feature='b', where='min_z')"}
+    equals: 12 ± 0.05
+```
+
+S5 owns the evaluator and may add requirement types. Unknown types return a `skip` check, never a silent pass.
+
+---
+
+## 5. MCP tools
+
+All tools accept `project` unless noted and return the envelope in section 6. Inputs are shown as TypeScript types. Names are final; adding optional fields is fine.
+
+### Model-visible
+
+```ts
+aiad_new({ name: string, kind?: "part"|"assembly"|"2d", units?: "mm"|"in",
+          process?: string, material?: string, spec?: string /*yaml*/, source?: string })
+
+aiad_build({ project, base_rev?: number,
+            source?: string,                       // full model.py, or
+            patch?: string,                        // unified diff against base_rev, or
+            params?: Record<string, number|string>,// overrides, or combine with the above
+            spec?: string,
+            preview?: boolean,                     // adds a 4-up sheet image, default false
+            dry_run?: boolean,                     // full build and checks, no new head
+            wait_s?: number })                     // default 30; returns status "running" with job id
+
+aiad_inspect({ project, rev?: number,
+              what?: "summary"|"features"|"params"|"topology"|"diff", against?: number })
+
+aiad_query({ project, rev?: number, selector: string, expect?: number, limit?: number })
+
+aiad_measure({ project, rev?: number,
+              kind: "distance"|"angle"|"radius"|"area"|"volume"|"mass"|"inertia"|"thickness"|"clearance",
+              a?: string, b?: string })             // selectors
+
+aiad_check({ project, rev?: number,
+            suites?: ("hard"|"spec"|"process"|"interference"|"2d")[] })
+
+aiad_render({ project, rev?: number,
+             views?: ("sheet"|"iso"|"front"|"back"|"left"|"right"|"top"|"bottom")[],
+             style?: "shaded"|"lines"|"xray",
+             section?: { plane: "XY"|"XZ"|"YZ"|string, offset?: number },
+             labels?: "none"|"features"|"faces"|"edges",
+             heatmap?: "thickness"|"overhang",
+             highlight?: string[],                  // selectors
+             size?: number })                       // default 1024, max 2048
+
+aiad_show({ project, rev?: number, compare_to?: number, title?: string,
+           view?: "iso"|"front"|"top"|"right" })    // the only tool with _meta.ui
+
+aiad_drawing({ project, rev?: number, sheet?: "A4"|"A3"|"A2"|"A1"|"letter"|"tabloid",
+              views?: DrawingView[], dimensions?: "auto"|"none"|DimensionSpec[],
+              style?: "iso"|"asme", title_block?: Record<string,string>, formats?: ("svg"|"dxf"|"pdf")[] })
+
+aiad_history({ project, action?: "list"|"diff"|"checkout"|"branch"|"job",
+              rev?: number, against?: number, name?: string, job?: string })
+
+aiad_import({ project?: string, path: string, name?: string, as?: "base"|"reference" })
+
+aiad_export({ project, rev?: number,
+             formats: ("step"|"stl"|"3mf"|"glb"|"brep"|"dxf"|"svg"|"pdf"|"viewer_html")[],
+             options?: Record<string, unknown>,     // e.g. tolerance
+             allow_unverified?: boolean })          // otherwise only verified revisions export
+
+aiad_library({ action: "search"|"get", kind?: "part"|"material"|"playbook"|"api",
+              query?: string, id?: string })        // no project
+```
+
+### App-only
+
+These use `_meta.ui.visibility: ["app"]`. Their descriptions start with "Internal viewer tool. Do not call." in case a host ignores visibility.
+
+```ts
+aiad_scene_read({ scene_id: string, offset: number, length?: number })
+  // -> structuredContent {data_b64, offset, byte_count, total_bytes, has_more}
+
+aiad_set_param({ project, base_rev: number, name: string, value: number|string })
+  // -> a new draft revision and its SceneManifest
+
+aiad_pick_info({ project, rev: number, part: string, kind: "face"|"edge"|"vertex", id: number })
+  // -> {selector, feature, geometry: {type, center, normal, radius, area, length}}
+
+aiad_file_read({ project, path: string, offset: number, length?: number })
+  // -> same chunk format; only files under exports/
+```
+
+### UI declaration
+
+```jsonc
+// on aiad_show
+"_meta": { "ui": { "resourceUri": "ui://aiad/viewer" } }
+
+// resources/read of ui://aiad/viewer
+{ "uri": "ui://aiad/viewer", "mimeType": "text/html;profile=mcp-app", "text": "<single-file html>" }
+```
+
+Always register these. Do not gate on the host's capability advert (PLAN D9). Omit `_meta.ui.csp` so that the strict default applies.
+
+---
+
+## 6. Result envelope
+
+`content[0]` is text that makes sense alone, around 200 tokens. It holds status, the key numbers, failed checks and the next step. Images go in `content` only when requested. `structuredContent` holds this envelope, and it must stay small: no meshes, no base64.
+
+```ts
+type Envelope = {
+  ok: boolean, project: string, rev?: number, base_rev?: number, head_rev?: number,
+  status: "failed"|"draft"|"verified"|"running",
+  job?: string,
+  summary: string,
+  metrics?: {
+    units: "mm"|"in", bbox: [number, number, number], volume?: number, area?: number,
+    center_of_mass?: [number, number, number], mass_g?: number,
+    solids: number, faces: number, edges: number, valid: boolean, build_ms: number
+  },
+  checks?: Check[],                 // failures and warnings first, passes collapsed to counts
+  checks_summary?: { pass: number, fail: number, warn: number, skip: number },
+  failure?: Failure,
+  artifacts?: Record<string, string>,  // aiad://<project>/<rev>/<name>, plus file paths for exports
+  scene?: SceneManifest,               // aiad_show, aiad_set_param
+  viewer?: { mode: "inline"|"window"|"none", url?: string },
+  user_selection?: Selection[],        // picks from window mode since the last call
+  next?: string[]                      // at most 3 short hints
+}
+
+type Check = {
+  id: string, suite: "hard"|"spec"|"process"|"interference"|"2d",
+  level: "error"|"warn", status: "pass"|"fail"|"warn"|"skip",
+  message: string, expected?: string, actual?: string,
+  feature?: string, selector?: string, heuristic?: boolean, assumptions?: string, fix_hint?: string
+}
+
+type Failure = {
+  code: string,
+  phase: "input"|"sandbox"|"syntax"|"runtime"|"selector"|"kernel"|"validate"|"timeout"|"oom"|"crash",
+  message: string,                  // our words, says what to do
+  kernel_message?: string,          // verbatim
+  feature?: string, file?: string, line?: number,
+  selector?: string, candidates?: Candidate[],
+  probes?: { param: string, value: number, ok: boolean }[],  // actually tested values only
+  repair?: string[],
+  last_good_rev?: number
+}
+```
+
+**Failure codes:** `SYNTAX_ERROR`, `RUNTIME_ERROR`, `SANDBOX_DENIED`, `SELECTOR_EMPTY`, `SELECTOR_AMBIGUOUS`, `KERNEL_BOOLEAN_FAILED`, `KERNEL_FILLET_FAILED`, `KERNEL_CHAMFER_FAILED`, `KERNEL_SHELL_FAILED`, `KERNEL_SWEEP_FAILED`, `KERNEL_OTHER`, `INVALID_SOLID`, `TIMEOUT`, `OUT_OF_MEMORY`, `WORKER_CRASH`, `BASE_REV_CONFLICT`, `NOT_VERIFIED`, `BAD_INPUT`, `IMPORT_FAILED`, `EXPORT_FAILED`.
+
+**Honesty rules:** unknown stays `unknown` or is omitted. Never invent a limit, an edge name or a cause. `probes` holds only values actually tested.
+
+**`verified`** means the hard gate passes, at least one requirement exists, and no `error`-level check fails.
+
+---
+
+## 7. Scene
+
+```ts
+type SceneManifest = {
+  scene_id: string,                 // sha256 of the compressed payload
+  project: string, rev: number, kind: "3d"|"2d",
+  format: "tcv-5"|"svg-1",
+  encoding: "gzip",
+  units: "mm"|"in", bbox: [number, number, number, number, number, number],
+  total_bytes: number, triangles?: number,
+  parts: { path: string, name: string, feature?: string, color?: string }[],
+  params?: { name: string, value: number|string, min?: number, max?: number, unit?: string }[],
+  checks_summary?: { pass: number, fail: number, warn: number, skip: number },
+  failed_features?: string[],
+  status: "draft"|"verified",
+  compare?: SceneManifest
+}
+```
+
+- **`tcv-5`:** gzip of the JSON shapes tree that three-cad-viewer 5.x takes, plus `feature_map: { [partPath]: { faces: string[], edges: string[] } }` mapping each face and edge index to a feature name.
+- **`svg-1`:** gzip of JSON `{ svg: string, sheet: {w, h, units}, layers: string[], entities: Entity[] }`.
+
+**Transfer:** the viewer calls `aiad_scene_read`. Chunks are 128 KiB of compressed bytes before base64, at most 4 in flight. The viewer checks `total_bytes` and `scene_id` and supports retrying a chunk. S1 ships sample scenes under `fixtures/scenes/` as soon as S3 needs them; until then S3 generates its own with ocp-tessellate.
+
+---
+
+## 8. Viewer behavior
+
+**Transport interface** (S3 defines it in TypeScript; there is one UI over three implementations):
+
+```ts
+interface Transport {
+  getInitialResult(): Promise<Envelope>;
+  readChunk(sceneId: string, offset: number, length: number): Promise<Chunk>;
+  callTool(name: string, args: object): Promise<Envelope>;
+  setModelContext(ctx: object): Promise<void>;   // window mode posts to the daemon
+  sendMessage(text: string): Promise<void>;      // hidden if the host lacks it
+  requestFullscreen(): Promise<void>;            // only from a user gesture
+  onUpdate(cb: (e: Envelope) => void): void;     // new revisions, window mode
+}
+```
+
+**MCP App constraints:**
+- One HTML file, at most 3 MiB.
+- No network, WASM, Web Workers, `eval`, `new Function`, `localStorage`, `sessionStorage` or cookies. Assume an opaque origin.
+- Each app-to-host message must stay under 256 KiB.
+- Request sizing via `ui/notifications/size-changed`. Declare `availableDisplayModes: ["inline", "fullscreen"]`.
+- Read `hostCapabilities` and hide controls for missing features.
+
+**Selection sent to the model:**
+
+```ts
+type Selection = { project: string, rev: number, kind: "face"|"edge"|"vertex"|"part",
+                   selector: string, feature?: string,
+                   geometry: { type: string, center?: number[], normal?: number[],
+                               radius?: number, area?: number, length?: number } }
+```
+
+`ui/update-model-context` carries a short text description plus `structuredContent: { selection: Selection[] }`. Each update replaces the last.
+
+**Local window:** `GET http://127.0.0.1:<port>/p/<project>?token=<token>`; the daemon sends WebSocket updates on `/ws`. Tokens come from `~/.aiad/run/aiadd.json`. The daemon rejects a missing token or a foreign `Origin`.
+
+---
+
+## 9. Python interfaces between packages
+
+S1 publishes `aiad.engine.types` within its first hour; others import from it. Workers call these in-process. The platform calls workers via `aiad.engine.jobs`.
+
+```python
+# aiad.engine.types
+@dataclass
+class ModelContext:
+    project_dir: Path; rev: int; kind: str; units: str
+    shape: "Shape | None"            # part or assembly
+    sheet: "Sheet2D | None"          # kind == "2d"
+    features: list[FeatureInfo]      # name, faces, edges, line range, deps
+    params: dict[str, Any]
+    metrics: dict[str, Any]
+    spec: dict[str, Any]
+    material: str | None
+    process: str | None
+    job_dir: Path                    # the only writable path
+
+# S1
+def aiad.engine.jobs.run_build(req: BuildRequest) -> BuildResult
+def aiad.engine.gate.hard_checks(ctx: ModelContext) -> list[Check]
+def aiad.engine.select.resolve(ctx, selector: str, expect: int | None = None) -> list[Entity]
+
+# S3
+def aiad_render.make_scene(ctx: ModelContext, out: Path, compare: ModelContext | None = None) -> SceneManifest
+def aiad_render.render(ctx: ModelContext, req: RenderRequest, out: Path) -> list[Path]
+
+# S4
+def aiad_drafting.make_drawing(ctx: ModelContext, req: DrawingRequest, out: Path) -> DrawingResult
+def aiad_drafting.checks(ctx: ModelContext) -> list[Check]
+def aiad_drafting.make_scene(ctx: ModelContext, out: Path) -> SceneManifest   # format svg-1
+
+# S5
+def aiad_quality.spec_checks(ctx: ModelContext) -> list[Check]
+def aiad_quality.process_checks(ctx: ModelContext) -> list[Check]
+def aiad_quality.library(action: str, **kw) -> dict
+```
+
+**Worker pipeline:** run `model.py` → `hard_checks` → `spec_checks` → `process_checks` (or `aiad_drafting.checks` for 2D) → `make_scene` → optional `render` → return `BuildResult`. A failure in an optional step becomes a `warn` check, and must never discard a built revision.
+
+---
+
+## 10. Daemon RPC
+
+JSON-RPC 2.0, newline-delimited, over `~/.aiad/run/aiadd.sock` (named pipe on Windows). The first call is `hello {adapter_version, protocol: 1}`. On a mismatch the adapter restarts the daemon. Each MCP tool maps to one method of the same name with the same arguments, plus `client: {name, version, supports_ui: boolean}`.
+
+The daemon serializes jobs per project and runs different projects in parallel. Default pool: 2 warm workers, one spare.
+
+---
+
+## 11. Changelog
+
+- 2026-11-04: S1 removed the mandatory stop-and-ask GitHub access note at the user's request; agents may run repository connection and authentication setup themselves.
+- 2026-11-04: v0 written with `PLAN.md`.
+- 2026-11-04: renamed to AIAD. Switched from a shared working tree to per-sector worktrees and PRs into `main`. Cross-sector messages moved to GitHub issues.
