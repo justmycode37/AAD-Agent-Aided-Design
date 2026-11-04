@@ -16,7 +16,23 @@ __all__ = [
     "make_drawing",
     "project_drawing_view",
     "section_plane_trace",
+    "Point2D",
+    "Entity2D",
+    "Sheet2D",
+    "sheet2d",
+    "latest_sheet",
+    "ConstraintSketch",
 ]
+
+
+def __getattr__(name: str):
+    if name in {"Point2D", "Entity2D", "Sheet2D", "sheet2d", "latest_sheet"}:
+        from . import model2d
+        return getattr(model2d, name)
+    if name == "ConstraintSketch":
+        from .constraints import ConstraintSketch
+        return ConstraintSketch
+    raise AttributeError(name)
 
 
 def make_drawing(
