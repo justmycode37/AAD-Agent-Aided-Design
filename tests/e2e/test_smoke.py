@@ -226,3 +226,23 @@ def test_unbuilt_sector_tools_say_so(mcp_process: Any) -> None:
     measured = call(mcp_process, "aiad_measure", project="honest", kind="volume")["structuredContent"]
     if not measured["ok"]:
         assert "Not implemented" in measured["summary"]
+
+
+@pytest.mark.usefixtures("engine")
+def test_render_drawing_and_check_run_in_workers(mcp_process: Any) -> None:
+    pytest.importorskip("vtk")
+    initialize(mcp_process)
+    call(mcp_process, "aiad_new", name="ops")
+    call(mcp_process, "aiad_build", project="ops", source=MODEL, wait_s=WAIT_S)
+
+    rendered = call(mcp_process, "aiad_render", project="ops", views=["iso"], size=256)
+    assert rendered["structuredContent"]["ok"], rendered
+    images = [block for block in rendered["content"] if block["type"] == "image"]
+    assert images and base64.b64decode(images[0]["data"]).startswith(b"\x89PNG")
+
+    drawn = call(mcp_process, "aiad_drawing", project="ops", formats=["svg"])
+    assert drawn["structuredContent"]["ok"], drawn
+    assert drawn["structuredContent"]["artifacts"]["svg"].endswith(".svg")
+
+    checked = call(mcp_process, "aiad_check", project="ops", suites=["hard"])["structuredContent"]
+    assert checked["checks_summary"]["fail"] == 0

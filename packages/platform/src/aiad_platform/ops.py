@@ -56,8 +56,24 @@ def _plain(value: Any) -> Any:
     return str(value)
 
 
+def _feature(item: dict[str, Any]) -> Any:
+    """Rebuild FeatureInfo with real Entity records, so selectors keep named ownership."""
+    from aiad.engine.types import Entity, FeatureInfo
+
+    known = {f.name for f in dataclasses.fields(FeatureInfo)}
+    entity_fields = {f.name for f in dataclasses.fields(Entity)}
+    values = {k: v for k, v in item.items() if k in known}
+    for key in ("faces", "edges", "vertices"):
+        if key in values:
+            values[key] = [
+                Entity(**{k: v for k, v in entity.items() if k in entity_fields}) if isinstance(entity, dict) else entity
+                for entity in values[key]
+            ]
+    return FeatureInfo(**values)
+
+
 def load_context(request: dict[str, Any]) -> Any:
-    from aiad.engine.types import FeatureInfo, ModelContext
+    from aiad.engine.types import ModelContext
 
     project_dir = Path(request["project_dir"])
     rev_dir = project_dir / ".aiad" / "revs" / f"{request['rev']:06d}"
@@ -73,10 +89,7 @@ def load_context(request: dict[str, Any]) -> Any:
         from .specs import parse_spec
 
         spec = parse_spec((rev_dir / "spec.yaml").read_text())
-    features = []
-    for item in meta.get("features") or []:
-        known = {f.name for f in dataclasses.fields(FeatureInfo)}
-        features.append(FeatureInfo(**{k: v for k, v in item.items() if k in known}))
+    features = [_feature(item) for item in meta.get("features") or []]
     return ModelContext(
         project_dir=project_dir,
         rev=request["rev"],
