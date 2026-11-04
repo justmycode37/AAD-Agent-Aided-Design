@@ -17,3 +17,9 @@ def test_app_only_descriptions_warn_the_model():
     for tool in TOOLS:
         if tool.get("_meta", {}).get("ui", {}).get("visibility") == ["app"]:
             assert tool["description"].startswith("Internal viewer tool. Do not call.")
+
+
+def test_builds_are_not_marked_read_only():
+    annotations = {t["name"]: t["annotations"] for t in TOOLS}
+    assert annotations["aiad_build"]["readOnlyHint"] is False
+    assert annotations["aiad_scene_read"]["readOnlyHint"] is True
