@@ -25,7 +25,7 @@ IMPORT_TIMEOUT_S = 120.0
 SCENE_CHUNK_BYTES = 128 * 1024
 # An inline-capable client makes aiad_show return the scene without asking the
 # daemon to launch a desktop browser. AIAD_NO_BROWSER is also set for subprocesses.
-DOCTOR_CLIENT = {"name": "aiad-doctor", "supports_ui": True}
+DOCTOR_CLIENT = {"name": "aiad-doctor", "supports_ui": True, "suppress_browser": True}
 
 _IMPORT_SCRIPT = r"""
 import importlib, json, sys, time
@@ -149,11 +149,24 @@ def _mcp_startup_check() -> dict[str, Any]:
         assert process.stdin is not None and process.stdout is not None
         process.stdin.write(json.dumps(request, separators=(",", ":")) + "\n")
         process.stdin.flush()
-        remaining = max(0.0, MCP_FIRST_RESPONSE_LIMIT_S - (time.monotonic() - started))
+        deadline = started + MCP_FIRST_RESPONSE_LIMIT_S
+        received = bytearray()
         with selectors.DefaultSelector() as selector:
             selector.register(process.stdout, selectors.EVENT_READ)
-            if selector.select(remaining):
-                line = process.stdout.readline()
+            while time.monotonic() < deadline:
+                if not selector.select(max(0.0, deadline - time.monotonic())):
+                    break
+                chunk = os.read(process.stdout.fileno(), 4096)
+                if not chunk:
+                    error = "adapter exited before completing an initialize response"
+                    break
+                received.extend(chunk)
+                if len(received) > 65536:
+                    error = "adapter initialize response exceeded 64 KiB"
+                    break
+                if b"\n" not in received:
+                    continue
+                line = bytes(received).split(b"\n", 1)[0]
                 try:
                     candidate = json.loads(line)
                 except (ValueError, TypeError):
@@ -163,7 +176,8 @@ def _mcp_startup_check() -> dict[str, Any]:
                         response = candidate
                     else:
                         error = f"adapter returned an invalid initialize response: {candidate!r}"
-            else:
+                break
+            if response is None and error is None:
                 error = "no initialize response within 1.0 s"
     except (OSError, AssertionError) as exc:
         error = f"could not run aiad mcp: {exc}"
@@ -509,46 +523,38 @@ def _clients_check() -> dict[str, Any]:
 
 def run_doctor() -> dict[str, Any]:
     """Run independent checks, then the daemon-backed CAD smoke test."""
-    prior_no_browser = os.environ.get("AIAD_NO_BROWSER")
-    os.environ["AIAD_NO_BROWSER"] = "1"
-    try:
-        checks: list[dict[str, Any]] = [
-            _python_check(),
-            _version_check(),
-            _home_check(),
-            _config_check(),
-            _mcp_startup_check(),
-            _engine_check(),
-            _kernel_check(),
-            _viewer_check(),
-            _graphics_check(),
-        ]
-        home_check = next(check for check in checks if check["id"] == "aiad_home")
-        if home_check["status"] == "pass":
-            daemon_check = _daemon_check()
+    checks: list[dict[str, Any]] = [
+        _python_check(),
+        _version_check(),
+        _home_check(),
+        _config_check(),
+        _mcp_startup_check(),
+        _engine_check(),
+        _kernel_check(),
+        _viewer_check(),
+        _graphics_check(),
+    ]
+    home_check = next(check for check in checks if check["id"] == "aiad_home")
+    if home_check["status"] == "pass":
+        daemon_check = _daemon_check()
+    else:
+        daemon_check = _skip("daemon", "aiad_home")
+    checks.append(daemon_check)
+    checks.append(_socket_check(daemon_check))
+    if daemon_check["status"] != "pass":
+        for check_id in ("project_create", "project_build", "project_show", "scene_integrity", "render", "export"):
+            checks.append(_skip(check_id, "daemon"))
+    else:
+        engine_check = next(check for check in checks if check["id"] == "engine")
+        kernel_check = next(check for check in checks if check["id"] == "kernel")
+        if engine_check["status"] != "pass" or kernel_check["status"] != "pass":
+            prerequisite = "engine" if engine_check["status"] != "pass" else "kernel"
+            created = _create_only_check()
+            checks.append(created)
+            failed_step = prerequisite if created["status"] == "pass" else "project_create"
+            for check_id in ("project_build", "project_show", "scene_integrity", "render", "export"):
+                checks.append(_skip(check_id, failed_step))
         else:
-            daemon_check = _skip("daemon", "aiad_home")
-        checks.append(daemon_check)
-        checks.append(_socket_check(daemon_check))
-        if daemon_check["status"] != "pass":
-            for check_id in ("project_create", "project_build", "project_show", "scene_integrity", "render", "export"):
-                checks.append(_skip(check_id, "daemon"))
-        else:
-            engine_check = next(check for check in checks if check["id"] == "engine")
-            kernel_check = next(check for check in checks if check["id"] == "kernel")
-            if engine_check["status"] != "pass" or kernel_check["status"] != "pass":
-                prerequisite = "engine" if engine_check["status"] != "pass" else "kernel"
-                created = _create_only_check()
-                checks.append(created)
-                failed_step = prerequisite if created["status"] == "pass" else "project_create"
-                for check_id in ("project_build", "project_show", "scene_integrity", "render", "export"):
-                    checks.append(_skip(check_id, failed_step))
-            else:
-                checks.extend(_run_project_checks(paths.aiad_home()))
-        checks.append(_clients_check())
-        return {"ok": not any(check["status"] == "fail" for check in checks), "checks": checks}
-    finally:
-        if prior_no_browser is None:
-            os.environ.pop("AIAD_NO_BROWSER", None)
-        else:
-            os.environ["AIAD_NO_BROWSER"] = prior_no_browser
+            checks.extend(_run_project_checks(paths.aiad_home()))
+    checks.append(_clients_check())
+    return {"ok": not any(check["status"] == "fail" for check in checks), "checks": checks}

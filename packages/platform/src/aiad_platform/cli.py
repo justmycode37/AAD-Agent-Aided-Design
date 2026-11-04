@@ -253,6 +253,19 @@ def _install(args: argparse.Namespace) -> int:
     return _finish(payload, args.json)
 
 
+def _paths_overlap(first: Path, second: Path) -> bool:
+    if first == second or first.is_relative_to(second) or second.is_relative_to(first):
+        return True
+    # samefile also recognizes differently cased paths on macOS volumes.
+    for ancestor in (first, *first.parents):
+        if ancestor.exists() and second.exists() and ancestor.samefile(second):
+            return True
+    for ancestor in (second, *second.parents):
+        if ancestor.exists() and first.exists() and ancestor.samefile(first):
+            return True
+    return False
+
+
 def _purge_aiad_home() -> tuple[bool, str]:
     from . import paths
 
@@ -261,7 +274,7 @@ def _purge_aiad_home() -> tuple[bool, str]:
     try:
         target_resolved = target.resolve()
         project_resolved = project_root.resolve()
-        if target_resolved == project_resolved or project_resolved.is_relative_to(target_resolved) or target_resolved.is_relative_to(project_resolved):
+        if _paths_overlap(target_resolved, project_resolved):
             return False, f"Refusing to purge {target}: it overlaps ~/AIAD, which contains project data."
         if target.is_symlink():
             return False, f"Refusing to purge symlinked AIAD_HOME {target}."
@@ -291,6 +304,9 @@ def _uninstall(args: argparse.Namespace) -> int:
             writes.append(_write_result(clients.uninstall(client_id, dry_run=args.dry_run)))
     except Exception as exc:
         api_error = str(exc)
+
+    if api_error:
+        return _finish({"ok": False, "clients": writes, "client_error": api_error, "message": api_error}, args.json)
 
     stopped: bool | None = None
     stop_error: str | None = None

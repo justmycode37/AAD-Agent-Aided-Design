@@ -171,7 +171,13 @@ async def _request_shutdown() -> None:
 async def _stop(timeout_s: float) -> bool:
     info = _read_info()
     if not info:
-        return True
+        # Metadata can be missing or corrupt while its daemon is still listening.
+        try:
+            client, hello = await _connect_and_hello(0.5)
+        except (ConnectionError, OSError, TimeoutError):
+            return not paths.socket_path().exists()
+        await client.close()
+        info = {"pid": hello.get("pid"), "socket": str(paths.socket_path())}
     try:
         pid = int(info.get("pid"))
     except (TypeError, ValueError):
@@ -188,7 +194,7 @@ async def _stop(timeout_s: float) -> bool:
     deadline = time.monotonic() + max(0.0, timeout_s)
     while time.monotonic() < deadline:
         current = _read_info()
-        if not paths.socket_path().exists() or (pid and current.get("pid") != pid):
+        if not paths.socket_path().exists() or (pid and current.get("pid") is not None and current["pid"] != pid):
             return True
         await asyncio.sleep(0.05)
 

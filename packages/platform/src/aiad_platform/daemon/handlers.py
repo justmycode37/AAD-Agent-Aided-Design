@@ -406,7 +406,7 @@ class Handlers:
         if mode != "window":
             return {"mode": mode}
         window = await self._ensure_window()
-        if client is not None:  # A call from the window itself must not open another one.
+        if client is not None and not client.get("suppress_browser"):
             await asyncio.to_thread(window.open_once, project)
         return {"mode": "window", "url": window.url(project)}
 

@@ -2,6 +2,11 @@ from __future__ import annotations
 
 import shutil
 import tempfile
+import os
+import subprocess
+import sys
+import time
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -28,6 +33,12 @@ def temp_home(monkeypatch):
 
 
 def test_engine_failure_names_the_step_and_skips_dependents(monkeypatch, temp_home):
+    monkeypatch.delenv("AIAD_NO_BROWSER", raising=False)
+
+    def check_daemon_without_browser_override():
+        assert "AIAD_NO_BROWSER" not in os.environ
+        return doctor._check("daemon", "pass", "Daemon check ran.")
+
     monkeypatch.setattr(doctor, "_python_check", lambda: doctor._check("python", "pass", "Python check ran."))
     monkeypatch.setattr(doctor, "_version_check", lambda: doctor._check("version", "pass", "Version check ran."))
     monkeypatch.setattr(doctor, "_home_check", lambda: doctor._check("aiad_home", "pass", "Home check ran."))
@@ -36,7 +47,7 @@ def test_engine_failure_names_the_step_and_skips_dependents(monkeypatch, temp_ho
     monkeypatch.setattr(doctor, "_engine_check", lambda: doctor._check("engine", "fail", "aiad.engine.jobs is not importable: injected failure.", "Install the engine."))
     monkeypatch.setattr(doctor, "_kernel_check", lambda: doctor._check("kernel", "pass", "Kernel check ran."))
     monkeypatch.setattr(doctor, "_viewer_check", lambda: doctor._check("viewer", "warn", "Stub viewer."))
-    monkeypatch.setattr(doctor, "_daemon_check", lambda: doctor._check("daemon", "pass", "Daemon check ran."))
+    monkeypatch.setattr(doctor, "_daemon_check", check_daemon_without_browser_override)
     monkeypatch.setattr(doctor, "_socket_check", lambda _check: doctor._check("socket_permissions", "pass", "Socket check ran."))
     monkeypatch.setattr(doctor, "_create_only_check", lambda: doctor._check("project_create", "pass", "Project creation ran."))
     monkeypatch.setattr(doctor, "_clients_check", lambda: doctor._check("clients", "pass", "Client check ran."))
@@ -81,3 +92,55 @@ def test_headless_linux_graphics_reports_missing_osmesa(monkeypatch, library, ex
     assert result["status"] == expected
     if library is None:
         assert "libosmesa6" in result["fix"]
+
+
+def test_partial_initialize_output_respects_startup_deadline(monkeypatch, temp_home):
+    popen = subprocess.Popen
+
+    def partial_response(*args, **kwargs):
+        return popen([sys.executable, "-c", "import sys,time; sys.stdout.write('{'); sys.stdout.flush(); time.sleep(10)"], **kwargs)
+
+    monkeypatch.setattr(doctor.subprocess, "Popen", partial_response)
+    monkeypatch.setattr(doctor, "MCP_FIRST_RESPONSE_LIMIT_S", 0.2)
+    started = time.monotonic()
+    assert doctor._mcp_startup_check()["status"] == "fail"
+    assert time.monotonic() - started < 2
+
+
+def test_doctor_request_does_not_open_window(monkeypatch):
+    from aiad_platform.daemon import handlers
+
+    class Window:
+        def open_once(self, _project):
+            pytest.fail("doctor must not launch a browser")
+
+        def url(self, project):
+            return "http://127.0.0.1/" + project
+
+    async def window(_self):
+        return Window()
+
+    monkeypatch.setattr(handlers.Handlers, "_ensure_window", window)
+    monkeypatch.setattr(handlers, "viewer_mode", lambda _client: "window")
+    result = asyncio.run(handlers.Handlers()._viewer_for("p", doctor.DOCTOR_CLIENT))
+    assert result["mode"] == "window"
+
+
+def test_prewarm_bounds_total_time_and_skips_retry_after_timeout(monkeypatch):
+    from aiad_platform import prewarm
+
+    clock = [0.0]
+    calls = []
+    monkeypatch.setattr(prewarm.time, "monotonic", lambda: clock[0])
+
+    def slow_import(module, *, timeout_s):
+        calls.append((module, timeout_s))
+        clock[0] += timeout_s
+        return {"status": "fail", "seconds": timeout_s, "timed_out": True, "error": "timeout"}
+
+    monkeypatch.setattr(prewarm, "_import_once", slow_import)
+    result = prewarm.run_prewarm()
+    assert result["ok"] is False
+    assert len(calls) == 1
+    assert calls[0][1] <= prewarm.TOTAL_TIMEOUT_S
+    assert result["modules"][0]["second"]["status"] == "skip"

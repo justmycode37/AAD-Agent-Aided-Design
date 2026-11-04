@@ -265,6 +265,39 @@ def test_daemon_start_status_and_stop_json(capsys, temp_home):
         daemon_ctl.stop(timeout_s=0.2)
 
 
+def test_invalid_uninstall_does_not_stop_daemon(monkeypatch, capsys, temp_home):
+    install_fake_clients(monkeypatch, temp_home)
+    monkeypatch.setattr(daemon_ctl, "stop", lambda: pytest.fail("invalid request must not stop a daemon"))
+    assert cli.main(["uninstall", "--client", "typo", "--json"]) == 1
+    assert "Unknown client" in output_object(capsys)["client_error"]
+
+
+@pytest.mark.parametrize("metadata", [None, "not json"])
+def test_stop_probes_daemon_when_metadata_is_missing_or_invalid(metadata, temp_home):
+    from aiad_platform import paths
+
+    daemon_ctl.ensure_running()
+    if metadata is None:
+        paths.daemon_info_path().unlink()
+    else:
+        paths.daemon_info_path().write_text(metadata)
+    assert daemon_ctl.stop() is True
+    assert daemon_ctl.status()["running"] is False
+
+
+def test_purge_protects_case_aliases_of_projects(monkeypatch, temp_home):
+    root = temp_home / "AIAD"
+    root.mkdir()
+    protected = root / "part.txt"
+    protected.write_text("keep")
+    alias = temp_home / "aiad"
+    if not alias.exists() or not alias.samefile(root):
+        pytest.skip("requires a case-insensitive filesystem")
+    monkeypatch.setenv("AIAD_HOME", str(alias))
+    assert cli._purge_aiad_home()[0] is False
+    assert protected.read_text() == "keep"
+
+
 def test_remote_commands_are_json_and_forward_contract(monkeypatch, capsys, temp_home, tmp_path):
     source = tmp_path / "model.py"
     source.write_text("from build123d import Box\nresult = Box(4, 5, 6)\n")
