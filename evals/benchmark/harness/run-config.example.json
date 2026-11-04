@@ -1,0 +1,24 @@
+{
+  "provider": "openai",
+  "model": "REPLACE_WITH_AN_EXPLICIT_AVAILABLE_OPENAI_MODEL",
+  "backend_name": "aiad",
+  "backend_revision": "REPLACE_WITH_BACKEND_COMMIT_OR_RELEASE",
+  "backend_environment": "REPLACE_WITH_ENVIRONMENT_DIGEST",
+  "token_budget": 12000,
+  "model_call_limit": 32,
+  "tool_call_limit": 96,
+  "wall_deadline_seconds": 300,
+  "max_output_tokens_per_call": 2048,
+  "input_token_safety_margin_ratio": 0.1,
+  "input_token_safety_margin_tokens": 128,
+  "repetition": 1,
+  "task_order_seed": 2026,
+  "ablation_arm": "baseline",
+  "provider_supports_image_input": false,
+  "include_tool_images": false,
+  "trace_path": "/ABSOLUTE/HOST/RESULTS/run-001.jsonl",
+  "solver_write_roots": [
+    "/ABSOLUTE/SOLVER/JOB/OUTPUTS"
+  ],
+  "native_tool_allowlist": []
+}
