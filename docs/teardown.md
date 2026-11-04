@@ -45,7 +45,7 @@ build123d-mcp's structural gate passes the obstructed part. The size/hole spec p
 
 AIAD must persist request-derived requirements and bind check evidence to the exact revision/spec/kernel. Requirements inferred from an output must never become the independent acceptance oracle. Missing, unsupported, skipped or malformed error requirements must prevent promotion. A checker crash must not become an optional warning that permits verification.
 
-The current wording allows unknown requirements to `skip` while defining verification in terms of failing checks. S5 reported the coverage gap in [issue #5](https://github.com/justmycode37/AIAD-AI-Aided-Design-/issues/5). Atomic STEP promotion and bounded edit evidence were sent to S1 in [issue #6](https://github.com/justmycode37/AIAD-AI-Aided-Design-/issues/6); check receipts and protocol stdout isolation went to S1/S2 in [issue #11](https://github.com/justmycode37/AIAD-AI-Aided-Design-/issues/11). S5 has made no contract changes.
+The original wording allowed unknown requirements to `skip` while defining verification in terms of failing checks. S5 reported the coverage gap in [issue #5](https://github.com/justmycode37/AIAD-AI-Aided-Design-/issues/5); S2 closed it with explicit error-level coverage and draft rules in [PR #16](https://github.com/justmycode37/AIAD-AI-Aided-Design-/pull/16). Atomic STEP promotion and bounded edit evidence were sent to S1 in [issue #6](https://github.com/justmycode37/AIAD-AI-Aided-Design-/issues/6); check receipts and protocol stdout isolation went to S1/S2 in [issue #11](https://github.com/justmycode37/AIAD-AI-Aided-Design-/issues/11). S5 has made no contract changes.
 
 ## Reproduce retained observations
 
