@@ -39,10 +39,11 @@ process. Inside optional worker hooks, `ModelContext.shape` is the live shape.
 
 ## Current limits
 
-- The hard gate checks build123d B-rep validity and one or more solids. It does
-  not check tiny edges, slivers, STEP round trips, clearances, or requirements.
-  An explicit incomplete-gate check keeps M0 builds draft even when an
-  installed spec evaluator reports all requirements as passing.
+- The [geometric hard gate](gate.md) checks native B-rep validity, closed
+  shells, body count, small topology, STEP volume drift and mesh manifoldness.
+  Configured small-topology thresholds are heuristics. Clearances and design
+  requirements are separate quality checks. These checks still share a model
+  process; a separate trusted validator is required to attest their results.
 - No requirement set is assumed. Without successful requirement checks, a
   successful model is `draft`; the engine does not mark validity as proof of
   design intent. Promotion requires unique IDs and complete, finite results;

@@ -366,9 +366,9 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
             check for check in checks if check.suite == "hard" and check.level == "error" and check.status == "fail"
         )
         failure = Failure(
-            code="INVALID_SOLID",
+            code="HARD_GATE_FAILED",
             phase="validate",
-            message="The built shape failed the B-rep validity or solid-count gate.",
+            message=f"Hard geometry check '{failed_check.id}' failed: {failed_check.message}",
             kernel_message=failed_check.actual,
             feature="main",
             file=source_path.name,
@@ -446,13 +446,14 @@ def _shape_metrics(shape: Any, build123d: ModuleType, units: str, build_ms: floa
     box = shape.bounding_box()
     size = box.size
     center = shape.center(build123d.CenterOf.MASS)
-    solid_count = len(shape.solids())
+    solids = list(shape.solids())
+    solid_count = len(solids)
     faces = len(shape.faces())
     edges = len(shape.edges())
     return {
         "units": units,
         "bbox": [_number(size.X), _number(size.Y), _number(size.Z)],
-        "volume": _number(shape.volume),
+        "volume": _number(math.fsum(_number(solid.volume) for solid in solids)),
         "area": _number(shape.area),
         "center_of_mass": [_number(center.X), _number(center.Y), _number(center.Z)],
         "solids": solid_count,
