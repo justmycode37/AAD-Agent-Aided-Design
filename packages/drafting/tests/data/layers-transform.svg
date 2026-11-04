@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+     width="100mm" height="50mm" viewBox="0 0 100 50"
+     preserveAspectRatio="none">
+  <g id="layer-cut" inkscape:groupmode="layer" inkscape:label="CUT">
+    <line id="base-line" x1="10" y1="10" x2="20" y2="10"/>
+    <g id="rotated-group" transform="translate(30 10) rotate(90)">
+      <polyline id="slot" points="0,0 10,0 10,5"/>
+    </g>
+  </g>
+  <g id="layer-score" data-layer="Score">
+    <circle id="hole" cx="70" cy="20" r="5"/>
+  </g>
+</svg>
