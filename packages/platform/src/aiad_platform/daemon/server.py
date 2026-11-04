@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import __version__, paths
-from ..rpc import INTERNAL_ERROR, METHOD_NOT_FOUND, PROTOCOL, READ_LIMIT, encode
+from ..rpc import INTERNAL_ERROR, METHOD_NOT_FOUND, PROTOCOL, READ_LIMIT, RpcError, encode
 from .handlers import Handlers
 
 log = logging.getLogger("aiadd")
@@ -119,6 +119,8 @@ class Daemon:
             response["result"] = await self._dispatch(method, params)
         except KeyError:
             response["error"] = {"code": METHOD_NOT_FOUND, "message": f"unknown method {method!r}"}
+        except RpcError as exc:
+            response["error"] = {"code": exc.code, "message": exc.message}
         except Exception as exc:  # A bug in one call must not take the daemon down.
             log.exception("%s failed", method)
             response["error"] = {"code": INTERNAL_ERROR, "message": f"{type(exc).__name__}: {exc}"}

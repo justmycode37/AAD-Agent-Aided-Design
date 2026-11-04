@@ -18,11 +18,14 @@ from mcp.server import Server, ServerRequestContext
 from mcp.server.stdio import stdio_server
 
 from . import __version__, paths, viewer
-from .rpc import PROTOCOL, RpcClient, RpcError
+from .rpc import INVALID_PARAMS, PROTOCOL, RpcClient, RpcError
 from .tools import INSTRUCTIONS, TOOL_NAMES, TOOLS, UI_EXTENSION, VIEWER_MIME, VIEWER_URI
 
 log = logging.getLogger("aiad.adapter")
 DAEMON_START_TIMEOUT_S = 15.0
+REPLAYABLE = frozenset(
+    {"aiad_inspect", "aiad_query", "aiad_measure", "aiad_library", "aiad_scene_read", "aiad_pick_info", "aiad_file_read"}
+)
 
 
 def spawn_daemon() -> None:
@@ -70,7 +73,14 @@ class DaemonLink:
                     ) from None
                 await asyncio.sleep(0.05)
                 continue
-            hello = await client.call("hello", {"adapter_version": __version__, "protocol": PROTOCOL})
+            remaining = max(deadline - time.monotonic(), 1.0)
+            try:
+                hello = await asyncio.wait_for(
+                    client.call("hello", {"adapter_version": __version__, "protocol": PROTOCOL}), remaining
+                )
+            except (ConnectionError, TimeoutError) as exc:
+                await client.close()
+                raise ConnectionError(f"aiadd did not answer hello: {exc}") from exc
             if hello.get("compatible"):
                 return client
             log.warning("restarting aiadd %s for adapter %s", hello.get("daemon_version"), __version__)
@@ -80,10 +90,16 @@ class DaemonLink:
             await asyncio.sleep(0.2)
 
     async def call(self, method: str, params: dict[str, Any]) -> Any:
+        client = await self.client()
         try:
-            return await (await self.client()).call(method, params)
+            return await client.call(method, params)
         except ConnectionError:
-            # The daemon died or idled out between calls. Start a new one and retry once.
+            # The daemon may have acted on a mutating call before it died, so only reads replay.
+            if method not in REPLAYABLE:
+                raise ConnectionError(
+                    f"The connection to aiadd was lost during {method}, so it may or may not have run. "
+                    "Check aiad_history before you retry."
+                ) from None
             return await (await self.client()).call(method, params)
 
 
@@ -129,13 +145,14 @@ def _result(reply: dict[str, Any]) -> types.CallToolResult:
     return types.CallToolResult(content=content, structured_content=structured, is_error=is_error)
 
 
-def _error_result(tool: str, message: str) -> types.CallToolResult:
+def _error_result(tool: str, message: str, *, bad_input: bool = False) -> types.CallToolResult:
+    failure = {"code": "BAD_INPUT", "phase": "input"} if bad_input else {"code": "WORKER_CRASH", "phase": "crash"}
     envelope = {
         "ok": False,
         "project": "",
         "status": "failed",
         "summary": f"{tool} failed: {message}",
-        "failure": {"code": "WORKER_CRASH", "phase": "crash", "message": message},
+        "failure": {**failure, "message": message},
     }
     return types.CallToolResult(
         content=[types.TextContent(type="text", text=envelope["summary"])],
@@ -160,7 +177,9 @@ def build_server() -> Server[Any]:
             client["root"] = root
         try:
             reply = await link.call(params.name, {**(params.arguments or {}), "client": client})
-        except (ConnectionError, RpcError, OSError) as exc:
+        except RpcError as exc:
+            return _error_result(params.name, str(exc), bad_input=exc.code == INVALID_PARAMS)
+        except (ConnectionError, OSError) as exc:
             return _error_result(params.name, str(exc))
         return _result(reply)
 

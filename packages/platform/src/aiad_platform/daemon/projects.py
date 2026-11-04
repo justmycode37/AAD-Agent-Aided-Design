@@ -99,12 +99,14 @@ class Project:
         if spec is not None:
             (job_dir / "spec.yaml").write_text(spec)
         os.replace(job_dir, target)
-        write_atomic(self.path / "model.py", source)
-        if spec is not None:
-            write_atomic(self.path / "spec.yaml", spec)
+        # The head is authoritative and moves first. The root files are derived from it, so a
+        # crash here leaves them one revision behind rather than ahead of the head.
         meta = self.meta()
         meta["head_rev"] = rev
         self.write_meta(meta)
+        write_atomic(self.path / "model.py", source)
+        if spec is not None:
+            write_atomic(self.path / "spec.yaml", spec)
         return rev
 
     def discard_job(self, job_dir: Path) -> None:
@@ -114,7 +116,7 @@ class Project:
 def resolve_root(client: dict[str, Any] | None) -> Path:
     """MCP roots when available, else ~/AIAD. Never an arbitrary working directory."""
     root = (client or {}).get("root")
-    return Path(root) if root else paths.default_projects_root()
+    return Path(root).resolve() if root else paths.default_projects_root()
 
 
 def create_project(
@@ -137,7 +139,7 @@ def create_project(
         raise ProjectError("BAD_INPUT", f"kind must be part, assembly or 2d, not {kind!r}.")
     if units not in ("mm", "in"):
         raise ProjectError("BAD_INPUT", f"units must be mm or in, not {units!r}.")
-    path = resolve_root(client) / name
+    path = (resolve_root(client) / name).resolve()
     if (path / "project.json").exists():
         raise ProjectError("BAD_INPUT", f"Project {name!r} already exists at {path}. Use a new name.")
     (path / ".aiad" / "revs").mkdir(parents=True, exist_ok=True)
@@ -177,5 +179,5 @@ def open_project(name: str, client: dict[str, Any] | None = None) -> Project:
     candidates.append(paths.default_projects_root() / name)
     for path in candidates:
         if (path / "project.json").exists():
-            return Project(path)
+            return Project(path.resolve())
     raise ProjectError("BAD_INPUT", f"No project named {name!r}. Create it with aiad_new.")

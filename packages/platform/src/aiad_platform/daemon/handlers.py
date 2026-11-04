@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from ..rpc import RpcError
+from ..rpc import INVALID_PARAMS, RpcError
 from . import backend, scenes
 from .envelope import compact, failure_envelope, sort_checks, text_for
 from .projects import Project, ProjectError, create_project, open_project
@@ -114,6 +114,9 @@ class Handlers:
         try:
             async with self._locks[project.path]:
                 return await self._build_locked(project, job_id, job_dir, params)
+        except asyncio.CancelledError:
+            project.discard_job(job_dir)
+            raise
         except Exception as exc:
             log.exception("build %s failed", job_id)
             project.discard_job(job_dir)
@@ -242,7 +245,19 @@ class Handlers:
                 default=str,
             )
         )
-        rev = project.commit_revision(job_dir, source, params.get("spec"))
+        if project.head_rev != head:
+            project.discard_job(job_dir)
+            return reply(
+                failure_envelope(
+                    project.name,
+                    "BASE_REV_CONFLICT",
+                    "input",
+                    f"The head moved to {project.head_rev} during this build. Rebase your edit on it.",
+                    head_rev=project.head_rev,
+                    base_rev=base_rev,
+                )
+            )
+        rev = project.commit_revision(job_dir, source, spec_text)
         envelope.update(
             rev=rev,
             head_rev=rev,
@@ -272,7 +287,7 @@ class Handlers:
             return reply(
                 failure_envelope(project.name, "BAD_INPUT", "input", f"Revision {rev} has no scene to show.", head_rev=head)
             )
-        scenes.publish(scene["scene_id"], payload)
+        await asyncio.to_thread(scenes.publish, scene["scene_id"], payload)
         scene["project"] = project.name
         scene["rev"] = rev
         status = meta.get("status", "draft")
@@ -297,7 +312,7 @@ class Handlers:
                 scenes.read_chunk, params.get("scene_id", ""), params.get("offset", 0), params.get("length")
             )
         except (ValueError, FileNotFoundError) as exc:
-            raise RpcError(-32602, str(exc)) from exc
+            raise RpcError(INVALID_PARAMS, str(exc)) from exc
         return {
             "structured": chunk,
             "text": f"Scene chunk at {chunk['offset']}: {chunk['byte_count']} of {chunk['total_bytes']} bytes.",
