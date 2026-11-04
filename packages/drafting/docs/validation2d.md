@@ -105,11 +105,18 @@ alias) or when the caller supplies `limits`.
   with the caller's `min_slot` as a narrow opening screen. The check states
   that assumption and reports each diameter and source entity. It says nothing
   about non-circular slots.
-- `2d.laser.min_slot` is `skip`: general slot widths are not established by
-  circle diameters or contour-pair clearances.
+- `2d.laser.min_slot` measures circular, rectangular and obround interior
+  cutouts from actual native edges. Rectangles may be rotated. An obround must
+  have two equal semicircular caps and two matching parallel tangent segments.
+  The evidence includes `openings` with widths, lengths and source entity names,
+  and `unsupported_openings` containing unrecognized interior contour IDs.
+  A known narrow opening fails; otherwise any unrecognized cutout prevents a
+  full pass. No interior cutouts or missing limits yields `skip`.
 
 The implementation does not infer material limits, kerf compensation,
-minimum webs, slot centerlines, or manufacturability from geometry alone.
+minimum webs or manufacturability from geometry alone. Minimum slot is
+interpreted narrowly as the nominal width of closed interior cutouts; outside
+notches and general irregular openings remain unsupported.
 Ellipses, splines, arbitrary curves, dimension/text layout, drawing margins,
 and text overflow are outside this module. It validates only native 2D cut
 geometry; S5 remains responsible for specification and process requirement

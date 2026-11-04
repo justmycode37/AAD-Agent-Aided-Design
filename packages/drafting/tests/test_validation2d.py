@@ -288,7 +288,7 @@ def test_exact_boundary_clearance_and_thin_gap_kerf_screen_are_reported():
     assert "general slot-width proof" in result["2d.laser.kerf"]["assumptions"].lower()
 
 
-def test_circular_cutout_diameter_is_compared_narrowly_and_general_slots_skip():
+def test_circular_cutout_diameter_is_compared_with_explicit_min_slot():
     sheet = sheet2d("small_hole")
     sheet.rectangle("outline", 10, 10)
     sheet.circle("pilot", (5, 5), 0.4)
@@ -300,8 +300,7 @@ def test_circular_cutout_diameter_is_compared_narrowly_and_general_slots_skip():
     assert opening["status"] == "fail"
     assert opening["heuristic"] is True
     assert '"diameter":0.8' in opening["actual"]
-    assert result["2d.laser.min_slot"]["status"] == "skip"
-    assert "general slot width is unsupported" in result["2d.laser.min_slot"]["message"].lower()
+    assert result["2d.laser.min_slot"]["status"] == "fail"
 
 
 def test_missing_limits_skip_and_invalid_limits_fail_without_defaults():
