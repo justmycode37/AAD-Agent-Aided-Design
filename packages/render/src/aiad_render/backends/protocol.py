@@ -21,6 +21,7 @@ class RenderFace:
     section_cap: bool = False
     highlighted: bool = False
     color: RGB = (194, 201, 208)
+    triangle_colors: tuple[RGB, ...] = ()
 
 
 @dataclass(slots=True)

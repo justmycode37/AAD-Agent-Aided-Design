@@ -88,16 +88,19 @@ def render(ctx: Any, req: Any, out: Path) -> list[Path]:
     output.mkdir(parents=True, exist_ok=True)
     original_faces = list(shape.faces())
     original_edges = list(shape.edges())
+    if not original_faces:
+        raise ValueError("aiad_render needs a non-empty 3D shape with renderable faces")
     bounds = _shape_bounds(shape)
     diagonal = _bounds_diagonal(bounds)
     units = str(_field(ctx, "units", "model units") or "model units")
 
     section = _parse_section(request["section"], units) if request["section"] else None
-    render_shape = _section_shape(shape, section, diagonal) if section else shape
+    section_history: dict[str, Any] = {}
+    render_shape = _section_shape(shape, section, diagonal, history=section_history) if section else shape
     shape_faces = list(render_shape.faces())
     shape_edges = list(render_shape.edges())
-    source_face_indexes = _source_indexes(shape_faces, original_faces, section is None)
-    source_edge_indexes = _source_indexes(shape_edges, original_edges, section is None)
+    source_face_indexes = _source_indexes(shape_faces, original_faces, section is None, section_history.get("operation"))
+    source_edge_indexes = _source_indexes(shape_edges, original_edges, section is None, section_history.get("operation"))
     feature_face_map, feature_edge_map = _feature_maps(_field(ctx, "features", ()))
     selected_faces, selected_edges, selected_features = _resolve_highlights(
         ctx,
@@ -117,15 +120,30 @@ def render(ctx: Any, req: Any, out: Path) -> list[Path]:
         selected_faces,
         selected_edges,
         selected_features,
-        bounds=_shape_bounds(render_shape),
+        bounds=_shape_bounds(render_shape) if shape_faces else bounds,
         units=units,
         section=section,
     )
+    if section and not shape_faces:
+        scene.section_label = section.label + " | EMPTY: no geometry on retained side"
 
     heat_legend: _HeatLegend | None = None
     if request["heatmap"] == "thickness":
         started = time.perf_counter()
-        thickness_values = face_thickness(scene)
+        if section and scene.faces:
+            original_scene = _make_scene(
+                shape, original_faces, original_edges,
+                list(range(len(original_faces))), list(range(len(original_edges))),
+                feature_face_map, feature_edge_map, set(), set(), set(),
+                bounds=bounds, units=units, section=None,
+            )
+            original_values = face_thickness(original_scene)
+            thickness_values = {
+                face.index: original_values[face.source_index]
+                for face in scene.faces if face.source_index in original_values
+            }
+        else:
+            thickness_values = face_thickness(scene)
         elapsed_ms = (time.perf_counter() - started) * 1000.0
         _LOG.info("thickness ray-cast heatmap measured in %.2f ms", elapsed_ms)
         measured = list(thickness_values.values())
@@ -149,7 +167,7 @@ def render(ctx: Any, req: Any, out: Path) -> list[Path]:
             minimum,
             maximum,
             "deg",
-            "heuristic: face angle from +Z, build direction assumed +Z",
+            "heuristic: triangle angle from +Z, build direction assumed +Z",
         )
         _apply_overhang_colors(scene, minimum, maximum)
     else:
@@ -346,7 +364,7 @@ def _named_vector(text: str, name: str) -> Vec3 | None:
     return vector  # type: ignore[return-value]
 
 
-def _section_shape(shape: Any, section: _Section, diagonal: float) -> Any:
+def _section_shape(shape: Any, section: _Section, diagonal: float, *, history: dict[str, Any] | None = None) -> Any:
     """Cut away the positive-normal side with an OCCT half-space boolean."""
     from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
     from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace
@@ -368,24 +386,32 @@ def _section_shape(shape: Any, section: _Section, diagonal: float) -> Any:
     if not operation.IsDone() or operation.Shape().IsNull():
         raise ValueError("OCCT failed to make a capped section cut")
     result = Shape.cast(operation.Shape())
-    if not result.faces():
-        raise ValueError("section cut produced no renderable faces")
+    if history is not None:
+        history["operation"] = operation
     return result
 
 
-def _source_indexes(result_entities: list[Any], source_entities: list[Any], same_shape: bool) -> list[int | None]:
+def _source_indexes(result_entities: list[Any], source_entities: list[Any], same_shape: bool, operation: Any = None) -> list[int | None]:
     if same_shape:
         return list(range(len(result_entities)))
+    # A boolean trims faces and edges, changing their topology identity. OCCT's
+    # Modified history retains their origin; generated cap entities have none.
+    descendants = [
+        [source.wrapped, *operation.Modified(source.wrapped)] if operation is not None else [source.wrapped]
+        for source in source_entities
+    ]
     indexes: list[int | None] = []
     for result in result_entities:
         source_index = None
         result_wrapped = getattr(result, "wrapped", None)
         if result_wrapped is not None:
-            for index, source in enumerate(source_entities):
+            for index, candidates in enumerate(descendants):
                 try:
-                    if result_wrapped.IsSame(source.wrapped):
+                    if any(result_wrapped.IsSame(candidate) for candidate in candidates):
+                        if source_index is not None:
+                            source_index = None  # Ambiguous history must not invent a selector.
+                            break
                         source_index = index
-                        break
                 except Exception:
                     continue
         indexes.append(source_index)
@@ -563,7 +589,7 @@ def _make_scene(
         anchor = _surface_anchor(face, points, triangle_indexes)
         source_index = source_face_indexes[index] if index < len(source_face_indexes) else None
         feature = feature_face_map.get(source_index) if source_index is not None else None
-        section_cap = bool(section and _is_section_cap(face, anchor, normal, section, diagonal))
+        section_cap = bool(section and source_index is None and _is_section_cap(face, anchor, normal, section, diagonal))
         if section_cap:
             cap_face_indexes.append(len(scene.faces))
         scene.faces.append(
@@ -664,6 +690,8 @@ def _tessellate_faces(
     angular_tolerance: float,
 ) -> list[tuple[tuple[Vec3, ...], tuple[tuple[int, int, int], ...]]] | None:
     """Read OCCT face triangulations without build123d's slow triangle iterator."""
+    if not faces:
+        return []
     wrapped_shape = getattr(shape, "wrapped", None)
     if wrapped_shape is None or any(getattr(face, "wrapped", None) is None for face in faces):
         return None
@@ -788,12 +816,16 @@ def _make_labels(
                 for line in scene.lines
                 if line.role == "edge" and line.feature == name and line.anchor is not None
             )
-            anchor = _average(anchors) if anchors else _bounds_center(bounds)
+            if not anchors:
+                continue
+            anchor = _average(anchors)
             candidates.append((f"feature:{name}", name, "feature", None, anchor))
     elif mode == "faces":
         seen: set[str] = set()
         for face in scene.faces:
-            index = face.source_index if face.source_index is not None else face.index
+            index = face.source_index
+            if index is None:
+                continue  # New section caps are not entities in the source revision.
             selector = f"face:{index}"
             if selector in seen:
                 continue
@@ -804,7 +836,7 @@ def _make_labels(
         for line in scene.lines:
             if line.role != "edge" or line.anchor is None:
                 continue
-            index = line.source_index if line.source_index is not None else line.index
+            index = line.source_index
             if index is None:
                 continue
             selector = f"edge:{index}"
@@ -873,6 +905,8 @@ def _render_sheet(
     labels: list[_Label],
     heat_legend: _HeatLegend | None,
 ) -> Image.Image:
+    if size < 64:
+        return backend.render(scene, _camera("iso", scene.bounds, size, size), width=size, height=size, style=style)
     padding = max(8, size // 64)
     gutter = max(8, size // 72)
     pane_width = max(1, (size - 2 * padding - gutter) // 2)
@@ -945,6 +979,8 @@ def _annotate(
 ) -> None:
     draw = ImageDraw.Draw(image)
     width, height = image.size
+    if min(width, height) < 64:
+        return
     font = ImageFont.load_default()
     margin = max(8, min(16, width // 48))
     draw.rectangle((0, 0, width - 1, height - 1), outline=(207, 213, 219), width=1)
@@ -952,13 +988,23 @@ def _annotate(
     draw.text((margin, margin), title, fill=(37, 43, 49), font=font)
     if scene.section_label:
         section_text = scene.section_label
+        while len(section_text) > 3 and draw.textlength(section_text, font=font) > width - 2 * margin:
+            section_text = section_text[:-4] + "..."
         draw.text((margin, margin + 14), section_text, fill=(59, 66, 73), font=font)
+        if not scene.faces:
+            text = "No geometry retained"
+            text_width = draw.textlength(text, font=font)
+            draw.text(((width - text_width) / 2, height / 2), text, fill=(59, 66, 73), font=font)
     _draw_scale_bar(draw, camera, scene, width, height, margin, font)
     _draw_axis_triad(draw, camera, width, height, margin, font)
     if heat_legend:
         _draw_heat_legend(draw, heat_legend, width, height, margin, font)
         note_y = margin + (28 if scene.section_label else 14)
-        draw.text((margin, note_y), heat_legend.heuristic, fill=(73, 79, 85), font=font)
+        note = heat_legend.heuristic
+        if draw.textlength(note, font=font) > width - 2 * margin:
+            note = "Heuristic; build +Z" if heat_legend.kind == "OVERHANG ANGLE FROM +Z" else "Heuristic; grey = no reading"
+        if width >= 200:
+            draw.text((margin, note_y), note, fill=(73, 79, 85), font=font)
     if labels:
         visible = _visible_labels(labels, camera, scene)
         _draw_labels(draw, visible, camera, width, height, margin, font)
@@ -1030,7 +1076,7 @@ def _draw_heat_legend(
     font: ImageFont.ImageFont,
 ) -> None:
     bar_width = max(72, min(122, width // 4))
-    x0 = max(margin + 100, (width - bar_width) // 2)
+    x0 = (width - bar_width) // 2
     x0 = min(x0, max(margin, width - bar_width - margin))
     y0 = height - margin - 16
     steps = max(bar_width, 2)
@@ -1043,7 +1089,11 @@ def _draw_heat_legend(
         units = "deg"
     low = f"{_fmt(legend.minimum)} {units}"
     high = f"{_fmt(legend.maximum)} {units}"
-    draw.text((x0, y0 - 11), legend.kind, fill=(36, 42, 49), font=font)
+    title = legend.kind
+    if width < 400:
+        title = "OVERHANG" if title == "OVERHANG ANGLE FROM +Z" else "THICKNESS"
+    title_x = x0 + (bar_width - draw.textlength(title, font=font)) / 2
+    draw.text((title_x, y0 - 11), title, fill=(36, 42, 49), font=font)
     draw.text((x0, y0 + 7), low, fill=(37, 43, 49), font=font)
     right_width = draw.textbbox((0, 0), high, font=font)[2]
     draw.text((x0 + bar_width - right_width, y0 + 7), high, fill=(37, 43, 49), font=font)
@@ -1164,11 +1214,19 @@ def _apply_thickness_colors(scene: RenderScene, values: dict[int, float], legend
 def _apply_overhang_colors(scene: RenderScene, minimum: float, maximum: float) -> None:
     minimum, maximum = _expanded_range(minimum, maximum)
     for face in scene.faces:
-        if face.highlighted:
-            face.color = _HIGHLIGHT
-        else:
-            angle = math.degrees(math.acos(max(-1.0, min(1.0, face.normal[2]))))
-            face.color = _heat_color((angle - minimum) / (maximum - minimum))
+        colors = []
+        for triangle in face.triangles:
+            if face.highlighted:
+                colors.append(_HIGHLIGHT)
+                continue
+            try:
+                normal = _triangle_normal(face.points, triangle)
+            except ValueError:
+                colors.append(_NO_READING)
+                continue
+            angle = math.degrees(math.acos(max(-1.0, min(1.0, normal[2]))))
+            colors.append(_heat_color((angle - minimum) / (maximum - minimum)))
+        face.triangle_colors = tuple(colors)
 
 
 def _heat_color(value: float) -> tuple[int, int, int]:

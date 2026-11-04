@@ -345,3 +345,107 @@ def test_linux_without_display_uses_osmesa_when_installed(monkeypatch):
     monkeypatch.setattr(vtk_backend.ctypes.util, "find_library", lambda name: "libOSMesa.so.8")
     vtk_backend.prepare_headless_gl()
     assert os.environ["VTK_DEFAULT_OPENGL_WINDOW"] == "vtkOSOpenGLRenderWindow"
+
+
+def _capture_render(monkeypatch, ctx, req, out):
+    from aiad_render import agent_render
+
+    captured = []
+
+    class CaptureBackend:
+        def render(self, scene, camera, *, width, height, style):
+            captured.append(scene)
+            return Image.new("RGB", (width, height))
+
+    monkeypatch.setattr(agent_render, "get_backend", lambda name: CaptureBackend())
+    paths = render(ctx, {"views": ["iso"], "size": 256, **req}, out)
+    return captured[0], paths
+
+
+@pytest.mark.parametrize("mode", ["faces", "edges"])
+def test_section_labels_and_highlights_keep_original_revision_entities(monkeypatch, tmp_path, mode):
+    shape = Box(10, 8, 4)
+    scene, paths = _capture_render(
+        monkeypatch,
+        _context(shape, "plate"),
+        {"section": {"plane": "XY", "offset": 0}, "highlight": ["face:0", "edge:0"], "labels": mode},
+        tmp_path,
+    )
+    trimmed_face = next(face for face in scene.faces if face.source_index == 0)
+    assert trimmed_face.highlighted and trimmed_face.feature == "plate"
+    assert max(point[2] for point in trimmed_face.points) == pytest.approx(0.0)
+    assert next(line for line in scene.lines if line.source_index == 0).highlighted
+    assert any(face.section_cap and face.source_index is None for face in scene.faces)
+    legend = json.loads(paths[-1].read_text())
+    entities = scene.faces if mode == "faces" else [line for line in scene.lines if line.role == "edge"]
+    known_sources = {entity.source_index for entity in entities if entity.source_index is not None}
+    assert {item["index"] for item in legend.values()} == known_sources
+    assert all(item["feature"] == "plate" for item in legend.values())
+
+
+def test_overhang_uses_local_normals_on_a_curved_face(monkeypatch, tmp_path):
+    from build123d import Sphere
+
+    scene, _ = _capture_render(monkeypatch, _context(Sphere(5)), {"heatmap": "overhang"}, tmp_path)
+    face = scene.faces[0]
+    assert len(scene.faces) == 1
+    assert len(face.triangle_colors) == len(face.triangles)
+    assert len(set(face.triangle_colors)) > 20
+    for triangle, color in zip(face.triangles, face.triangle_colors, strict=True):
+        if color == (154, 160, 166):
+            import numpy as np
+            a, b, c = (np.asarray(face.points[index]) for index in triangle)
+            assert np.linalg.norm(np.cross(b - a, c - a)) < 1.0e-14
+            continue  # OCCT includes zero-area triangles at the sphere poles.
+        z = sum(face.points[index][2] for index in triangle) / 3
+        if z > 4.5:
+            assert color[2] > color[0]  # upward normals are blue
+        elif z < -4.5:
+            assert color[0] > color[2]  # downward normals are red
+
+
+def test_empty_compound_has_a_clear_input_error(tmp_path):
+    from build123d import Compound
+
+    with pytest.raises(ValueError, match="non-empty 3D shape"):
+        render(_context(Compound(children=[])), {}, tmp_path)
+
+
+def test_section_thickness_measures_the_original_solid(monkeypatch, tmp_path):
+    from aiad_render import agent_render
+
+    actual = agent_render.face_thickness
+    measured = []
+
+    def record(scene):
+        measured.append(scene)
+        return actual(scene)
+
+    monkeypatch.setattr(agent_render, "face_thickness", record)
+    scene, _ = _capture_render(
+        monkeypatch, _context(Box(60, 40, 6)),
+        {"section": {"plane": "XY", "offset": 0}, "heatmap": "thickness"}, tmp_path,
+    )
+    assert len(measured) == 1
+    assert measured[0].bounds[1][2] == 3  # the original 6 mm solid, rather than the clipped 3 mm half
+    assert all(face.color == agent_render._NO_READING for face in scene.faces if face.section_cap)
+
+
+def test_section_that_removes_the_whole_part_is_annotated(monkeypatch, tmp_path):
+    scene, paths = _capture_render(
+        monkeypatch,
+        _context(Box(10, 8, 4), "plate"),
+        {"section": {"plane": "XY", "offset": -100}, "labels": "faces"},
+        tmp_path,
+    )
+    assert scene.faces == [] and scene.lines == []
+    assert scene.bounds == ((-5, -4, -2), (5, 4, 2))
+    assert "EMPTY: no geometry on retained side" in scene.section_label
+    assert json.loads(paths[-1].read_text()) == {}
+
+
+@pytest.mark.parametrize("size", [1, 16, 63])
+def test_tiny_sheet_sizes_have_valid_viewports(tmp_path, size):
+    paths = _render_or_skip(_context(Box(1, 1, 1)), {"size": size}, tmp_path)
+    with Image.open(paths[0]) as image:
+        assert image.size == (size, size)

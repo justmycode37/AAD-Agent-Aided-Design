@@ -151,6 +151,7 @@ class VtkBackend:
     def _window(self, width: int, height: int) -> Any:
         window = self._vtk.vtkRenderWindow()
         window.SetOffScreenRendering(1)
+        window.SetShowWindow(False)
         window.SetMultiSamples(0)  # Hardware antialiasing can vary between runs; we supersample instead.
         window.SetAlphaBitPlanes(0)
         window.SetSize(int(width), int(height))
@@ -267,12 +268,13 @@ class VtkBackend:
             point_start = points.GetNumberOfPoints()
             for point in face.points:
                 points.InsertNextPoint(*point)
-            for triangle in face.triangles:
+            for triangle_index, triangle in enumerate(face.triangles):
                 polygons.InsertNextCell(3)
                 for local_index in triangle:
                     polygons.InsertCellPoint(point_start + int(local_index))
                 if include_colors:
-                    colors.InsertNextTuple3(*face.color)
+                    color = face.triangle_colors[triangle_index] if face.triangle_colors else face.color
+                    colors.InsertNextTuple3(*color)
 
         polydata = vtk.vtkPolyData()
         polydata.SetPoints(points)
