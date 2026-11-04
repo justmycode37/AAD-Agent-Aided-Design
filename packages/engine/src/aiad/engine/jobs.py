@@ -429,6 +429,9 @@ def _context_from_wire(item: dict[str, Any]) -> ModelContext:
         material=item.get("material"),
         process=item.get("process"),
         job_dir=Path(item.get("job_dir", ".")),
+        meta=dict(item.get("meta", {})),
+        param_definitions=dict(item.get("param_definitions", {})),
+        part_name=item.get("part_name"),
     )
 
 
@@ -440,6 +443,8 @@ def _feature_from_wire(item: dict[str, Any]) -> FeatureInfo:
         line_start=item.get("line_start"),
         line_end=item.get("line_end"),
         deps=list(item.get("deps", [])),
+        intent=item.get("intent"),
+        vertices=[_entity_from_wire(entity) for entity in item.get("vertices", [])],
     )
 
 

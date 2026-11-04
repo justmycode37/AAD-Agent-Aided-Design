@@ -40,6 +40,8 @@ FailurePhase = Literal[
 
 @dataclass
 class Entity:
+    # A revision-local metadata handle. Persistent references use ``selector``;
+    # exact topology handles returned by resolve() stay bound to that context.
     kind: Literal["face", "edge", "vertex", "part"] = "part"
     index: int | None = None
     feature: str | None = None
@@ -64,6 +66,8 @@ class FeatureInfo:
     line_start: int | None = None
     line_end: int | None = None
     deps: list[str] = field(default_factory=list)
+    intent: str | None = None
+    vertices: list[Entity] = field(default_factory=list)
 
 
 @dataclass
@@ -115,6 +119,9 @@ class ModelContext:
     material: str | None = None
     process: str | None = None
     job_dir: Path = field(default_factory=Path.cwd)
+    meta: dict[str, Any] = field(default_factory=dict)
+    param_definitions: dict[str, dict[str, Any]] = field(default_factory=dict)
+    part_name: str | None = None
 
 
 @dataclass

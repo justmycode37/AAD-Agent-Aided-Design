@@ -14,14 +14,18 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-from aiad._runtime import configure_params, current_params
+from aiad._runtime import (
+    ModelInputError, configure_params, current_param_definitions, current_params, validate_params,
+)
+from aiad.modeling import (
+    configure_modeling, context_metadata, current_part_name, finalize_modeling, named_shape, record_operation,
+)
 from .gate import hard_checks
+from .select import SelectorError
 from .types import (
     BuildResult,
     Check,
-    Entity,
     Failure,
-    FeatureInfo,
     ModelContext,
     SceneManifest,
 )
@@ -141,31 +145,43 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
         )
         return _result_wire(_failed_result(failure, elapsed_ms=_elapsed_ms(started), job_dir=job_dir))
 
+    configure_modeling(source)
     tracked_build_parts: list[Any] = []
     original_build_part = build123d.BuildPart
 
-    class TrackedBuildPart(original_build_part):
+    # Generic operations in build123d 0.13 validate the builder class name.
+    class BuildPart(original_build_part):
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             super().__init__(*args, **kwargs)
             tracked_build_parts.append(self)
 
+        def _add_to_context(self, *args: Any, **kwargs: Any) -> Any:
+            before = self._obj
+            result = super()._add_to_context(*args, **kwargs)
+            record_operation(self, before, self._obj)
+            return result
+
     # Scripts that import BuildPart from aiad or build123d receive this
-    # subclass. The class only records the active builder object so a context
-    # manager can supply its completed part when no `result` is assigned.
-    build123d.BuildPart = TrackedBuildPart
-    configure_params(payload.get("params", {}))
+    # subclass. It records builder operations and supplies a completed part
+    # when the script does not assign `result`.
+    build123d.BuildPart = BuildPart
+    aiad = __import__("aiad")
     namespace: dict[str, Any] = {
         "__name__": "__aiad_model__",
         "__file__": str(source_path),
-        "params": __import__("aiad").params,
     }
     for name in dir(build123d):
         if not name.startswith("_"):
             namespace[name] = getattr(build123d, name)
+    for name in ("Param", "params", "meta", "part", "feature", "face", "edge", "vertex", "entity_shape", "SelectorError"):
+        namespace[name] = getattr(aiad, name)
 
     try:
         with contextlib.redirect_stdout(stdout_stream), contextlib.redirect_stderr(stderr_stream):
+            configure_params(payload.get("params", {}))
             exec(code, namespace, namespace)
+            validate_params()
+            metadata = context_metadata(payload)
     except BaseException as exc:
         if isinstance(exc, SyntaxError):
             failure = Failure(
@@ -177,6 +193,14 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
                 line=exc.lineno,
                 repair=["Correct the syntax at the reported model.py line and rebuild."],
             )
+        elif isinstance(exc, (SelectorError, ModelInputError)):
+            file_name, line = _source_location(exc, source_path)
+            failure = exc.failure if isinstance(exc, SelectorError) else Failure(
+                code="BAD_INPUT", phase="input", message=str(exc),
+            )
+            failure.file = failure.file or file_name
+            failure.line = failure.line or line
+            failure.feature = failure.feature or getattr(exc, "_aiad_feature", None)
         else:
             file_name, line = _source_location(exc, source_path)
             failure = Failure(
@@ -190,7 +214,7 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
                 kernel_message=str(exc) or type(exc).__name__,
                 file=file_name,
                 line=line,
-                feature="main" if file_name else None,
+                feature=getattr(exc, "_aiad_feature", "main" if file_name else None),
                 repair=["Inspect the reported source line and the exception detail, then rebuild."],
             )
         result = _failed_result(
@@ -264,27 +288,24 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
         params_warning = None
 
     build_ms = _elapsed_ms(started)
-    metrics = _shape_metrics(shape, build123d, payload.get("units", "mm"), build_ms)
-    main_feature = FeatureInfo(
-        name="main",
-        faces=[Entity(kind="face", index=index, feature="main") for index in range(metrics["faces"])],
-        edges=[Entity(kind="edge", index=index, feature="main") for index in range(metrics["edges"])],
-        line_start=1 if source else None,
-        line_end=max(1, source.count("\n") + 1) if source else None,
-    )
+    metrics = _shape_metrics(shape, build123d, metadata.get("units", "mm"), build_ms)
+    features, _ = finalize_modeling(shape)
     context = ModelContext(
         project_dir=project_dir,
         rev=payload.get("rev", 0),
         kind=payload.get("kind", "part"),
-        units=payload.get("units", "mm"),
+        units=metadata.get("units", "mm"),
         shape=shape,
-        features=[main_feature],
+        features=features,
         params=params,
         metrics=metrics,
         spec=payload.get("spec", {}),
-        material=payload.get("material"),
-        process=payload.get("process"),
+        material=metadata.get("material"),
+        process=metadata.get("process"),
         job_dir=job_dir,
+        meta=metadata,
+        param_definitions=current_param_definitions(),
+        part_name=current_part_name(),
     )
 
     checks = hard_checks(context)
@@ -403,6 +424,10 @@ def _extract_shape(namespace: dict[str, Any], build_parts: list[Any], shape_type
         raise TypeError(
             f"The model's `result` is {type(candidate).__name__}, not a build123d Shape."
         )
+
+    declared_part = named_shape()
+    if isinstance(declared_part, shape_type):
+        return declared_part
 
     for builder in reversed(build_parts):
         try:
@@ -806,6 +831,9 @@ def _result_wire(result: BuildResult) -> dict[str, Any]:
             "material": ctx.material,
             "process": ctx.process,
             "job_dir": str(ctx.job_dir),
+            "meta": ctx.meta,
+            "param_definitions": ctx.param_definitions,
+            "part_name": ctx.part_name,
         }
     return {
         "ok": result.ok,
