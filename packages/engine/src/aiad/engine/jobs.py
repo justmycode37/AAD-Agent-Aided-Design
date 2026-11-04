@@ -29,10 +29,12 @@ from .types import (
 )
 
 _RESULT_MARKER = b"AIAD_ENGINE_RESULT:"
+_STARTED_MARKER = b"AIAD_ENGINE_STARTED\n"
 _SOURCE_ROOT = Path(__file__).resolve().parents[2]
 _WORKER_BOOTSTRAP = (
     "import sys; sys.path.insert(0, sys.argv.pop(1)); "
-    "from aiad.engine._worker import main; main()"
+    "from aiad.engine._worker import main; "
+    f"sys.stdout.buffer.write({_STARTED_MARKER!r}); sys.stdout.buffer.flush(); main()"
 )
 
 
@@ -130,7 +132,8 @@ def run_build(req: BuildRequest) -> BuildResult:
             phase="crash",
             message=f"The build worker exited with status {process.returncode} without returning a valid result; no exit cause was inferred.",
         )
-        if response is None and process.returncode != 0 and any(
+        worker_started = _STARTED_MARKER in stdout_bytes.splitlines(keepends=True)
+        if not worker_started and response is None and process.returncode != 0 and any(
             line.startswith((b"bwrap:", b"sandbox-exec:")) for line in stderr_bytes.splitlines()
         ):
             failure = Failure(

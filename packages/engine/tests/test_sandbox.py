@@ -227,6 +227,25 @@ else: raise RuntimeError('asset was writable')
         result = self.run_script(source, reads=(self.secret,))
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_package_import_can_list_its_search_directory_without_reading_siblings(self) -> None:
+        search = self.root / "editable-src"
+        package = search / "fixture_package"
+        package.mkdir(parents=True)
+        (package / "__init__.py").write_text("value = 42\n")
+        sibling = search / "private.txt"
+        sibling.write_text("not a runtime dependency")
+        source = f'''import sys
+sys.path.insert(0, {str(search)!r})
+import fixture_package
+assert fixture_package.value == 42
+try: open({str(sibling)!r}).read()
+except PermissionError: print('sibling denied')
+else: raise RuntimeError('sibling content was readable')
+'''
+        result = self.run_script(source, reads=(package,))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "sibling denied")
+
     def test_native_open_and_relative_traversal_are_denied(self) -> None:
         source = f'''import ctypes, os
 libc=ctypes.CDLL(None, use_errno=True)

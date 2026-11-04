@@ -324,13 +324,14 @@ result = Box(2, 3, 4)
 
             crashed = run_build(
                 BuildRequest(
-                    source="import os\nos._exit(23)",
+                    source="import os\nos.write(2, b'bwrap: application diagnostic\\n')\nos._exit(23)",
                     project_dir=root,
                     job_dir=root / "crash",
                 )
             )
             self.assertEqual(crashed.failure.code, "WORKER_CRASH")
             self.assertEqual(crashed.failure.phase, "crash")
+            self.assertIn("bwrap: application diagnostic", crashed.stderr)
             self.assertNotIn("memory", crashed.failure.message.lower())
 
             recovered = run_build(
