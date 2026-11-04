@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 import math
+from numbers import Integral
 from pathlib import Path
 import re
 from typing import Any
@@ -23,6 +24,8 @@ from .geometry import (
     project_view,
     shape_bounds,
     through_holes,
+    _STANDARD_VIEWS,
+    _unit,
 )
 from .types import DimensionSpec, DrawingRequest, DrawingResult, DrawingView
 
@@ -91,6 +94,19 @@ def _coerce_view(value: Any) -> DrawingView:
     for vector_name, vector in (("direction", view.direction), ("up", view.up)):
         if vector is not None and len(vector) != 3:
             raise ValueError(f"View {vector_name} must have three coordinates.")
+    # Named views carry fixed axes because their dimensions refer to those axes.
+    # Arbitrary directions remain available under a custom view name.
+    if name in _STANDARD_VIEWS:
+        expected_direction, expected_up = _STANDARD_VIEWS[name]
+        for vector_name, vector, expected in (
+            ("direction", view.direction, expected_direction),
+            ("up", view.up, expected_up),
+        ):
+            if vector is not None:
+                if not all(math.isfinite(float(v)) for v in vector):
+                    raise ValueError("View vectors must contain finite coordinates.")
+                if math.dist(_unit(tuple(vector)), _unit(expected)) > 1e-8:
+                    raise ValueError(f"Named view {name!r} has fixed {vector_name} axes; use a custom view name.")
     return DrawingView(
         name=name,
         direction=tuple(float(value) for value in view.direction) if view.direction is not None else None,
@@ -122,8 +138,14 @@ def _coerce_dimension(value: Any) -> DimensionSpec:
         raise ValueError("Dimension axis must be x, y, or z.")
     if dimension.precision < 0 or dimension.precision > 6:
         raise ValueError("Dimension precision must be between 0 and 6.")
-    if dimension.tolerance is not None and float(dimension.tolerance) < 0:
-        raise ValueError("Dimension tolerance cannot be negative.")
+    if dimension.index is not None and (
+        isinstance(dimension.index, bool) or not isinstance(dimension.index, Integral) or dimension.index < 0
+    ):
+        raise ValueError("Hole index must be a nonnegative integer.")
+    if dimension.tolerance is not None and (
+        not math.isfinite(float(dimension.tolerance)) or float(dimension.tolerance) < 0
+    ):
+        raise ValueError("Dimension tolerance must be finite and nonnegative.")
     return DimensionSpec(
         kind=kind,
         axis=axis,
@@ -214,7 +236,7 @@ def _dimension_record(
     if tolerance is not None:
         label = f"{label} +/- {_format_number(tolerance, precision)}"
     return {
-        "id": f"{kind}.{axis or 'value'}.{len(holes) if holes else ''}",
+        "id": f"{kind}.{axis or 'value'}.{numeric_value:.12g}.{','.join(map(str, holes))}",
         "kind": kind,
         "axis": axis,
         "value": numeric_value,
@@ -399,7 +421,11 @@ def _indices_from_source(source: str | None) -> list[int] | None:
     if not source:
         return None
     match = re.search(r"holes?\[(\d+)\]", source, flags=re.IGNORECASE)
-    return [int(match.group(1))] if match else None
+    if match:
+        return [int(match.group(1))]
+    if source not in {"bbox.x", "bbox.y", "bbox.z"}:
+        raise ValueError(f"Unsupported dimension source {source!r}.")
+    return None
 
 
 def _make_dimensions(
@@ -427,7 +453,12 @@ def _make_dimensions(
         indices = _indices_from_source(spec.source)
         if spec.index is not None:
             indices = [spec.index]
-        axes = (spec.axis,) if spec.axis else ("x", "y", "z")
+        if indices is not None and any(i >= len(holes) for i in indices):
+            raise ValueError(f"Hole selection {indices} is empty; available hole indices are 0..{len(holes)-1}.")
+        before = len(result)
+        source_axis = spec.source[-1] if spec.source and spec.source.startswith("bbox.") else None
+        axis = spec.axis or source_axis
+        axes = (axis,) if axis else ("x", "y", "z")
         if spec.kind == "overall":
             result.extend(
                 _overall_dimension(bounds, axis, unit, spec.precision, spec.tolerance)
@@ -459,6 +490,8 @@ def _make_dimensions(
                     holes, axis, unit, spec.precision, spec.tolerance, indices
                 )
             )
+        if len(result) == before:
+            raise ValueError(f"Dimension request {spec.kind!r} has no matching geometry.")
     return result
 
 
@@ -727,7 +760,7 @@ def _draw_overall_dimensions(
             (center, y_dim),
             gap / 2 + 1.2,
         )
-        entities.append(text(label, center, y_dim + 1.4, 2.8, "DIMENSIONS", "center"))
+        entities.append(text(label, center, y_dim + 1.4, 2.8, "DIMENSIONS", "center", dimension_id=by_axis["x"]["id"]))
 
     if front and "z" in by_axis:
         bounds = front.bounds
@@ -735,7 +768,7 @@ def _draw_overall_dimensions(
         entities.append(line(bounds.xmax, bounds.ymin, x_dim + 1.0, bounds.ymin, "DIMENSIONS", 0.12))
         entities.append(line(bounds.xmax, bounds.ymax, x_dim + 1.0, bounds.ymax, "DIMENSIONS", 0.12))
         _dimension_line(entities, (x_dim, bounds.ymin), (x_dim, bounds.ymax), style)
-        entities.append(text(by_axis["z"]["display"], x_dim + 2.2, (bounds.ymin + bounds.ymax) / 2 - 1, 2.8, "DIMENSIONS"))
+        entities.append(text(by_axis["z"]["display"], x_dim + 2.2, (bounds.ymin + bounds.ymax) / 2 - 1, 2.8, "DIMENSIONS", dimension_id=by_axis["z"]["id"]))
 
     if top and "y" in by_axis:
         bounds = top.bounds
@@ -750,6 +783,7 @@ def _draw_overall_dimensions(
                 (bounds.ymin + bounds.ymax) / 2 - 1,
                 2.8,
                 "DIMENSIONS",
+                dimension_id=by_axis["y"]["id"],
             )
         )
 
@@ -765,20 +799,18 @@ def _draw_hole_dimensions(
     top = placed.get("top")
     if not top:
         return
-    diameter = next((dimension for dimension in dimensions if dimension["kind"] == "hole_diameter"), None)
-    if diameter:
-        visible_count = diameter.get("count") or 1
-        count_text = f"{visible_count}X " if visible_count > 1 else ""
-        entities.append(
-            text(
-                f"{count_text}DIA {diameter['display']} THRU",
-                top.center[0],
-                top.center[1],
-                2.8,
-                "DIMENSIONS",
-                "center",
-            )
-        )
+    diameters = [d for d in dimensions if d["kind"] == "hole_diameter"]
+    for index, diameter in enumerate(diameters):
+        selected = [h for h in holes if h.index in diameter["hole_indices"]]
+        hole = selected[0]
+        point = _sheet_point(top, project_point((hole.x, hole.y, 0), top.projection))
+        count = diameter.get("count") or 1
+        prefix = f"{count}X " if count > 1 else ""
+        label_x = top.bounds.xmax + 25
+        label_y = top.bounds.ymax - 5 - 8 * index
+        entities.append(line(point[0], point[1], label_x - 2, label_y, "DIMENSIONS", 0.12))
+        entities.append(text(f"{prefix}DIA {diameter['display']} THRU", label_x, label_y, 2.8,
+                             "DIMENSIONS", dimension_id=diameter["id"]))
 
     top_view = top.projection
     left, bottom = top.bounds.xmin, top.bounds.ymin
@@ -813,6 +845,7 @@ def _draw_hole_dimensions(
                     2.6,
                     "DIMENSIONS",
                     "center",
+                    dimension_id=dimension["id"],
                 )
             )
         entities.append(line(top.bounds.xmin, baseline_y, max_x, baseline_y, "DIMENSIONS", 0.16))
@@ -839,10 +872,36 @@ def _draw_hole_dimensions(
                     2.6,
                     "DIMENSIONS",
                     "right",
+                    dimension_id=dimension["id"],
                 )
             )
         entities.append(line(baseline_x, top.bounds.ymin, baseline_x, max_y, "DIMENSIONS", 0.16))
         entities.append(circle((baseline_x, top.bounds.ymin), 0.6, "DIMENSIONS", 0.16))
+
+    spacings = [d for d in dimensions if d["kind"] == "hole_spacing"]
+    for index, dimension in enumerate(spacings):
+        axis = dimension["axis"]
+        source = dimension["source"]
+        first = source["from_coordinate"]
+        last = source["to_coordinate"]
+        if axis == "x":
+            a = _sheet_point(top, project_point((first, bounds.ymin, 0), top_view))
+            b = _sheet_point(top, project_point((last, bounds.ymin, 0), top_view))
+            station = bottom - (18 if x_dimensions else 8) - 8 * index
+            entities.extend([line(a[0], bottom, a[0], station-1, "DIMENSIONS"),
+                             line(b[0], bottom, b[0], station-1, "DIMENSIONS")])
+            _dimension_line(entities, (a[0],station), (b[0],station), style)
+            entities.append(text(dimension["display"], (a[0]+b[0])/2, station+1.5, 2.8,
+                                 "DIMENSIONS", "center", dimension_id=dimension["id"]))
+        else:
+            a = _sheet_point(top, project_point((bounds.xmin, first, 0), top_view))
+            b = _sheet_point(top, project_point((bounds.xmin, last, 0), top_view))
+            station = left - (20 if y_dimensions else 8) - 8 * index
+            entities.extend([line(left, a[1], station-1, a[1], "DIMENSIONS"),
+                             line(left, b[1], station-1, b[1], "DIMENSIONS")])
+            _dimension_line(entities, (station,a[1]), (station,b[1]), style)
+            entities.append(text(dimension["display"], station-2, (a[1]+b[1])/2, 2.8,
+                                 "DIMENSIONS", "right", dimension_id=dimension["id"]))
 
 
 def _title_block_entities(
@@ -1004,6 +1063,12 @@ def _drawing_checks(
         "pass" if title_ok else "fail",
         "Title block fits inside the drawing frame." if title_ok else "Title block exceeds the drawing frame.",
     )
+
+    displayed_ids = {e.dimension_id for e in entities if e.kind == "text" and e.dimension_id}
+    missing = [d["id"] for d in dimensions if d["id"] not in displayed_ids]
+    add_check("dimension_coverage", "fail" if missing else "pass",
+              "Requested dimensions missing from the sheet." if missing else "Every reported dimension appears on the sheet.",
+              ", ".join(missing) if missing else None)
 
     source_ok = all(
         isinstance(dimension.get("source"), dict)

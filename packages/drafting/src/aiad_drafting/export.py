@@ -29,6 +29,7 @@ class Primitive:
     rotation: float = 0.0
     width: float = 0.18
     dash: bool = False
+    dimension_id: str | None = None
 
 
 def line(
@@ -112,6 +113,7 @@ def text(
     layer: str = "ANNOTATION",
     align: str = "left",
     rotation: float = 0.0,
+    dimension_id: str | None = None,
 ) -> Primitive:
     return Primitive(
         "text",
@@ -121,6 +123,7 @@ def text(
         height=float(height),
         align=align,
         rotation=float(rotation),
+        dimension_id=dimension_id,
     )
 
 
@@ -227,6 +230,8 @@ def write_svg(path: Path, width_mm: float, height_mm: float, entities: list[Prim
                 "data-layer": entity.layer,
             },
         )
+        if entity.dimension_id is not None:
+            label.set("data-dimension-id", entity.dimension_id)
         label.text = entity.text or ""
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -406,7 +411,7 @@ def _reportlab_arc_angles(entity: Primitive) -> tuple[float, float]:
     start, end = entity.start_angle, entity.end_angle
     if entity.ccw:
         return start, (end - start) % 360
-    return end, -((start - end) % 360)
+    return start, -((start - end) % 360)
 
 
 def write_png(path: Path, width_mm: float, height_mm: float, entities: list[Primitive]) -> None:

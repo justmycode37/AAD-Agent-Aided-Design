@@ -132,7 +132,12 @@ def shape_bounds(shape: Any) -> Bounds3D:
 
 
 def through_holes(shape: Any, bounds: Bounds3D) -> list[Hole]:
-    """Find interior z-axis cylindrical faces that cross the complete bbox."""
+    """Find Z bores whose full cylindrical clearance is free through the model.
+
+    A kernel common with an inset bore cylinder distinguishes through holes
+    from blind holes and counterbores, without requiring unrelated bosses to
+    share the plate faces.
+    """
     from OCP.BRepAdaptor import BRepAdaptor_Surface
     from OCP.GeomAbs import GeomAbs_Cylinder
     from OCP.TopAbs import TopAbs_REVERSED
@@ -165,10 +170,7 @@ def through_holes(shape: Any, bounds: Bounds3D) -> list[Hole]:
             origin.Z() + direction.Z() * last_v,
         )
         z_low, z_high = min(z_values), max(z_values)
-        if (
-            z_low > bounds.zmin + tolerance
-            or z_high < bounds.zmax - tolerance
-        ):
+        if z_high - z_low <= tolerance:
             continue
 
         radius = float(cylinder.Radius())
@@ -196,7 +198,28 @@ def through_holes(shape: Any, bounds: Bounds3D) -> list[Hole]:
             max(previous["z"][1], z_high),
         )
 
-    ordered = sorted(candidates.values(), key=lambda hole: (hole["y"], hole["x"], hole["radius"]))
+    from OCP.BRepAlgoAPI import BRepAlgoAPI_Common
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeCylinder
+    from OCP.TopAbs import TopAbs_SOLID
+    from OCP.TopExp import TopExp_Explorer
+    from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt
+
+    through = []
+    for candidate in candidates.values():
+        radius = candidate["radius"] - 2 * tolerance
+        if radius <= tolerance:
+            continue
+        probe = BRepPrimAPI_MakeCylinder(
+            gp_Ax2(gp_Pnt(candidate["x"], candidate["y"], bounds.zmin - tolerance), gp_Dir(0, 0, 1)),
+            radius, bounds.size[2] + 2 * tolerance,
+        ).Shape()
+        common = BRepAlgoAPI_Common(wrapped_shape(shape), probe)
+        common.Build()
+        if not common.IsDone():
+            raise ValueError("The kernel could not verify a cylindrical hole clearance.")
+        if not TopExp_Explorer(common.Shape(), TopAbs_SOLID).More():
+            through.append(candidate)
+    ordered = sorted(through, key=lambda hole: (hole["y"], hole["x"], hole["radius"]))
     return [
         Hole(
             index=index,
@@ -341,14 +364,15 @@ def _curve_key(curve: Curve) -> tuple[Any, ...]:
     if curve.kind == "circle":
         return ("circle", rounded(curve.center[0]), rounded(curve.center[1]), rounded(curve.radius))
     if curve.kind == "arc":
-        start = (rounded(curve.start_angle), rounded(curve.end_angle))
-        reverse = tuple(reversed(start))
+        start = (rounded(curve.start_angle % 360), rounded(curve.end_angle % 360))
+        if not curve.ccw:
+            start = tuple(reversed(start))
         return (
             "arc",
             rounded(curve.center[0]),
             rounded(curve.center[1]),
             rounded(curve.radius),
-            min(start, reverse),
+            start,
         )
     points = tuple((rounded(x), rounded(y)) for x, y in curve.points)
     if curve.kind == "line":

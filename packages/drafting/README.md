@@ -18,9 +18,10 @@ values and their geometry sources.
 - The first release lays out front, top, right, and isometric views. Orthographic
   view curves come from OCCT hidden-line removal. Isometric curves are projected
   from the model edges, with visible/hidden classification left to OCCT.
-- Automatic hole discovery targets cylindrical through-holes parallel to the
-  sheet-normal z axis. Other cylindrical features remain projected geometry
-  but are not guessed to be holes.
+- Automatic hole discovery targets Z-axis cylindrical through-holes. A kernel
+  clearance check excludes blind holes and counterbores even when raised
+  geometry changes the overall Z bounds. Other cylindrical features remain
+  projected geometry but are not guessed to be holes.
 - Automatic dimensions cover the overall x/y/z size, hole diameter and hole
   datum coordinates. Dimensions are measured from the supplied shape. No
   supplied text or dimension value is treated as a measurement.
@@ -29,6 +30,10 @@ values and their geometry sources.
   implement sections, details, revision tables, BOMs, tolerance classes, or
   automated collision resolution for arbitrary dense drawings.
 - Units are represented in mm or in. Sheet sizes are physical ISO/ANSI sizes.
+- Named views retain their conventional axes; custom direction vectors require
+  a custom view name. Dimensions that cannot be displayed in the selected
+  views fail the dimension-coverage check. Invalid explicit hole selections
+  raise ValueError instead of silently choosing a different hole.
 
 ## License-conscious export stack
 

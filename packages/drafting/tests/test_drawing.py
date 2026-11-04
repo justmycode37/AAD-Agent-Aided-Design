@@ -154,15 +154,67 @@ def test_r2013_dxf_keeps_partial_circle_as_arc(tmp_path):
     assert len(document.modelspace().query("ARC")) >= 1
 
 
-def test_missing_hole_selector_returns_no_fabricated_measurement(tmp_path):
-    result = make_drawing(
-        build_sample_context(),
-        DrawingRequest(
+@pytest.mark.parametrize("index", [99, -1, 0.9, True])
+def test_invalid_hole_selection_fails_clearly(tmp_path, index):
+    with pytest.raises(ValueError, match="[Hh]ole"):
+        make_drawing(build_sample_context(), DrawingRequest(
             views=("front", "top"),
-            dimensions=(DimensionSpec(kind="hole_coordinate", axis="x", index=99),),
-            formats=("svg",),
-        ),
-        tmp_path,
-    )
-    assert result.dimensions == []
-    assert all(check["suite"] == "2d" for check in result.checks)
+            dimensions=(DimensionSpec("hole_coordinate", "x", index=index),),
+            formats=("svg",)), tmp_path)
+
+
+def test_mixed_hole_diameters_and_spacing_appear_on_sheet(tmp_path):
+    from build123d import Box, Cylinder, Pos
+    from types import SimpleNamespace
+    plate = Box(80, 50, 6)
+    for x,y,r in [(-27,-15,3), (23,-15,4), (-27,18,3), (23,18,4)]:
+        plate -= Pos(x,y,0) * Cylinder(r, 8)
+    for dimensions in ("auto", [DimensionSpec("hole_spacing", "x")]):
+        result = make_drawing(SimpleNamespace(shape=plate, units="mm"),
+                              {"dimensions": dimensions, "formats": ["svg", "dxf"]}, tmp_path)
+        root = ET.parse(result.artifacts["svg"]).getroot()
+        labels = root.findall(".//{http://www.w3.org/2000/svg}text")
+        ids = {e.get("data-dimension-id") for e in labels}
+        assert all(d["id"] in ids for d in result.dimensions)
+        assert len({d["id"] for d in result.dimensions}) == len(result.dimensions)
+        svg_text = [e.text for e in labels]
+        dxf_text = [e.dxf.text for e in readfile(result.artifacts["dxf"]).modelspace().query("TEXT")]
+        expected = ["2X DIA 6 THRU", "2X DIA 8 THRU"] if dimensions == "auto" else ["50"]
+        assert all(t in svg_text and t in dxf_text for t in expected)
+        assert result.ok, result.checks
+
+
+def test_custom_view_cannot_mislabel_named_axes(tmp_path):
+    from aiad_drafting import DrawingView
+    with pytest.raises(ValueError, match="fixed direction"):
+        make_drawing(build_sample_context(), DrawingRequest(
+            views=(DrawingView("front", direction=(1,0,0)),)), tmp_path)
+
+
+def test_missing_view_dimension_is_reported_as_failure(tmp_path):
+    result = make_drawing(build_sample_context(), {"views": ["iso"], "formats": ["svg"]}, tmp_path)
+    assert not result.ok
+    assert next(c for c in result.checks if c["id"] == "dimension_coverage")["status"] == "fail"
+
+
+def test_raised_boss_does_not_hide_a_plate_through_hole_and_blind_holes_are_excluded():
+    from build123d import Box, Cylinder, Pos
+    from aiad_drafting.geometry import through_holes, shape_bounds
+    plate = Box(80,50,6) - Pos(-20,0,0)*Cylinder(3,8)
+    raised = plate + Pos(20,0,5)*Cylinder(8,10)
+    holes = through_holes(raised, shape_bounds(raised))
+    assert len(holes) == 1 and holes[0].radius == 3
+    blind = Box(80,50,6) - Pos(-20,0,3)*Cylinder(3,6)
+    assert through_holes(blind, shape_bounds(blind)) == []
+    counterbore = plate - Pos(-20,0,3)*Cylinder(5,6)
+    holes = through_holes(counterbore, shape_bounds(counterbore))
+    assert len(holes) == 1 and holes[0].radius == 3
+
+
+def test_clockwise_pdf_arc_and_complementary_arc_keys():
+    from aiad_drafting.export import arc, _reportlab_arc_angles
+    from aiad_drafting.geometry import Curve, _curve_key
+    assert _reportlab_arc_angles(arc((0,0), 2, 90, 0, False)) == (90, -90)
+    first = Curve("arc", False, center=(0,0), radius=2, start_angle=0, end_angle=180)
+    second = Curve("arc", False, center=(0,0), radius=2, start_angle=180, end_angle=0)
+    assert _curve_key(first) != _curve_key(second)
