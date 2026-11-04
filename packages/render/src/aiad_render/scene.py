@@ -14,6 +14,9 @@ if TYPE_CHECKING:
     from aiad.engine.types import ModelContext, SceneManifest
 
 
+PART_COLOR = "#b8c0cc"  # A neutral machined look, rather than ocp-tessellate's default yellow.
+
+
 @dataclass
 class _LocalSceneManifest:
     """Contract-identical fallback used when aiad-engine is not installed."""
@@ -82,29 +85,51 @@ def _solids(shape: Any) -> list[Any]:
         return []
 
 
+def _covers_all_topology(shape: Any, solids: list[Any]) -> bool:
+    """Whether a compound is only its solids, so that splitting it cannot lose loose faces or edges."""
+    try:
+        return len(shape.faces()) == sum(len(solid.faces()) for solid in solids) and len(shape.edges()) <= sum(
+            len(solid.edges()) for solid in solids
+        )
+    except (AttributeError, TypeError, ValueError):
+        return False
+
+
+def _in_world(shape: Any, parent: Any) -> Any:
+    """Apply the accumulated location of a shape's ancestors, which its own location does not include."""
+    if parent is None or parent.IsIdentity():
+        return shape
+    from build123d import Location
+
+    return shape.moved(Location(parent))
+
+
 def _scene_parts(shape: Any, ctx: Any) -> list[tuple[Any, str]]:
-    """Flatten Compound children to stable, separately pickable viewer parts."""
+    """Flatten Compound children to stable, separately pickable viewer parts in world position."""
     result: list[tuple[Any, str]] = []
 
-    def visit(obj: Any, prefix: tuple[str, ...], ordinal: int) -> None:
+    def visit(obj: Any, prefix: tuple[str, ...], ordinal: int, parent: Any) -> None:
         children = _children(obj)
         if children:
+            own = _wrapped(obj).Location()
+            location = own if parent is None else parent.Multiplied(own)
             for index, child in enumerate(children, start=1):
                 segment = _name(child) or f"part-{index}"
-                visit(child, prefix + (segment,), index)
+                visit(child, prefix + (segment,), index, location)
             return
 
         solids = _solids(obj)
-        if len(solids) > 1:
+        complete = _covers_all_topology(obj, solids) if solids else False
+        if len(solids) > 1 and complete:
             for index, solid in enumerate(solids, start=1):
                 segment = _name(solid) or f"part-{index}"
-                visit(solid, prefix + (segment,), index)
+                visit(solid, prefix + (segment,), index, parent)
             return
 
         # A one-solid Compound still represents one named part. Passing the
         # Solid avoids making the viewer treat its Compound wrapper as another
-        # assembly level.
-        part_shape = solids[0] if len(solids) == 1 and type(obj).__name__ == "Compound" else obj
+        # assembly level. A compound with loose faces or edges stays whole.
+        part_shape = solids[0] if len(solids) == 1 and complete and type(obj).__name__ == "Compound" else obj
         if prefix:
             part_name = "__".join(prefix)
         else:
@@ -114,9 +139,9 @@ def _scene_parts(shape: Any, ctx: Any) -> list[tuple[Any, str]]:
                 or _name(obj)
                 or (f"part-{ordinal}" if ordinal > 0 else "main")
             )
-        result.append((part_shape, _safe_name(part_name)))
+        result.append((_in_world(part_shape, parent), _safe_name(part_name)))
 
-    visit(shape, (), 0)
+    visit(shape, (), 0, None)
 
     # OCP group IDs are name-based. Keep duplicate labels distinct and stable.
     seen: dict[str, int] = {}
@@ -210,7 +235,7 @@ def _placed(shape: Any, location: Any) -> Any:
             return shape
     except AttributeError:
         pass
-    return shape.Located(location)
+    return shape.Moved(location)  # Composes. Located() would discard the shape's own location.
 
 
 def _feature_map_for_part(
@@ -384,14 +409,19 @@ def _write_single_scene(ctx: Any, out: Path) -> tuple[Any, dict[str, Any]]:
     from ocp_tessellate._kernel import kernel_of
     from ocp_tessellate.convert import tessellate_group, to_ocpgroup
     from ocp_tessellate.ocp_utils.topology import get_edges, get_faces
+    from ocp_tessellate.tessellator import cache as mesh_cache
     from ocp_tessellate.utils import numpy_to_buffer_json
+
+    # A cached mesh leaves the source topology without triangulations, which loses the feature map and
+    # changes the bytes for one revision. Always tessellate what this context holds.
+    mesh_cache.clear()
 
     parts = _scene_parts(shape, ctx)
     if not parts:
         raise ValueError("ctx.shape contains no tessellatable parts")
 
     names = [part_name for _, part_name in parts]
-    group, instances = to_ocpgroup(*[part for part, _ in parts], names=names)
+    group, instances = to_ocpgroup(*[part for part, _ in parts], names=names, colors=[PART_COLOR] * len(parts))
 
     # ocp-tessellate.compute_quality scales linear deflection by
     # (bbox.x + bbox.y + bbox.z) / 300. The default 0.1 therefore remains
@@ -463,6 +493,9 @@ def _write_single_scene(ctx: Any, out: Path) -> tuple[Any, dict[str, Any]]:
         if isinstance(feature, str) and feature:
             part["feature"] = feature
         manifest_parts.append(part)
+
+    if not manifest_parts:
+        raise ValueError("make_scene needs a shape with at least one face; wires and edges alone have no mesh to show")
 
     shapes["feature_map"] = feature_map
     # TCV 5.1.3 directly decodes this instance/reference form in Viewer.render.

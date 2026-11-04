@@ -6,7 +6,8 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from build123d import Box, Cylinder, Compound, Location
+from build123d import Box, Compound, Cylinder, Edge, Face, Location, Plane, Wire, export_brep, import_brep, mirror
+import pytest
 
 from aiad_render import make_scene
 
@@ -207,3 +208,133 @@ def test_compare_scene_is_written_beside_primary_and_embedded(tmp_path):
     assert manifest.compare is not None
     assert manifest.compare.scene_id == compare_data["scene_id"]
     assert primary_data["compare"]["scene_id"] == compare_data["scene_id"]
+
+
+def _decoded(mesh):
+    import base64
+    import struct
+
+    raw = base64.b64decode(mesh["vertices"]["buffer"])
+    return list(struct.unpack(f"<{len(raw) // 4}f", raw))
+
+
+def _world_bbox(payload):
+    """Vertices through each leaf's loc, the way the viewer places them."""
+    lows, highs = [float("inf")] * 3, [float("-inf")] * 3
+
+    def rotate(point, quaternion):
+        x, y, z = point
+        qx, qy, qz, qw = quaternion
+        cx, cy, cz = 2 * (qy * z - qz * y), 2 * (qz * x - qx * z), 2 * (qx * y - qy * x)
+        return [x + qw * cx + qy * cz - qz * cy, y + qw * cy + qz * cx - qx * cz, z + qw * cz + qx * cy - qy * cx]
+
+    def visit(node, translation, quaternion):
+        loc = node.get("loc")
+        t, q = translation, quaternion
+        if loc:
+            moved = rotate(loc[0], q)
+            t = [a + b for a, b in zip(t, moved, strict=True)]
+            ax, ay, az, aw = q
+            bx, by, bz, bw = loc[1]
+            q = [
+                aw * bx + ax * bw + ay * bz - az * by,
+                aw * by - ax * bz + ay * bw + az * bx,
+                aw * bz + ax * by - ay * bx + az * bw,
+                aw * bw - ax * bx - ay * by - az * bz,
+            ]
+        shape = node.get("shape")
+        if isinstance(shape, dict) and "ref" in shape:
+            values = _decoded(payload["instances"][shape["ref"]])
+            for i in range(0, len(values), 3):
+                world = rotate(values[i : i + 3], q)
+                for axis in range(3):
+                    value = world[axis] + t[axis]
+                    lows[axis] = min(lows[axis], value)
+                    highs[axis] = max(highs[axis], value)
+        for child in node.get("parts") or []:
+            visit(child, t, q)
+
+    visit(payload["shapes"], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
+    return [*lows, *highs]
+
+
+def test_assembly_parents_location_reaches_the_mesh(tmp_path):
+    """Regression: a moved assembly kept its manifest bbox while its mesh stayed at the origin."""
+    shape = Compound(children=[Box(2, 4, 6).moved(Location((3, 0, 0)))])
+    shape.move(Location((100, 20, 0), (0, 0, 90)))
+    manifest = make_scene(_context(shape), tmp_path)
+    assert manifest.bbox == pytest.approx([98, 22, -3, 102, 24, 3], abs=1e-3)
+    assert _world_bbox(_payload(tmp_path)) == pytest.approx(manifest.bbox, abs=1e-3)
+
+
+def test_nested_assembly_locations_compose(tmp_path):
+    inner = Compound(children=[Box(2, 2, 2).moved(Location((5, 0, 0)))])
+    inner.move(Location((0, 10, 0)))
+    shape = Compound(children=[inner])
+    shape.move(Location((0, 0, 100)))
+    manifest = make_scene(_context(shape), tmp_path)
+    assert _world_bbox(_payload(tmp_path)) == pytest.approx(manifest.bbox, abs=1e-3)
+    assert manifest.bbox == pytest.approx([4, 9, 99, 6, 11, 101], abs=1e-3)
+
+
+def test_located_faces_keep_their_own_feature(tmp_path):
+    """Regression: replacing a location gave one face's feature to its neighbour."""
+    face = Face.make_rect(3, 5)
+    shape = Compound([face.moved(Location((10, 0, 0))), face]).moved(Location((0, 20, 0)))
+    features = [SimpleNamespace(name=f"owner{i}", faces=[_entity(i)], edges=[]) for i in range(len(shape.faces()))]
+    manifest = make_scene(_context(shape, features=features), tmp_path)
+    maps = _payload(tmp_path)["shapes"]["feature_map"][manifest.parts[0]["path"]]
+    assert sorted(maps["faces"]) == ["owner0", "owner1"]
+
+
+def test_feature_map_and_bytes_survive_reloading_one_brep(tmp_path):
+    """Regression: a mesh cache hit erased every label and changed the bytes for one revision."""
+    base = Box(10, 10, 10) - Cylinder(2, 12)
+    brep = tmp_path / "part.brep"
+    export_brep(base, brep)
+    blobs, labels = [], []
+    for index in range(3):
+        shape = import_brep(str(brep))
+        features = [SimpleNamespace(name="all", faces=[_entity(i) for i in range(len(shape.faces()))], edges=[_entity(i) for i in range(len(shape.edges()))])]
+        manifest = make_scene(_context(shape, features=features), tmp_path / str(index))
+        blobs.append((tmp_path / str(index) / "scene.bin.gz").read_bytes())
+        labels.append(_payload(tmp_path / str(index))["shapes"]["feature_map"][manifest.parts[0]["path"]])
+    assert blobs[0] == blobs[1] == blobs[2]
+    assert labels[0] == labels[1] == labels[2]
+    assert set(labels[0]["faces"]) == {"all"} and set(labels[0]["edges"]) == {"all"}
+
+
+def test_same_shape_twice_gives_the_same_labels(tmp_path):
+    shape = Box(10, 10, 10)
+    features = [SimpleNamespace(name="owned", faces=[_entity(i) for i in range(6)], edges=[])]
+    first = make_scene(_context(shape, features=features), tmp_path / "a")
+    second = make_scene(_context(shape, features=features), tmp_path / "b")
+    assert first.scene_id == second.scene_id
+
+
+def test_mixed_compound_keeps_its_loose_geometry(tmp_path):
+    """Regression: a box plus a loose face lost the face, while the manifest bbox still included it."""
+    face = Face.make_rect(40, 40).moved(Location((0, 0, 100)))
+    shape = Compound([Box(7, 9, 11), face])
+    manifest = make_scene(_context(shape), tmp_path)
+    world = _world_bbox(_payload(tmp_path))
+    assert world[5] == pytest.approx(100, abs=1e-3) and world[3] == pytest.approx(20, abs=1e-3)
+    assert world == pytest.approx(manifest.bbox, abs=1e-3)
+
+
+@pytest.mark.parametrize("shape", [Wire.make_circle(9), Edge.make_line((0, 0, 0), (1, 0, 0))])
+def test_wires_alone_are_refused_before_anything_is_written(tmp_path, shape):
+    with pytest.raises(ValueError, match="at least one face"):
+        make_scene(_context(shape), tmp_path)
+    assert not (tmp_path / "scene.json").exists()
+
+
+def test_mirrored_solid_mesh_matches_its_bbox(tmp_path):
+    shape = mirror(Box(2, 4, 6).moved(Location((10, 0, 0))), Plane.YZ)
+    manifest = make_scene(_context(shape), tmp_path)
+    assert _world_bbox(_payload(tmp_path)) == pytest.approx(manifest.bbox, abs=1e-3)
+
+
+def test_part_color_is_neutral(tmp_path):
+    manifest = make_scene(_context(Box(1, 1, 1)), tmp_path)
+    assert manifest.parts[0]["color"] == "#b8c0cc"
