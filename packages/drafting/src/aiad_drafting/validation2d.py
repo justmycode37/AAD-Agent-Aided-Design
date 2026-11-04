@@ -1198,7 +1198,7 @@ def _laser_checks(analysis: Mapping[str, Any], limits: Any) -> list[dict[str, An
             }
             for item in clearances
         ]
-        below = [item for item in comparisons if item["clearance"] < kerf - float(analysis["tolerance"])]
+        below = [item for item in comparisons if item["clearance"] < kerf]
         incomplete = analysis["status"]["state"] != "complete" or not analysis["clearance_complete"]
         status = "fail" if below else "warn" if incomplete else "pass"
         kerf_check = _check(
@@ -1248,7 +1248,7 @@ def _laser_checks(analysis: Mapping[str, Any], limits: Any) -> list[dict[str, An
             }
             for hole in holes
         ]
-        below = [item for item in comparisons if item["diameter"] < min_slot - float(analysis["tolerance"])]
+        below = [item for item in comparisons if item["diameter"] < min_slot]
         incomplete = analysis["status"]["state"] != "complete"
         status = "fail" if below else "warn" if incomplete else "pass"
         opening_check = _check(

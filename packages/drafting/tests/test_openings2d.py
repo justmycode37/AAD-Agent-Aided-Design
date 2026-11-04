@@ -68,3 +68,39 @@ def test_read_only_validation_does_not_replace_the_active_model():
     checks(ctx(inspected))
     measurement_evidence(ctx(inspected))
     assert latest_sheet() is current
+
+
+@pytest.mark.parametrize("offset", [0.0, 1e14])
+def test_explicit_laser_limits_are_not_reduced_by_coordinate_tolerance(offset):
+    kerf_sheet = sheet2d("kerf")
+    kerf_sheet.rectangle("left", 10, 10, origin=(offset, 0))
+    kerf_sheet.rectangle("right", 10, 10, origin=(offset + 11.9, 0))
+    evidence = measurement_evidence(ctx(kerf_sheet))
+    assert evidence["status"]["complete"]
+    assert evidence["boundary_clearances"][0]["distance"] < 2
+    result = {item["id"]: item for item in checks(ctx(kerf_sheet), limits={"kerf": 2})}
+    assert result["2d.laser.kerf"]["status"] == "fail"
+
+    slot_sheet = sheet2d("slot")
+    slot_sheet.rectangle("outline", 100, 100, origin=(offset, 0))
+    slot_sheet.circle("hole", (offset + 50, 50), 1)
+    evidence = measurement_evidence(ctx(slot_sheet))
+    assert evidence["status"]["complete"]
+    assert evidence["holes"][0]["diameter"] == pytest.approx(2)
+    result = {item["id"]: item for item in checks(ctx(slot_sheet), limits={"min_slot": 2.2})}
+    assert result["2d.laser.circular_openings"]["status"] == "fail"
+    assert result["2d.laser.min_slot"]["status"] == "fail"
+
+
+def test_translated_trapezoid_is_not_classified_as_a_rectangle():
+    offset = 1e14
+    sheet = sheet2d("trapezoid")
+    sheet.rectangle("outline", 100, 100, origin=(offset, 0))
+    sheet.polyline("opening", [(offset+20, 20), (offset+30, 20),
+                               (offset+30.125, 22), (offset+20, 22)], closed=True)
+    evidence = measurement_evidence(ctx(sheet))
+    assert evidence["status"]["complete"]
+    assert evidence["openings"] == []
+    assert len(evidence["unsupported_openings"]) == 1
+    result = {item["id"]: item for item in checks(ctx(sheet), limits={"min_slot": 1})}
+    assert result["2d.laser.min_slot"]["status"] == "skip"
