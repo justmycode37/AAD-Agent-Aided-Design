@@ -30,6 +30,8 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.3
       - name: Lock file is current
         run: uv lock --check
+      - name: Check CI test selection
+        run: python3 -m unittest discover -s .github/scripts -p "test_*.py"
       - id: discover
         run: python3 .github/scripts/discover.py
 
@@ -39,7 +41,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: [macos-15, ubuntu-latest]
         package: ${{ fromJSON(needs.discover.outputs.packages) }}
     name: ${{ matrix.package.dir }} (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -60,11 +62,10 @@ jobs:
 
   e2e:
     needs: discover
-    if: needs.discover.outputs.e2e == 'true'
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: [macos-15, ubuntu-latest]
     name: e2e smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -108,7 +109,9 @@ jobs:
           echo '${{ toJSON(needs) }}' | python3 -c '
           import json, sys
           needs = json.load(sys.stdin)
-          bad = {k: v["result"] for k, v in needs.items() if v["result"] not in ("success", "skipped")}
+          required = {"discover", "e2e"}
+          bad = {k: v["result"] for k, v in needs.items()
+                 if v["result"] != "success" and (k in required or v["result"] != "skipped")}
           print("results:", {k: v["result"] for k, v in needs.items()})
           sys.exit(f"failed: {bad}" if bad else 0)
           '
