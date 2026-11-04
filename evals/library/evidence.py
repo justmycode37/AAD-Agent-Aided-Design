@@ -8,7 +8,7 @@ import statistics
 import uuid
 
 KINDS = ("part", "material", "playbook", "api")
-MEASUREMENTS = ("valid", "bbox_mm", "thread_zone_xy_mm", "solids", "material_probes", "passed")
+MEASUREMENTS = ("valid", "bbox_mm", "thread_zone_xy_mm", "solids", "material_probes", "geometry_witness", "passed")
 
 
 def require(condition, message):
@@ -56,9 +56,27 @@ def summaries(records, expected_ids):
     for part_id in expected_ids:
         rows = [r for r in records if r["id"] == part_id]
         axes = list(zip(*(r["bbox_mm"] for r in rows)))
+        witness_values = {}
+        for row in rows:
+            witness = row.get('geometry_witness') or {}
+            values = {}
+            if witness.get('balls'):
+                values['ball_count'] = len(witness['balls'])
+                values['ball_radius_mm'] = statistics.mean(b['radius_mm'] for b in witness['balls'])
+            if witness.get('helical_edges', {}).get('signed_pitches_mm'):
+                values['signed_thread_pitch_mm'] = statistics.mean(witness['helical_edges']['signed_pitches_mm'])
+            if witness.get('profile'):
+                for section in witness['profile']['slices']:
+                    values[f'tooth_width_at_radius_{section["radius_mm"]:g}_mm'] = section['mean_width_mm']
+            for name, value in values.items():
+                witness_values.setdefault(name, []).append(value)
+        witness_stats = {name:{'n':len(values),'mean':statistics.mean(values),
+                              'sample_sd':statistics.stdev(values) if len(values)>1 else None}
+                         for name,values in witness_values.items()}
         result.append({"id": part_id, "n": len(rows), "valid_count": sum(r["valid"] for r in rows),
                        "bbox_mean_mm": [statistics.mean(axis) for axis in axes],
-                       "bbox_sample_sd_mm": [statistics.stdev(axis) if len(axis) > 1 else None for axis in axes]})
+                       "bbox_sample_sd_mm": [statistics.stdev(axis) if len(axis) > 1 else None for axis in axes],
+                       "geometry_witness_stats":witness_stats})
     return result
 
 

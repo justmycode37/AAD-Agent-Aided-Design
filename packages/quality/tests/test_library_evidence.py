@@ -22,7 +22,7 @@ def parts_fixture(base):
     folder = base / '.runs' / run_id
     folder.mkdir(parents=True)
     measurement = dict(valid=True, passed=True, bbox_mm=[1.,2.,3.],
-                       thread_zone_xy_mm=None, solids=1, material_probes=[])
+                       thread_zone_xy_mm=None, solids=1, material_probes=[], geometry_witness=None)
     rows = []
     for repeat in (1,2,3):
         path = folder / f'fixture-{repeat}.brep'
@@ -120,3 +120,47 @@ def test_native_reaudit_does_not_accept_an_unparsed_artifact(tmp_path):
 def test_ambiguous_or_nonfinite_evidence_json_is_rejected(tmp_path,text):
     file=tmp_path/'bad.json';file.write_text(text)
     with pytest.raises(ValueError):evidence.load_document(file)
+
+
+@pytest.mark.parametrize('case',['smooth_thread','annulus_bearing','wrong_pitch','wrong_hand','wrong_profile'])
+def test_native_part_witnesses_reject_same_envelope_impostors(tmp_path,monkeypatch,case):
+    pytest.importorskip('bd_warehouse')
+    from build123d import Align,Cylinder,export_brep
+    monkeypatch.syspath_prepend(str(EVALS))
+    import probe_parts
+    if case=='annulus_bearing':
+        shape=Cylinder(11,7,align=(Align.CENTER,Align.CENTER,Align.MIN))-Cylinder(4,7,align=(Align.CENTER,Align.CENTER,Align.MIN))
+        part_id='bearing.deep_groove_ball.skt'
+    elif case=='smooth_thread':
+        shape=Cylinder(3,8,align=(Align.CENTER,Align.CENTER,Align.MIN))
+        part_id='thread.iso_metric_external'
+    elif case in ('wrong_pitch','wrong_hand'):
+        from bd_warehouse.thread import IsoThread
+        shape=IsoThread(major_diameter=6,pitch=.8 if case=='wrong_pitch' else 1,length=8,
+                        hand='left' if case=='wrong_hand' else 'right',end_finishes=('square','square'))
+        part_id='thread.iso_metric_external'
+    else:
+        from bd_warehouse.thread import Thread
+        shape=Thread(apex_radius=3,apex_width=.3,root_radius=3-5/8*(3**.5/2),root_width=.75,
+                     pitch=1,length=8,end_finishes=('square','square'))
+        part_id='thread.iso_metric_external'
+    artifact=tmp_path/f'{case}.brep';export_brep(shape,str(artifact))
+    observed=probe_parts.measure_artifact(artifact,part_id)
+    assert observed['valid'] and not observed['passed'],observed
+    witness=observed['geometry_witness']
+    if case=='annulus_bearing':assert witness['balls']==[]
+    elif case=='wrong_profile':
+        assert witness['helical_edges']['passed'] and not witness['profile']['passed']
+    else:assert not witness['helical_edges']['passed']
+
+
+@pytest.mark.parametrize('part_id',['bearing.deep_groove_ball.skt','thread.iso_metric_external'])
+def test_real_default_parts_pass_the_added_native_geometry_witnesses(tmp_path,monkeypatch,part_id):
+    pytest.importorskip('bd_warehouse')
+    from build123d import export_brep
+    from aiad_quality.standard_parts import make_part
+    monkeypatch.syspath_prepend(str(EVALS))
+    import probe_parts
+    artifact=tmp_path/'actual.brep';export_brep(make_part(part_id),str(artifact))
+    observed=probe_parts.measure_artifact(artifact,part_id)
+    assert observed['passed'] and observed['geometry_witness']['passed'],observed

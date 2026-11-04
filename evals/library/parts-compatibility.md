@@ -26,6 +26,8 @@ Each default adapter result was built through its pinned upstream constructor. `
 
 These checks establish that the selected API calls build valid shapes with the expected units and major dimensions. They do not establish manufacturing compliance, tolerance fit, bearing rating, or load capacity. The adapter uses full helical fastener threads and documents simplified bearing internals; the thread-only result has no shaft or mating part.
 
+The parent strengthened the native BREP oracle after review: bounds alone admitted a smooth cylinder in place of the thread and an annulus in place of the bearing. It now checks helical edge lead/handedness, two sampled axial tooth profiles, and the bearing's separate races and twelve spherical rolling elements. The profile equations and rolling-element layout are scoped to the pinned default models, not a reproduction of a paid standard. Negative cylinder, annulus, wrong-pitch, and wrong-profile models are regression fixtures in `test_library_evidence.py`. These witnesses do not prove complete thread tolerances, interference-free bearing motion, or purchased-hardware compliance.
+
 ## Reproduce
 
 From the AIAD worktree root:

@@ -11,6 +11,7 @@ import uuid
 
 from aiad_quality import standard_parts
 from evidence import summaries
+from native_witnesses import geometry_witness
 
 BASE = Path(__file__).resolve().parent
 EXPECTED = {
@@ -28,6 +29,7 @@ def fingerprints():
     import bd_warehouse
     root = Path(bd_warehouse.__file__).parent
     paths = {"adapter": Path(standard_parts.__file__), "probe": Path(__file__),
+             "validation/native_witnesses.py": BASE / "native_witnesses.py",
              "validation/evidence.py": BASE / "evidence.py", "validation/check_evidence.py": BASE / "check_evidence.py",
              **{f"upstream/{path.relative_to(root)}": path for path in sorted(root.rglob("*"))
                 if path.is_file() and path.suffix in {".py", ".csv"}}}
@@ -74,9 +76,11 @@ def measure_artifact(artifact, part_id):
                   {"point_mm": [3.01,0,z], "expected_solid": False}]
     for probe in probes:
         probe["actual_solid"] = occupied(*probe["point_mm"])
+    witness = geometry_witness(raw, part_id)
     return {"valid": valid, "bbox_mm": dims, "thread_zone_xy_mm": thread_zone_dims,
-            "solids": len(solids), "material_probes": probes,
+            "solids": len(solids), "material_probes": probes, "geometry_witness":witness,
             "passed": valid and bool(solids) and (not part_id.startswith("fastener.") or len(solids)==1)
+                      and witness['passed']
                       and all(abs(a-b)<=.01 for a,b in zip(dims,EXPECTED[part_id]))
                       and all(p["actual_solid"] == p["expected_solid"] for p in probes)
                       and (thread_zone_dims is None or all(abs(d-6)<=.01 for d in thread_zone_dims))}
