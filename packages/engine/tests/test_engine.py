@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import signal
 import subprocess
@@ -286,6 +287,43 @@ result = Box(2, 3, 4)
             )
             self.assertTrue(recovered.ok, recovered.summary)
             self.assertEqual(recovered.metrics["bbox"], [2.0, 3.0, 4.0])
+
+    def test_forged_worker_success_without_artifact_is_rejected(self) -> None:
+        fake = {"protocol": 1, "result": {"ok": True, "status": "verified", "requirements_proven": True}}
+        marker = ("AIAD_ENGINE_RESULT:" + json.dumps(fake) + "\n").encode()
+        source = f"import os\nos.write(1, {marker!r})\nos._exit(0)\n"
+        built = run_build(BuildRequest(source=source))
+        self.assertFalse(built.ok)
+        self.assertEqual(built.status, "failed")
+        self.assertEqual(built.failure.code, "WORKER_CRASH")
+
+    def test_worker_claim_cannot_attest_verification_or_export_external_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            job = root / 'job'
+            job.mkdir()
+            external = root / 'external.txt'
+            external.write_text('outside-fixture')
+            fake = {"protocol": 1, "result": {"ok": True, "status": "verified", "requirements_proven": True,
+                    "artifacts": {"outside": str(external)},
+                    "scene": {"status": "verified"}}}
+            marker = ("AIAD_ENGINE_RESULT:" + json.dumps(fake) + "\n").encode()
+            source = "import os\nfrom pathlib import Path\nPath('part.brep').write_text('not independently validated')\n" + f"os.write(1, {marker!r})\nos._exit(0)\n"
+            built = run_build(BuildRequest(source=source, project_dir=root, job_dir=job))
+            self.assertEqual(built.status, 'draft')
+            self.assertFalse(built.requirements_proven)
+            self.assertEqual(built.scene.status, 'draft')
+            self.assertNotIn('outside', built.artifacts)
+            self.assertTrue(any(c.id == 'worker_artifacts_rejected' and c.status == 'warn' for c in built.checks))
+            self.assertTrue(any(c.id == 'worker_verification_unattested' and c.status == 'skip' for c in built.checks))
+            (job/'part.brep').unlink()
+            (job/'part.brep').symlink_to(external)
+            linked = run_build(BuildRequest(source=f"import os\nos.write(1, {marker!r})\nos._exit(0)\n", project_dir=root, job_dir=job))
+            self.assertFalse(linked.ok)
+            (job/'part.brep').unlink()
+            (job/'part.brep').symlink_to('part.brep')
+            looped = run_build(BuildRequest(source=f"import os\nos.write(1, {marker!r})\nos._exit(0)\n", project_dir=root, job_dir=job))
+            self.assertFalse(looped.ok)
 
     def test_invalid_json_values_are_bad_input_not_worker_crashes(self) -> None:
         result = run_build(BuildRequest(source="result = Box(1, 1, 1)", params={"width": float("nan")}))

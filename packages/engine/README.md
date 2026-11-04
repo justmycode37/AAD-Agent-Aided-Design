@@ -47,6 +47,11 @@ process. Inside optional worker hooks, `ModelContext.shape` is the live shape.
   successful model is `draft`; the engine does not mark validity as proof of
   design intent. Promotion requires unique IDs and complete, finite results;
   malformed requirements or error-level skips/warnings remain `draft`.
+  The parent also withholds `verified` from worker pipe results: model code can
+  write that pipe. A separate trusted validator is required before promotion.
+  Private, nonempty job artifacts are required for a reported success; path
+  checks do not independently prove BREP validity. M0 remains unsandboxed as
+  described below until the runner boundary is integrated.
 - `aiad_quality` and `aiad_render` hooks are optional. Missing hooks produce
   explicit `skip` checks; hook exceptions produce `warn` checks and retain the
   BREP. An unavailable or skipped spec check cannot produce `verified`.

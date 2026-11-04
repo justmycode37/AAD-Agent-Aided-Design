@@ -6,6 +6,7 @@ import json
 import math
 import os
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -140,7 +141,8 @@ def run_build(req: BuildRequest) -> BuildResult:
         )
 
     try:
-        return _result_from_wire(response, job_dir=job_dir, elapsed_ms=elapsed_ms, process_stderr=_decode(stderr_bytes))
+        result = _result_from_wire(response, job_dir=job_dir, elapsed_ms=elapsed_ms, process_stderr=_decode(stderr_bytes))
+        return _constrain_worker_evidence(result, job_dir, project_dir)
     except (KeyError, TypeError, ValueError) as exc:
         return _failed(
             Failure(
@@ -162,6 +164,64 @@ def _coerce_request(req: BuildRequest | Mapping[str, Any]) -> BuildRequest:
     if isinstance(req, Mapping):
         return BuildRequest(**dict(req))
     raise TypeError("req must be a BuildRequest or a mapping of its fields")
+
+
+def _private_artifact(path: Path, job_dir: Path) -> bool:
+    try:
+        info = path.lstat()
+        return (path.resolve(strict=True).is_relative_to(job_dir)
+                and stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_size > 0)
+    except (OSError, RuntimeError, ValueError):
+        return False
+
+
+def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: Path) -> BuildResult:
+    # A model can write native stdout and exit before our worker finishes.
+    # Its result marker is not a trusted validation receipt.
+    part = job_dir / "part.brep"
+    if result.ok and not _private_artifact(part, job_dir):
+        return _failed(Failure(
+            code="WORKER_CRASH", phase="crash", feature="unknown", file="part.brep",
+            message="The worker reported success without a private, non-empty part.brep artifact; the build was not accepted.",
+        ), job_dir=job_dir, build_ms=result.build_ms)
+    artifacts: dict[str, str] = {}
+    rejected = 0
+    for name, value in result.artifacts.items():
+        if not isinstance(value, str):
+            rejected += 1
+            continue
+        path = Path(value)
+        if not path.is_absolute():
+            path = job_dir / path
+        if _private_artifact(path, job_dir):
+            artifacts[name] = str(path)
+        else:
+            rejected += 1
+    if _private_artifact(part, job_dir):
+        artifacts["part.brep"] = str(part)
+    result.artifacts = artifacts
+    if result.context is not None:
+        result.context.job_dir = job_dir
+        result.context.project_dir = project_dir
+    if rejected:
+        result.checks.append(Check(
+            id="worker_artifacts_rejected", suite="hard", level="warn", status="warn",
+            message="Worker artifact references did not pass the private job-file checks and were omitted.",
+            actual=str(rejected),
+        ))
+    if result.status == "verified":
+        result.status = "draft"
+        result.requirements_proven = False
+        result.summary = "A BREP artifact was returned; independent verification of the worker evidence is pending."
+        result.checks.append(Check(
+            id="worker_verification_unattested", suite="hard", level="error", status="skip",
+            message="The model process cannot attest its own verified status. A separate trusted validator is required.",
+        ))
+        if result.scene is not None:
+            result.scene.status = "draft"
+    result.checks_summary = {status: sum(c.status == status for c in result.checks)
+                             for status in ("pass", "fail", "warn", "skip")}
+    return result
 
 
 def _validate_request(req: BuildRequest) -> None:
