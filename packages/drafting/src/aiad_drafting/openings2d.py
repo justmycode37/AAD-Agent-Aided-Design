@@ -64,7 +64,12 @@ def _obround(edges, tolerance):
 
 def measured_openings(evidence):
     """Return recognized widths and unknown contour IDs, using proven edges."""
-    tolerance = evidence["topology_tolerance"] * 8
+    # Feature recognition uses local edge lengths, not absolute coordinates or
+    # the (possibly much larger) endpoint-joining tolerance. A translated
+    # trapezoid must not become a rectangle through a looser classification.
+    magnitude = max((edge["length"] for contour in evidence["closed_contours"]
+                     for edge in contour["edges"]), default=1.0)
+    tolerance = max(1e-9, magnitude * math.ulp(1.0) * 64)
     circles = {hole["contour"]: hole for hole in evidence["holes"]}
     openings, unknown = [], []
     for contour in evidence["closed_contours"]:
@@ -86,7 +91,7 @@ def measured_openings(evidence):
 
 def min_slot_check(evidence, minimum):
     openings, unknown = measured_openings(evidence)
-    below = [opening for opening in openings if opening["width"] < minimum - evidence["topology_tolerance"]]
+    below = [opening for opening in openings if opening["width"] < minimum]
     complete = evidence["status"]["complete"] and not unknown
     status = "fail" if below else "pass" if complete and openings else "skip"
     message = (f"{len(below)} measured interior opening(s) are narrower than min_slot." if below else

@@ -95,6 +95,10 @@ There are no defaults. Missing values produce `skip`; booleans, non-finite,
 zero, and negative values fail limit validation. Unknown keys and non-mapping
 inputs also fail. Laser checks run when `ctx.process` is `laser` (or a laser
 alias) or when the caller supplies `limits`.
+Measured values are compared directly with the supplied limits. Endpoint-joining
+tolerance never reduces a caller's kerf or minimum-slot requirement. Rectangle
+and obround recognition uses local edge lengths, so translating geometry does
+not loosen its shape classification.
 
 - `2d.laser.limits` reports whether the caller supplied valid limits.
 - `2d.laser.kerf` compares exact distances between valid separate contours
