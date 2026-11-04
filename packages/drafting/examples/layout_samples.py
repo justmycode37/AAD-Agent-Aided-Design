@@ -55,7 +55,7 @@ def build_simple_turned_part() -> SimpleNamespace:
 
 
 def build_two_part_assembly() -> SimpleNamespace:
-    base = Box(80.0, 50.0, 8.0)
+    base = Box(80.0, 50.0, 8.0) - Pos(20.0,0.0,0.0)*Cylinder(5.1,10.0)
     pin = Pos(20.0, 0.0, 9.0) * Cylinder(5.0, 12.0)
     assembly_shape = Compound(children=[base, pin])
     return SimpleNamespace(

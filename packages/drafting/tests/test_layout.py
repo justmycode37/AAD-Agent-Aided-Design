@@ -131,3 +131,52 @@ def test_text_below_minimum_is_not_used_and_overlong_notes_fail_visibly(tmp_path
     assert _check(result, "schedule_bounds")["status"] == "fail"
     assert _check(result, "text_margins")["status"] == "fail"
     assert not result.ok
+
+
+def test_hole_leader_routes_around_other_bores():
+    from aiad_drafting.routing import hole_leader_path, segment_distance
+    circles=[(0,(0,0),2),(1,(7,0),2),(2,(14,0),2)]
+    index,path=hole_leader_path(circles,[0],(25,0))
+    assert index==0 and len(path)>2
+    assert path[-1] == (25,0)
+    import math
+    assert math.dist(path[0],(0,0)) == pytest.approx(2)
+    assert all(segment_distance(center,a,b)>=radius+0.59
+               for other,center,radius in circles if other!=0 for a,b in zip(path,path[1:]))
+
+
+def test_png_glyphs_fit_the_measured_baseline_bounds(tmp_path):
+    from aiad_drafting.export import write_png
+    from PIL import Image,ImageChops
+    label=text("TITLE",5,10,2.5)
+    write_png(tmp_path/"baseline.png",50,30,[label])
+    with Image.open(tmp_path/"baseline.png") as im:
+        left,top,right,bottom=ImageChops.difference(im,Image.new("RGB",im.size,"white")).getbbox()
+        bounds=text_bounds(label)
+        assert left/4 >= bounds.xmin-0.3
+        assert right/4 <= bounds.xmax+0.3
+        assert 30-bottom/4 >= bounds.ymin-0.3
+        assert 30-top/4 <= bounds.ymax+0.3
+
+
+def test_same_part_number_does_not_merge_different_geometry():
+    from aiad_drafting.layout import bom_from_context
+    a,b=Box(10,10,3),Box(20,10,3)
+    rows=bom_from_context(SimpleNamespace(children=[{"part_number":"X","shape":a},{"part_number":"X","shape":b}]))
+    assert len(rows)==2 and all(r["quantity"]==1 for r in rows)
+    rows=bom_from_context(SimpleNamespace(children=[{"part_number":"X","shape":a},{"part_number":"X","shape":a}]))
+    assert len(rows)==1 and rows[0]["quantity"]==2
+
+
+def test_cylinder_schedule_dimensions_are_rendered_and_table_rules_clear(tmp_path):
+    from examples.layout_samples import build_simple_turned_part
+    result=make_drawing(build_simple_turned_part(),DrawingRequest(views=("front","top","iso"),formats=("svg",)),tmp_path)
+    root=ET.parse(result.artifacts["svg"]).getroot()
+    ids={node.get("data-dimension-id") for node in root.findall(".//{http://www.w3.org/2000/svg}text")}
+    cylinders=[d for d in result.dimensions if d["kind"].startswith("cylinder_")]
+    assert len(cylinders)==16
+    assert all(d["id"] in ids and d["source"]["face_indices"] for d in cylinders)
+    assert sorted(d["value"] for d in cylinders if d["kind"]=="cylinder_length") == [8,10,10,21]
+    assert _check(result,"table_rule_collisions")["status"]=="pass"
+    assert _check(result,"dimension_view_collisions")["status"]=="pass"
+    assert result.ok,result.checks

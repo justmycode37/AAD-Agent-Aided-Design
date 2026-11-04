@@ -589,9 +589,11 @@ def _make_dimensions(
 
 
 def _scale_label(scale: float) -> str:
-    if scale >= 1:
-        return f"{scale:g}:1"
-    return f"1:{1 / scale:g}"
+    from fractions import Fraction
+    ratio=Fraction(scale).limit_denominator(100)
+    if abs(float(ratio)-scale)<1e-8 and ratio.numerator:
+        return f"{ratio.numerator}:{ratio.denominator}"
+    return f"{scale:.6g}:1"
 
 
 def _place_views(
@@ -792,27 +794,17 @@ def _draw_overall_dimensions(
             )
 
 
-def _arrowed_hole_leader(
-    entities: list[Primitive],
-    hole_center: tuple[float, float],
-    radius: float,
-    label_anchor: tuple[float, float],
-) -> None:
-    dx, dy = label_anchor[0] - hole_center[0], label_anchor[1] - hole_center[1]
-    length = math.hypot(dx, dy)
-    if length <= 1e-9:
-        return
-    ux, uy = dx / length, dy / length
-    tip = (hole_center[0] + radius * ux, hole_center[1] + radius * uy)
-    elbow = (max(tip[0] + 4.0, label_anchor[0] - 8.0), label_anchor[1])
-    entities.append(line(tip[0], tip[1], elbow[0], elbow[1], "DIMENSIONS", 0.12))
-    entities.append(line(elbow[0], elbow[1], label_anchor[0], label_anchor[1], "DIMENSIONS", 0.12))
-
-    arrow_length = 1.5
-    normal = (-uy * 0.48, ux * 0.48)
-    base = (tip[0] + ux * arrow_length, tip[1] + uy * arrow_length)
-    entities.append(line(tip[0], tip[1], base[0] + normal[0], base[1] + normal[1], "DIMENSIONS", 0.12))
-    entities.append(line(tip[0], tip[1], base[0] - normal[0], base[1] - normal[1], "DIMENSIONS", 0.12))
+def _arrowed_hole_leader(entities, path):
+    tip, next_point = path[:2]
+    for first,last in zip(path,path[1:]):
+        entities.append(line(*first,*last,"DIMENSIONS",0.12))
+    length=math.dist(tip,next_point)
+    ux,uy=(next_point[0]-tip[0])/length,(next_point[1]-tip[1])/length
+    arrow_length=min(1.5,length*0.8)
+    normal=(-uy*0.32,ux*0.32)
+    base=(tip[0]+ux*arrow_length,tip[1]+uy*arrow_length)
+    entities.append(line(*tip,base[0]+normal[0],base[1]+normal[1],"DIMENSIONS",0.12))
+    entities.append(line(*tip,base[0]-normal[0],base[1]-normal[1],"DIMENSIONS",0.12))
 
 
 def _ordinate_count_prefix(dimension: dict[str, Any]) -> str:
@@ -843,18 +835,17 @@ def _draw_hole_dimensions(
         label = hole_callout_text(diameter)
         label_x = top.bounds.xmax + 25.0
         label_y = top.bounds.ymax - 5.0 - 8.0 * index
-        hole = min(
-            selected,
-            key=lambda candidate: math.dist(
-                _sheet_point(top, project_point((candidate.x, candidate.y, 0.0), top.projection)),
-                (label_x, label_y),
-            ),
-        )
-        center = _sheet_point(top, project_point((hole.x, hole.y, 0.0), top.projection))
-        label_anchor = (label_x - 1.5, label_y)
-        _arrowed_hole_leader(entities, center, hole.radius * top.factor, label_anchor)
+        from .routing import hole_leader_path
+        circles=[(h.index,_sheet_point(top,project_point((h.x,h.y,0),top.projection)),h.radius*top.factor) for h in holes]
+        blocked=[Rect(v.bounds.xmin-0.5,v.bounds.ymin-0.5,v.bounds.xmax+0.5,v.bounds.ymax+0.5)
+                 for name,v in placed.items() if name != "top"]
+        route=hole_leader_path(circles,diameter["hole_indices"],(label_x-1.5,label_y),blocked)
+        if route is not None:
+            _,path=route
+            _arrowed_hole_leader(entities,path)
+            leader_ids.add(diameter["id"])
+
         entities.append(text(label, label_x, label_y, 2.8, "DIMENSIONS", dimension_id=diameter["id"]))
-        leader_ids.add(diameter["id"])
 
     top_view = top.projection
     left, bottom = top.bounds.xmin, top.bounds.ymin
@@ -1348,6 +1339,32 @@ def _drawing_checks(
         if text_geometry_collisions
         else None,
     )
+    dimension_view_collisions=[]
+    for index,entity in enumerate(entities):
+        if entity.layer != "DIMENSIONS" or entity.kind == "text" or entity.view_name is None:
+            continue
+        for name,view in placed.items():
+            if name == entity.view_name:
+                continue
+            target=Rect(view.bounds.xmin,view.bounds.ymin,view.bounds.xmax,view.bounds.ymax)
+            if primitive_intersects_rect(entity,target):
+                dimension_view_collisions.append((index,name))
+    add_check("dimension_view_collisions","fail" if dimension_view_collisions else "pass",
+              "Dimension strokes intersect a different view." if dimension_view_collisions else "Dimension strokes stay clear of other views.",
+              str(dimension_view_collisions) if dimension_view_collisions else None)
+
+    ruling_collisions=[]
+    for index,entity in enumerate(entities):
+        if entity.kind != "text" or entity.layer not in {"TITLE","SCHEDULE"}:
+            continue
+        rectangle=text_bounds(entity)
+        if rectangle and any(stroke.kind != "text" and stroke.layer == entity.layer and
+                             primitive_intersects_rect(stroke,rectangle) for stroke in entities):
+            ruling_collisions.append(index)
+    add_check("table_rule_collisions","fail" if ruling_collisions else "pass",
+              "Table rules cross text." if ruling_collisions else "Table rules stay clear of glyph bounds.",
+              str(ruling_collisions) if ruling_collisions else None)
+
     small_text = [
         index for index, entity in enumerate(entities)
         if entity.kind == "text" and entity.height < 2.5 - 1e-8
@@ -1388,6 +1405,11 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
         raise ValueError("The supplied shape has an empty or invalid bounding box.")
     holes = through_holes(shape, bounds)
     dimensions = _make_dimensions(request.dimensions, bounds, holes, units)
+    cylinder_rows=[]
+    if request.dimensions == "auto":
+        from .features import cylindrical_schedule
+        cylinder_rows, cylinder_dimensions=cylindrical_schedule(shape,bounds,holes,units)
+        dimensions.extend(cylinder_dimensions)
     bom = bom_from_context(ctx) if request.bom else []
 
     from .views import project_drawing_view
@@ -1430,6 +1452,7 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
             sheet=request.sheet,
             style=request.style,
             scale_label=scale_label,
+            cylinders=cylinder_rows,
         )
         plan = pack_views(
             projections,
@@ -1460,7 +1483,15 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
     if marker_geometry:
         view_geometry["_markers"] = marker_geometry
     _view_label_entities(entities, placed, request, view_geometry, page_width, page_height)
-    _draw_overall_dimensions(entities, placed, dimensions, request.style)
+    for dimension in dimensions:
+        if dimension["kind"] != "overall":
+            continue
+        first=len(entities)
+        related=[dimension,*[d for d in dimensions if d["kind"] != "overall"]]
+        _draw_overall_dimensions(entities, placed, related, request.style)
+        owner="front" if dimension["axis"] in {"x","z"} else "top"
+        entities[first:]=[replace(e,view_name=owner) for e in entities[first:]]
+    first_hole_entity=len(entities)
     hole_leader_ids = _draw_hole_dimensions(
         entities,
         placed,
@@ -1472,6 +1503,7 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
         page_width,
         page_height,
     )
+    entities[first_hole_entity:]=[replace(e,view_name="top") for e in entities[first_hole_entity:]]
     entities.extend(auxiliary.entities)
     checks = _drawing_checks(
         entities,

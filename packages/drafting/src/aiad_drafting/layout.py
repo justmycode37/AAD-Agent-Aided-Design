@@ -118,9 +118,12 @@ def _text_metrics(value: str, height: float) -> tuple[float, float, float, float
     ascent = max(0.0, -float(top_px) / pixels_per_mm)
     descent = max(0.0, float(bottom_px) / pixels_per_mm)
     try:
-        from reportlab.pdfbase.pdfmetrics import stringWidth
+        from reportlab.pdfbase.pdfmetrics import stringWidth, getAscentDescent
 
         advance = max(advance, float(stringWidth(value, "Helvetica", height)))
+        pdf_ascent,pdf_descent=getAscentDescent("Helvetica",height)
+        ascent=max(ascent,pdf_ascent)
+        descent=max(descent,-pdf_descent)
     except (ImportError, KeyError, ValueError):
         pass
     right = max(right, advance)
@@ -458,6 +461,8 @@ def _pack_at_scale(
         if "back" in by_name:
             add_side("back", "left" if left_extent <= right_extent else "right")
 
+        row_bottom = min(item.cell.ymin for item in placements.values())
+        row_top = max(item.cell.ymax for item in placements.values())
         for name, above in (
             ("top", style == "asme"),
             ("bottom", style == "iso"),
@@ -468,19 +473,16 @@ def _pack_at_scale(
             _, pad_bottom, _, pad_top = padding[name]
             geom_height = projection.bounds.height * factor
             if above:
-                center_y = front.cell.ymax + VIEW_GAP_MM + pad_bottom + geom_height / 2
+                center_y = row_top + VIEW_GAP_MM + pad_bottom + geom_height / 2
             else:
-                center_y = front.cell.ymin - VIEW_GAP_MM - pad_top - geom_height / 2
+                center_y = row_bottom - VIEW_GAP_MM - pad_top - geom_height / 2
             placements[name] = _slot(projection, (0.0, center_y), factor, padding[name])
 
     # Pack in a sheet-centered local coordinate system, then translate the
     # complete composition. This lets an extra view claim space by shifting the
     # aligned group as a whole when that still fits the usable area.
     packing_area = Rect(-area.width / 2, -area.height / 2, area.width / 2, area.height / 2)
-    occupied = [
-        Rect(item.bounds.xmin, item.bounds.ymin, item.bounds.xmax, item.bounds.ymax)
-        for item in placements.values()
-    ]
+    occupied = [item.cell for item in placements.values()]
     remaining = [projection for projection in projections if projection.name not in placements]
     if "front" not in by_name:
         remaining.sort(
@@ -489,10 +491,8 @@ def _pack_at_scale(
             reverse=True,
         )
     for projection in remaining:
-        # Extra views may occupy whitespace inside a dimension reserve. The
-        # emitted text is checked against actual projected curves after layout.
-        # Keep a label reserve above each extra view, while packing its geometry
-        # against the other projected geometry bounds.
+        # Dimension reserves are occupied space. Geometry in those gutters
+        # can obscure arrows even when no text happens to cross a curve.
         extra_padding = (2.0, 2.0, 2.0, 8.0)
         placement = _free_slot(
             projection,
@@ -500,22 +500,22 @@ def _pack_at_scale(
             extra_padding,
             packing_area,
             occupied,
-            gap=0.0,
-            allow_annotation_overlap=True,
+            gap=VIEW_GAP_MM,
+            allow_annotation_overlap=False,
         )
         if placement is None:
             # Keep producing a reviewable sheet. The fit check reports the
             # unresolved overlap or overflow instead of hiding the condition.
             placement = _slot(projection, packing_area.center, factor, extra_padding)
         placements[projection.name] = placement
-        occupied.append(Rect(placement.bounds.xmin, placement.bounds.ymin, placement.bounds.xmax, placement.bounds.ymax))
+        occupied.append(placement.cell)
 
     if placements:
         cluster = Rect(
-            min(item.bounds.xmin for item in placements.values()),
-            min(item.bounds.ymin for item in placements.values()),
-            max(item.bounds.xmax for item in placements.values()),
-            max(item.bounds.ymax for item in placements.values()),
+            min(item.cell.xmin for item in placements.values()),
+            min(item.cell.ymin for item in placements.values()),
+            max(item.cell.xmax for item in placements.values()),
+            max(item.cell.ymax for item in placements.values()),
         )
         dx, dy = area.center[0] - cluster.center[0], area.center[1] - cluster.center[1]
         placements = {
@@ -541,15 +541,13 @@ def _pack_at_scale(
     fits = area.width > 0 and area.height > 0
     cells = list(placements.values())
     fits = fits and all(
-        area.contains(Rect(item.bounds.xmin, item.bounds.ymin, item.bounds.xmax, item.bounds.ymax))
+        area.contains(item.cell)
         for item in cells
     )
     for index, first in enumerate(cells):
-        first_bounds = Rect(first.bounds.xmin, first.bounds.ymin, first.bounds.xmax, first.bounds.ymax)
+        first_bounds = first.cell
         if any(
-            first_bounds.intersects(
-                Rect(second.bounds.xmin, second.bounds.ymin, second.bounds.xmax, second.bounds.ymax)
-            )
+            first_bounds.intersects(second.cell)
             for second in cells[index + 1 :]
         ):
             fits = False
@@ -680,9 +678,9 @@ def bom_from_context(context: Any) -> list[dict[str, Any]]:
             or "Unnamed component"
         )
         if part_number:
-            key = ("part_number", str(part_number))
+            key = ("part_number", str(part_number), id(shape))
         elif component_id:
-            key = ("component_id", str(component_id))
+            key = ("component_id", str(component_id), id(shape))
         else:
             key = ("object", id(shape))
         existing = next((row for row in grouped if row["_key"] == key), None)
@@ -793,6 +791,7 @@ def _draw_table(
     headers: Sequence[str],
     rows: Sequence[Sequence[str]],
     layer: str,
+    dimension_ids=None,
 ) -> float:
     wrapped, _ = _table_rows(headers, rows, widths)
     x_edges = [x]
@@ -811,6 +810,7 @@ def _draw_table(
                         cursor - 2.7 - line_index * TEXT_LINE_MM,
                         MIN_TEXT_HEIGHT_MM,
                         layer,
+                        dimension_id=(dimension_ids[row_index-1][column_index] if dimension_ids and row_index else None),
                     )
                 )
         cursor -= row_height
@@ -833,6 +833,7 @@ def compose_auxiliary_layout(
     sheet: str,
     style: str,
     scale_label: str,
+    cylinders=(),
 ) -> AuxiliaryLayout:
     """Create a complete, wrapped title block and requested schedule tables."""
     title_width = min(TITLE_BLOCK_WIDTH_MM, width - 2 * MARGIN_MM)
@@ -855,7 +856,7 @@ def compose_auxiliary_layout(
             )
         cursor -= len(lines) * TEXT_LINE_MM + 0.9
         if index + 1 < len(title_lines):
-            entities.append(line(title_x0, cursor + 0.35, title_x0 + title_width, cursor + 0.35, "TITLE", 0.12))
+            entities.append(line(title_x0, cursor + 2.2, title_x0 + title_width, cursor + 2.2, "TITLE", 0.12))
 
     schedule_sections: list[tuple[str, str, Any]] = []
     if notes:
@@ -865,6 +866,8 @@ def compose_auxiliary_layout(
         schedule_sections.append(("table", "REVISION HISTORY", list(revisions)))
     if bom:
         schedule_sections.append(("table", "BILL OF MATERIALS", list(bom)))
+    if cylinders:
+        schedule_sections.append(("table", "CYLINDRICAL FEATURES - STATIONS AND CENTERS FROM MINIMUM BOUNDS",list(cylinders)))
 
     schedule_bounds: Rect | None = None
     if schedule_sections:
@@ -878,8 +881,14 @@ def compose_auxiliary_layout(
                 body_height = sum(max(3.4, len(row) * TEXT_LINE_MM + 1.0) for row in rows)
                 section_heights.append(5.0 + body_height + 1.5)
                 table_specs.append(None)
+            elif _.startswith("CYLINDRICAL FEATURES"):
+                widths=[(schedule_width-2)*fraction for fraction in (0.10,0.12,0.08,0.24,0.15,0.15,0.16)]
+                rows=[[str(row[key]) for key in ("surface","size","axis","center","from","to","length")] for row in data]
+                headers=("SURFACE","SIZE","AXIS","CENTER PERP.","FROM","TO","LENGTH")
+                section_heights.append(5.0+_table_rows(headers,rows,widths)[1]+1.5)
+                table_specs.append((headers,rows,widths,[row["dimension_ids"] for row in data]))
             elif _ == "REVISION HISTORY":
-                widths = [14.0, 28.0, max(20.0, schedule_width - 60.0), 18.0]
+                widths = [14.0, 28.0, max(20.0, schedule_width - 62.0), 18.0]
                 rows = [
                     [row.get("revision", ""), row.get("date", ""), row.get("description", ""), row.get("by", "")]
                     for row in data
@@ -888,7 +897,7 @@ def compose_auxiliary_layout(
                 section_heights.append(5.0 + body_height + 1.5)
                 table_specs.append((("REV", "DATE", "DESCRIPTION", "BY"), rows, widths))
             else:
-                widths = [10.0, 28.0, max(20.0, schedule_width - 52.0), 14.0]
+                widths = [10.0, 28.0, max(20.0, schedule_width - 54.0), 14.0]
                 rows = [
                     [str(row.get("item", "")), str(row.get("part_number", "")), str(row.get("description", "")), str(row.get("quantity", ""))]
                     for row in data
@@ -914,8 +923,9 @@ def compose_auxiliary_layout(
                         )
                     cursor -= row_height
             elif spec is not None:
-                headers, rows, widths = spec
-                cursor = _draw_table(entities, schedule_x0 + 1.0, cursor, widths, headers, rows, "SCHEDULE")
+                headers, rows, widths = spec[:3]
+                cursor = _draw_table(entities, schedule_x0 + 1.0, cursor, widths, headers, rows, "SCHEDULE",
+                                     dimension_ids=spec[3] if len(spec)>3 else None)
             cursor -= 1.2
         # Table and note heights are measured before emission. Keep this
         # explicit so a future content type cannot silently overrun its panel.

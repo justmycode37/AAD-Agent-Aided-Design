@@ -147,3 +147,38 @@ def measure_cylinders(shape: Any, units: str = "mm") -> list[CylindricalFeature]
             interior=group["interior"], full_circle=_coverage(group["angles"]) >= 2*math.pi-1e-6,
             face_indices=tuple(group["faces"]), units=units))
     return features
+
+
+def cylindrical_schedule(shape, bounds, holes, units="mm"):
+    """Geometry-derived size, station and center evidence for a sheet table."""
+    minimum=(bounds.xmin,bounds.ymin,bounds.zmin)
+    maximum=(bounds.xmax,bounds.ymax,bounds.zmax)
+    corners=[(x,y,z) for x in (minimum[0],maximum[0]) for y in (minimum[1],maximum[1]) for z in (minimum[2],maximum[2])]
+    rows=[]
+    records=[]
+    fmt=lambda value:f"{value:.6g}"
+    for feature in measure_cylinders(shape,units):
+        if feature.interior and abs(feature.axis[2]-1)<1e-7 and any(
+            math.dist(feature.axis_origin[:2],(hole.x,hole.y))<1e-6 and abs(feature.radius-hole.radius)<1e-6
+            for hole in holes):
+            continue  # Already covered by the through-hole diameter and datums.
+        axis_index=next((i for i,value in enumerate(feature.axis) if abs(value-1)<1e-7),None)
+        axis_label="XYZ"[axis_index] if axis_index is not None else ",".join(fmt(v) for v in feature.axis)
+        datum=min(_dot(corner,feature.axis) for corner in corners)
+        origin=" ".join(f"{'XYZ'[i]} {fmt(value-minimum[i])}" for i,value in enumerate(feature.axis_origin) if i!=axis_index)
+        raw=feature.dimension()
+        values=[feature.dimension_value,feature.station_min-datum,feature.station_max-datum,feature.length]
+        names=["size","from","to","length"]
+        ids=[]
+        for name,value in zip(names,values):
+            record={**raw,"id":feature.id+"."+name,"kind":"cylinder_"+name,"value":float(value),"axis":axis_label}
+            record["source"]={**raw["source"],"axis":list(feature.axis),"axis_origin":list(feature.axis_origin),
+                              "datum":datum,"station_min":feature.station_min,"station_max":feature.station_max,
+                              "measurement":raw["source"]["measurement"] if name=="size" else
+                              "surface axial length" if name=="length" else "surface axial station - minimum projected bounding-box datum"}
+            record["display"]=("DIA " if feature.full_circle else "R ")+fmt(value) if name=="size" else fmt(value)
+            ids.append(record["id"]); records.append(record)
+        rows.append({"surface":"C"+str(len(rows)+1)+(" INTERNAL" if feature.interior else " EXTERNAL"),"size":records[-4]["display"],"axis":axis_label,
+                     "center":origin,"from":fmt(values[1]),"to":fmt(values[2]),"length":fmt(values[3]),
+                     "dimension_ids":[None,ids[0],None,None,ids[1],ids[2],ids[3]]})
+    return rows,records

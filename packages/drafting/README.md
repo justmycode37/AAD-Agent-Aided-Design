@@ -18,8 +18,8 @@ each revision is a mapping with `revision`, `date`, `description`, and `by`
 fields. `bom=True` or `bom="auto"` requests a bill of materials. BOM rows are
 read from `children`, `components`, or `parts` exposed by the context, its
 assembly, or its shape. Quantities count actual leaf child instances, grouped
-by an explicit part number or component id, then by shared component object
-identity. A combined shape without an assembly tree is not enough to invent a
+by a part number or component id together with shared shape-object identity.
+Different geometry is never merged solely because its part number matches. A combined shape without an assembly tree is not enough to invent a
 BOM or a quantity and raises a ValueError.
 
 ## First-sheet assumptions
@@ -46,10 +46,17 @@ BOM or a quantity and raises a ValueError.
   Sections use OCCT plane intersections with hatching clipped to material;
   circular detail crops preserve circles and arcs. Sections currently support
   XY, XZ, and YZ planes; non-circular freeform cut curves are sampled polylines.
-- Hole diameter callouts use arrowed leaders. Turned parts currently receive
-  only honest measured bounding dimensions; general outside-diameter feature
-  dimensions are not inferred yet. Tolerance classes and arbitrary
-  curved-surface dimensioning remain future work.
+- Hole diameter callouts use arrowed leaders routed around neighboring bores.
+  Other cylindrical surfaces get measured size and axial station schedules.
+  Complete cylinders are labeled DIA; partial surfaces are labeled R. Stations
+  and perpendicular centers use minimum model bounds as datums. The schedule
+  measures the finished B-rep, including Boolean-trimmed cylindrical spans;
+  it does not infer threads or label an unproven bore THRU. Tolerance classes
+  and arbitrary curved-surface dimensioning remain future work.
+- Collision checks cover text, table rules, view cells, dimensions against other
+  views, and panel/margin overflow. Leaders intentionally touch their own bore
+  and may cross the stock outline on their way out of a view. Dimension anchors
+  and extension lines intentionally meet the geometry they dimension.
 - Units are represented in mm or in. Sheet sizes are physical ISO/ANSI sizes.
 - Named views retain their conventional axes; custom direction vectors require
   a custom view name. Dimensions that cannot be displayed in the selected
@@ -63,8 +70,8 @@ BOM or a quantity and raises a ValueError.
 
 `examples/layout_samples.py` generates a dense mixed-hole plate, a stepped
 turned shaft, and a two-part assembly with a child-derived BOM under
-`samples/layout/`. The turned-part example intentionally reports only the
-overall x/y/z bounds until a general diameter-feature dimension is available.
+`samples/layout/`. The turned-part schedule includes measured diameters and
+axial stages; the assembly includes a real clearance bore for its locating pin.
 Dimension conventions use general drafting practice; the package does not
 copy paid standards text or tables.
 
