@@ -200,6 +200,7 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
     if _private_artifact(part, job_dir):
         artifacts["part.brep"] = str(part)
     result.artifacts = artifacts
+    result.requirements_proven = False
     if result.context is not None:
         result.context.job_dir = job_dir
         result.context.project_dir = project_dir
@@ -211,14 +212,14 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
         ))
     if result.status == "verified":
         result.status = "draft"
-        result.requirements_proven = False
         result.summary = "A BREP artifact was returned; independent verification of the worker evidence is pending."
         result.checks.append(Check(
             id="worker_verification_unattested", suite="hard", level="error", status="skip",
             message="The model process cannot attest its own verified status. A separate trusted validator is required.",
         ))
-        if result.scene is not None:
-            result.scene.status = "draft"
+    if result.scene is not None:
+        result.scene.status = "draft"
+        result.scene.compare = None
     result.checks_summary = {status: sum(c.status == status for c in result.checks)
                              for status in ("pass", "fail", "warn", "skip")}
     return result
@@ -301,6 +302,10 @@ def _find_response(stdout: bytes) -> dict[str, Any] | None:
 def _result_from_wire(
     wire: dict[str, Any], *, job_dir: Path, elapsed_ms: float, process_stderr: str
 ) -> BuildResult:
+    if not isinstance(wire.get("ok"), bool) or wire.get("status") not in ("failed", "draft", "verified"):
+        raise ValueError("worker result has invalid success/status fields")
+    if wire["ok"] != (wire["status"] != "failed"):
+        raise ValueError("worker result has inconsistent success/status fields")
     checks = [_check_from_wire(item) for item in wire.get("checks", [])]
     context_data = wire.get("context")
     context = _context_from_wire(context_data) if isinstance(context_data, dict) else None
@@ -428,7 +433,7 @@ def _failed(
 
 def _preserved_artifacts(job_dir: Path) -> dict[str, str]:
     brep_path = job_dir / "part.brep"
-    return {"part.brep": str(brep_path)} if brep_path.is_file() else {}
+    return {"part.brep": str(brep_path)} if _private_artifact(brep_path, job_dir) else {}
 
 
 def _decode(value: bytes | None) -> str:
