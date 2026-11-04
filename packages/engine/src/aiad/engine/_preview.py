@@ -98,11 +98,13 @@ def add_preview(result: BuildResult, *, timeout_s: float) -> None:
 
     # Replace the internal not-requested placeholder; do not erase unrelated
     # validation checks or change status/requirements_proven/failure.
-    placeholders = [c for c in result.checks if c.id == "render_not_requested"]
-    result.checks = [c for c in result.checks if c.id != "render_not_requested"]
-    for previous in placeholders:
-        result.checks_summary[previous.status] = max(0, result.checks_summary.get(previous.status, 0) - 1)
-    result.checks.append(check)
+    retained = []
+    for previous in result.checks:
+        if (previous.id, previous.suite, previous.level, previous.status) == ("render_not_requested", "hard", "warn", "skip"):
+            result.checks_summary[previous.status] = max(0, result.checks_summary.get(previous.status, 0) - 1)
+        else:
+            retained.append(previous)
+    result.checks = retained + [check]
     result.checks_summary[check.status] = result.checks_summary.get(check.status, 0) + 1
     result.artifacts.update(artifacts)
     if stdout:

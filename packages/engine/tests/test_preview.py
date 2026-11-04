@@ -14,6 +14,51 @@ from aiad.engine.types import BuildRequest, BuildResult, Check, Failure, ModelCo
 
 
 class PreviewWorkerTests(unittest.TestCase):
+    def test_public_preview_keeps_spec_failure_with_placeholder_id(self):
+        source = '''import sys
+from types import ModuleType
+from aiad.engine.types import Check
+quality = ModuleType('aiad_quality')
+quality.spec_checks = lambda ctx: [Check(id='render_not_requested', suite='spec', level='error', status='fail', message='Required width is wrong', expected='5', actual='2')]
+quality.process_checks = lambda ctx: []
+sys.modules['aiad_quality'] = quality
+result = Box(2, 3, 4)
+'''
+        with tempfile.TemporaryDirectory(prefix='aiad-preview-check-id-') as temporary:
+            for preview in (False, True):
+                with self.subTest(preview=preview), patch.object(_preview, '_BOOTSTRAP', 'import os; os._exit(23)'):
+                    result = run_build(BuildRequest(source=source, preview=preview,
+                                                    spec={'requirements': [{'id': 'render_not_requested', 'bbox': {'x': 5}}]},
+                                                    project_dir=Path(temporary), job_dir=Path(temporary) / str(preview)))
+                self.assertFalse(result.ok)
+                self.assertEqual(result.status, 'failed')
+                self.assertTrue(Path(result.artifacts['part.brep']).is_file())
+                requirements = [c for c in result.checks if c.suite == 'spec' and c.id == 'render_not_requested']
+                self.assertEqual(len(requirements), 1)
+                self.assertEqual((requirements[0].level, requirements[0].status), ('error', 'fail'))
+                self.assertEqual((requirements[0].expected, requirements[0].actual), ('5', '2'))
+                self.assertEqual(result.checks_summary['fail'], 1)
+
+    def test_only_internal_placeholder_is_replaced(self):
+        cases = [('spec', 'error', 'fail'), ('process', 'error', 'fail'), ('spec', 'error', 'skip'),
+                 ('process', 'warn', 'skip'), ('hard', 'error', 'skip'), ('hard', 'warn', 'fail')]
+        with tempfile.TemporaryDirectory(prefix='aiad-preview-check-id-') as temporary:
+            for suite, level, status in cases:
+                with self.subTest(suite=suite, level=level, status=status):
+                    result = self._result(Path(temporary))
+                    original = Check(id='render_not_requested', suite=suite, level=level, status=status, message='preserve me')
+                    result.checks.append(original)
+                    result.checks_summary[status] += 1
+                    process = Mock(returncode=23)
+                    process.poll.return_value = 23
+                    process.communicate.return_value = b'', b''
+                    with patch.object(_preview.sandbox, 'popen', return_value=process):
+                        _preview.add_preview(result, timeout_s=60)
+                    self.assertIn(original, result.checks)
+                    self.assertEqual(result.checks_summary['skip'], int(status == 'skip'))
+                    self.assertEqual(result.checks_summary['fail'], int(status == 'fail'))
+                    self.assertEqual(result.scene.checks_summary, result.checks_summary)
+
     def test_native_preview_does_not_execute_the_model_render_module(self):
         source = '''from pathlib import Path
 import sys
