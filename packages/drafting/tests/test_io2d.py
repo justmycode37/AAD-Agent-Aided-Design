@@ -323,10 +323,10 @@ def test_output_confinement_unsupported_transforms_and_atomic_file_preservation(
     target.write_bytes(b"previous artifact")
     original_replace = io2d.os.replace
 
-    def fail_publishing(source, destination):
-        if Path(destination) == target:
+    def fail_publishing(source, destination, **kwargs):
+        if Path(destination).name == target.name:
             raise OSError("simulated atomic publish failure")
-        return original_replace(source, destination)
+        return original_replace(source, destination, **kwargs)
 
     monkeypatch.setattr(io2d.os, "replace", fail_publishing)
     with pytest.raises(OSError, match="simulated"):
@@ -365,3 +365,25 @@ def test_io2d_import_is_kernel_free_until_native_geometry_is_requested():
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     result = subprocess.run([sys.executable, "-c", code], env=env, check=False, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize('rotation', [0, 37])
+@pytest.mark.parametrize('units', ['mm', 'in'])
+def test_multiline_text_preserves_content_blank_lines_and_rotated_baselines(tmp_path, rotation, units):
+    sheet = Sheet2D('multiline', units=units)
+    entity = sheet.text('label', 'TOP <&>\r\n\r\nBOTTOM', (3, 7), 2, layer='engrave')
+    entity.metadata['rotation_deg'] = rotation
+    before = sheet.to_dict()
+    svg = io2d.export_2d(_ctx(sheet), 'svg', tmp_path/'label.svg')
+    dxf = io2d.export_2d(_ctx(sheet), 'dxf', tmp_path/'label.dxf')
+    root = ET.parse(svg).getroot()
+    spans = root.findall(f'.//{SVG_NS}tspan')
+    assert [span.text or '' for span in spans] == ['TOP <&>', '', 'BOTTOM']
+    assert [float(span.attrib['y']) for span in spans] == pytest.approx([-7, -4.4, -1.8])
+    labels = list(ezdxf.readfile(dxf).modelspace().query('TEXT'))
+    assert [label.dxf.text for label in labels] == ['TOP <&>', '', 'BOTTOM']
+    phi = math.radians(rotation)
+    for index, label in enumerate(labels):
+        assert label.dxf.rotation == rotation
+        assert tuple(label.dxf.insert) == pytest.approx((3+2.6*index*math.sin(phi), 7-2.6*index*math.cos(phi), 0))
+    assert sheet.to_dict() == before

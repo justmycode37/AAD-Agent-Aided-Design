@@ -7,9 +7,10 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import tempfile
 import uuid
 from typing import Any
+
+from ._safe_output import OutputDirectory
 
 from .io2d import (
     _Entity,
@@ -99,43 +100,40 @@ def _payload(sheet: _Sheet) -> tuple[dict[str, Any], list[dict[str, str]]]:
     return payload, parts
 
 
-def _write_pair(directory: Path, files: dict[str, bytes]) -> None:
+def _write_pair(directory: Path, files: dict[str, bytes], job_root: Path | None = None) -> None:
+    with OutputDirectory(directory, job_root) as output:
+        _publish_pair(output, files)
+
+
+def _publish_pair(output: OutputDirectory, files: dict[str, bytes]) -> None:
     """Publish two prepared files together, restoring prior files on failure."""
-    existed = directory.exists()
-    if existed and not directory.is_dir():
-        raise ValueError(f"Scene output must be a directory, got file {directory}.")
-    directory.mkdir(parents=True, exist_ok=True)
-    staged: dict[str, Path] = {}
-    backups: dict[str, Path] = {}
+    staged: dict[str, str] = {}
+    backups: dict[str, str] = {}
     installed: list[str] = []
     try:
         for name, data in files.items():
-            fd, temp_name = tempfile.mkstemp(prefix=f".{name}.", suffix=".tmp", dir=directory)
-            temp = Path(temp_name)
-            staged[name] = temp
-            with os.fdopen(fd, "wb") as stream:
-                stream.write(data)
-                stream.flush()
-                os.fsync(stream.fileno())
+            staged[name] = output.stage(name, data)
+
+        output.ensure_current()
 
         for name in files:
-            final = directory / name
-            if final.exists() and final.is_dir():
-                raise ValueError(f"Scene artifact path must be a file, got directory {final}.")
-            if final.exists():
-                backup = directory / f".{name}.{uuid.uuid4().hex}.bak"
-                os.replace(final, backup)
+            if output.is_dir(name):
+                raise ValueError(f"Scene artifact path must be a file, got directory {output.path / name}.")
+            if output.mode(name) is not None:
+                backup = f".{name}.{uuid.uuid4().hex}.bak"
+                output.replace(name, backup)
                 backups[name] = backup
 
         for name, temp in staged.items():
-            os.replace(temp, directory / name)
+            output.replace(temp, name)
             installed.append(name)
+        output.ensure_current()
         staged.clear()
         # Both new files are now published. Backup cleanup is housekeeping;
         # a cleanup failure must not roll back a complete new scene package.
         for backup in backups.values():
             try:
-                backup.unlink(missing_ok=True)
+                output.unlink(backup)
             except OSError:
                 pass
         backups.clear()
@@ -143,22 +141,22 @@ def _write_pair(directory: Path, files: dict[str, bytes]) -> None:
         rollback_errors: list[BaseException] = []
         for name in reversed(installed):
             try:
-                (directory / name).unlink(missing_ok=True)
+                output.unlink(name)
             except BaseException as rollback_exc:
                 rollback_errors.append(rollback_exc)
         for name, backup in backups.items():
             try:
-                os.replace(backup, directory / name)
+                output.replace(backup, name)
             except BaseException as rollback_exc:
                 rollback_errors.append(rollback_exc)
         for temp in staged.values():
             try:
-                temp.unlink(missing_ok=True)
+                output.unlink(temp)
             except BaseException as rollback_exc:
                 rollback_errors.append(rollback_exc)
-        if not existed:
+        if not output.existed and output.fd is None:
             try:
-                directory.rmdir()
+                output.path.rmdir()
             except OSError:
                 pass
         if rollback_errors:
@@ -209,10 +207,10 @@ def make_scene(ctx: Any, out: Path) -> dict[str, Any]:
         manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
     ).encode("utf-8")
 
-    # Resolve after generating the bytes as well as before creating the output
-    # directory, so a parent symlink cannot escape a worker job directory.
     directory = _check_job_confinement(ctx, directory)
-    _write_pair(directory, {"scene.bin.gz": compressed, "scene.json": manifest_bytes})
+    job_root = _field(ctx, "job_dir")
+    _write_pair(directory, {"scene.bin.gz": compressed, "scene.json": manifest_bytes},
+                Path(job_root) if job_root is not None else None)
     return manifest
 
 

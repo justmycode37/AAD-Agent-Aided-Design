@@ -14,9 +14,10 @@ import json
 import math
 import os
 from pathlib import Path
-import tempfile
 from typing import Any
 from xml.etree import ElementTree as ET
+
+from ._safe_output import OutputDirectory
 
 
 _SVG_NS = "http://www.w3.org/2000/svg"
@@ -329,26 +330,35 @@ def _check_job_confinement(ctx: Any, path: Path) -> Path:
     return target
 
 
-def _atomic_write(path: Path, data: bytes) -> Path:
-    if path.exists() and path.is_dir():
-        raise ValueError(f"Output path must name a file, got directory {path}.")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Re-resolve after creating parents to enforce confinement through symlinks.
-    target = path.resolve()
-    fd, temp_name = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".tmp", dir=target.parent)
-    temp = Path(temp_name)
-    try:
-        with os.fdopen(fd, "wb") as stream:
-            stream.write(data)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temp, target)
-    except BaseException:
+def _atomic_write(path: Path, data: bytes, job_root: Path | None = None) -> Path:
+    with OutputDirectory(path.parent, job_root) as directory:
+        if directory.is_dir(path.name):
+            raise ValueError(f"Output path must name a file, got directory {path}.")
+        temporary = directory.stage(path.name, data)
+        backup = None
+        installed = False
         try:
-            temp.unlink(missing_ok=True)
-        finally:
+            directory.ensure_current()
+            backup = directory.preserve(path.name)
+            directory.replace(temporary, path.name)
+            installed = True
+            directory.ensure_current()
+        except BaseException:
+            if backup is not None:
+                if installed:
+                    directory.replace(backup, path.name)
+                else:
+                    directory.unlink(backup)
+            elif installed:
+                directory.unlink(path.name)
+            directory.unlink(temporary)
             raise
-    return target
+        if backup is not None:
+            try:
+                directory.unlink(backup)
+            except OSError:
+                pass
+        return directory.path / path.name
 
 
 def _fmt(value: float) -> str:
@@ -359,6 +369,10 @@ def _fmt(value: float) -> str:
     if result.endswith(".0"):
         result = result[:-2]
     return result
+
+
+def _text_lines(value: str) -> list[str]:
+    return value.replace("\r\n", "\n").replace("\r", "\n").expandtabs(8).split("\n")
 
 
 def _sweep_degrees(start: float, end: float, clockwise: bool) -> float:
@@ -526,9 +540,9 @@ def _viewport(sheet: _Sheet, entities: Iterable[_Entity] | None = None) -> tuple
             # more than the insertion point. Use a conservative font envelope
             # (including fallback Unicode glyphs), without altering model bbox.
             height = float(entity.height)
-            content = (entity.text or "").expandtabs(8)
-            width = max(1, len(content)) * 2 * height
-            below = (0.4 + 1.3 * max(0, len(content.splitlines()) - 1)) * height
+            lines = _text_lines(entity.text or "")
+            width = max(1, *(len(line) for line in lines)) * 2 * height
+            below = (0.4 + 1.3 * (len(lines) - 1)) * height
             phi = math.radians(float(entity.metadata.get("rotation_deg", 0)))
             cx, cy = entity.points[0]
             for x, y in ((-.3*height, -below), (width+.3*height, -below),
@@ -681,7 +695,15 @@ def _append_svg_entity(parent: ET.Element, entity: _Entity) -> None:
         if abs(rotation) > _EPS:
             attrs["transform"] = f"rotate({_fmt(-rotation)} {_fmt(x)} {_fmt(y)})"
         text = ET.SubElement(parent, f"{{{_SVG_NS}}}text", attrs)
-        text.text = entity.text
+        lines = _text_lines(entity.text)
+        if len(lines) == 1:
+            text.text = lines[0]
+        else:
+            for index, value in enumerate(lines):
+                span = ET.SubElement(text, f"{{{_SVG_NS}}}tspan", {
+                    "x": _fmt(x), "y": _fmt(y + index * 1.3 * entity.height),
+                })
+                span.text = value
     else:  # guarded by _read_sheet
         raise ValueError(f"Unsupported 2D entity kind {entity.kind!r}.")
 
@@ -799,12 +821,16 @@ def _dxf_bytes(sheet: _Sheet, layer_names: tuple[str, ...], entities: tuple[_Ent
             )
         elif entity.kind == "text":
             point = entity.points[0]
-            modelspace.add_text(entity.text, dxfattribs={
-                **attrs,
-                "insert": (point[0], point[1], 0),
-                "height": entity.height,
-                "rotation": float(entity.metadata.get("rotation_deg", 0.0)),
-            })
+            rotation = float(entity.metadata.get("rotation_deg", 0.0))
+            phi = math.radians(rotation)
+            for index, value in enumerate(_text_lines(entity.text)):
+                offset = index * 1.3 * entity.height
+                modelspace.add_text(value, dxfattribs={
+                    **attrs,
+                    "insert": (point[0] + offset * math.sin(phi), point[1] - offset * math.cos(phi), 0),
+                    "height": entity.height,
+                    "rotation": rotation,
+                })
 
     audit = doc.audit()
     if audit.errors:
@@ -834,7 +860,8 @@ def export_2d(ctx: Any, fmt: str, out: Path, *, layers: str | Iterable[str] | No
         data = _svg_string(sheet, layer_names=layer_names, entities=entities).encode("utf-8")
     else:
         data = _dxf_bytes(sheet, layer_names, entities)
-    return _atomic_write(target, data)
+    job_root = _field(ctx, "job_dir")
+    return _atomic_write(target, data, Path(job_root) if job_root is not None else None)
 
 
 __all__ = ["export_2d"]

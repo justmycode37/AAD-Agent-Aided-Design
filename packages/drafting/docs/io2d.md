@@ -22,13 +22,16 @@ filter selects source layers; otherwise all layers and entities are exported.
 | Open or closed polyline / rectangle | `<polyline>` / `<polygon>` | `LWPOLYLINE` |
 | Quadratic or cubic Bezier | `Q` / `C` path commands | Clamped degree-2 / degree-3 `SPLINE`, with unit weights |
 | Full or trimmed ellipse | `<ellipse>` / analytic `A` path | `ELLIPSE` |
-| Text | Editable `<text>` | Editable `TEXT` |
+| Text | Editable `<text>` with separate `<tspan>` baselines for multiline content | Editable `TEXT`, one entity per line |
 
 Ellipse rotation and text `metadata["rotation_deg"]` are retained. DXF ellipses
 store the longer semiaxis as their major axis; when source `rx < ry`, the DXF
 parameter is shifted by -90 degrees so the source endpoints and curve remain
 the same. SVG text is escaped as text content. Imported source attributes,
 scripts, links, and other markup are never copied into the generated SVG.
+Multiline text uses baselines spaced by 1.3 source text heights in both formats,
+including blank lines. CRLF and CR are normalized to line breaks, tabs expand
+to eight-column stops, and rotation applies to the complete baseline layout.
 
 An active arbitrary transform in entity metadata is rejected. The exporter does
 not flatten transforms. The SVG importer may keep original transform fields as
@@ -76,6 +79,12 @@ When `ctx.job_dir` is present, the resolved output file or scene directory must
 be inside it. File exports use a same-directory temporary file and atomic
 replace. Scene packages stage both files before publishing and restore existing
 artifacts if publication fails. No output path is inferred from project state.
+Confined writes on macOS/Linux walk directories without following symlinks and
+keep staging, replacement and rollback relative to pinned directory handles.
+Replacing a directory during creation or publication cannot redirect writes
+outside the pinned worker directory. Platforms without POSIX directory-handle
+operations reject confined exports explicitly; unconfined local exports remain
+available. This protection complements the worker's OS sandbox.
 
 The module imports neither the engine nor the geometry kernel. DXF writing
 loads the pinned permissive `ezdxf` dependency only when requested.
