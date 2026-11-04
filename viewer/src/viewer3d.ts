@@ -6,6 +6,8 @@ const TREE_WIDTH = 220;
 const TREE_HEIGHT = 200;
 const MIN_WIDTH = 320;
 const MIN_HEIGHT = 240;
+/** three-cad-viewer's default framing crops parts in a short chat frame. */
+const FIT_ZOOM = 0.72;
 
 export interface Cad3dView {
   resize(width: number, height: number): void;
@@ -52,6 +54,7 @@ export function mountCad3d(
     { up: "Z", ortho: false } as never,
   );
   viewer.glassMode(true);
+  viewer.setCameraZoom(FIT_ZOOM);
 
   const view: Cad3dView = {
     viewer,

@@ -1,5 +1,6 @@
 // The one UI, written against Transport so all three transports share it.
 import { gunzipToText, readScene } from "./loader";
+import { startFeatures } from "./features";
 import type { SceneManifest, Transport } from "./transport/types";
 import { mountCad3d, type Cad3dView } from "./viewer3d";
 
@@ -59,6 +60,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
       view.resize(r.width, r.height);
     }).observe(q(".aiad-frame"));
     transport.onThemeChange(() => view.setTheme(resolvedTheme(transport)));
+    startFeatures({ transport, envelope: env, scene: env.scene, frame: q(".aiad-frame"), view });
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     diagnostics.ms = { ...diagnostics.ms, sinceToolResult: performance.now() - started };
     diagnostics.state = "ready";
