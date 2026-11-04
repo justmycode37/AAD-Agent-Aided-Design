@@ -41,7 +41,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15, ubuntu-latest]
+        os: [macos-15-intel, ubuntu-latest]
         package: ${{ fromJSON(needs.discover.outputs.packages) }}
     name: ${{ matrix.package.dir }} (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -65,7 +65,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15, ubuntu-latest]
+        os: [macos-15-intel, ubuntu-latest]
     name: e2e smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
