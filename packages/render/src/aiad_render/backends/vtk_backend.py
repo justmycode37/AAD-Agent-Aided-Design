@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import ctypes.util
+import os
+import sys
 from typing import Any
 
 from .protocol import CameraSpec, RenderFace, RenderLine, RenderScene
@@ -9,6 +12,26 @@ from .protocol import CameraSpec, RenderFace, RenderLine, RenderScene
 SUPERSAMPLE = 2
 MAX_RENDER_PIXELS = 4096
 LINE_DEPTH_OFFSET = -20.0
+
+
+def prepare_headless_gl() -> None:
+    """Pick a safe OpenGL path before VTK opens a window.
+
+    On Linux with no display, VTK's default X11 window segfaults, which would kill the worker with
+    no message. OSMesa needs no display, so it's used when installed; otherwise this raises.
+    """
+    if not sys.platform.startswith("linux"):
+        return
+    if os.environ.get("VTK_DEFAULT_OPENGL_WINDOW"):
+        return
+    if os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"):
+        return
+    if ctypes.util.find_library("OSMesa") is None:
+        raise RuntimeError(
+            "No usable headless GL on this Linux machine: there is no display and OSMesa is not "
+            "installed. Install libosmesa6, or run under a display such as xvfb."
+        )
+    os.environ["VTK_DEFAULT_OPENGL_WINDOW"] = "vtkOSOpenGLRenderWindow"
 
 
 def _supersample(size: int) -> int:
@@ -29,6 +52,7 @@ class VtkBackend:
     name = "vtk"
 
     def __init__(self) -> None:
+        prepare_headless_gl()
         try:
             import vtk
         except ImportError as exc:  # pragma: no cover - depends on optional extra

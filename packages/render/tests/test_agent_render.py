@@ -58,6 +58,7 @@ def _render_or_skip(ctx, req, out):
 def _is_headless_gl_failure(exc: BaseException) -> bool:
     message = str(exc).lower()
     signals = (
+        "no usable headless gl",
         "could not create egl",
         "could not connect to display",
         "bad x server connection",
@@ -322,3 +323,25 @@ def test_section_cap_is_hatched_and_colored(tmp_path):
         if r > g > b and r - b > 30
     )
     assert warm > 500, f"expected a tinted cap like {_SECTION_CAP}, got {warm} warm pixels"
+
+
+def test_linux_without_display_or_osmesa_raises_instead_of_crashing(monkeypatch):
+    from aiad_render.backends import vtk_backend
+
+    monkeypatch.setattr(vtk_backend.sys, "platform", "linux")
+    for name in ("DISPLAY", "WAYLAND_DISPLAY", "VTK_DEFAULT_OPENGL_WINDOW"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(vtk_backend.ctypes.util, "find_library", lambda name: None)
+    with pytest.raises(RuntimeError, match="No usable headless GL"):
+        vtk_backend.prepare_headless_gl()
+
+
+def test_linux_without_display_uses_osmesa_when_installed(monkeypatch):
+    from aiad_render.backends import vtk_backend
+
+    monkeypatch.setattr(vtk_backend.sys, "platform", "linux")
+    for name in ("DISPLAY", "WAYLAND_DISPLAY", "VTK_DEFAULT_OPENGL_WINDOW"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(vtk_backend.ctypes.util, "find_library", lambda name: "libOSMesa.so.8")
+    vtk_backend.prepare_headless_gl()
+    assert os.environ["VTK_DEFAULT_OPENGL_WINDOW"] == "vtkOSOpenGLRenderWindow"
