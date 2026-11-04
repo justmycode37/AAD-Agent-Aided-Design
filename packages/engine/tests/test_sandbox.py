@@ -12,6 +12,43 @@ from aiad.engine import sandbox
 
 
 class SandboxPolicyTests(unittest.TestCase):
+    def test_default_popen_preserves_command_environment_and_process_options(self) -> None:
+        from aiad.engine import memory
+
+        with tempfile.TemporaryDirectory() as temporary:
+            job = Path(temporary).resolve()
+            args = [sys.executable, '-I', '-B', '-c', 'pass']
+            expected = sandbox.command(args, job)
+            env = sandbox.environment(job)
+            with patch.object(sandbox.subprocess, 'Popen') as launch, \
+                    patch.object(memory, '_bootstrap_argv', side_effect=AssertionError('unexpected wrapper')), \
+                    patch.object(memory, '_address_resource', side_effect=AssertionError('unexpected resource API')), \
+                    patch.object(memory, '_mac_taskinfo', side_effect=AssertionError('unexpected libproc load')):
+                for options in ({}, {'address_space': None}):
+                    sandbox.popen(args, job, text=True, **options)
+                    launch.assert_called_with(
+                        expected, cwd=job, env=env, close_fds=True,
+                        start_new_session=True, stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                    )
+                self.assertEqual(launch.call_count, 2)
+
+    def test_configured_hook_rejects_unknown_policies_and_invalid_original_argv_before_launch(self) -> None:
+        from aiad.engine.memory import AddressSpaceBudget
+
+        class ResidentBudget:
+            bytes = 1024
+
+        with tempfile.TemporaryDirectory() as temporary, patch.object(sandbox.subprocess, 'Popen') as launch:
+            job = Path(temporary)
+            for policy in (True, 1024, object(), ResidentBudget()):
+                with self.subTest(policy=type(policy).__name__), self.assertRaises(TypeError):
+                    sandbox.popen([sys.executable], job, address_space=policy)
+            for args in ([], [sys.executable, None], [sys.executable, 'bad\0arg']):
+                with self.subTest(args=args), self.assertRaises(ValueError):
+                    sandbox.popen(args, job, address_space=AddressSpaceBudget(1024))
+            launch.assert_not_called()
+
     def test_environment_does_not_inherit_secrets(self) -> None:
         with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {"AIAD_TEST_SECRET": "private-fixture"}):
             env = sandbox.environment(Path(temporary))
