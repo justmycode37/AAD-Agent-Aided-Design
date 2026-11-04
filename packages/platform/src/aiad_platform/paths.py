@@ -36,12 +36,13 @@ def daemon_lock_path() -> Path:
     return run_dir() / "aiadd.lock"
 
 
-def socket_path() -> Path:
+def socket_path(home: Path | None = None) -> Path:
     """The daemon socket. Falls back to the per-user temp dir if the path is too long."""
-    path = run_dir() / "aiadd.sock"
+    home = home or aiad_home()
+    path = home / "run" / "aiadd.sock"
     if len(os.fsencode(path)) <= MAX_SOCKET_PATH:
         return path
-    digest = hashlib.sha256(os.fsencode(aiad_home())).hexdigest()[:16]
+    digest = hashlib.sha256(os.fsencode(home)).hexdigest()[:16]
     return Path(tempfile.gettempdir()) / f"aiadd-{digest}.sock"
 
 

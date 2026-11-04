@@ -8,6 +8,7 @@ import logging
 import os
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
@@ -31,9 +32,10 @@ REPLAYABLE = frozenset(
 class DaemonLink:
     """The adapter's connection to aiadd. Starts it when needed, restarts it on a version mismatch."""
 
-    def __init__(self) -> None:
+    def __init__(self, env: dict[str, str] | None = None) -> None:
         self._client: RpcClient | None = None
         self._lock = asyncio.Lock()
+        self._env = env  # A separate daemon's environment. Remote mode runs one per user.
 
     async def client(self) -> RpcClient:
         async with self._lock:
@@ -46,10 +48,11 @@ class DaemonLink:
         deadline = time.monotonic() + DAEMON_START_TIMEOUT_S
         while True:
             try:
-                client = await RpcClient.connect(paths.socket_path())
+                home = Path(self._env["AIAD_HOME"]) if self._env else None
+                client = await RpcClient.connect(paths.socket_path(home))
             except (ConnectionError, FileNotFoundError, OSError):
                 if not spawned:
-                    spawn_daemon()
+                    spawn_daemon(self._env)
                     spawned = True
                 if time.monotonic() > deadline:
                     raise ConnectionError(
@@ -146,8 +149,10 @@ def _error_result(tool: str, message: str, *, bad_input: bool = False) -> types.
     )
 
 
-def build_server() -> Server[Any]:
-    link = DaemonLink()
+def build_server(
+    link_for: Callable[[], DaemonLink] | None = None, *, use_roots: bool = True
+) -> Server[Any]:
+    default_link = DaemonLink() if link_for is None else None
     roots: dict[str, str | None] = {}
     tools = [types.Tool.model_validate(tool) for tool in TOOLS]
 
@@ -158,9 +163,11 @@ def build_server() -> Server[Any]:
         if params.name not in TOOL_NAMES:
             return _error_result(params.name, "unknown tool")
         client = _client_info(ctx)
-        if root := await _roots(ctx, roots):
+        # A remote client's roots name directories on its own machine, so they are never asked for.
+        if use_roots and (root := await _roots(ctx, roots)):
             client["root"] = root
         try:
+            link = default_link if link_for is None else link_for()
             reply = await link.call(params.name, {**(params.arguments or {}), "client": client})
         except RpcError as exc:
             return _error_result(params.name, str(exc), bad_input=exc.code == INVALID_PARAMS)

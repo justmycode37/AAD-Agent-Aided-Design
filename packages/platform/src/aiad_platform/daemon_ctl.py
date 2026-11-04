@@ -19,12 +19,14 @@ DEFAULT_START_TIMEOUT_S = 15.0
 DEFAULT_STOP_TIMEOUT_S = 3.0
 
 
-def spawn_daemon() -> None:
-    """Start aiadd detached, with its output in the private AIAD log directory."""
-    paths.ensure_private_dir(paths.aiad_home())
-    paths.ensure_private_dir(paths.run_dir())
-    paths.ensure_private_dir(paths.logs_dir())
-    with (paths.logs_dir() / "aiadd.out").open("ab") as out:
+def spawn_daemon(env: dict[str, str] | None = None) -> None:
+    """Start aiadd detached, with its output in the private AIAD log directory of `env` if given."""
+    env = env if env is not None else os.environ.copy()
+    home = Path(env["AIAD_HOME"]) if env.get("AIAD_HOME") else paths.aiad_home()
+    paths.ensure_private_dir(home)
+    paths.ensure_private_dir(home / "run")
+    paths.ensure_private_dir(home / "logs")
+    with (home / "logs" / "aiadd.out").open("ab") as out:
         subprocess.Popen(
             [sys.executable, "-m", "aiad_platform.daemon"],
             stdin=subprocess.DEVNULL,
@@ -32,7 +34,7 @@ def spawn_daemon() -> None:
             stderr=out,
             start_new_session=True,
             close_fds=True,
-            env=os.environ.copy(),
+            env=env,
         )
 
 

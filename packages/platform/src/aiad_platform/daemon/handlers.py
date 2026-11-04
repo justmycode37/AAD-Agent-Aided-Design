@@ -51,6 +51,8 @@ def viewer_mode(client: dict[str, Any] | None) -> str:
     setting = config.get("viewer")
     if setting == "off":
         return "none"
+    if os.environ.get("AIAD_REMOTE"):  # A window would open on the server, not on the user's machine.
+        return "inline"
     if setting != "auto":
         return setting
     # A host that advertises MCP Apps renders inline. Real-host results are in docs/host-matrix.md.
@@ -778,6 +780,9 @@ class Handlers:
     async def aiad_import(self, params: dict[str, Any]) -> dict[str, Any]:
         name = params.get("project") or params.get("name") or Path(params.get("path", "import")).stem
         path = Path(params.get("path", "")).expanduser()
+        if os.environ.get("AIAD_REMOTE") and not path.resolve().is_relative_to(Path.home().resolve()):
+            # In remote mode, `path` is on the server, so it must stay inside this user's home.
+            return reply(failure_envelope(name, "IMPORT_FAILED", "input", "Remote import reads only from your own AIAD home."))
         if not path.is_file():
             return reply(failure_envelope(name, "IMPORT_FAILED", "input", f"No file at {path}."))
         project = open_project(params["project"], params.get("client")) if params.get("project") else create_project(name, client=params.get("client"))

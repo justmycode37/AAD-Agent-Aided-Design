@@ -82,8 +82,14 @@ def _parser() -> argparse.ArgumentParser:
     update.add_argument("--run", action="store_true", help="run the upgrade")
     update.add_argument("--json", action="store_true", help="machine-readable output")
 
-    serve = sub.add_parser("serve", help="run remote AIAD mode")
-    serve.add_argument("--http", action="store_true", help=argparse.SUPPRESS)
+    serve = sub.add_parser("serve", help="run remote AIAD mode over Streamable HTTP")
+    serve.add_argument("--http", action="store_true", help="serve MCP at /mcp")
+    serve.add_argument("--host", default="127.0.0.1", help="bind address, default loopback")
+    serve.add_argument("--port", type=int, default=8765)
+    serve.add_argument("--public-url", help="https URL of the TLS proxy, required off loopback")
+    serve.add_argument("--add-user", metavar="NAME", help="create a user or rotate their token, and print it once")
+    serve.add_argument("--remove-user", metavar="NAME", help="revoke a user; their projects stay on disk")
+    serve.add_argument("--list-users", action="store_true")
     serve.add_argument("--json", action="store_true", help="machine-readable output")
     return parser
 
@@ -528,6 +534,29 @@ def _update(args: argparse.Namespace) -> int:
     return _finish(payload, args.json, human)
 
 
+def _serve(args: argparse.Namespace) -> int:
+    from . import remote
+
+    try:
+        if args.add_user:
+            token = remote.add_user(args.add_user)
+            return _finish({"ok": True, "user": args.add_user, "token": token}, args.json, f"Token for {args.add_user}, shown once:\n{token}")
+        if args.remove_user:
+            removed = remote.remove_user(args.remove_user)
+            message = f"Revoked {args.remove_user}." if removed else f"No user {args.remove_user}."
+            return _finish({"ok": removed, "message": message}, args.json, message)
+        if args.list_users:
+            names = sorted(remote.load_users())
+            return _finish({"ok": True, "users": names}, args.json, "\n".join(names) or "No users.")
+        if not args.http:
+            message = "Nothing to do. Use --http, --add-user, --remove-user or --list-users."
+            return _finish({"ok": False, "error": message}, args.json, message)
+        remote.serve(host=args.host, port=args.port, public_url=args.public_url)
+        return 0
+    except remote.RemoteError as exc:
+        return _finish({"ok": False, "error": str(exc)}, args.json, str(exc))
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.command == "version":
@@ -568,7 +597,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "update":
         return _update(args)
     if args.command == "serve":
-        return _finish({"ok": False, "error": "Remote mode is not implemented."}, args.json, "Remote mode is not implemented.")
+        return _serve(args)
     return 2
 
 

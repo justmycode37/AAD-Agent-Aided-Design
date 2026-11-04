@@ -365,11 +365,11 @@ def test_update_json_prints_without_running_upgrade(monkeypatch, capsys, temp_ho
     assert result["ran"] is False
 
 
-def test_serve_json_reports_not_implemented(capsys, temp_home):
+def test_serve_without_an_action_explains_itself(capsys, temp_home):
     assert cli.main(["serve", "--json"]) == 1
     result = output_object(capsys)
     assert result["ok"] is False
-    assert "not implemented" in result["error"]
+    assert "Nothing to do" in result["error"]
 
 
 def test_doctor_command_json(monkeypatch, capsys, temp_home):
