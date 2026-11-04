@@ -74,6 +74,9 @@ class DrawingRequest:
     dimensions: str | Sequence[DimensionSpec | Mapping[str, Any]] = "auto"
     style: str = "iso"
     title_block: Mapping[str, str] = field(default_factory=dict)
+    notes: Sequence[str] = ()
+    revisions: Sequence[Mapping[str, str]] = ()
+    bom: bool | str = False
     formats: Sequence[str] = ("svg", "dxf", "pdf")
 
 
@@ -89,3 +92,6 @@ class DrawingResult:
     views: list[dict[str, Any]] = field(default_factory=list)
     ok: bool = True
     summary: str = ""
+    notes: list[str] = field(default_factory=list)
+    revisions: list[dict[str, str]] = field(default_factory=list)
+    bom: list[dict[str, Any]] = field(default_factory=list)
