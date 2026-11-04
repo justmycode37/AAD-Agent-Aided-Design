@@ -208,6 +208,9 @@ def build_server() -> Server[Any]:
 async def serve_stdio() -> None:
     server = build_server()
     async with stdio_server() as (read_stream, write_stream):
+        # The SDK moves fd 1 to stderr while serving, then restores it. A buffered print() would
+        # otherwise flush onto the wire at exit, so Python-level output goes to stderr too.
+        sys.stdout = sys.stderr
         await server.run(read_stream, write_stream, server.create_initialization_options())
 
 

@@ -15,6 +15,9 @@ from typing import Any
 from .. import __version__, paths
 
 NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z")
+JOB_ID_RE = re.compile(r"[0-9a-f]{12}")
+RETAINED_MARKER = "failed.json"
+MAX_RETAINED_FAILED_JOBS = 5
 GITIGNORE = ".aiad/\nexports/\n"
 
 
@@ -129,6 +132,26 @@ class Project:
         os.replace(job_dir, target)
         self.checkout(rev)
         return rev
+
+    def retain_failed_job(self, job_dir: Path, job_id: str, envelope: dict[str, Any]) -> None:
+        """Keep a built, failed candidate as evidence, bounded per project. Never touches the head."""
+        retained = {**envelope, "job": job_id, "artifacts": {"part.brep": str(job_dir / "part.brep")}}
+        (job_dir / RETAINED_MARKER).write_text(json.dumps(retained, default=str))
+        kept = sorted(
+            (path for path in self.jobs_dir.iterdir() if (path / RETAINED_MARKER).is_file()),
+            key=lambda path: (path / RETAINED_MARKER).stat().st_mtime,
+            reverse=True,
+        )
+        for old_job in kept[MAX_RETAINED_FAILED_JOBS:]:
+            self.discard_job(old_job)
+
+    def retained_job(self, job_id: str) -> dict[str, Any] | None:
+        if not JOB_ID_RE.fullmatch(job_id or ""):
+            return None
+        try:
+            return json.loads((self.jobs_dir / job_id / RETAINED_MARKER).read_text())
+        except (OSError, ValueError):
+            return None
 
     def discard_job(self, job_dir: Path) -> None:
         shutil.rmtree(job_dir, ignore_errors=True)
