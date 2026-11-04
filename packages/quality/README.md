@@ -14,4 +14,10 @@ uv pip install --python packages/quality/.venv/bin/python -e packages/engine -e 
 packages/quality/.venv/bin/python -m pytest packages/quality/tests -q
 ```
 
+The CI package command uses the workspace lock:
+
+```sh
+uv run --locked --package aiad-quality --all-extras --with pytest --with pytest-timeout python -m pytest packages/quality/tests -q
+```
+
 S1's contractual `Check` is a required dependency. There is no parallel quality-check dataclass. The worker owns sandboxing, hard-gate completion, revision identity and persistence. The quality package must not promote a revision by itself.

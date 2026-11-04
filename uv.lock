@@ -7,6 +7,7 @@ members = [
     "aiad",
     "aiad-drafting",
     "aiad-engine",
+    "aiad-quality",
     "aiad-render",
 ]
 
@@ -81,6 +82,30 @@ requires-dist = [
     { name = "build123d", specifier = "==0.13.0" },
     { name = "cadquery-ocp-novtk", specifier = "==8.0.1.1.0" },
 ]
+
+[[package]]
+name = "aiad-quality"
+version = "0.1.0"
+source = { editable = "packages/quality" }
+dependencies = [
+    { name = "aiad-engine" },
+    { name = "pyyaml" },
+]
+
+[package.optional-dependencies]
+geometry = [
+    { name = "build123d" },
+    { name = "cadquery-ocp-novtk" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiad-engine", editable = "packages/engine" },
+    { name = "build123d", marker = "extra == 'geometry'", specifier = "==0.13.0" },
+    { name = "cadquery-ocp-novtk", marker = "extra == 'geometry'", specifier = "==8.0.1.1.0" },
+    { name = "pyyaml", specifier = ">=6.0.3,<7" },
+]
+provides-extras = ["geometry"]
 
 [[package]]
 name = "aiad-render"

@@ -1,5 +1,5 @@
 {
-  "run_id": "231438fc-795d-4372-87c2-93da988a1b55",
+  "run_id": "ed09555c-78ed-4f41-a4a5-42966880c32f",
   "passed": false,
   "summaries": [
     {
@@ -25,8 +25,8 @@
       "repetitions": 3,
       "native_x_mean_mm": 5.0,
       "native_x_sample_sd_mm": 0.0,
-      "false_verified_control_count": 3,
-      "false_requirement_proof_control_count": 3,
+      "false_verified_control_count": 0,
+      "false_requirement_proof_control_count": 0,
       "metrics_mismatch_count": 0
     }
   ],
@@ -48,7 +48,8 @@
     "engine/engine/__init__.py": "bc07cff7a706daa488febe4d908deb37df4cade9c138ebdd50d26515c1ac3c92",
     "engine/engine/_worker.py": "749e5e9a66a2116483d0ff9ed23b041ee7a14b091e7c60bac853c36180814ee7",
     "engine/engine/gate.py": "e499cde9c37ef406fa25d33c61292529d8c47f414d7896eccbb60ee336ae5031",
-    "engine/engine/jobs.py": "205433182e1c4964cd359adc99cd5a0d3d01bdb2d114b31386cf907ae9091426",
+    "engine/engine/jobs.py": "fef4e452d2df96e7767f932943efc663b5ee757762fec5555606c301f69398d4",
+    "engine/engine/sandbox.py": "3e67b38c349f7ceffb07d6dcbbdbb9711992fee57343ce212be41fc069b3977b",
     "engine/engine/types.py": "01683525fc82e68d0596293fa100e44790671b9a30a13aac93ebd19a2b7da424",
     "quality/__init__.py": "4d5b9609703d4ed1278ab32157c97817b24c9bd0dd4862624d92325ca0567331",
     "quality/_checks.py": "fdaab2a285853137876c74d4be9aec48f0caba88c53a4233692d0b068214216b",
@@ -66,7 +67,7 @@
       "case": "honest_control",
       "repeat": 1,
       "status": "draft",
-      "requirements_proven": true,
+      "requirements_proven": false,
       "expected_x_mm": 10,
       "independent_bbox_mm": [
         10.0,
@@ -132,7 +133,7 @@
       "case": "honest_control",
       "repeat": 2,
       "status": "draft",
-      "requirements_proven": true,
+      "requirements_proven": false,
       "expected_x_mm": 10,
       "independent_bbox_mm": [
         10.0,
@@ -198,7 +199,7 @@
       "case": "honest_control",
       "repeat": 3,
       "status": "draft",
-      "requirements_proven": true,
+      "requirements_proven": false,
       "expected_x_mm": 10,
       "independent_bbox_mm": [
         10.0,
@@ -264,7 +265,7 @@
       "case": "overridden_wrapper_metric",
       "repeat": 1,
       "status": "draft",
-      "requirements_proven": true,
+      "requirements_proven": false,
       "expected_x_mm": 10,
       "independent_bbox_mm": [
         10.0,
@@ -330,7 +331,7 @@
       "case": "overridden_wrapper_metric",
       "repeat": 2,
       "status": "draft",
-      "requirements_proven": true,
+      "requirements_proven": false,
       "expected_x_mm": 10,
       "independent_bbox_mm": [
         10.0,
@@ -396,7 +397,7 @@
       "case": "overridden_wrapper_metric",
       "repeat": 3,
       "status": "draft",
-      "requirements_proven": true,
+      "requirements_proven": false,
       "expected_x_mm": 10,
       "independent_bbox_mm": [
         10.0,
@@ -461,8 +462,8 @@
     {
       "case": "mutated_checker_state",
       "repeat": 1,
-      "status": "verified",
-      "requirements_proven": true,
+      "status": "draft",
+      "requirements_proven": false,
       "expected_x_mm": 10,
       "independent_bbox_mm": [
         5.0,
@@ -475,8 +476,8 @@
         4.0
       ],
       "reported_metrics_match_artifact": true,
-      "false_verified_control": true,
-      "false_requirement_proof_control": true,
+      "false_verified_control": false,
+      "false_requirement_proof_control": false,
       "source_sha256": "359178518e53f91678e71a1cb3620e242d3fd374ddee923287b6e82d6d660305",
       "artifact_sha256": "d2d579aa653e989a64c01cb0a0ea7582f31ec4363e8dff445d219b1b4c8a6764",
       "checks": [
@@ -508,6 +509,12 @@
           "id": "render_not_requested",
           "suite": "hard",
           "level": "warn",
+          "status": "skip"
+        },
+        {
+          "id": "worker_verification_unattested",
+          "suite": "hard",
+          "level": "error",
           "status": "skip"
         }
       ]
@@ -515,8 +522,8 @@
     {
       "case": "mutated_checker_state",
       "repeat": 2,
-      "status": "verified",
-      "requirements_proven": true,
+      "status": "draft",
+      "requirements_proven": false,
       "expected_x_mm": 10,
       "independent_bbox_mm": [
         5.0,
@@ -529,8 +536,8 @@
         4.0
       ],
       "reported_metrics_match_artifact": true,
-      "false_verified_control": true,
-      "false_requirement_proof_control": true,
+      "false_verified_control": false,
+      "false_requirement_proof_control": false,
       "source_sha256": "359178518e53f91678e71a1cb3620e242d3fd374ddee923287b6e82d6d660305",
       "artifact_sha256": "d2d579aa653e989a64c01cb0a0ea7582f31ec4363e8dff445d219b1b4c8a6764",
       "checks": [
@@ -562,6 +569,12 @@
           "id": "render_not_requested",
           "suite": "hard",
           "level": "warn",
+          "status": "skip"
+        },
+        {
+          "id": "worker_verification_unattested",
+          "suite": "hard",
+          "level": "error",
           "status": "skip"
         }
       ]
@@ -569,8 +582,8 @@
     {
       "case": "mutated_checker_state",
       "repeat": 3,
-      "status": "verified",
-      "requirements_proven": true,
+      "status": "draft",
+      "requirements_proven": false,
       "expected_x_mm": 10,
       "independent_bbox_mm": [
         5.0,
@@ -583,8 +596,8 @@
         4.0
       ],
       "reported_metrics_match_artifact": true,
-      "false_verified_control": true,
-      "false_requirement_proof_control": true,
+      "false_verified_control": false,
+      "false_requirement_proof_control": false,
       "source_sha256": "359178518e53f91678e71a1cb3620e242d3fd374ddee923287b6e82d6d660305",
       "artifact_sha256": "d2d579aa653e989a64c01cb0a0ea7582f31ec4363e8dff445d219b1b4c8a6764",
       "checks": [
@@ -616,6 +629,12 @@
           "id": "render_not_requested",
           "suite": "hard",
           "level": "warn",
+          "status": "skip"
+        },
+        {
+          "id": "worker_verification_unattested",
+          "suite": "hard",
+          "level": "error",
           "status": "skip"
         }
       ]
