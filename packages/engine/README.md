@@ -28,7 +28,10 @@ print(result.status, result.metrics, result.artifacts["part.brep"])
 `timeout_s` (60 seconds by default), and an optional `preview` flag. Model
 scripts can use `params(name=value, ...)` to declare named values and apply
 overrides. A plain shape assigned to `result`, or a completed `BuildPart`
-context, produces one implicit `main` `FeatureInfo`.
+context, produces one implicit `main` `FeatureInfo`. Without an explicit
+`result`, the worker selects the last successfully completed outermost,
+non-private `BuildPart`. Nested helpers, unentered builders and failed contexts
+are ineligible. Assign `result = helper.part` to select a helper deliberately.
 
 `BuildResult` carries the draft/failed/verified status, geometry metrics, hard
 and optional checks, a `Failure` with source file and line when available, and

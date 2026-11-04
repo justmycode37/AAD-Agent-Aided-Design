@@ -147,7 +147,23 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
     class TrackedBuildPart(original_build_part):
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             super().__init__(*args, **kwargs)
+            # build123d 0.13 records its caller's Python frame to decide
+            # whether nested builders publish to the same construction scope.
+            # This tracking constructor adds one frame; preserve the frame a
+            # plain BuildPart would have recorded instead.
+            self._python_frame = sys._getframe(1)
+            self._aiad_completed = False
+            self._aiad_nested = False
             tracked_build_parts.append(self)
+
+        def __exit__(self, exception_type: Any, exception_value: Any, traceback: Any) -> Any:
+            result = super().__exit__(exception_type, exception_value, traceback)
+            self._aiad_completed = exception_type is None
+            # The original exit has restored the enclosing builder context.
+            # Record actual nesting independently of same-scope publication:
+            # helper functions can have an enclosing context but no parent.
+            self._aiad_nested = original_build_part._get_context() is not None
+            return result
 
     # build123d decides which operations a context allows from its class name, so a subclass with
     # another name makes fillet() and chamfer() refuse to run inside `with BuildPart()`.
@@ -410,6 +426,12 @@ def _extract_shape(namespace: dict[str, Any], build_parts: list[Any], shape_type
         )
 
     for builder in reversed(build_parts):
+        if (
+            not getattr(builder, "_aiad_completed", False)
+            or getattr(builder, "_aiad_nested", True)
+            or builder.mode.name == "PRIVATE"
+        ):
+            continue
         try:
             candidate = builder.part
         except Exception:
