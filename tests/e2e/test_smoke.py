@@ -124,6 +124,12 @@ def test_failed_build_keeps_head(mcp_process: Any) -> None:
     conflict = call(mcp_process, "aiad_build", project="edits", base_rev=99, source=MODEL)
     assert conflict["structuredContent"]["failure"]["code"] == "BASE_REV_CONFLICT"
 
+    duplicate = "requirements:\n  - id: size\n    bbox: {x: 10}\n    bbox: {x: 5}\n"
+    rejected = call(mcp_process, "aiad_build", project="edits", source=MODEL, spec=duplicate, wait_s=WAIT_S)
+    assert rejected["structuredContent"]["failure"]["code"] == "BAD_INPUT"
+    assert "duplicate YAML key" in rejected["structuredContent"]["failure"]["message"]
+    assert rejected["structuredContent"]["head_rev"] == 1
+
 
 def test_stateless_protocol_envelope(mcp_process: Any) -> None:
     meta = {
