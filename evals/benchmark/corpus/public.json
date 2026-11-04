@@ -1,0 +1,1326 @@
+{
+  "schema_version": 1,
+  "tasks": [
+    {
+      "id": "part_plate_001",
+      "title": "Four-hole mounting plate 80",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make an 80 × 50 × 6 mm rectangular mounting plate with four Ø5.5 mm through holes at X=±25 mm and Y=±15 mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_plate_002",
+      "title": "Six-hole mounting plate 100",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a 100 × 60 × 8 mm mounting plate with six Ø6.5 mm through holes in two columns at X=±30 mm and rows Y=−15, 0, +15 mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_slot_rail_001",
+      "title": "Three-slot guide rail",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a 100 × 24 × 8 mm guide rail with three rounded through slots, each 16 mm long by 8 mm wide, centered at X=−32, 0, +32 mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_slot_rail_002",
+      "title": "Four-slot guide rail",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a 120 × 30 × 10 mm guide rail with four rounded through slots, each 20 mm long by 8 mm wide, at X=−40, −13.333, +13.333, +40 mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_l_bracket_001",
+      "title": "L bracket with two wall holes",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a 70 mm wide L bracket with a 40 mm deep, 5 mm thick foot and a 60 mm high upright at +Y; put two Ø6 mm through holes in the upright at X=±20 mm, Z=40 mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_l_bracket_002",
+      "title": "L bracket with three wall holes",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a 90 mm wide L bracket with a 50 mm deep, 6 mm thick foot and an 80 mm high upright at +Y; add three Ø8 mm through holes at X=−25, 0, +25 mm, Z=55 mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_gusset_001",
+      "title": "Centered gusseted angle",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a 60 × 40 × 50 mm right-angle bracket with 5 mm plates, two Ø6 mm upright holes at X=±18, Z=38 mm, and one centered triangular web 25 mm deep by 8 mm thick.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_gusset_002",
+      "title": "Wide gusseted angle",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make an 80 × 50 × 70 mm right-angle bracket with 6 mm plates, two Ø8 mm upright holes at X=±25, Z=52 mm, and one centered triangular web 30 mm deep by 10 mm thick.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_sleeve_001",
+      "title": "Bronze sleeve 32 by 24",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, the cylindrical axis is +Z, and z=0 is the axial mid-plane unless a stepped length is explicitly measured from its lower end. Use ±0.10 mm for the outer envelope and ±0.05 mm for bore centers and diameters. Make a coaxial sleeve bushing with Ø32 mm outside, Ø16 mm through bore, and 24 mm axial length.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_sleeve_002",
+      "title": "Sleeve 45 by 30",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, the cylindrical axis is +Z, and z=0 is the axial mid-plane unless a stepped length is explicitly measured from its lower end. Use ±0.10 mm for the outer envelope and ±0.05 mm for bore centers and diameters. Make a coaxial sleeve bushing with Ø45 mm outside, Ø20 mm through bore, and 30 mm axial length.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_flange_001",
+      "title": "Four-bolt counterbore flange",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, the cylindrical axis is +Z, and z=0 is the axial mid-plane unless a stepped length is explicitly measured from its lower end. Use ±0.10 mm for the outer envelope and ±0.05 mm for bore centers and diameters. Make a Ø70 × 8 mm flange with a Ø20 mm through bore and four Ø6 mm through bolt holes at (±22, ±22) mm. Counterbore each bolt hole to Ø10 mm × 2.5 mm deep from +Z.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_flange_002",
+      "title": "Six-bolt counterbore flange",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, the cylindrical axis is +Z, and z=0 is the axial mid-plane unless a stepped length is explicitly measured from its lower end. Use ±0.10 mm for the outer envelope and ±0.05 mm for bore centers and diameters. Make a Ø90 × 10 mm flange with a Ø25 mm through bore and six Ø8 mm through bolt holes on a 60 mm bolt circle. Counterbore each bolt hole to Ø12 mm × 3 mm deep from +Z.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_step_bushing_001",
+      "title": "Stepped bushing 24 body",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a stepped bushing with a Ø24 × 18 mm body, a Ø36 × 4 mm shoulder, a Ø10 mm through bore, and a Ø14 mm counterbore 3 mm deep from the shoulder end.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_step_bushing_002",
+      "title": "Stepped bushing 32 body",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a stepped bushing with a Ø32 × 25 mm body, a Ø44 × 5 mm shoulder, a Ø12 mm through bore, and a Ø18 mm counterbore 4 mm deep from the shoulder end.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_clevis_001",
+      "title": "Clevis fork 50 wide",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a 50 × 30 × 45 mm clevis with a 6 mm base, two 6 mm ears, and aligned Ø10 mm through pin holes at Z=30 mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_clevis_002",
+      "title": "Clevis fork 70 wide",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a 70 × 40 × 60 mm clevis with an 8 mm base, two 8 mm ears, and aligned Ø12 mm through pin holes at Z=40 mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_u_channel_001",
+      "title": "U channel 60 by 80",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make an open-top U channel 60 mm wide, 80 mm long, 30 mm high, with a 4 mm floor and 4 mm side walls.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_u_channel_002",
+      "title": "U channel 80 by 100",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make an open-top U channel 80 mm wide, 100 mm long, 40 mm high, with a 5 mm floor and 5 mm side walls.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_c_channel_001",
+      "title": "C channel 60 wide",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a 60 × 40 × 30 mm C section with a 4 mm web and 4 mm top and bottom flanges extending toward +X.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_c_channel_002",
+      "title": "C channel 80 wide",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make an 80 × 50 × 40 mm C section with a 5 mm web and 5 mm top and bottom flanges extending toward +X.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_enclosure_001",
+      "title": "Open enclosure 80 by 60",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make an open-top 80 × 60 × 40 mm enclosure with 3 mm side walls, a 4 mm floor, and four Ø4 mm through floor holes at (±30, ±20) mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_enclosure_002",
+      "title": "Open enclosure 120 by 80",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make an open-top 120 × 80 × 55 mm enclosure with 4 mm side walls, a 5 mm floor, and four Ø5 mm through floor holes at (±48, ±28) mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_lid_001",
+      "title": "Lid plate 60 by 40",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a 60 × 40 × 3 mm enclosure lid with four Ø4 mm through holes at X=±24 mm and Y=±14 mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_lid_002",
+      "title": "Inch-specified lid plate",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Use inch units. The XY origin is at the lid center and z=0 is its underside. Make a 4.000 × 3.000 × 0.200 in enclosure lid with four Ø0.200 in through holes at X=±1.600 in and Y=±1.000 in. Overall tolerance is ±0.004 in; hole-center and diameter tolerance is ±0.002 in.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_hose_adapter_001",
+      "title": "Stepped hose adapter 54",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a coaxial stepped hose adapter 54 mm long: Ø30 mm lower end for 12 mm, Ø34 mm middle section, Ø28 mm upper end for 12 mm, with a Ø14 mm through bore.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_hose_adapter_002",
+      "title": "Stepped hose adapter 72",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a coaxial stepped hose adapter 72 mm long: Ø38 mm lower end for 16 mm, Ø42 mm middle section, Ø36 mm upper end for 16 mm, with a Ø18 mm through bore.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_lobe_wheel_001",
+      "title": "Eight-lobe drive wheel",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make an 8 mm thick Ø50 mm wheel with eight equally spaced rectangular drive lobes, each 8 mm tangential width and 8 mm radial projection, an 8 mm long Ø20 mm rear hub, and an Ø8 mm axial through bore.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_lobe_wheel_002",
+      "title": "Ten-lobe drive wheel",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a 10 mm thick Ø70 mm wheel with ten equally spaced rectangular drive lobes, each 10 mm tangential width and 8 mm radial projection, a 10 mm long Ø28 mm rear hub, and an Ø12 mm axial through bore.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_spoked_wheel_001",
+      "title": "Four-spoke wheel",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, the cylindrical axis is +Z, and z=0 is the axial mid-plane unless a stepped length is explicitly measured from its lower end. Use ±0.10 mm for the outer envelope and ±0.05 mm for bore centers and diameters. Make an Ø80 mm wheel 10 mm wide with a 4 mm rim, Ø20 mm hub, four equally spaced radial spokes, and Ø8 mm through bore.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_spoked_wheel_002",
+      "title": "Six-spoke wheel",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, the cylindrical axis is +Z, and z=0 is the axial mid-plane unless a stepped length is explicitly measured from its lower end. Use ±0.10 mm for the outer envelope and ±0.05 mm for bore centers and diameters. Make an Ø100 mm wheel 12 mm wide with a 5 mm rim, Ø30 mm hub, six equally spaced radial spokes, and Ø12 mm through bore.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_split_clamp_001",
+      "title": "Split shaft clamp 40",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a 40 × 30 × 25 mm split shaft clamp with a Ø16 mm vertical bore, a 2 mm slit opening to +X, and a Ø6 mm cross bolt passage along X.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_split_clamp_002",
+      "title": "Split shaft clamp 50",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a 50 × 38 × 30 mm split shaft clamp with a Ø20 mm vertical bore, a 3 mm slit opening to +X, and a Ø8 mm cross bolt passage along X.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_heat_sink_001",
+      "title": "Seven-fin heat sink",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make an 80 × 50 × 6 mm base with seven equally spaced 2 mm thick fins, each 24 mm high and spanning the full 50 mm depth.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_heat_sink_002",
+      "title": "Nine-fin heat sink",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a 100 × 60 × 8 mm base with nine equally spaced 2.5 mm thick fins, each 32 mm high and spanning the full 60 mm depth.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_ribbed_cover_001",
+      "title": "Five-rib cover",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is the footprint center, the cover plate's underside is z=0, and ribs extend in -Z. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a 100 × 60 × 4 mm cover with five underside ribs, each 3 mm thick and 6 mm deep, plus four Ø5 mm through mounting holes at (±42, ±22) mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_ribbed_cover_002",
+      "title": "Six-rib cover",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is the footprint center, the cover plate's underside is z=0, and ribs extend in -Z. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a 120 × 80 × 5 mm cover with six underside ribs, each 4 mm thick and 8 mm deep, plus four Ø6 mm through mounting holes at (±52, ±32) mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_pipe_saddle_001",
+      "title": "Pipe saddle block",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make an 80 × 45 × 20 mm support block with a centered semicircular cradle for a Ø30 mm pipe, running through the full 80 mm width.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_pulley_001",
+      "title": "Hubbed belt sheave",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a Ø60 × 12 mm sheave disk with an 8 mm long Ø24 mm rear hub and an Ø10 mm axial through bore.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "part_fan_carrier_001",
+      "title": "Fan-envelope carrier with clearance",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make four upright carrier rails around the declared 40 × 40 × 20 mm fan-envelope asset. Keep a 2.0 mm gap from the asset to each inner rail face; rail thickness is 3 mm and rail height is 23 mm. Use only the declared public asset fan_envelope as the fit reference; the minimum measured clearance must be 1.9–2.1 mm.",
+          "input_assets": [
+            {
+              "id": "fan_envelope",
+              "path": "assets/fan_envelope.stl",
+              "format": "stl",
+              "sha256": "16042f695b0c895936d5adfd4f5ca9c10a266f6afa66aec2d2c547dafc3409e0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "part_blocked_counterbore_001",
+      "title": "Accessible counterbore beside upright web",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Make a 60 × 40 × 50 mm right-angle bracket with a 6 mm base and 6 mm upright at +Y. Put an M4-clearance Ø4.4 mm through hole at (0, 7) mm in the base, with a Ø10 mm counterbore 3 mm deep from +Z. Preserve a straight +Z screw insertion path and at least 2.0 mm clearance around the Ø10 mm head envelope beside the upright web.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "edit_plate_widen_001",
+      "title": "Widen a plate while preserving bores",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "initial",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Initial design: Create an 80 × 50 × 6 mm plate with two Ø5.5 mm through holes at (−25, −15) and (+25, −15) mm.",
+          "input_assets": []
+        },
+        {
+          "id": "edit_1",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Revise the previous artifact: Increase only the centered plate's X width from 80 to 100 mm. Retain both Ø5.5 mm through holes at (−25, −15) and (+25, −15) mm, the 50 mm depth and 6 mm thickness. The resulting overall envelope is 100 × 50 × 6 mm. Preserve all geometry outside the requested change and keep one connected solid.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "edit_plate_counterbore_002",
+      "title": "Add counterbores to a six-hole plate",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "initial",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Initial design: Create a 100 × 60 × 8 mm plate with six Ø6.5 mm through holes at X=±30 mm and Y=−15, 0, +15 mm.",
+          "input_assets": []
+        },
+        {
+          "id": "edit_1",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Revise the previous artifact: Add a Ø11 mm counterbore 3 mm deep from +Z at each of the six existing holes, retaining their centers and through diameters. The resulting overall envelope is 100 × 60 × 8 mm. Preserve all geometry outside the requested change and keep one connected solid.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "edit_slot_rail_add_center_003",
+      "title": "Add a center slot to the guide rail",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "initial",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Initial design: Create a 100 × 24 × 8 mm rail with two rounded through slots, each 16 × 8 mm, centered at X=±32 mm.",
+          "input_assets": []
+        },
+        {
+          "id": "edit_1",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Revise the previous artifact: Add a third matching 16 × 8 mm through slot at X=0 mm while retaining the two outer slots. The resulting overall envelope is 100 × 24 × 8 mm. Preserve all geometry outside the requested change and keep one connected solid.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "edit_slot_rail_widen_004",
+      "title": "Widen the rail slots",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "initial",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Initial design: Create a 120 × 30 × 10 mm rail with three rounded 20 × 6 mm through slots at X=−40, 0, +40 mm.",
+          "input_assets": []
+        },
+        {
+          "id": "edit_1",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Revise the previous artifact: Widen those three slots to 8 mm while retaining their centers and 20 mm overall slot length. The resulting overall envelope is 120 × 30 × 10 mm. Preserve all geometry outside the requested change and keep one connected solid.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "edit_l_bracket_add_hole_005",
+      "title": "Add a second upright mounting hole",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "initial",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Initial design: Create a 70 × 40 × 60 mm L bracket with 5 mm plates and one Ø6 mm upright through hole at X=−20, Z=40 mm.",
+          "input_assets": []
+        },
+        {
+          "id": "edit_1",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Revise the previous artifact: Add a matching Ø6 mm upright through hole at X=+20, Z=40 mm while retaining the original hole. The resulting overall envelope is 70 × 40 × 60 mm. Preserve all geometry outside the requested change and keep one connected solid.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "edit_l_bracket_third_hole_006",
+      "title": "Extend upright hole row to three",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "initial",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Initial design: Create a 90 × 50 × 80 mm L bracket with 6 mm plates and two Ø8 mm upright through holes at X=±25, Z=55 mm.",
+          "input_assets": []
+        },
+        {
+          "id": "edit_1",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Revise the previous artifact: Add a third Ø8 mm upright hole at X=0, Z=55 mm, retaining the original pair. The resulting overall envelope is 90 × 50 × 80 mm. Preserve all geometry outside the requested change and keep one connected solid.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "edit_sleeve_counterbore_007",
+      "title": "Add a lead-in counterbore",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "initial",
+          "request": "Coordinates are in millimetres, the cylindrical axis is +Z, and z=0 is the axial mid-plane unless a stepped length is explicitly measured from its lower end. Use ±0.10 mm for the outer envelope and ±0.05 mm for bore centers and diameters. Initial design: Create a coaxial sleeve Ø32 mm outside, Ø16 mm through bore, 24 mm long.",
+          "input_assets": []
+        },
+        {
+          "id": "edit_1",
+          "request": "Coordinates are in millimetres, the cylindrical axis is +Z, and z=0 is the axial mid-plane unless a stepped length is explicitly measured from its lower end. Use ±0.10 mm for the outer envelope and ±0.05 mm for bore centers and diameters. Revise the previous artifact: Add a Ø20 mm counterbore 2 mm deep at the +Z end, retaining the Ø16 mm through bore and outer envelope. The resulting overall envelope is 32 × 32 × 24 mm. Preserve all geometry outside the requested change and keep one connected solid.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "edit_sleeve_bore_008",
+      "title": "Increase sleeve bore diameter",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "initial",
+          "request": "Coordinates are in millimetres, the cylindrical axis is +Z, and z=0 is the axial mid-plane unless a stepped length is explicitly measured from its lower end. Use ±0.10 mm for the outer envelope and ±0.05 mm for bore centers and diameters. Initial design: Create a coaxial sleeve Ø45 mm outside, Ø18 mm through bore, 30 mm long.",
+          "input_assets": []
+        },
+        {
+          "id": "edit_1",
+          "request": "Coordinates are in millimetres, the cylindrical axis is +Z, and z=0 is the axial mid-plane unless a stepped length is explicitly measured from its lower end. Use ±0.10 mm for the outer envelope and ±0.05 mm for bore centers and diameters. Revise the previous artifact: Increase the axial through bore to Ø20 mm while retaining the Ø45 mm outside and 30 mm length. The resulting overall envelope is 45 × 45 × 30 mm. Preserve all geometry outside the requested change and keep one connected solid.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "edit_flange_counterbores_009",
+      "title": "Add bolt-hole counterbores",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "initial",
+          "request": "Coordinates are in millimetres, the cylindrical axis is +Z, and z=0 is the axial mid-plane unless a stepped length is explicitly measured from its lower end. Use ±0.10 mm for the outer envelope and ±0.05 mm for bore centers and diameters. Initial design: Create a Ø70 × 8 mm flange with a Ø20 mm center bore and four Ø6 mm through holes at (±22, ±22) mm.",
+          "input_assets": []
+        },
+        {
+          "id": "edit_1",
+          "request": "Coordinates are in millimetres, the cylindrical axis is +Z, and z=0 is the axial mid-plane unless a stepped length is explicitly measured from its lower end. Use ±0.10 mm for the outer envelope and ±0.05 mm for bore centers and diameters. Revise the previous artifact: Add a Ø10 mm × 2.5 mm counterbore from +Z at each bolt hole, retaining all through bores and centers. The resulting overall envelope is 70 × 70 × 8 mm. Preserve all geometry outside the requested change and keep one connected solid.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "edit_flange_add_bolts_010",
+      "title": "Add two holes to the flange bolt circle",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "initial",
+          "request": "Coordinates are in millimetres, the cylindrical axis is +Z, and z=0 is the axial mid-plane unless a stepped length is explicitly measured from its lower end. Use ±0.10 mm for the outer envelope and ±0.05 mm for bore centers and diameters. Initial design: Create a Ø90 × 10 mm flange with a Ø25 mm center bore and four Ø8 mm through holes at the cardinal points of a 60 mm bolt circle.",
+          "input_assets": []
+        },
+        {
+          "id": "edit_1",
+          "request": "Coordinates are in millimetres, the cylindrical axis is +Z, and z=0 is the axial mid-plane unless a stepped length is explicitly measured from its lower end. Use ±0.10 mm for the outer envelope and ±0.05 mm for bore centers and diameters. Revise the previous artifact: Add two Ø8 mm holes at (−15, −25.981) and (+15, +25.981) mm to make six equally spaced positions on the same 60 mm bolt circle. The resulting overall envelope is 90 × 90 × 10 mm. Preserve all geometry outside the requested change and keep one connected solid.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "edit_enclosure_add_mounts_011",
+      "title": "Add four floor mounting holes",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "initial",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Initial design: Create an open-top 80 × 60 × 40 mm enclosure with 3 mm walls and a 4 mm floor.",
+          "input_assets": []
+        },
+        {
+          "id": "edit_1",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Revise the previous artifact: Add four Ø4 mm through holes in the floor at (±30, ±20) mm while retaining the open cavity and walls. The resulting overall envelope is 80 × 60 × 40 mm. Preserve all geometry outside the requested change and keep one connected solid.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "edit_enclosure_add_pair_012",
+      "title": "Add two more enclosure mounts",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "initial",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Initial design: Create an open-top 120 × 80 × 55 mm enclosure with 4 mm walls, a 5 mm floor, and four Ø5 mm floor holes at the corners.",
+          "input_assets": []
+        },
+        {
+          "id": "edit_1",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Revise the previous artifact: Add two more Ø5 mm through floor holes at X=0, Y=±28 mm; retain the original four holes and cavity dimensions. The resulting overall envelope is 120 × 80 × 55 mm. Preserve all geometry outside the requested change and keep one connected solid.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "edit_channel_add_drains_013",
+      "title": "Add floor drain holes to U channel",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "initial",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Initial design: Create a 60 × 80 × 30 mm open-top U channel with 4 mm floor and side walls.",
+          "input_assets": []
+        },
+        {
+          "id": "edit_1",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Revise the previous artifact: Add two Ø6 mm through drain holes in the floor at X=±15, Y=0 mm while retaining the channel envelope and walls. The resulting overall envelope is 60 × 80 × 30 mm. Preserve all geometry outside the requested change and keep one connected solid.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "edit_channel_add_four_drains_014",
+      "title": "Add a second drain row",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "initial",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Initial design: Create an 80 × 100 × 40 mm U channel with 5 mm walls and two Ø8 mm floor holes at X=±20, Y=−25 mm.",
+          "input_assets": []
+        },
+        {
+          "id": "edit_1",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Revise the previous artifact: Add a matching drain-hole pair at Y=+25 mm; retain the first pair, channel dimensions, and 5 mm walls. The resulting overall envelope is 80 × 100 × 40 mm. Preserve all geometry outside the requested change and keep one connected solid.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "edit_clamp_add_bolt_015",
+      "title": "Add a cross-bolt passage",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "initial",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Initial design: Create a 40 × 30 × 25 mm split clamp with a Ø16 mm axial bore and a 2 mm slit to +X.",
+          "input_assets": []
+        },
+        {
+          "id": "edit_1",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Revise the previous artifact: Add a Ø6 mm cross-bolt passage along X at 72% of the clamp height, retaining the axial bore and slit. The resulting overall envelope is 40 × 30 × 25 mm. Preserve all geometry outside the requested change and keep one connected solid.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "edit_clamp_widen_split_016",
+      "title": "Widen the clamp slit",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "initial",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Initial design: Create a 50 × 38 × 30 mm split clamp with a Ø20 mm axial bore, 2 mm slit to +X, and Ø8 mm cross-bolt passage.",
+          "input_assets": []
+        },
+        {
+          "id": "edit_1",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Revise the previous artifact: Widen the slit to 3 mm while retaining the bore, bolt passage, envelope, and connected clamp body. The resulting overall envelope is 50 × 38 × 30 mm. Preserve all geometry outside the requested change and keep one connected solid.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "edit_heat_sink_add_fins_017",
+      "title": "Increase heat-sink fin count",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "initial",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Initial design: Create an 80 × 50 × 6 mm heat-sink base with five equally spaced 2 mm thick, 24 mm high fins.",
+          "input_assets": []
+        },
+        {
+          "id": "edit_1",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Revise the previous artifact: Re-space the fins as seven equally spaced 2 mm thick, 24 mm high fins while retaining the base and total envelope. The resulting overall envelope is 80 × 50 × 30 mm. Preserve all geometry outside the requested change and keep one connected solid.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "edit_heat_sink_add_two_more_018",
+      "title": "Add two fins to the larger sink",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "initial",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Initial design: Create a 100 × 60 × 8 mm heat-sink base with six equally spaced 2.5 mm thick, 32 mm high fins.",
+          "input_assets": []
+        },
+        {
+          "id": "edit_1",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Revise the previous artifact: Change the array to eight equally spaced fins of the same thickness and height; retain the full base envelope. The resulting overall envelope is 100 × 60 × 40 mm. Preserve all geometry outside the requested change and keep one connected solid.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "edit_import_mesh_019",
+      "title": "Import and edit a public STL base",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "initial",
+          "request": "Import the declared fan_envelope.stl in millimetres as the base solid. Use X/Y origin at the footprint center, +Z upward, and z=0 at the lower face; its footprint is 40 × 40 mm and z spans 0–20 mm. Preserve the imported geometry exactly within 0.05 mm surface distance and 0.5 mm³ symmetric-difference volume; do not add features in this stage.",
+          "input_assets": [
+            {
+              "id": "fan_envelope",
+              "path": "assets/fan_envelope.stl",
+              "format": "stl",
+              "sha256": "16042f695b0c895936d5adfd4f5ca9c10a266f6afa66aec2d2c547dafc3409e0"
+            }
+          ]
+        },
+        {
+          "id": "edit_1",
+          "request": "Edit the base imported from fan_envelope.stl. Add four Ø4 mm through holes at X=±12, Y=±12 mm. Use the same centered XY frame and z=0 at the lower face. Retain the 40 × 40 × 20 mm envelope, all material outside the requested holes, and one connected solid; hole center/diameter tolerance is ±0.05 mm.",
+          "input_assets": [
+            {
+              "id": "fan_envelope",
+              "path": "assets/fan_envelope.stl",
+              "format": "stl",
+              "sha256": "16042f695b0c895936d5adfd4f5ca9c10a266f6afa66aec2d2c547dafc3409e0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "edit_lid_enlarge_holes_020",
+      "title": "Enlarge lid fastener holes",
+      "kind": "part",
+      "stages": [
+        {
+          "id": "initial",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Initial design: Create a 100 × 70 × 5 mm lid with four Ø4 mm through holes at X=±42, Y=±27 mm.",
+          "input_assets": []
+        },
+        {
+          "id": "edit_1",
+          "request": "Coordinates are in millimetres, X/Y origin is at the footprint center, +Z points up from z=0 at the underside. Use ±0.10 mm for overall dimensions and ±0.05 mm for feature centers and diameters. Revise the previous artifact: Enlarge the same four holes to Ø6 mm, retaining their centers and the lid envelope. The resulting overall envelope is 100 × 70 × 5 mm. Preserve all geometry outside the requested change and keep one connected solid.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "assembly_standoffs_001",
+      "title": "Four-standoff panel support",
+      "kind": "assembly",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Use millimetres in a world frame with X/Y centered on the base, +Z upward, and z=0 at its lower face. Place named components at the stated centers within ±0.10 mm; component dimensions and overall envelope tolerance are ±0.10 mm. Assemble one 60 × 40 × 6 mm base plate centered at (0,0,3) with four Ø8 × 12 mm vertical standoffs centered at (±20, ±10, 12) mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "assembly_spool_002",
+      "title": "Three-piece stepped spool",
+      "kind": "assembly",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Use millimetres in a world frame with X/Y centered on the base, +Z upward, and z=0 at its lower face. Place named components at the stated centers within ±0.10 mm; component dimensions and overall envelope tolerance are ±0.10 mm. Stack three coaxial parts on +Z: a Ø50 × 6 mm lower flange centered at z=3, a Ø20 × 20 mm core centered at z=16, and a Ø40 × 6 mm upper flange centered at z=29 mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "assembly_rail_slide_003",
+      "title": "Rail with twin sliding blocks",
+      "kind": "assembly",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Use millimetres in a world frame with X/Y centered on the base, +Z upward, and z=0 at its lower face. Place named components at the stated centers within ±0.10 mm; component dimensions and overall envelope tolerance are ±0.10 mm. Place a 100 × 20 × 10 mm rail centered at (0,0,5) and two separate 20 × 30 × 12 mm sliders centered at X=−25 and +25, Y=0, Z=16 mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "assembly_hinge_004",
+      "title": "Twin-leaf hinge with vertical pin",
+      "kind": "assembly",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Use millimetres in a world frame with X/Y centered on the base, +Z upward, and z=0 at its lower face. Place named components at the stated centers within ±0.10 mm; component dimensions and overall envelope tolerance are ±0.10 mm. Place two 30 × 20 × 4 mm leaves centered at X=−17 and +17, Y=0, Z=2 mm, plus one Ø8 × 24 mm vertical pin centered at (0,0,16) mm. The pin starts at the leaf top; keep the three components separate.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "assembly_panel_spacers_005",
+      "title": "Panel with four spacer columns",
+      "kind": "assembly",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Use millimetres in a world frame with X/Y centered on the base, +Z upward, and z=0 at its lower face. Place named components at the stated centers within ±0.10 mm; component dimensions and overall envelope tolerance are ±0.10 mm. Assemble two 80 × 50 × 4 mm plates centered at z=2 and z=14 mm. Put four Ø10 × 8 mm spacer cylinders at (±30, ±15, 8) mm between them.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "assembly_case_lid_006",
+      "title": "Enclosure body with removable lid",
+      "kind": "assembly",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Use millimetres in a world frame with X/Y centered on the base, +Z upward, and z=0 at its lower face. Place named components at the stated centers within ±0.10 mm; component dimensions and overall envelope tolerance are ±0.10 mm. Place an 80 × 60 × 30 mm body centered at z=15 mm and a separate 80 × 60 × 4 mm lid centered at z=34 mm, leaving a 2 mm gap between them.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "assembly_fan_support_007",
+      "title": "Fan support with four posts",
+      "kind": "assembly",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Use millimetres in a world frame with X/Y centered on the base, +Z upward, and z=0 at its lower face. Place named components at the stated centers within ±0.10 mm; component dimensions and overall envelope tolerance are ±0.10 mm. Place an 80 × 80 × 4 mm base at z=0..4, four Ø8 × 20 mm posts at X/Y=±30 mm centered at z=14 mm, and a separate 40 × 40 × 20 mm fan block centered at (0,0,36) mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "assembly_corner_stop_008",
+      "title": "Right-angle locating stop",
+      "kind": "assembly",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Use millimetres in a world frame with X/Y centered on the base, +Z upward, and z=0 at its lower face. Place named components at the stated centers within ±0.10 mm; component dimensions and overall envelope tolerance are ±0.10 mm. Assemble a 70 × 50 × 8 mm base centered at z=4, an 8 × 50 × 30 mm left stop centered at (−31,0,23) mm, and a separate 62 × 8 × 30 mm back stop centered at (4,21,23) mm. Both stops start at z=8 mm and meet at the outside corner without overlapping.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "assembly_two_rotors_009",
+      "title": "Side-by-side rotor pair",
+      "kind": "assembly",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Use millimetres in a world frame with X/Y centered on the base, +Z upward, and z=0 at its lower face. Place named components at the stated centers within ±0.10 mm; component dimensions and overall envelope tolerance are ±0.10 mm. Place two separate Ø30 × 10 mm vertical rotors centered at X=−22 and +22 mm, Y=0, Z=5 mm, with a 14 mm gap between their outer circular envelopes.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "assembly_spacer_stack_010",
+      "title": "Four-piece coaxial spacer stack",
+      "kind": "assembly",
+      "stages": [
+        {
+          "id": "build",
+          "request": "Use millimetres in a world frame with X/Y centered on the base, +Z upward, and z=0 at its lower face. Place named components at the stated centers within ±0.10 mm; component dimensions and overall envelope tolerance are ±0.10 mm. Stack four separate vertical cylinders on +Z with a 1 mm axial gap between neighbors: Ø40 × 8 mm centered at z=4, Ø24 × 12 mm at z=15, Ø32 × 6 mm at z=25, and Ø18 × 10 mm at z=34 mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "profile_round_plate_001",
+      "title": "Round plate with four holes",
+      "kind": "2d",
+      "stages": [
+        {
+          "id": "profile",
+          "request": "Use a millimetre XY sketch with origin [0,0], +X right and +Y up. Center the outside XY bounding rectangle at the origin. Put every closed cut contour on the CUT layer. Outer extents and segment endpoints must be within ±0.10 mm; circle centers and diameters within ±0.05 mm. Cut one Ø80 mm circular plate with four Ø6 mm holes at (±25, ±25) mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "profile_octagon_002",
+      "title": "Octagonal panel with center bore",
+      "kind": "2d",
+      "stages": [
+        {
+          "id": "profile",
+          "request": "Use a millimetre XY sketch with origin [0,0], +X right and +Y up. Center the outside XY bounding rectangle at the origin. Put every closed cut contour on the CUT layer. Outer extents and segment endpoints must be within ±0.10 mm; circle centers and diameters within ±0.05 mm. Cut a centered regular octagonal panel with 80 mm overall X/Y extents and one Ø20 mm center bore.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "profile_l_plate_003",
+      "title": "L-shaped plate profile",
+      "kind": "2d",
+      "stages": [
+        {
+          "id": "profile",
+          "request": "Use a millimetre XY sketch with origin [0,0], +X right and +Y up. Center the outside XY bounding rectangle at the origin. Put every closed cut contour on the CUT layer. Outer extents and segment endpoints must be within ±0.10 mm; circle centers and diameters within ±0.05 mm. Cut one L contour with outer legs 80 × 60 mm and a 20 mm leg width; add a Ø6 mm hole at (−30, −20) mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "profile_u_plate_004",
+      "title": "U-shaped mounting profile",
+      "kind": "2d",
+      "stages": [
+        {
+          "id": "profile",
+          "request": "Use a millimetre XY sketch with origin [0,0], +X right and +Y up. Center the outside XY bounding rectangle at the origin. Put every closed cut contour on the CUT layer. Outer extents and segment endpoints must be within ±0.10 mm; circle centers and diameters within ±0.05 mm. Cut a U profile with 90 × 60 mm outer extents, 15 mm side legs, and a 15 mm bottom web.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "profile_t_plate_005",
+      "title": "T-shaped mounting profile",
+      "kind": "2d",
+      "stages": [
+        {
+          "id": "profile",
+          "request": "Use a millimetre XY sketch with origin [0,0], +X right and +Y up. Center the outside XY bounding rectangle at the origin. Put every closed cut contour on the CUT layer. Outer extents and segment endpoints must be within ±0.10 mm; circle centers and diameters within ±0.05 mm. Cut one T contour 100 mm wide by 70 mm high: the top bar is 100 × 20 mm and the centered stem is 20 mm wide.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "profile_keyhole_006",
+      "title": "Keyhole tab profile",
+      "kind": "2d",
+      "stages": [
+        {
+          "id": "profile",
+          "request": "Use a millimetre XY sketch with origin [0,0], +X right and +Y up. Center the outside XY bounding rectangle at the origin. Put every closed cut contour on the CUT layer. Outer extents and segment endpoints must be within ±0.10 mm; circle centers and diameters within ±0.05 mm. Cut a 70 × 40 mm tab with a rectangular through slot 30 mm long by 12 mm wide centered at X=−10 mm and a Ø10 mm circular hole at X=20 mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "profile_washer_007",
+      "title": "Concentric washer profile",
+      "kind": "2d",
+      "stages": [
+        {
+          "id": "profile",
+          "request": "Use a millimetre XY sketch with origin [0,0], +X right and +Y up. Center the outside XY bounding rectangle at the origin. Put every closed cut contour on the CUT layer. Outer extents and segment endpoints must be within ±0.10 mm; circle centers and diameters within ±0.05 mm. Cut a washer profile with Ø60 mm outside diameter and Ø24 mm concentric inside diameter.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "profile_strap_008",
+      "title": "Two-slot strap profile",
+      "kind": "2d",
+      "stages": [
+        {
+          "id": "profile",
+          "request": "Use a millimetre XY sketch with origin [0,0], +X right and +Y up. Center the outside XY bounding rectangle at the origin. Put every closed cut contour on the CUT layer. Outer extents and segment endpoints must be within ±0.10 mm; circle centers and diameters within ±0.05 mm. Cut a 140 × 32 mm strap with two rectangular slot openings 24 × 8 mm centered at X=−45 and +45 mm, Y=0.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "profile_hex_flange_009",
+      "title": "Hexagonal flange with seven holes",
+      "kind": "2d",
+      "stages": [
+        {
+          "id": "profile",
+          "request": "Use a millimetre XY sketch with origin [0,0], +X right and +Y up. Center the outside XY bounding rectangle at the origin. Put every closed cut contour on the CUT layer. Outer extents and segment endpoints must be within ±0.10 mm; circle centers and diameters within ±0.05 mm. Cut a regular hexagonal flange with 80 mm across-flats, one Ø16 mm center bore, and six Ø6 mm holes on a 56 mm bolt circle.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "profile_tab_010",
+      "title": "Offset tab with one hole",
+      "kind": "2d",
+      "stages": [
+        {
+          "id": "profile",
+          "request": "Use a millimetre XY sketch with origin [0,0], +X right and +Y up. Center the outside XY bounding rectangle at the origin. Put every closed cut contour on the CUT layer. Outer extents and segment endpoints must be within ±0.10 mm; circle centers and diameters within ±0.05 mm. Cut one offset tab with a 90 × 60 mm outer envelope, a 20 × 20 mm square removed from its lower-right corner, and a Ø8 mm hole at (20, 15) mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "profile_five_hole_rail_011",
+      "title": "Five-hole rail profile",
+      "kind": "2d",
+      "stages": [
+        {
+          "id": "profile",
+          "request": "Use a millimetre XY sketch with origin [0,0], +X right and +Y up. Center the outside XY bounding rectangle at the origin. Put every closed cut contour on the CUT layer. Outer extents and segment endpoints must be within ±0.10 mm; circle centers and diameters within ±0.05 mm. Cut a 150 × 30 mm flat rail with five Ø6 mm holes on its centerline at X=−60, −30, 0, +30, +60 mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "profile_gasket_012",
+      "title": "Stepped gasket ring profile",
+      "kind": "2d",
+      "stages": [
+        {
+          "id": "profile",
+          "request": "Use a millimetre XY sketch with origin [0,0], +X right and +Y up. Center the outside XY bounding rectangle at the origin. Put every closed cut contour on the CUT layer. Outer extents and segment endpoints must be within ±0.10 mm; circle centers and diameters within ±0.05 mm. Cut two concentric closed circles for a ring gasket: Ø90 mm outer boundary and Ø70 mm inner opening.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "profile_clipped_panel_013",
+      "title": "Clipped-corner panel",
+      "kind": "2d",
+      "stages": [
+        {
+          "id": "profile",
+          "request": "Use a millimetre XY sketch with origin [0,0], +X right and +Y up. Center the outside XY bounding rectangle at the origin. Put every closed cut contour on the CUT layer. Outer extents and segment endpoints must be within ±0.10 mm; circle centers and diameters within ±0.05 mm. Cut a 100 × 70 mm plate with 10 × 10 mm clipped corners and four Ø5 mm holes at (±38, ±23) mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "profile_hinge_leaf_014",
+      "title": "Three-hole hinge leaf",
+      "kind": "2d",
+      "stages": [
+        {
+          "id": "profile",
+          "request": "Use a millimetre XY sketch with origin [0,0], +X right and +Y up. Center the outside XY bounding rectangle at the origin. Put every closed cut contour on the CUT layer. Outer extents and segment endpoints must be within ±0.10 mm; circle centers and diameters within ±0.05 mm. Cut a 90 × 30 mm hinge leaf with three Ø8 mm holes on the Y=0 centerline at X=−30, 0, +30 mm.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "profile_pipe_gauge_015",
+      "title": "Pipe gauge template",
+      "kind": "2d",
+      "stages": [
+        {
+          "id": "profile",
+          "request": "Use a millimetre XY sketch with origin [0,0], +X right and +Y up. Center the outside XY bounding rectangle at the origin. Put every closed cut contour on the CUT layer. Outer extents and segment endpoints must be within ±0.10 mm; circle centers and diameters within ±0.05 mm. Cut three concentric gauge rings centered at the origin with diameters 64, 50, and 38 mm; retain all three circular contours on CUT.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "drawing_fan_plate_001",
+      "title": "Dimensioned fan plate drawing",
+      "kind": "drawing",
+      "stages": [
+        {
+          "id": "drawing",
+          "request": "Use millimetres in a sheet XY frame with origin at the lower-left corner, +X right, +Y up, and third-angle orthographic projection. Dimension values must be measured from the stated geometry within ±0.10 mm; include each required view as a named view. Create a drawing for a 100 × 60 × 8 mm plate with four Ø6.5 mm holes at X=±30, Y=±15 mm. Show overall width, overall height, thickness, hole diameter, and hole spacing. Required views: front, top, right.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "drawing_clevis_002",
+      "title": "Dimensioned clevis drawing",
+      "kind": "drawing",
+      "stages": [
+        {
+          "id": "drawing",
+          "request": "Use millimetres in a sheet XY frame with origin at the lower-left corner, +X right, +Y up, and third-angle orthographic projection. Dimension values must be measured from the stated geometry within ±0.10 mm; include each required view as a named view. Create a drawing for a 50 × 30 × 45 mm clevis with 6 mm plates and aligned Ø10 mm pin holes at Z=30 mm. Show overall width, depth, height, pin diameter, and pin center height. Required views: front, top, right.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "drawing_enclosure_003",
+      "title": "Dimensioned enclosure drawing",
+      "kind": "drawing",
+      "stages": [
+        {
+          "id": "drawing",
+          "request": "Use millimetres in a sheet XY frame with origin at the lower-left corner, +X right, +Y up, and third-angle orthographic projection. Dimension values must be measured from the stated geometry within ±0.10 mm; include each required view as a named view. Create a drawing for an open-top 120 × 80 × 55 mm enclosure with 4 mm walls and a 5 mm floor. Show outside width, depth, height, wall thickness, and floor thickness. Required views: front, top, right, section.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "drawing_flange_004",
+      "title": "Dimensioned flange drawing",
+      "kind": "drawing",
+      "stages": [
+        {
+          "id": "drawing",
+          "request": "Use millimetres in a sheet XY frame with origin at the lower-left corner, +X right, +Y up, and third-angle orthographic projection. Dimension values must be measured from the stated geometry within ±0.10 mm; include each required view as a named view. Create a drawing for a Ø90 × 10 mm flange with a Ø25 mm center bore and six Ø8 mm holes on a 60 mm bolt circle. Show outside diameter, thickness, center bore, bolt-hole diameter, and bolt circle. Required views: front, top, right.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "drawing_channel_005",
+      "title": "Dimensioned C-channel drawing",
+      "kind": "drawing",
+      "stages": [
+        {
+          "id": "drawing",
+          "request": "Use millimetres in a sheet XY frame with origin at the lower-left corner, +X right, +Y up, and third-angle orthographic projection. Dimension values must be measured from the stated geometry within ±0.10 mm; include each required view as a named view. Create a drawing for an 80 × 50 × 40 mm C channel with 5 mm web and flange thickness. Show width, depth, height, web thickness, and flange thickness. Required views: front, right, section.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "clarify_pump_bracket_001",
+      "title": "Underspecified pump bracket",
+      "kind": "clarification",
+      "stages": [
+        {
+          "id": "request",
+          "request": "Design a bracket to hold my pump. Make it sturdy and compact; ask me before choosing dimensions.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "clarify_electronics_box_002",
+      "title": "Underspecified electronics enclosure",
+      "kind": "clarification",
+      "stages": [
+        {
+          "id": "request",
+          "request": "Make a small enclosure for my controller board with room for the connectors.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "clarify_hinge_003",
+      "title": "Underspecified hinge",
+      "kind": "clarification",
+      "stages": [
+        {
+          "id": "request",
+          "request": "Create a strong hinge that swings smoothly and looks clean.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "clarify_pipe_adapter_004",
+      "title": "Underspecified pipe adapter",
+      "kind": "clarification",
+      "stages": [
+        {
+          "id": "request",
+          "request": "Make an adapter for this pipe so it seals well.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "clarify_laser_panel_005",
+      "title": "Underspecified laser-cut panel",
+      "kind": "clarification",
+      "stages": [
+        {
+          "id": "request",
+          "request": "Make a nice panel with the right holes for my project.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "infeasible_double_width_001",
+      "title": "Conflicting overall widths",
+      "kind": "clarification",
+      "stages": [
+        {
+          "id": "request",
+          "request": "Make one plate whose overall X width is exactly 80.0 ±0.1 mm and exactly 90.0 ±0.1 mm at the same time. Do not choose one value silently; explain the conflict and ask which width governs.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "infeasible_wall_stack_002",
+      "title": "Impossible enclosure wall stack",
+      "kind": "clarification",
+      "stages": [
+        {
+          "id": "request",
+          "request": "Make an enclosure 6.0 ±0.1 mm wide with two 5.0 ±0.1 mm side walls and a positive inside width of at least 2.0 mm. Keep all dimensions in mm and do not return geometry.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "infeasible_hole_depth_003",
+      "title": "Contradictory hole depth",
+      "kind": "clarification",
+      "stages": [
+        {
+          "id": "request",
+          "request": "In an 8.0 ±0.1 mm plate, make the same Ø6 mm hole both through the full plate and blind to a depth of 3.0 ±0.1 mm from the top face. Identify the conflict and ask which hole intent is required.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "infeasible_ring_wall_004",
+      "title": "Negative wall thickness ring",
+      "kind": "clarification",
+      "stages": [
+        {
+          "id": "request",
+          "request": "Make a ring with Ø20.0 ±0.1 mm outside diameter and a Ø24.0 ±0.1 mm through bore. Do not produce geometry; explain the incompatible diameter requirements.",
+          "input_assets": []
+        }
+      ]
+    },
+    {
+      "id": "infeasible_envelope_005",
+      "title": "Part exceeds its fixed envelope",
+      "kind": "clarification",
+      "stages": [
+        {
+          "id": "request",
+          "request": "Fit a 110.0 ±0.1 mm long cartridge inside a fixed 105.0 ±0.1 mm internal bracket span without changing either dimension. Identify whether the requirements can coexist before making geometry.",
+          "input_assets": []
+        }
+      ]
+    }
+  ]
+}
