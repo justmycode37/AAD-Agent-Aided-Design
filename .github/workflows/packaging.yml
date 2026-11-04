@@ -30,9 +30,9 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
-      - name: Install headless graphics runtime
+      - name: Install graphics and sandbox runtime
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libosmesa6 bubblewrap
+        run: bash .github/scripts/setup_linux_runtime.sh
       - name: Confirm packaging runner architecture
         run: |
           python3 - <<'PY'

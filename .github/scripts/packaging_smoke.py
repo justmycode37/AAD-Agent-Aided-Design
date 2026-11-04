@@ -155,6 +155,12 @@ def _isolated_environment(work_dir: Path, install_cache_dir: Path | None = None)
         raise RuntimeError(f"The isolated install cache must start empty: {paths['uv_cache']}")
 
     env = os.environ.copy()
+    # Source builds may need the runner's existing Rust toolchain. Keep its
+    # explicit roots when HOME moves to the isolated client/config directory.
+    for name, folder in (("RUSTUP_HOME", ".rustup"), ("CARGO_HOME", ".cargo")):
+        location = Path.home() / folder
+        if name not in env and location.is_dir():
+            env[name] = str(location.resolve())
     # Overrides that could point the isolated run at another checkout or at real client configs.
     for key in (
         "PYTHONPATH", "PYTHONHOME", "AIAD_VIEWER_HTML", "UV_PROJECT", "UV_WORKSPACE",
