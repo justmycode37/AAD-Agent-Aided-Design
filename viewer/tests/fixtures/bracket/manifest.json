@@ -1,0 +1,26 @@
+{
+ "scene_id": "a91fafe809a6333b6ec0e16d6cd8a29a64c429e8c2899e35c88e654122a75493",
+ "project": "dev",
+ "rev": 1,
+ "kind": "3d",
+ "format": "tcv-5",
+ "encoding": "gzip",
+ "units": "mm",
+ "bbox": [
+  -30.0000001,
+  -20.0,
+  -1e-07,
+  30.0000001,
+  20.00000010000001,
+  40.0
+ ],
+ "total_bytes": 64264,
+ "triangles": 2920,
+ "parts": [
+  {
+   "path": "/Group/bracket",
+   "name": "bracket"
+  }
+ ],
+ "status": "draft"
+}
