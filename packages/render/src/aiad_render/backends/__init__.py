@@ -5,10 +5,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from threading import RLock
 
-from .protocol import CameraSpec, RenderBackend, RenderFace, RenderLine, RenderScene
+from .protocol import CameraSpec, Frame, RenderBackend, RenderFace, RenderLine, RenderScene
 
 __all__ = [
     "CameraSpec",
+    "Frame",
     "RenderBackend",
     "RenderFace",
     "RenderLine",

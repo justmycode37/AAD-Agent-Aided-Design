@@ -108,6 +108,48 @@ def test_build_show_and_chunked_scene(mcp_process: Any) -> None:
 
 
 @pytest.mark.usefixtures("engine")
+def test_render_returns_real_images_and_precise_inspection_over_mcp(mcp_process: Any) -> None:
+    initialize(mcp_process)
+    call(mcp_process, "aiad_new", name="inspection")
+    built = call(mcp_process, "aiad_build", project="inspection", source=MODEL, wait_s=WAIT_S)
+    assert built["structuredContent"]["ok"], built
+    rendered = call(
+        mcp_process, "aiad_render", project="inspection", size=256,
+        camera={"direction": [0, 0, 1], "span": 50}, dimensions="none", labels="faces",
+        focus={"min": [-30, -20, -3], "max": [30, 20, 3]},
+        heatmap="thickness", heatmap_range=[1, 10], min_wall=7, direction=[0, 0, 1],
+        probes=[{"point": [-10, 0, 10000], "direction": [0, 0, -1]}],
+        measure=[{"a": "point:(0,0,0)", "b": "point:(3,4,0)"}],
+    )
+    assert not rendered.get("isError"), rendered
+    result = rendered["structuredContent"]
+    report = result["inspection"]
+    assert report["counts"]["faces"] == 7
+    assert report["images"]["custom.png"]["panes"][0]["pixels_per_unit"] == pytest.approx(256 / 50)
+    assert report["probes"][0]["point"] == pytest.approx([-10, 0, 3], abs=1e-6)
+    assert report["probes"][0]["wall_thickness"] == pytest.approx(6, abs=1e-6)
+    assert report["measurements"][0]["distance"] == pytest.approx(5, abs=1e-6)
+    assert report["heatmap"]["min_wall"] == 7
+    assert report["heatmap"]["rays_below_min_wall"] > 0
+    assert len(result["labels"]) == 7
+    assert set(result["artifacts"]) == {"custom.png", "inspection.json", "labels.json"}
+    assert json.loads(open(result["artifacts"]["inspection.json"]).read()) == report
+    images = [block for block in rendered["content"] if block["type"] == "image"]
+    assert len(images) == 1
+    assert images[0]["mimeType"] == "image/png"
+    assert base64.b64decode(images[0]["data"]).startswith(b"\x89PNG\r\n\x1a\n")
+
+    hole = next(face["selector"] for face in report["faces"] if face["type"] == "cylinder")
+    close = call(mcp_process, "aiad_render", project="inspection", views=["top"], focus=hole,
+                 highlight=[hole], dimensions="none", size=256,
+                 probes=[{"image": "top", "x": 128, "y": 128}])
+    assert not close.get("isError"), close
+    detail = close["structuredContent"]["inspection"]
+    assert detail["probes"][0]["hit"] is False  # Center of the through hole.
+    assert detail["images"]["top.png"]["panes"][0]["pixels_per_unit"] > 256 / 50 * 2
+
+
+@pytest.mark.usefixtures("engine")
 def test_failed_build_keeps_head(mcp_process: Any) -> None:
     initialize(mcp_process)
     call(mcp_process, "aiad_new", name="edits")

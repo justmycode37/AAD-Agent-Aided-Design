@@ -162,6 +162,14 @@ class RenderRequest:
     heatmap: str | None = None
     highlight: list[str] = field(default_factory=list)
     size: int = 1024
+    camera: dict[str, Any] | None = None
+    focus: str | list[str] | dict[str, Any] | None = None
+    dimensions: str = "auto"
+    probes: list[dict[str, Any]] = field(default_factory=list)
+    measure: list[dict[str, str]] = field(default_factory=list)
+    heatmap_range: list[float] | None = None
+    min_wall: float | None = None
+    direction: list[float] | None = None
 
 
 @dataclass

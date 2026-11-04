@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Protocol, TypeAlias
+from typing import Any, Protocol, TypeAlias
 
 Vec3: TypeAlias = tuple[float, float, float]
 RGB: TypeAlias = tuple[int, int, int]
@@ -14,20 +14,21 @@ class RenderFace:
     index: int
     source_index: int | None
     feature: str | None
-    points: tuple[Vec3, ...]
-    triangles: tuple[tuple[int, int, int], ...]
+    points: Any  # N x 3 floats
+    triangles: Any  # M x 3 ints into points
     normal: Vec3
     anchor: Vec3
     section_cap: bool = False
     highlighted: bool = False
     color: RGB = (194, 201, 208)
     triangle_colors: tuple[RGB, ...] = ()
+    uv: Any = None  # N x 2 surface parameters of points, when the kernel gave them
 
 
 @dataclass(slots=True)
 class RenderLine:
     points: tuple[Vec3, ...]
-    role: str = "edge"
+    role: str = "edge"  # edge, tangent, seam or hatch
     index: int | None = None
     source_index: int | None = None
     feature: str | None = None
@@ -42,6 +43,7 @@ class RenderScene:
     bounds: tuple[Vec3, Vec3] = ((0.0, 0.0, 0.0), (1.0, 1.0, 1.0))
     units: str = "model units"
     section_label: str | None = None
+    data_colors: bool = False  # Face colors encode measured values, as in a heatmap.
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +56,15 @@ class CameraSpec:
     up: Vec3
     parallel_scale: float
     distance: float
+
+
+@dataclass(slots=True)
+class Frame:
+    """One rendered view and what lies under each of its pixels."""
+
+    image: Any  # RGB Pillow image
+    face_ids: Any = None  # H x W ints: RenderFace.index, -1 for background
+    height: Any = None  # H x W floats: world distance toward the camera from its focal plane, nan for background
 
 
 class RenderBackend(Protocol):
