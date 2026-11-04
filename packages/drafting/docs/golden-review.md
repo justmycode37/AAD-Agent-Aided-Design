@@ -13,15 +13,24 @@ semantic snapshot under `samples/golden/`.
 
 ## Automated evidence
 
-The parent ran the complete locked Python 3.12 drafting suite: **219 passed**,
+The parent ran the complete locked Python 3.12 drafting suite: **243 passed**,
 including export-review regressions for multiline text and directory symlink
 substitutions during staging, publication and rollback.
-The 17 golden tests rebuild all 15 drawings, compare their semantic snapshots,
+The regressions also cover staged-file substitution, small nonzero dimensions
+and rotated sheet annotations.
+The 18 golden tests rebuild all 15 drawings, compare their semantic snapshots,
 measure every dimension against native OCCT geometry, require no failed drawing
 checks, and audit the DXFs. Separate same-machine checks compare repeated SVG,
 PDF and PNG bytes for one example from each category. Committed artifact hashes
 are recorded in `samples/golden/manifest.json`. Cross-platform comparisons use
 geometry and semantic snapshots, rather than assuming identical installed fonts.
+Reference generation scopes ezdxf's fixed metadata option to remove changing
+timestamps and GUIDs from DXF hashes, restoring the caller's option afterward.
+Reference CLASS records are sorted so Python hash randomization cannot reorder
+this metadata section.
+A subprocess test runs the documented command from the repository root without
+`PYTHONPATH` and compares all files from two full generations with different
+Python hash seeds byte for byte.
 
 Run from the repository root:
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 from dataclasses import dataclass
 import hashlib
 import json
@@ -9,6 +10,9 @@ from pathlib import Path
 import runpy
 import sys
 from types import SimpleNamespace
+
+if __name__ == "__main__" and not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from build123d import Align, Box, Compound, Cylinder, Pos
 
@@ -165,12 +169,39 @@ def snapshot(case, drawing):
         "checks": [{"id": check["id"], "status": check["status"]} for check in drawing.checks]})
 
 
+@contextmanager
+def fixed_reference_metadata():
+    """Remove clock/GUID churn from reference DXFs without changing geometry."""
+    import ezdxf
+    previous = ezdxf.options.write_fixed_meta_data_for_testing
+    ezdxf.options.write_fixed_meta_data_for_testing = True
+    try:
+        yield
+    finally:
+        ezdxf.options.write_fixed_meta_data_for_testing = previous
+
+
 def generate(output=OUTPUT, selected=None):
+    with fixed_reference_metadata():
+        return _generate(output, selected)
+
+
+def _generate(output, selected):
     entries = []
     for case in cases():
         if selected and case.name not in selected:
             continue
         result = make_drawing(case.ctx, case.request, output / case.name)
+        # ezdxf discovers some CLASS records through a set, so their order
+        # varies with Python's hash seed even when all geometry is identical.
+        # Canonicalize reference-only metadata before computing file hashes.
+        import ezdxf
+        document = ezdxf.readfile(result.artifacts["dxf"])
+        document.classes.add_required_classes(document.dxfversion)
+        document.classes.classes = dict(sorted(document.classes.classes.items()))
+        if document.audit().errors:
+            raise ValueError(f"Reference DXF audit failed for {case.name}.")
+        document.saveas(result.artifacts["dxf"])
         record = snapshot(case, result)
         (output / case.name / "snapshot.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
         hashes = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in (*result.artifacts.values(), result.preview)}

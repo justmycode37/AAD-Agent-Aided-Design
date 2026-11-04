@@ -2,7 +2,10 @@
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import ezdxf
@@ -162,3 +165,18 @@ def test_committed_reference_artifacts_match_manifest():
         assert evidence["dxf_sha256"] == drawing["files"]["drawing.dxf"]
         assert (independent / evidence["rendered_pdf"]).read_bytes().startswith(b"%PDF-")
         assert (independent / (evidence["rendered_pdf"] + ".png")).read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+
+
+def test_root_command_regenerates_all_reference_formats_without_metadata_churn(tmp_path):
+    from examples.golden_set import ROOT, REPO
+    environment = os.environ.copy()
+    environment.pop("PYTHONPATH", None)
+    outputs = [tmp_path/"first", tmp_path/"second"]
+    for index, output in enumerate(outputs):
+        environment["PYTHONHASHSEED"] = str(index+1)
+        result = subprocess.run([sys.executable, str(ROOT/"examples/golden_set.py"), "--out", str(output)],
+            cwd=REPO, env=environment, text=True, capture_output=True, timeout=60)
+        assert result.returncode == 0, result.stdout + result.stderr
+    for first in outputs[0].rglob("*"):
+        if first.is_file():
+            assert first.read_bytes() == (outputs[1]/first.relative_to(outputs[0])).read_bytes(), first
