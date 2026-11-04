@@ -109,7 +109,7 @@ def run_build(req: BuildRequest) -> BuildResult:
         stdout_bytes, stderr_bytes = process.communicate(input=input_bytes, timeout=request.timeout_s)
     except subprocess.TimeoutExpired:
         _kill_worker(process)
-        stdout_bytes, stderr_bytes = process.communicate()
+        stdout_bytes, stderr_bytes = _drain_killed_worker(process)
         return _failed(
             Failure(
                 code="TIMEOUT",
@@ -199,15 +199,30 @@ def _validate_request(req: BuildRequest) -> None:
 
 
 def _kill_worker(process: subprocess.Popen[bytes]) -> None:
-    if process.poll() is not None:
-        return
     try:
         if os.name == "posix":
+            # The leader can exit while descendants still hold its pipes.
             os.killpg(process.pid, signal.SIGKILL)
-        else:
+        elif process.poll() is None:
             process.kill()
     except ProcessLookupError:
         pass
+
+
+def _drain_killed_worker(process: subprocess.Popen[bytes]) -> tuple[bytes, bytes]:
+    # A descendant can leave the worker's process group. Pipe cleanup must
+    # remain bounded even before the OS sandbox is introduced.
+    try:
+        return process.communicate(timeout=1.0)
+    except subprocess.TimeoutExpired as exc:
+        for stream in (process.stdout, process.stderr):
+            if stream is not None:
+                stream.close()
+        try:
+            process.wait(timeout=1.0)
+        except subprocess.TimeoutExpired:
+            pass
+        return exc.output or b"", exc.stderr or b""
 
 
 def _find_response(stdout: bytes) -> dict[str, Any] | None:

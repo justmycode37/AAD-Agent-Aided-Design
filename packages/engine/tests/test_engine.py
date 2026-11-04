@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -140,6 +142,53 @@ result = Box(4, 5, 6)
             self.assertIn("scene_generation_failed", warnings)
             self.assertIn("render_failed", warnings)
             self.assertIn("retained", warnings["render_failed"].message)
+
+    @unittest.skipUnless(os.name == "posix", "POSIX process-group cleanup")
+    def test_cleanup_kills_descendants_after_the_worker_leader_exits(self) -> None:
+        from aiad.engine.jobs import _kill_worker
+        program = "import subprocess,sys; subprocess.Popen([sys.executable,'-c','import time; time.sleep(10)'])"
+        process = subprocess.Popen([sys.executable, "-c", program], stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, start_new_session=True)
+        try:
+            process.wait(timeout=3)
+            _kill_worker(process)
+            process.communicate(timeout=2)
+        finally:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.communicate(timeout=2)
+
+    def test_optional_hook_import_errors_preserve_a_built_context(self) -> None:
+        source = """from pathlib import Path
+import sys
+Path('aiad_quality.py').write_text("raise RuntimeError('quality import failed')")
+Path('aiad_render.py').write_text("raise RuntimeError('render import failed')")
+sys.path.insert(0, str(Path.cwd()))
+result = Box(2, 3, 4)
+"""
+        with tempfile.TemporaryDirectory(prefix="aiad-engine-test-") as temporary:
+            built = run_build(BuildRequest(source=source, project_dir=Path(temporary), preview=True))
+            self.assertTrue(built.ok, built.summary)
+            self.assertIsNotNone(built.context)
+            self.assertEqual(built.status, "draft")
+            self.assertTrue(Path(built.artifacts['part.brep']).is_file())
+            warnings = {c.id for c in built.checks if c.status == "warn"}
+            self.assertTrue({'spec_checks_hook_failed', 'process_checks_hook_failed',
+                             'scene_generation_failed', 'render_failed'} <= warnings)
+
+    def test_empty_optional_outputs_warn_instead_of_reporting_success(self) -> None:
+        module = "def make_scene(ctx, out):\n    return {}\ndef render(ctx, req, out):\n    return []\n"
+        source = "from pathlib import Path\nimport sys\n" + f"Path('aiad_render.py').write_text({module!r})\n" + "sys.path.insert(0, str(Path.cwd()))\nresult = Box(2, 2, 2)\n"
+        with tempfile.TemporaryDirectory(prefix="aiad-engine-test-") as temporary:
+            built = run_build(BuildRequest(source=source, project_dir=Path(temporary), preview=True))
+            self.assertTrue(built.ok, built.summary)
+            self.assertIsNone(built.scene)
+            self.assertTrue(Path(built.artifacts['part.brep']).is_file())
+            checks = {c.id: c.status for c in built.checks}
+            self.assertEqual(checks['scene_generation_failed'], 'warn')
+            self.assertEqual(checks['render_failed'], 'warn')
 
     def test_incomplete_spec_coverage_never_promotes_verified(self) -> None:
         cases = [

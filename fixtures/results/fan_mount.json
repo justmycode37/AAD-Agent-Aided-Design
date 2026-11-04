@@ -32,6 +32,20 @@
       "suite": "hard"
     },
     {
+      "actual": null,
+      "assumptions": null,
+      "expected": null,
+      "feature": null,
+      "fix_hint": null,
+      "heuristic": null,
+      "id": "hard_gate_incomplete",
+      "level": "error",
+      "message": "The M0 gate does not yet check closed shells, small topology, STEP round trips, or mesh watertightness; verification is withheld.",
+      "selector": null,
+      "status": "skip",
+      "suite": "hard"
+    },
+    {
       "actual": "ModuleNotFoundError: No module named 'aiad_quality'",
       "assumptions": null,
       "expected": null,
@@ -86,12 +100,26 @@
       "selector": null,
       "status": "skip",
       "suite": "hard"
+    },
+    {
+      "actual": null,
+      "assumptions": null,
+      "expected": null,
+      "feature": null,
+      "fix_hint": null,
+      "heuristic": null,
+      "id": "requirements_not_provided",
+      "level": "warn",
+      "message": "No requirements were supplied, so the model remains a draft.",
+      "selector": null,
+      "status": "skip",
+      "suite": "spec"
     }
   ],
   "checks_summary": {
     "fail": 0,
     "pass": 2,
-    "skip": 4,
+    "skip": 6,
     "warn": 0
   },
   "failure": null,
@@ -102,7 +130,7 @@
       40.0,
       6.0
     ],
-    "build_ms": 2092.7857500500977,
+    "build_ms": 3397.0014590304345,
     "center_of_mass": [
       3.240078366050164e-17,
       -2.1060509379326067e-16,

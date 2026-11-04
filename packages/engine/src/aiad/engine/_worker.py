@@ -457,17 +457,14 @@ def _optional_checks(
     try:
         module = importlib.import_module(module_name)
         hook = getattr(module, function_name)
-    except (ImportError, AttributeError) as exc:
-        return [
-            Check(
-                id=unavailable_id,
-                suite=suite,
-                level="warn",
-                status="skip",
-                message=unavailable_message,
-                actual=f"{type(exc).__name__}: {exc}",
-            )
-        ], False
+    except Exception as exc:
+        missing = isinstance(exc, ModuleNotFoundError) and exc.name == module_name
+        return [Check(
+            id=unavailable_id if missing else f"{function_name}_hook_failed",
+            suite=suite, level="warn", status="skip" if missing else "warn",
+            message=unavailable_message if missing else f"{module_name}.{function_name} could not be loaded; the built BREP artifact was retained.",
+            actual=f"{type(exc).__name__}: {exc}",
+        )], False
 
     try:
         values = hook(context)
@@ -641,13 +638,12 @@ def _optional_scene(context: ModelContext) -> tuple[SceneManifest | None, Check]
     try:
         module = importlib.import_module("aiad_render")
         hook = getattr(module, "make_scene")
-    except (ImportError, AttributeError) as exc:
+    except Exception as exc:
+        missing = isinstance(exc, ModuleNotFoundError) and exc.name == "aiad_render"
         return None, Check(
-            id="scene_generation_unavailable",
-            suite="hard",
-            level="warn",
-            status="skip",
-            message="Scene generation is unavailable because aiad_render is not installed.",
+            id="scene_generation_unavailable" if missing else "scene_generation_failed",
+            suite="hard", level="warn", status="skip" if missing else "warn",
+            message="Scene generation is unavailable because aiad_render is not installed." if missing else "aiad_render.make_scene could not be loaded; the built BREP artifact was retained.",
             actual=f"{type(exc).__name__}: {exc}",
         )
 
@@ -661,6 +657,15 @@ def _optional_scene(context: ModelContext) -> tuple[SceneManifest | None, Check]
             scene = SceneManifest(**value)
         else:
             raise TypeError("make_scene did not return a SceneManifest or dictionary")
+        if (
+            len(scene.scene_id) != 64 or any(c not in "0123456789abcdef" for c in scene.scene_id)
+            or not isinstance(scene.total_bytes, int) or isinstance(scene.total_bytes, bool) or scene.total_bytes <= 0
+            or len(scene.bbox) != 6 or not all(math.isfinite(float(v)) for v in scene.bbox)
+            or scene.format not in {"tcv-5", "svg-1"} or scene.encoding != "gzip"
+            or scene.units != context.units or scene.rev != context.rev or not scene.project
+            or not scene.parts or any(not p.get("path") or not p.get("name") for p in scene.parts)
+        ):
+            raise ValueError("make_scene returned an incomplete or invalid scene manifest")
         return scene, Check(
             id="scene_generated",
             suite="hard",
@@ -692,13 +697,12 @@ def _optional_render(context: ModelContext, requested: bool) -> tuple[dict[str, 
     try:
         module = importlib.import_module("aiad_render")
         hook = getattr(module, "render")
-    except (ImportError, AttributeError) as exc:
+    except Exception as exc:
+        missing = isinstance(exc, ModuleNotFoundError) and exc.name == "aiad_render"
         return {}, Check(
-            id="render_unavailable",
-            suite="hard",
-            level="warn",
-            status="skip",
-            message="Agent rendering is unavailable because aiad_render is not installed.",
+            id="render_unavailable" if missing else "render_failed",
+            suite="hard", level="warn", status="skip" if missing else "warn",
+            message="Agent rendering is unavailable because aiad_render is not installed." if missing else "aiad_render.render could not be loaded; the built BREP artifact was retained.",
             actual=f"{type(exc).__name__}: {exc}",
         )
 
@@ -709,6 +713,8 @@ def _optional_render(context: ModelContext, requested: bool) -> tuple[dict[str, 
         output_dir.mkdir(parents=True, exist_ok=True)
         paths = hook(context, RenderRequest(), output_dir)
         artifacts = {f"render_{Path(path).name}": str(Path(path)) for path in paths if Path(path).is_file()}
+        if not artifacts:
+            raise ValueError("render returned no existing output files")
         return artifacts, Check(
             id="render_generated",
             suite="hard",
