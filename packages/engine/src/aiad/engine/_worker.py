@@ -345,7 +345,7 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
             check for check in checks if check.suite == "hard" and check.level == "error" and check.status == "fail"
         )
         failure = Failure(
-            code="INVALID_SOLID",
+            code="HARD_GATE_FAILED",
             phase="validate",
             message=f"Hard geometry check '{failed_check.id}' failed: {failed_check.message}",
             kernel_message=failed_check.actual,

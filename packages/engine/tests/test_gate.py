@@ -270,7 +270,8 @@ class GeometricGateTests(unittest.TestCase):
                 source="result = Box(0.001, 1, 1)", project_dir=Path(tmp), job_dir=Path(tmp) / "job"
             ))
         self.assertEqual(result.status, "failed")
-        self.assertEqual(result.failure.code, "INVALID_SOLID")
+        self.assertEqual(result.failure.code, "HARD_GATE_FAILED")
+        self.assertTrue(result.metrics["valid"])
         self.assertIn("edge_quality", result.failure.message)
         self.assertNotIn("B-rep validity or solid-count", result.failure.message)
 

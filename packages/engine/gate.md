@@ -7,6 +7,11 @@ unverified. Verification also requires the separate specification and process
 checks described in `CONTRACTS.md`. This gate does not establish design intent
 or manufacturability.
 
+A failed hard check returns `HARD_GATE_FAILED` and names the check. This does
+not label every rejected shape as kernel-invalid: a valid B-rep can fail a
+configured small-topology threshold. The artifact and measured checks remain
+available in the engine result.
+
 The gate checks:
 
 - B-rep validity using `BRepCheck_Analyzer` and the build123d `is_valid`
