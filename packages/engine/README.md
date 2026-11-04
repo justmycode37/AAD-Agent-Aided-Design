@@ -41,6 +41,8 @@ process. Inside optional worker hooks, `ModelContext.shape` is the live shape.
 
 - The hard gate checks build123d B-rep validity and one or more solids. It does
   not check tiny edges, slivers, STEP round trips, clearances, or requirements.
+  An explicit incomplete-gate check keeps M0 builds draft even when an
+  installed spec evaluator reports all requirements as passing.
 - No requirement set is assumed. Without successful requirement checks, a
   successful model is `draft`; the engine does not mark validity as proof of
   design intent. Promotion requires unique IDs and complete, finite results;

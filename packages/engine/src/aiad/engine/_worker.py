@@ -360,7 +360,9 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
         status = "failed"
         ok = False
         summary = "A BREP artifact was saved, but one or more error-level quality checks failed."
-    elif requirements_proven and process_proven:
+    elif requirements_proven and process_proven and all(
+        check.status == "pass" for check in checks if check.suite == "hard" and check.level == "error"
+    ):
         failure = None
         status = "verified"
         ok = True

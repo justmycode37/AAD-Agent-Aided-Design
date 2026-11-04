@@ -6,6 +6,7 @@ requires-python = "==3.12.*"
 members = [
     "aiad",
     "aiad-drafting",
+    "aiad-engine",
     "aiad-render",
 ]
 
@@ -57,6 +58,21 @@ requires-dist = [
     { name = "reportlab", specifier = ">=4,<5" },
 ]
 provides-extras = ["test"]
+
+[[package]]
+name = "aiad-engine"
+version = "0.1.0"
+source = { editable = "packages/engine" }
+dependencies = [
+    { name = "build123d" },
+    { name = "cadquery-ocp-novtk" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "build123d", specifier = "==0.13.0" },
+    { name = "cadquery-ocp-novtk", specifier = "==8.0.1.1.0" },
+]
 
 [[package]]
 name = "aiad-render"

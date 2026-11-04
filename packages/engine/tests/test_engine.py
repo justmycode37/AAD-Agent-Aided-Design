@@ -199,6 +199,17 @@ result = Box(4, 5, 6)
                 self.assertFalse(result.requirements_proven)
                 self.assertTrue(Path(result.artifacts["part.brep"]).is_file())
 
+    def test_partial_hard_gate_cannot_verify_even_with_passing_spec(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="aiad-engine-test-") as temporary:
+            root = Path(temporary)
+            module = "from aiad.engine.types import Check\ndef spec_checks(ctx):\n    return [Check(id='fit', suite='spec', status='pass')]\ndef process_checks(ctx):\n    return []\n"
+            source = "from pathlib import Path\nimport sys\n" + f"Path('aiad_quality.py').write_text({module!r})\n" + "sys.path.insert(0, str(Path.cwd()))\nresult = Box(2, 2, 2)\n"
+            built = run_build(BuildRequest(source=source, project_dir=root, spec={"requirements": [{"id": "fit"}]}))
+            self.assertTrue(built.ok, built.summary)
+            self.assertTrue(built.requirements_proven)
+            self.assertEqual(built.status, "draft")
+            self.assertTrue(any(c.id == "hard_gate_incomplete" and c.status == "skip" for c in built.checks))
+
     def test_timeout_and_crash_are_isolated_from_parent(self) -> None:
         with tempfile.TemporaryDirectory(prefix="aiad-engine-test-") as temporary:
             root = Path(temporary)

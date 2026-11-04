@@ -72,4 +72,8 @@ def hard_checks(ctx: ModelContext) -> list[Check]:
                 actual=f"{type(exc).__name__}: {exc}",
             )
         )
+    checks.append(Check(
+        id="hard_gate_incomplete", suite="hard", level="error", status="skip",
+        message="The M0 gate does not yet check closed shells, small topology, STEP round trips, or mesh watertightness; verification is withheld.",
+    ))
     return checks
