@@ -13,6 +13,7 @@ dependencies = [
 
 [project.optional-dependencies]
 vtk = ["vtk==9.7.1"]
+test = ["build123d==0.13.0", "cadquery-ocp-novtk==8.0.1.1.0"]
 
 [build-system]
 requires = ["hatchling>=1.27"]

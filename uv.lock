@@ -91,18 +91,24 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+test = [
+    { name = "build123d" },
+    { name = "cadquery-ocp-novtk" },
+]
 vtk = [
     { name = "vtk" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "build123d", marker = "extra == 'test'", specifier = "==0.13.0" },
+    { name = "cadquery-ocp-novtk", marker = "extra == 'test'", specifier = "==8.0.1.1.0" },
     { name = "numpy", specifier = ">=2.0" },
     { name = "ocp-tessellate", specifier = "==3.6.3" },
     { name = "pillow", specifier = ">=11" },
     { name = "vtk", marker = "extra == 'vtk'", specifier = "==9.7.1" },
 ]
-provides-extras = ["vtk"]
+provides-extras = ["vtk", "test"]
 
 [[package]]
 name = "annotated-types"
