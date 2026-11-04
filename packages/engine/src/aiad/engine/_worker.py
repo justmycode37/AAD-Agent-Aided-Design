@@ -347,7 +347,7 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
         failure = Failure(
             code="INVALID_SOLID",
             phase="validate",
-            message="The built shape failed the B-rep validity or solid-count gate.",
+            message=f"Hard geometry check '{failed_check.id}' failed: {failed_check.message}",
             kernel_message=failed_check.actual,
             feature="main",
             file=source_path.name,

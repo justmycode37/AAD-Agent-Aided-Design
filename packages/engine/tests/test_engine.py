@@ -83,7 +83,7 @@ class EngineBootstrapTests(unittest.TestCase):
             self.assertEqual(result.metrics["solids"], 1)
             self.assertTrue(result.metrics["valid"])
             self.assertTrue(Path(result.artifacts["part.brep"]).is_file())
-            self.assertTrue(any(check.id == "process_checks_unavailable" for check in result.checks))
+            self.assertTrue(any(check.suite == "process" for check in result.checks))
 
     def test_syntax_and_runtime_failures_report_source_location(self) -> None:
         with tempfile.TemporaryDirectory(prefix="aiad-engine-test-") as temporary:
@@ -247,16 +247,26 @@ result = Box(2, 3, 4)
                 self.assertFalse(result.requirements_proven)
                 self.assertTrue(Path(result.artifacts["part.brep"]).is_file())
 
-    def test_partial_hard_gate_cannot_verify_even_with_passing_spec(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="aiad-engine-test-") as temporary:
-            root = Path(temporary)
-            module = "from aiad.engine.types import Check\ndef spec_checks(ctx):\n    return [Check(id='fit', suite='spec', status='pass')]\ndef process_checks(ctx):\n    return []\n"
-            source = "from pathlib import Path\nimport sys\n" + f"Path('aiad_quality.py').write_text({module!r})\n" + "sys.path.insert(0, str(Path.cwd()))\nresult = Box(2, 2, 2)\n"
-            built = run_build(BuildRequest(source=source, project_dir=root, spec={"requirements": [{"id": "fit"}]}))
-            self.assertTrue(built.ok, built.summary)
-            self.assertFalse(built.requirements_proven)
-            self.assertEqual(built.status, "draft")
-            self.assertTrue(any(c.id == "hard_gate_incomplete" and c.status == "skip" for c in built.checks))
+    def test_complete_gate_remains_draft_until_independent_validation(self) -> None:
+        module = "from aiad.engine.types import Check\ndef spec_checks(ctx):\n    return [Check(id='fit', suite='spec', status='pass')]\ndef process_checks(ctx):\n    return []\n"
+        for inject_step_failure in (False, True):
+            with self.subTest(step_unavailable=inject_step_failure), tempfile.TemporaryDirectory(prefix="aiad-engine-test-") as temporary:
+                root = Path(temporary)
+                source = "from pathlib import Path\nimport sys\n" + f"Path('aiad_quality.py').write_text({module!r})\n" + "sys.path.insert(0, str(Path.cwd()))\nresult = Box(2, 2, 2)\n"
+                if inject_step_failure:
+                    source += "import aiad.engine.gate as gate\ndef fail_step(path):\n    raise RuntimeError('STEP fixture unavailable')\ngate._import_step_shape = fail_step\n"
+                built = run_build(BuildRequest(source=source, project_dir=root, spec={"requirements": [{"id": "fit"}]}))
+                self.assertTrue(built.ok, built.summary)
+                self.assertFalse(built.requirements_proven)
+                self.assertEqual(built.status, "draft")
+                hard = {c.id: c for c in built.checks if c.suite == "hard" and c.level == "error" and c.id != "worker_verification_unattested"}
+                self.assertNotIn("hard_gate_incomplete", hard)
+                if inject_step_failure:
+                    self.assertEqual(hard["step_volume_drift"].status, "skip")
+                    self.assertIn("STEP fixture unavailable", hard["step_volume_drift"].actual)
+                else:
+                    self.assertTrue(all(check.status == "pass" for check in hard.values()))
+                    self.assertTrue(any(c.id == "worker_verification_unattested" and c.status == "skip" for c in built.checks))
 
     def test_timeout_and_crash_are_isolated_from_parent(self) -> None:
         with tempfile.TemporaryDirectory(prefix="aiad-engine-test-") as temporary:
