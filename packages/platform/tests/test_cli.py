@@ -148,6 +148,15 @@ def test_script_entry_falls_back_to_python_module(monkeypatch, temp_home):
     assert args == ("-m", "aiad_platform.cli", "mcp")
 
 
+def test_script_entry_does_not_select_another_installation_on_path(monkeypatch, temp_home):
+    other = temp_home / "other" / "aiad"
+    other.parent.mkdir()
+    other.write_text("other installation")
+    monkeypatch.setattr(sys, "argv", ["pytest"])
+    monkeypatch.setattr(cli.shutil, "which", lambda _: str(other))
+    assert cli._script_entry() == (sys.executable, ("-m", "aiad_platform.cli", "mcp"))
+
+
 def test_install_dry_run_is_json_and_writes_nothing(monkeypatch, capsys, temp_home):
     clients = install_fake_clients(monkeypatch, temp_home)
     monkeypatch.setattr(cli.shutil, "which", lambda _name: None)

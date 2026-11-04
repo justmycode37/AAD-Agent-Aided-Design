@@ -149,7 +149,8 @@ def _write_human(writes: list[dict[str, Any]], heading: str) -> str:
 
 def _script_entry() -> tuple[str, tuple[str, ...]]:
     """Return the absolute console script, or a module invocation as a safe fallback."""
-    candidates = [sys.argv[0], shutil.which("aiad")]
+    # A different AIAD on PATH can belong to another Python environment.
+    candidates = [sys.argv[0]]
     for candidate in candidates:
         if not candidate:
             continue
