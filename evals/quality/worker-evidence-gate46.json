@@ -1,5 +1,5 @@
 {
-  "run_id": "1f7b313d-6dde-4085-b673-2561ce77c069",
+  "run_id": "a31fa0be-444d-4ae2-bc4f-9dba822ed8e3",
   "passed": false,
   "summaries": [
     {
@@ -56,9 +56,9 @@
     "quality/process.py": "5ce1b9525f52a1ff4f5f8e1d8cdc145de4885ccba68e9e30826e79489b449f07",
     "quality/process_geometry.py": "8989456327d256b992d532c0f0d6884df3ec2b005849565aef5f0b91a9453e2c",
     "quality/process_profiles.py": "fd33d1195299f6148f6f3818ad8448e413ffe39cdcfe0f13b25b1fdb0eae7dfa",
-    "quality/schema.py": "f5d567ae774891763fbc154eb0f360d69b7234591138c16cfc7dec3e7d39d868",
-    "quality/spec.py": "04353370f8942d75e46f88418330b64f2cf888289d8428ca7f4bd2cef125dd50",
-    "quality/spec_geometry.py": "974810849f65b416bc27f1fd74aff734ad8902c3b820ef8ec5241963bfa324de"
+    "quality/schema.py": "16f8f4e30e54a68f2ce991987a5d0429b9ab9fec8b9358299b6b9fd2c403a4b9",
+    "quality/spec.py": "41ea26d88278cf2c729ee632ece775e6bb1756b65ec4002b08e57259245d2779",
+    "quality/spec_geometry.py": "822f0fef8780d6209e45e3a0bf0abe00afa645fb15422a1e749eb6bd10cfb4e2"
   },
   "probe_source_sha256": "9f654177fe0a2a940def6ebbcd8263e30b6036977f4a603e0f896e27e04b118a",
   "engine_worker_sha256": "cbfaf0ba6c8c63d0d55ce3e9b48f671975cff199b10a0262bb52fd0e97a6032d",
@@ -855,5 +855,10 @@
         }
       ]
     }
-  ]
+  ],
+  "integration_heads": {
+    "base_main": "3f0d9f43097017627da9b2753bcc4f8c17c3630a",
+    "engine": "c7301d165615c7b9ab8fcba0b3b79802ed1bdd13",
+    "quality": "c678898fc7687e3358f534f97c2f29fe03df39ee"
+  }
 }

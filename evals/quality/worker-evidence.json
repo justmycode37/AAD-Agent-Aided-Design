@@ -639,5 +639,10 @@
         }
       ]
     }
-  ]
+  ],
+  "integration_heads": {
+    "base_main": "3f0d9f43097017627da9b2753bcc4f8c17c3630a",
+    "engine": "3f0d9f43097017627da9b2753bcc4f8c17c3630a",
+    "quality": "c678898fc7687e3358f534f97c2f29fe03df39ee"
+  }
 }
