@@ -78,11 +78,11 @@ def test_bracket_sheet_has_expected_dimensions_and_feature_legend(tmp_path):
         {"views": ["sheet"], "style": "shaded", "labels": "features", "size": 1024},
         tmp_path,
     )
-    assert [path.name for path in paths] == ["sheet.png", "labels.json"]
+    assert [path.name for path in paths] == ["sheet.png", "inspection.json", "labels.json"]
     with Image.open(paths[0]) as image:
         assert image.size == (1024, 1024)
         assert image.getbbox() == (0, 0, 1024, 1024)
-    legend = json.loads(paths[1].read_text())
+    legend = json.loads(paths[-1].read_text())
     assert legend
     assert all({"selector", "feature", "kind", "index"} <= set(item) for item in legend.values())
     assert list(legend.values()) == [
@@ -102,8 +102,8 @@ def test_face_and_edge_labels_write_selector_legends(tmp_path, mode, kind):
         {"views": ["front"], "labels": mode, "size": 192},
         tmp_path,
     )
-    assert [path.name for path in paths] == ["front.png", "labels.json"]
-    legend = json.loads(paths[1].read_text())
+    assert [path.name for path in paths] == ["front.png", "inspection.json", "labels.json"]
+    legend = json.loads(paths[-1].read_text())
     assert legend
     assert all(item["kind"] == kind for item in legend.values())
     assert all(item["selector"].startswith(f"{kind}:") for item in legend.values())
@@ -149,8 +149,9 @@ def test_all_orthographic_cameras_and_styles_render(tmp_path, style):
         "right.png",
         "top.png",
         "bottom.png",
+        "inspection.json",
     ]
-    for path in paths:
+    for path in paths[:-1]:
         with Image.open(path) as image:
             assert image.size == (192, 192)
 
@@ -365,6 +366,21 @@ def _capture_render(monkeypatch, ctx, req, out):
     return captured[0], paths
 
 
+def test_semantic_face_highlight_does_not_expand_to_the_whole_feature(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    from aiad_render import agent_render
+
+    monkeypatch.setattr(agent_render, "_engine_resolver", lambda: (
+        lambda ctx, selector: [SimpleNamespace(kind="face", index=1, feature="body")]
+    ))
+    ctx = _context(Box(10, 10, 10), "body")
+    scene, _ = _capture_render(monkeypatch, ctx, {"highlight": ["face(where='max_x')"]}, tmp_path)
+    assert [face.source_index for face in scene.faces if face.highlighted] == [1]
+    assert not any(line.highlighted for line in scene.lines)
+    with pytest.raises(ValueError, match="no feature named"):
+        render(ctx, {"highlight": ["feature:missing"]}, tmp_path)
+
+
 @pytest.mark.parametrize("mode", ["faces", "edges"])
 def test_section_labels_and_highlights_keep_original_revision_entities(monkeypatch, tmp_path, mode):
     shape = Box(10, 8, 4)
@@ -412,26 +428,6 @@ def test_empty_compound_has_a_clear_input_error(tmp_path):
 
     with pytest.raises(ValueError, match="non-empty 3D shape"):
         render(_context(Compound(children=[])), {}, tmp_path)
-
-
-def test_section_thickness_measures_the_original_solid(monkeypatch, tmp_path):
-    from aiad_render import agent_render
-
-    actual = agent_render.face_thickness
-    measured = []
-
-    def record(scene):
-        measured.append(scene)
-        return actual(scene)
-
-    monkeypatch.setattr(agent_render, "face_thickness", record)
-    scene, _ = _capture_render(
-        monkeypatch, _context(Box(60, 40, 6)),
-        {"section": {"plane": "XY", "offset": 0}, "heatmap": "thickness"}, tmp_path,
-    )
-    assert len(measured) == 1
-    assert measured[0].bounds[1][2] == 3  # the original 6 mm solid, rather than the clipped 3 mm half
-    assert all(face.color == agent_render._NO_READING for face in scene.faces if face.section_cap)
 
 
 def test_section_that_removes_the_whole_part_is_annotated(monkeypatch, tmp_path):

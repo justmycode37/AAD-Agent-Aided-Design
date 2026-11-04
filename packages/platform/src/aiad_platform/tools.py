@@ -11,6 +11,8 @@ INTERNAL = "Internal viewer tool. Do not call. "
 
 _PROJECT = {"type": "string", "description": "Project name from aiad_new."}
 _REV = {"type": "integer", "minimum": 1, "description": "Revision number. Defaults to the head."}
+_VECTOR3 = {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3}
+_SELECTORS = {"type": "array", "items": {"type": "string"}, "minItems": 1}
 _APP_META = {"ui": {"visibility": ["app"]}}
 
 
@@ -133,8 +135,12 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "aiad_render",
         "description": (
-            "Get images for you, the agent, to review: a 4-up sheet, single views, sections, labels and "
-            "heatmaps. Look at these before you call the work done. To show the user, use aiad_show."
+            "Review detailed images and a structured inspection report with exact face/edge geometry, "
+            "visible selectors and world-to-pixel transforms. Focus on a selector or box for a close-up; "
+            "probe image pixels or world rays for exact points, normals and wall thickness; measure "
+            "between selectors. Use sections, labels and thickness/overhang/draft/curvature heatmaps. "
+            "face:N and edge:N are revision-local inspection selectors. Look at these before calling "
+            "the work done. To show the user, use aiad_show."
         ),
         "inputSchema": _schema(
             {
@@ -142,7 +148,7 @@ TOOLS: list[dict[str, Any]] = [
                 "rev": _REV,
                 "views": {
                     "type": "array",
-                    "items": _enum("sheet", "iso", "front", "back", "left", "right", "top", "bottom"),
+                    "items": _enum("sheet", "iso", "front", "back", "left", "right", "top", "bottom", "custom"),
                 },
                 "style": _enum("shaded", "lines", "xray"),
                 "section": {
@@ -151,9 +157,38 @@ TOOLS: list[dict[str, Any]] = [
                     "required": ["plane"],
                 },
                 "labels": _enum("none", "features", "faces", "edges"),
-                "heatmap": _enum("thickness", "overhang"),
+                "heatmap": _enum("thickness", "overhang", "draft", "curvature"),
                 "highlight": {"type": "array", "items": {"type": "string"}},
                 "size": {"type": "integer", "minimum": 64, "maximum": 2048},
+                "camera": {
+                    **_schema({"direction": _VECTOR3, "up": _VECTOR3, "target": _VECTOR3,
+                               "span": {"type": "number", "exclusiveMinimum": 0}}, ["direction"]),
+                    "description": "Direction points toward the viewer; span is the view height in model units. Adds custom view.",
+                },
+                "focus": {
+                    "anyOf": [
+                        {"type": "string"}, _SELECTORS,
+                        {**_schema({
+                            "selector": {"anyOf": [{"type": "string"}, _SELECTORS]},
+                            "min": _VECTOR3, "max": _VECTOR3,
+                            "margin": {"type": "number", "minimum": 0}, "clip": {"type": "boolean"},
+                        }), "anyOf": [{"required": ["selector"]}, {"required": ["min", "max"]}]},
+                    ],
+                    "description": "Zoom and refine tessellation around selectors or a world box. clip removes geometry outside the padded box.",
+                },
+                "dimensions": _enum("none", "overall", "auto", description="Default auto adds overall dimensions and visible diameters."),
+                "probes": {
+                    "type": "array", "items": {"oneOf": [
+                        _schema({"image": {"type": "string"}, "x": {"type": "number"}, "y": {"type": "number"}}, ["image", "x", "y"]),
+                        _schema({"point": _VECTOR3, "direction": _VECTOR3}, ["point", "direction"]),
+                    ]},
+                    "description": "Pixel coordinates start at image top-left; image is a requested view name such as sheet or top (no .png).",
+                },
+                "measure": {"type": "array", "items": _schema({"a": {"type": "string"}, "b": {"type": "string"}}, ["a", "b"])},
+                "heatmap_range": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2,
+                                  "description": "Fixed [low, high] range: model units for thickness/bend radius, degrees for overhang/draft."},
+                "min_wall": {"type": "number", "exclusiveMinimum": 0, "description": "Thickness heatmap: mark sampled walls below this model-unit threshold in magenta."},
+                "direction": {**_VECTOR3, "description": "Build direction for overhang, pull direction for draft. Default [0, 0, 1]."},
             },
             ["project"],
         ),

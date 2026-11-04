@@ -157,12 +157,20 @@ aiad_check({ project, rev?: number,
             suites?: ("hard"|"spec"|"process"|"interference"|"2d")[] })
 
 aiad_render({ project, rev?: number,
-             views?: ("sheet"|"iso"|"front"|"back"|"left"|"right"|"top"|"bottom")[],
+             views?: ("sheet"|"iso"|"front"|"back"|"left"|"right"|"top"|"bottom"|"custom")[],
              style?: "shaded"|"lines"|"xray",
              section?: { plane: "XY"|"XZ"|"YZ"|string, offset?: number },
              labels?: "none"|"features"|"faces"|"edges",
-             heatmap?: "thickness"|"overhang",
+             heatmap?: "thickness"|"overhang"|"draft"|"curvature",
              highlight?: string[],                  // selectors
+             camera?: { direction: number[3], up?: number[3], target?: number[3], span?: number },
+             focus?: string|string[]|{ selector?: string|string[], min?: number[3], max?: number[3],
+                                      margin?: number, clip?: boolean },
+             dimensions?: "none"|"overall"|"auto",
+             probes?: ({ image: string, x: number, y: number }|
+                       { point: number[3], direction: number[3] })[],
+             measure?: { a: string, b: string }[],
+             heatmap_range?: number[2], min_wall?: number, direction?: number[3],
              size?: number })                       // default 1024, max 2048
 
 aiad_show({ project, rev?: number, compare_to?: number, title?: string,
@@ -395,6 +403,16 @@ def aiad_quality.library(action: str, **kw) -> dict
 ```
 
 **Worker pipeline:** run `model.py` → `hard_checks` → `spec_checks` → `process_checks` (or `aiad_drafting.checks` for 2D) → `make_scene` → optional `render` → return `BuildResult`. A failure in an optional step becomes a `warn` check, and must never discard a built revision.
+
+`render` returns PNG paths plus `inspection.json` and optional `labels.json`. The platform emits
+only PNGs as image blocks; it includes the JSON data in structured `inspection` and `labels`
+fields, with all file paths in `artifacts`. Inspection version 1 includes B-rep face/edge facts,
+mass properties, exact section loops, image pane scales, world-to-pixel matrices, visible
+selectors, probe results and measurements. Face/edge indexes belong to the current revision.
+Camera direction points toward the viewer; probe direction points into the scene. Pixel probes
+use whole-image coordinates and view names without `.png`. Thickness is a sampled mesh search
+with B-rep refinement of its smallest candidates, not proof of a global minimum. See
+`packages/render/README.md` for field semantics and limitations.
 
 ---
 

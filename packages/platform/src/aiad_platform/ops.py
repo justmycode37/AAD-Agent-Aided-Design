@@ -114,7 +114,16 @@ def op_render(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
     known = {f.name for f in dataclasses.fields(RenderRequest)}
     request = RenderRequest(**{k: v for k, v in args.items() if k in known and v is not None})
     paths = render(ctx, request, out)
-    return {"images": [{"path": str(path), "mime": "image/png"} for path in paths]}
+    artifacts = {path.name: str(path) for path in paths}
+    result = {
+        "images": [{"path": str(path), "mime": "image/png"} for path in paths if path.suffix == ".png"],
+        "artifacts": artifacts,
+    }
+    if "inspection.json" in artifacts:
+        result["inspection"] = json.loads(Path(artifacts["inspection.json"]).read_text())
+    if "labels.json" in artifacts:
+        result["labels"] = json.loads(Path(artifacts["labels.json"]).read_text())
+    return result
 
 
 def op_scene(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:

@@ -16,7 +16,7 @@ def make_scene(ctx: Any, out: Path, compare: Any | None = None) -> Any:
 
 
 def render(ctx: Any, req: Any, out: Path) -> list[Path]:
-    """Writes images for the agent under out and returns their paths."""
+    """Write agent images and inspection/label JSON under out and return their paths."""
     from .agent_render import render as impl
 
     return impl(ctx, req, out)

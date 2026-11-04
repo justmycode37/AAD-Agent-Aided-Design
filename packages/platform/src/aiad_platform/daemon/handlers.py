@@ -695,7 +695,10 @@ class Handlers:
         rev, failed = self._rev_or_failure(project, params)
         if failed:
             return failed
-        keys = ("views", "style", "section", "labels", "heatmap", "highlight", "size")
+        keys = (
+            "views", "style", "section", "labels", "heatmap", "highlight", "size",
+            "camera", "focus", "dimensions", "probes", "measure", "heatmap_range", "min_wall", "direction",
+        )
         result, _ = await self._op(project, rev, "render", {k: params[k] for k in keys if k in params})
         if not result.get("ok"):
             return self._op_failed(project, rev, result)
@@ -707,7 +710,9 @@ class Handlers:
                 "rev": rev,
                 "status": _rev_meta(project, rev).get("status", "draft"),
                 "summary": f"Rendered {len(images)} image(s) of {project.name} rev {rev}.",
-                "artifacts": {Path(i["path"]).name: i["path"] for i in images},
+                "artifacts": result.get("artifacts") or {Path(i["path"]).name: i["path"] for i in images},
+                "inspection": result.get("inspection"),
+                "labels": result.get("labels"),
             },
             images,
         )
