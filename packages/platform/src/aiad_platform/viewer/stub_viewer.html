@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AIAD viewer (M0 stub)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #14181d; color: #d7dde4; font: 12px/1.4 ui-monospace, Menlo, monospace; }
+  #wrap { position: relative; height: 480px; }
+  body.fullscreen #wrap { height: 100vh; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+  #hud { position: absolute; left: 8px; top: 8px; right: 8px; pointer-events: none; white-space: pre-wrap; }
+  #fs { position: absolute; right: 8px; bottom: 8px; display: none; background: #2a3138; color: inherit; border: 1px solid #47525c; border-radius: 4px; padding: 4px 8px; font: inherit; cursor: pointer; }
+  .err { color: #ff8a80; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c"></canvas><div id="hud">AIAD M0 stub viewer: waiting for host</div><button id="fs" type="button">Fullscreen</button></div>
+<script>
+(() => {
+  "use strict";
+  const CHUNK = 128 * 1024, MAX_IN_FLIGHT = 4, RETRIES = 3;
+  const hud = document.getElementById("hud"), canvas = document.getElementById("c"), fsButton = document.getElementById("fs");
+  const state = { host: "unknown", protocol: "?", lines: {} };
+  function show(key, text, isError) {
+    state.lines[key] = text;
+    hud.textContent = Object.values(state.lines).join("\n");
+    hud.className = isError ? "err" : "";
+    console[isError ? "error" : "log"]("[aiad-stub]", key, text);
+  }
+
+  // JSON-RPC over postMessage (MCP Apps).
+  let nextId = 1;
+  const pending = new Map();
+  const post = (message) => window.parent.postMessage({ jsonrpc: "2.0", ...message }, "*");
+  const notify = (method, params) => post({ method, params: params || {} });
+  const request = (method, params) => new Promise((resolve, reject) => {
+    const id = nextId++;
+    pending.set(id, { resolve, reject });
+    post({ id, method, params: params || {} });
+  });
+
+  window.addEventListener("message", (event) => {
+    if (event.source !== window.parent) return;
+    const message = event.data;
+    if (!message || message.jsonrpc !== "2.0") return;
+    if (message.id !== undefined && pending.has(message.id) && !message.method) {
+      const entry = pending.get(message.id);
+      pending.delete(message.id);
+      if (message.error) entry.reject(new Error(message.error.message || "host error"));
+      else entry.resolve(message.result);
+      return;
+    }
+    if (message.method === "ui/notifications/tool-result") onToolResult(message.params || {});
+    else if (message.method === "ui/notifications/host-context-changed") onHostContext(message.params || {});
+    else if (message.method === "ui/resource-teardown") post({ id: message.id, result: {} });
+    else if (message.id !== undefined && message.method === "ping") post({ id: message.id, result: {} });
+  });
+
+  function onHostContext(context) {
+    const mode = context.displayMode;
+    if (mode) document.body.classList.toggle("fullscreen", mode === "fullscreen");
+    resize();
+    reportSize();
+  }
+
+  function reportSize() {
+    notify("ui/notifications/size-changed", { width: document.documentElement.clientWidth, height: document.getElementById("wrap").offsetHeight });
+  }
+
+  async function init() {
+    const result = await request("ui/initialize", {
+      protocolVersion: "2026-01-26",
+      appInfo: { name: "aiad-viewer-stub", version: "0.0.1" },
+      appCapabilities: { availableDisplayModes: ["inline", "fullscreen"] },
+    });
+    state.host = (result.hostInfo && result.hostInfo.name) || "unknown";
+    state.protocol = result.protocolVersion || "?";
+    show("host", `AIAD M0 stub viewer | host ${state.host} | protocol ${state.protocol}`);
+    const modes = (result.hostContext && result.hostContext.availableDisplayModes) || [];
+    if (modes.includes("fullscreen")) fsButton.style.display = "block";
+    notify("ui/notifications/initialized");
+    onHostContext(result.hostContext || {});
+  }
+
+  fsButton.addEventListener("click", async () => {
+    const current = document.body.classList.contains("fullscreen");
+    try {
+      const result = await request("ui/request-display-mode", { mode: current ? "inline" : "fullscreen" });
+      document.body.classList.toggle("fullscreen", result.mode === "fullscreen");
+      resize();
+      reportSize();
+    } catch (error) { show("fs", `fullscreen failed: ${error.message}`, true); }
+  });
+
+  function onToolResult(result) {
+    const envelope = result.structuredContent || {};
+    if (!envelope.scene) {
+      show("scene", envelope.summary || "tool result has no scene", !envelope.ok);
+      return;
+    }
+    show("project", `${envelope.project} rev ${envelope.rev} | status ${envelope.status}`);
+    loadScene(envelope.scene).catch((error) => show("scene", `scene failed: ${error.message}`, true));
+  }
+
+  function base64ToBytes(text) {
+    const binary = atob(text);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  async function readChunk(sceneId, offset) {
+    let lastError;
+    for (let attempt = 0; attempt < RETRIES; attempt++) {
+      try {
+        const result = await request("tools/call", { name: "aiad_scene_read", arguments: { scene_id: sceneId, offset, length: CHUNK } });
+        const chunk = result.structuredContent;
+        if (!chunk || typeof chunk.data_b64 !== "string") throw new Error("chunk result has no data_b64");
+        return base64ToBytes(chunk.data_b64);
+      } catch (error) { lastError = error; }
+    }
+    throw lastError;
+  }
+
+  async function loadScene(manifest) {
+    const started = performance.now();
+    const total = manifest.total_bytes;
+    const offsets = [];
+    for (let offset = 0; offset < total; offset += CHUNK) offsets.push(offset);
+    const chunks = new Array(offsets.length);
+    let next = 0, done = 0;
+    const worker = async () => {
+      while (next < offsets.length) {
+        const index = next++;
+        chunks[index] = await readChunk(manifest.scene_id, offsets[index]);
+        show("scene", `chunks ${++done}/${offsets.length}`);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(MAX_IN_FLIGHT, offsets.length) }, worker));
+    const bytes = new Uint8Array(total);
+    let at = 0;
+    for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.length; }
+    if (at !== total) throw new Error(`expected ${total} bytes, got ${at}`);
+    let hashNote = "sha256 not checked (no crypto.subtle)";
+    if (window.crypto && crypto.subtle) {
+      const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+      const hex = Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("");
+      if (hex !== manifest.scene_id) throw new Error("scene_id does not match the payload");
+      hashNote = "sha256 ok";
+    }
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+    const tree = await new Response(stream).json();
+    const count = draw(tree);
+    show("scene", `${count} triangles | ${total} bytes in ${offsets.length} chunks | ${hashNote} | ${(performance.now() - started).toFixed(0)} ms`);
+  }
+
+  // Minimal WebGL renderer: flat shading, orbit, zoom.
+  const gl = canvas.getContext("webgl", { antialias: true });
+  let program, buffer, vertexCount = 0, center = [0, 0, 0], radius = 1;
+  const camera = { yaw: -0.7, pitch: 0.6, distance: 3 };
+  function shader(type, source) {
+    const object = gl.createShader(type);
+    gl.shaderSource(object, source);
+    gl.compileShader(object);
+    if (!gl.getShaderParameter(object, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(object));
+    return object;
+  }
+  function setupGl() {
+    program = gl.createProgram();
+    gl.attachShader(program, shader(gl.VERTEX_SHADER, "attribute vec3 p;attribute vec3 n;uniform mat4 m;varying vec3 vn;void main(){vn=n;gl_Position=m*vec4(p,1.0);}"));
+    gl.attachShader(program, shader(gl.FRAGMENT_SHADER, "precision mediump float;varying vec3 vn;uniform vec3 l;void main(){float d=abs(dot(normalize(vn),l));gl_FragColor=vec4(vec3(0.44,0.56,0.70)*(0.35+0.65*d),1.0);}"));
+    gl.linkProgram(program);
+    gl.useProgram(program);
+    gl.enable(gl.DEPTH_TEST);
+    buffer = gl.createBuffer();
+  }
+  function draw(tree) {
+    const data = [];
+    let triangles = 0;
+    const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+    const visit = (node) => {
+      if (node.shape && node.shape.vertices) {
+        const v = node.shape.vertices, t = node.shape.triangles;
+        for (let i = 0; i < t.length; i += 3) {
+          const a = t[i] * 3, b = t[i + 1] * 3, c = t[i + 2] * 3;
+          const ux = v[b] - v[a], uy = v[b + 1] - v[a + 1], uz = v[b + 2] - v[a + 2];
+          const wx = v[c] - v[a], wy = v[c + 1] - v[a + 1], wz = v[c + 2] - v[a + 2];
+          const nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;
+          for (const k of [a, b, c]) {
+            data.push(v[k], v[k + 1], v[k + 2], nx, ny, nz);
+            for (let d = 0; d < 3; d++) { min[d] = Math.min(min[d], v[k + d]); max[d] = Math.max(max[d], v[k + d]); }
+          }
+          triangles++;
+        }
+      }
+      (node.parts || []).forEach(visit);
+    };
+    visit(tree);
+    center = [0, 1, 2].map((d) => (min[d] + max[d]) / 2);
+    radius = Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2]) / 2 || 1;
+    camera.distance = radius * 3;
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+    vertexCount = data.length / 6;
+    render();
+    return triangles;
+  }
+  function resize() {
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, canvas.clientWidth * ratio);
+    canvas.height = Math.max(1, canvas.clientHeight * ratio);
+    render();
+  }
+  function multiply(a, b) {
+    const out = new Float32Array(16);
+    for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) out[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k];
+    return out;
+  }
+  function render() {
+    if (!gl || !program) return;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(0.08, 0.094, 0.114, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    if (!vertexCount) return;
+    const aspect = canvas.width / canvas.height, near = camera.distance / 100, far = camera.distance * 10, f = 1 / Math.tan(0.4);
+    const projection = new Float32Array([f / aspect, 0, 0, 0, 0, f, 0, 0, 0, 0, (far + near) / (near - far), -1, 0, 0, 2 * far * near / (near - far), 0]);
+    const cy = Math.cos(camera.yaw), sy = Math.sin(camera.yaw), cp = Math.cos(camera.pitch), sp = Math.sin(camera.pitch);
+    // Z up: yaw about Z, then tilt about the screen X axis, then back away from the camera.
+    const yaw = new Float32Array([cy, -sy * sp, sy * cp, 0, sy, cy * sp, -cy * cp, 0, 0, cp, sp, 0, 0, 0, 0, 1]);
+    const translate = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -center[0], -center[1], -center[2], 1]);
+    const back = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, -camera.distance, 1]);
+    const matrix = multiply(projection, multiply(back, multiply(yaw, translate)));
+    gl.uniformMatrix4fv(gl.getUniformLocation(program, "m"), false, matrix);
+    gl.uniform3f(gl.getUniformLocation(program, "l"), 0.45, -0.6, 0.66);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    const p = gl.getAttribLocation(program, "p"), n = gl.getAttribLocation(program, "n");
+    gl.enableVertexAttribArray(p);
+    gl.vertexAttribPointer(p, 3, gl.FLOAT, false, 24, 0);
+    gl.enableVertexAttribArray(n);
+    gl.vertexAttribPointer(n, 3, gl.FLOAT, false, 24, 12);
+    gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
+  }
+  let dragging = false, lastX = 0, lastY = 0;
+  canvas.addEventListener("pointerdown", (e) => { dragging = true; lastX = e.clientX; lastY = e.clientY; canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener("pointerup", () => { dragging = false; });
+  canvas.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    camera.yaw += (e.clientX - lastX) * 0.01;
+    camera.pitch = Math.max(-1.5, Math.min(1.5, camera.pitch + (e.clientY - lastY) * 0.01));
+    lastX = e.clientX; lastY = e.clientY;
+    render();
+  });
+  canvas.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    camera.distance = Math.max(radius * 1.1, camera.distance * Math.exp(e.deltaY * 0.001));
+    render();
+  }, { passive: false });
+  window.addEventListener("resize", resize);
+
+  try {
+    if (!gl) throw new Error("WebGL is not available in this host");
+    setupGl();
+    resize();
+    show("webgl", `WebGL ok: ${gl.getParameter(gl.VERSION)}`);
+  } catch (error) { show("webgl", `WebGL failed: ${error.message}`, true); }
+  init().catch((error) => show("host", `ui/initialize failed: ${error.message}`, true));
+})();
+</script>
+</body>
+</html>
