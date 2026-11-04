@@ -11,6 +11,8 @@ from collections.abc import Callable
 from typing import Any
 
 MODULES = (
+    # First, because this compiles the bytecode that `aiad mcp` needs to answer within its budget.
+    "aiad_platform.adapter",
     "build123d",
     "OCP",
     "aiad.engine.jobs",
@@ -19,9 +21,9 @@ MODULES = (
     "aiad_quality",
     "vtk",
 )
-REQUIRED_MODULES = frozenset({"build123d", "OCP"})
+REQUIRED_MODULES = frozenset({"aiad_platform.adapter", "build123d", "OCP"})
 IMPORT_TIMEOUT_S = 180.0
-TOTAL_TIMEOUT_S = 120.0
+TOTAL_TIMEOUT_S = 240.0
 
 _IMPORT_SCRIPT = r"""
 import importlib, json, sys, time

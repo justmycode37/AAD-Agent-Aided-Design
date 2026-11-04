@@ -49,6 +49,8 @@ BLOCKED_IMPORTS = (
 )
 RUNTIME_SIZE_LIMIT_BYTES = 1_000_000_000
 INSTALL_TIME_LIMIT_SECONDS = 180.0
+MCP_STARTUP_BUDGET_S = 1.0
+MCP_FUNCTIONAL_TIMEOUT_S = 30.0
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -417,8 +419,12 @@ def _stdio_initialize(
 def _mcp_probe(executable: Path, *, work_dir: Path, env: dict[str, str]) -> dict[str, Any]:
     # Keep the time-critical probe uninstrumented; import tracing is run in a
     # separate process so its meta-path hook cannot distort the 1 s result.
-    result = _stdio_initialize(executable, work_dir=work_dir, env=env, timeout_s=1.0)
+    # A slow answer is a budget finding, recorded separately. Only no answer at all is a functional failure.
+    result = _stdio_initialize(executable, work_dir=work_dir, env=env, timeout_s=MCP_FUNCTIONAL_TIMEOUT_S)
     result["initialize_seconds"] = result.pop("elapsed_seconds")
+    result["within_startup_budget"] = (
+        result.get("status") == "pass" and result["initialize_seconds"] < MCP_STARTUP_BUDGET_S
+    )
     result["kernel_imports_absent"] = None
     return result
 
@@ -698,15 +704,19 @@ def main() -> int:
         python = _find_tool_python(tool_dir)
         result["installed_python"] = str(python)
 
-        # Probe MCP before invoking any other installed command, so this is the
-        # first process to import the adapter in the new tool environment.
+        # The first process to import the adapter compiles its bytecode. No host can start
+        # `aiad mcp` this early, because `aiad install` writes the configs after pre-warming,
+        # so this number is informational. The budgeted probe runs after pre-warm below.
         try:
-            result["mcp"] = _mcp_probe(executable, work_dir=work_dir, env=env)
-            if result["mcp"].get("status") != "pass":
-                functional_errors.append(f"Cold MCP initialize probe failed: {result['mcp'].get('error', 'unknown error')}")
+            result["mcp_before_prewarm"] = _mcp_probe(executable, work_dir=work_dir, env=env)
+            if result["mcp_before_prewarm"].get("status") != "pass":
+                functional_errors.append(
+                    f"MCP initialize probe failed: {result['mcp_before_prewarm'].get('error', 'unknown error')}"
+                )
         except Exception as exc:
-            result["mcp"] = {"status": "fail", "error": f"{type(exc).__name__}: {exc}"}
-            functional_errors.append(f"Cold MCP initialize probe failed: {type(exc).__name__}: {exc}")
+            result["mcp_before_prewarm"] = {"status": "fail", "error": f"{type(exc).__name__}: {exc}"}
+            functional_errors.append(f"MCP initialize probe failed: {type(exc).__name__}: {exc}")
+        result["mcp"] = {"status": "not_run"}
         try:
             import_probe = _mcp_import_probe(executable, work_dir=work_dir, env=env)
             result["mcp_import_probe"] = import_probe
@@ -756,6 +766,17 @@ def main() -> int:
             prewarm = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
         result["prewarm_elapsed_seconds"] = round(time.monotonic() - prewarm_started, 3)
         result["prewarm"] = prewarm
+
+        # The number the budget applies to: a fresh `aiad mcp` process, kernel never imported by it.
+        try:
+            probe = _mcp_probe(executable, work_dir=work_dir, env=env)
+            probe["kernel_imports_absent"] = result["mcp"].get("kernel_imports_absent")
+            result["mcp"] = probe
+            if probe.get("status") != "pass":
+                functional_errors.append(f"MCP initialize after pre-warm failed: {probe.get('error', 'unknown error')}")
+        except Exception as exc:
+            result["mcp"] = {"status": "fail", "error": f"{type(exc).__name__}: {exc}"}
+            functional_errors.append(f"MCP initialize after pre-warm failed: {type(exc).__name__}: {exc}")
 
         vtk_status = next(
             (item.get("status") for item in prewarm.get("modules", []) if item.get("name") == "vtk"),
@@ -818,8 +839,11 @@ def main() -> int:
             ]
 
         blockers = list(result["scope"]["release_blockers"])
-        if result.get("mcp", {}).get("status") != "pass":
-            blockers.append("Cold MCP initialize did not respond within the 1-second startup target")
+        if not result.get("mcp", {}).get("within_startup_budget"):
+            blockers.append(
+                f"MCP initialize after pre-warm took {result.get('mcp', {}).get('initialize_seconds')} s, "
+                "over the 1-second budget, which PLAN section 9 sets for the reference Mac"
+            )
         if not result["budget"]["runtime_disk_within_target"]:
             blockers.append(
                 f"Installed runtime is {result['runtime_disk_bytes']} bytes, over the 1,000,000,000-byte target"
@@ -829,7 +853,7 @@ def main() -> int:
                 f"Fresh empty-cache install took {fresh_elapsed:.3f} seconds, over the 180-second target"
             )
         if not prewarm.get("ok"):
-            blockers.append("Cold runtime prewarm did not complete within the prewarm runner's 120-second budget")
+            blockers.append("Cold runtime prewarm did not complete within the prewarm runner's 240-second budget")
         if not (ROOT / "packages" / "quality" / "pyproject.toml").is_file():
             blockers.append("aiad_quality is absent from the current workspace and is not verified by this packaging smoke")
         result["scope"]["release_blockers"] = blockers

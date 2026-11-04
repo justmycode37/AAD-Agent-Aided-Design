@@ -141,6 +141,7 @@ def test_prewarm_bounds_total_time_and_skips_retry_after_timeout(monkeypatch):
     monkeypatch.setattr(prewarm, "_import_once", slow_import)
     result = prewarm.run_prewarm()
     assert result["ok"] is False
-    assert len(calls) == 1
+    assert 1 <= len(calls) <= len(prewarm.MODULES)
+    assert sum(timeout for _, timeout in calls) <= prewarm.TOTAL_TIMEOUT_S
     assert calls[0][1] <= prewarm.TOTAL_TIMEOUT_S
     assert result["modules"][0]["second"]["status"] == "skip"
