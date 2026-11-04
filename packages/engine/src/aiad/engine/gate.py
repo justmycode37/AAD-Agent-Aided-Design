@@ -565,7 +565,8 @@ def _import_step_shape(path: Path) -> Any:
 
 def _mesh_watertight_check(shape: Any, tolerance: GateTolerances, unit_scale: float) -> Check:
     try:
-        vertices, triangles = shape.tessellate(
+        vertices, triangles = _fresh_mesh_arrays(
+            shape,
             tolerance.mesh_deflection_mm / unit_scale,
             tolerance.mesh_angular_deflection_rad,
         )
@@ -588,6 +589,49 @@ def _mesh_watertight_check(shape: Any, tolerance: GateTolerances, unit_scale: fl
         f"configured_angular_deflection={_fmt(tolerance.mesh_angular_deflection_rad)} rad"
     )
     return check
+
+
+def _fresh_mesh_arrays(shape: Any, linear_deflection: float, angular_deflection: float) -> tuple[list, list]:
+    """Mesh private native topology with absolute deflection and no cached mesh."""
+    from OCP.BRep import BRep_Tool
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_Copy
+    from OCP.BRepMesh import BRepMesh_IncrementalMesh
+    from OCP.BRepTools import BRepTools
+    from OCP.TopAbs import TopAbs_FACE, TopAbs_REVERSED
+    from OCP.TopExp import TopExp_Explorer
+    from OCP.TopLoc import TopLoc_Location
+    from OCP.TopoDS import TopoDS
+
+    copier = BRepBuilderAPI_Copy(shape.wrapped, False, False)
+    if not copier.IsDone():
+        raise ValueError("native topology could not be copied for meshing")
+    copied = copier.Shape()
+    BRepTools.Clean_s(copied)
+    mesher = BRepMesh_IncrementalMesh(copied, linear_deflection, False, angular_deflection, False)
+    if not mesher.IsDone():
+        raise ValueError("absolute native meshing did not complete")
+
+    vertices: list[tuple[float, float, float]] = []
+    triangles: list[tuple[int, int, int]] = []
+    explorer = TopExp_Explorer(copied, TopAbs_FACE)
+    while explorer.More():
+        face = TopoDS.Face(explorer.Current())
+        location = TopLoc_Location()
+        mesh = BRep_Tool.Triangulation_s(face, location)
+        if mesh is None:
+            raise ValueError("a face has no triangulation after native meshing")
+        offset = len(vertices)
+        transform = location.Transformation()
+        for index in range(1, mesh.NbNodes() + 1):
+            point = mesh.Node(index).Transformed(transform)
+            vertices.append((point.X(), point.Y(), point.Z()))
+        for triangle in mesh.Triangles():
+            indices = (triangle.Value(1), triangle.Value(2), triangle.Value(3))
+            if face.Orientation() == TopAbs_REVERSED:
+                indices = (indices[0], indices[2], indices[1])
+            triangles.append(tuple(index + offset - 1 for index in indices))
+        explorer.Next()
+    return vertices, triangles
 
 
 def _check_mesh_arrays(

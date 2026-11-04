@@ -28,7 +28,11 @@ The gate checks:
   measured volumes, drift, and comparison values are reported. A non-positive
   source volume, missing output, failed export/import, or non-finite
   comparison is an error-level skip rather than evidence of a pass.
-- A tessellation of the whole shape. Vertices are welded to the nearest
+- A tessellation of the whole shape.
+  A private native topology copy is cleaned and remeshed with absolute OCCT
+  deflection, so pre-existing linear or angular triangulation cannot replace
+  the configured settings or mutate the source shape's cached mesh.
+  Vertices are welded to the nearest
   existing representative within the configured distance; zero tolerance
   welds only exactly coincident coordinates. After welding, triangles must be
   non-degenerate and unique, each undirected edge must occur twice with
@@ -90,9 +94,9 @@ separately. Times are milliseconds, median with minimum–maximum in parentheses
 
 | Shape | Faces / edges | Build | Hard gate |
 |---|---:|---:|---:|
-| Box 20 × 10 × 6 | 6 / 12 | 0.19 (0.18–0.21) | 22.47 (22.15–23.20) |
-| Cylinder, radius 5, height 12 | 3 / 3 | 0.15 (0.15–0.20) | 14.76 (14.33–15.31) |
-| 20 × 20 × 6 box with radius 3 through-hole | 7 / 15 | 1.97 (1.80–2.22) | 28.72 (27.85–29.79) |
+| Box 20 × 10 × 6 | 6 / 12 | 0.25 (0.23–0.29) | 24.78 (24.49–25.35) |
+| Cylinder, radius 5, height 12 | 3 / 3 | 0.21 (0.18–0.23) | 15.99 (15.73–16.26) |
+| 20 × 20 × 6 box with radius 3 through-hole | 7 / 15 | 2.14 (2.11–2.18) | 30.91 (30.12–31.43) |
 
 These are direct calls using a temporary job directory, not end-to-end worker
 or sandbox timings; cold imports and complex models were not measured. To

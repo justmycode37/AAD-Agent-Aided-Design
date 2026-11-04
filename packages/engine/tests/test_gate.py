@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,7 +10,7 @@ from unittest.mock import patch
 
 from build123d import Box, Compound, Cylinder, Face, Shell, Solid, Sphere
 
-from aiad.engine.gate import GateTolerances, _check_mesh_arrays, hard_checks
+from aiad.engine.gate import GateTolerances, _check_mesh_arrays, _fresh_mesh_arrays, hard_checks
 from aiad.engine.jobs import run_build
 from aiad.engine.types import BuildRequest, ModelContext
 
@@ -240,7 +241,7 @@ class GeometricGateTests(unittest.TestCase):
             ctx = context(shape, Path(tmp))
             with patch("OCP.BRepCheck.BRepCheck_Analyzer", side_effect=RuntimeError("analyzer fault")):
                 validity = check_map(hard_checks(ctx))["brep_valid"]
-            with patch.object(type(shape), "tessellate", side_effect=RuntimeError("mesh fault")):
+            with patch("aiad.engine.gate._fresh_mesh_arrays", side_effect=RuntimeError("mesh fault")):
                 mesh = check_map(hard_checks(ctx))["mesh_watertight"]
             with patch("build123d.export_step", return_value=True):
                 step = check_map(hard_checks(ctx))["step_volume_drift"]
@@ -344,6 +345,41 @@ class GeometricGateTests(unittest.TestCase):
                 invalid = _check_mesh_arrays(vertices, [triangle], GateTolerances())
                 self.assertEqual(invalid.status, "skip")
                 self.assertEqual(invalid.level, "error")
+
+    def test_absolute_mesh_resolution_is_physically_consistent_in_mm_and_inches(self) -> None:
+        radius = 25.4
+        vertices, triangles = _fresh_mesh_arrays(Cylinder(radius, 50.8), 0.1, 2.0)
+        inch_vertices, inch_triangles = _fresh_mesh_arrays(Cylinder(1, 2), 0.1 / 25.4, 2.0)
+        self.assertEqual(len(triangles), len(inch_triangles))
+        self.assertEqual(len(vertices), len(inch_vertices))
+        sagittas = []
+        for triangle in triangles:
+            points = [vertices[index] for index in triangle]
+            # Lateral triangles span height; their horizontal edges are
+            # circle-boundary chords, unlike diagonals within the planar caps.
+            if max(p[2] for p in points) - min(p[2] for p in points) < 1e-6:
+                continue
+            for a, b in zip(points, points[1:] + points[:1]):
+                if abs(a[2] - b[2]) < 1e-6:
+                    chord = math.dist(a, b)
+                    sagittas.append(radius - math.sqrt(max(0, radius**2 - chord**2 / 4)))
+        self.assertTrue(sagittas)
+        self.assertLessEqual(max(sagittas), 0.1)
+
+    def test_fresh_meshing_honors_tighter_angle_without_changing_source_cache(self) -> None:
+        from OCP.BRep import BRep_Tool
+        from OCP.TopLoc import TopLoc_Location
+
+        shape = Cylinder(10, 20)
+        _, cached = shape.tessellate(10, 2.0)
+        def counts():
+            return [BRep_Tool.Triangulation_s(face.wrapped, TopLoc_Location()).NbTriangles()
+                    for face in shape.faces()]
+        original_counts = counts()
+        _, refined = _fresh_mesh_arrays(shape, 10, 0.05)
+        self.assertGreater(len(refined), len(cached))
+        self.assertEqual(counts(), original_counts)
+        self.assertEqual(len(shape.tessellate(10, 2.0)[1]), len(cached))
 
     def test_mesh_vertices_farther_than_weld_tolerance_stay_distinct(self) -> None:
         tolerance = GateTolerances(mesh_vertex_weld_mm=0.001)
