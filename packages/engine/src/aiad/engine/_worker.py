@@ -149,6 +149,11 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
             super().__init__(*args, **kwargs)
             tracked_build_parts.append(self)
 
+    # build123d decides which operations a context allows from its class name, so a subclass with
+    # another name makes fillet() and chamfer() refuse to run inside `with BuildPart()`.
+    TrackedBuildPart.__name__ = original_build_part.__name__
+    TrackedBuildPart.__qualname__ = original_build_part.__qualname__
+
     # Scripts that import BuildPart from aiad or build123d receive this
     # subclass. The class only records the active builder object so a context
     # manager can supply its completed part when no `result` is assigned.
