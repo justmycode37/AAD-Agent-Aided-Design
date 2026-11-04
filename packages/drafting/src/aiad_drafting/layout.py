@@ -206,7 +206,7 @@ def wrap_text(value: str, width_mm: float, height_mm: float = MIN_TEXT_HEIGHT_MM
 def hole_callout_text(dimension: Mapping[str, Any]) -> str:
     count = dimension.get("count") or 1
     prefix = f"{count}X " if count > 1 else ""
-    return f"{prefix}DIA {dimension['display']} THRU"
+    return f"{prefix}DIA {dimension['display']}" + (" THRU" if dimension.get("through", True) else "")
 
 
 def ordinate_count_prefix(dimension: Mapping[str, Any]) -> str:
@@ -280,6 +280,8 @@ def _view_padding(name: str, dimensions: Sequence[Mapping[str, Any]]) -> tuple[f
                 right,
                 27.0 + max(text_width_mm(hole_callout_text(d), 2.8) for d in diameter_dims),
             )
+        if any(d.get("planar") and d.get("kind") == "overall" and d.get("axis") == "x" for d in dimensions):
+            bottom = max(17.0, bottom + 17.0)
         return left, bottom, right, top
 
     return left, bottom, right, top
@@ -834,6 +836,7 @@ def compose_auxiliary_layout(
     style: str,
     scale_label: str,
     cylinders=(),
+    profiles=(),
 ) -> AuxiliaryLayout:
     """Create a complete, wrapped title block and requested schedule tables."""
     title_width = min(TITLE_BLOCK_WIDTH_MM, width - 2 * MARGIN_MM)
@@ -868,6 +871,8 @@ def compose_auxiliary_layout(
         schedule_sections.append(("table", "BILL OF MATERIALS", list(bom)))
     if cylinders:
         schedule_sections.append(("table", "CYLINDRICAL FEATURES - STATIONS AND CENTERS FROM MINIMUM BOUNDS",list(cylinders)))
+    if profiles:
+        schedule_sections.append(("table", "PLANAR FEATURES - X/Y FROM MINIMUM CUT BOUNDS; ANGLE OF LONG AXIS", list(profiles)))
 
     schedule_bounds: Rect | None = None
     if schedule_sections:
@@ -881,6 +886,12 @@ def compose_auxiliary_layout(
                 body_height = sum(max(3.4, len(row) * TEXT_LINE_MM + 1.0) for row in rows)
                 section_heights.append(5.0 + body_height + 1.5)
                 table_specs.append(None)
+            elif _.startswith("PLANAR FEATURES"):
+                widths = [(schedule_width - 2) * fraction for fraction in (.12, .16, .13, .13, .15, .16, .15)]
+                headers = ("FEATURE", "KIND", "X", "Y", "WIDTH", "LENGTH", "ANGLE")
+                rows = [[str(row[key]) for key in ("feature", "kind", "x", "y", "width", "length", "angle")] for row in data]
+                section_heights.append(5 + _table_rows(headers, rows, widths)[1] + 1.5)
+                table_specs.append((headers, rows, widths, [row["dimension_ids"] for row in data]))
             elif _.startswith("CYLINDRICAL FEATURES"):
                 widths=[(schedule_width-2)*fraction for fraction in (0.10,0.12,0.08,0.24,0.15,0.15,0.16)]
                 rows=[[str(row[key]) for key in ("surface","size","axis","center","from","to","length")] for row in data]

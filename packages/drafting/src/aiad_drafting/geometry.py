@@ -50,6 +50,7 @@ class Curve:
     start_angle: float | None = None
     end_angle: float | None = None
     ccw: bool = True
+    layer: str | None = None
 
 
 @dataclass(frozen=True)
