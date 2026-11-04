@@ -1,0 +1,335 @@
+{
+  "run_id": "48117669-c492-44b4-ad6c-6b3397fdf452",
+  "complete": true,
+  "passed": true,
+  "scope": "deterministic constructor/BREP round-trip controls; no agent-quality or manufacturing-compliance estimate",
+  "reproduce": "PYTHONPATH=packages/quality/src packages/quality/.parts-venv/bin/python evals/library/probe_parts.py --repetitions 3",
+  "versions": {
+    "build123d": "0.13.0",
+    "cadquery-ocp-novtk": "8.0.1.1.0",
+    "bd_warehouse": "0.4.0"
+  },
+  "source_sha256": {
+    "adapter": "3c4442b5bde2e2eb8e608b93381f7fd56b954f24e766cae5d27cf780c3716914",
+    "probe": "6a8975c87da0a5bb26d3d4ea05c773370c17b5e64fd11b3d2e00cec67b9168f4",
+    "upstream/fastener.py": "c643e71c7054b05d2392f312d52e8150f9e1e0671c3d26b47bf50fc5d400fb9c",
+    "upstream/bearing.py": "5f14288a8ea941fa8eed5e58040f366bb94cd528f46c92b77c49c27b4bc2d621",
+    "upstream/thread.py": "6462f4cf78b7da85f722f56b25f6912d5936edc62f591231a54566247ac13d7d"
+  },
+  "summaries": [
+    {
+      "id": "fastener.iso4762.socket_head_cap_screw",
+      "n": 3,
+      "valid_count": 3,
+      "bbox_mean_mm": [
+        10.220000200000001,
+        10.220000200000001,
+        26.000000200000002
+      ],
+      "bbox_sample_sd_mm": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "bearing.deep_groove_ball.skt",
+      "n": 3,
+      "valid_count": 3,
+      "bbox_mean_mm": [
+        22.0000001,
+        22.0000001,
+        7.0
+      ],
+      "bbox_sample_sd_mm": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "thread.iso_metric_external",
+      "n": 3,
+      "valid_count": 3,
+      "bbox_mean_mm": [
+        6.0000002056623,
+        5.9999005085839165,
+        8.000000200000004
+      ],
+      "bbox_sample_sd_mm": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "records": [
+    {
+      "id": "fastener.iso4762.socket_head_cap_screw",
+      "repeat": 1,
+      "valid": true,
+      "bbox_mm": [
+        10.220000200000001,
+        10.220000200000001,
+        26.000000200000002
+      ],
+      "thread_zone_xy_mm": [
+        6.000000230621134,
+        5.999900508900889
+      ],
+      "solids": 1,
+      "material_probes": [
+        {
+          "point_mm": [
+            2.3,
+            0,
+            -10.000000100000001
+          ],
+          "expected_solid": true,
+          "actual_solid": true
+        },
+        {
+          "point_mm": [
+            3.01,
+            0,
+            -10.000000100000001
+          ],
+          "expected_solid": false,
+          "actual_solid": false
+        }
+      ],
+      "artifact": ".runs/48117669-c492-44b4-ad6c-6b3397fdf452/fastener.iso4762.socket_head_cap_screw-1.brep",
+      "artifact_sha256": "ba3559ad6c9d1ae230c698675e2e834540bf5931a9ef10a37808591b0c5beabd",
+      "passed": true
+    },
+    {
+      "id": "fastener.iso4762.socket_head_cap_screw",
+      "repeat": 2,
+      "valid": true,
+      "bbox_mm": [
+        10.220000200000001,
+        10.220000200000001,
+        26.000000200000002
+      ],
+      "thread_zone_xy_mm": [
+        6.000000230621134,
+        5.999900508900889
+      ],
+      "solids": 1,
+      "material_probes": [
+        {
+          "point_mm": [
+            2.3,
+            0,
+            -10.000000100000001
+          ],
+          "expected_solid": true,
+          "actual_solid": true
+        },
+        {
+          "point_mm": [
+            3.01,
+            0,
+            -10.000000100000001
+          ],
+          "expected_solid": false,
+          "actual_solid": false
+        }
+      ],
+      "artifact": ".runs/48117669-c492-44b4-ad6c-6b3397fdf452/fastener.iso4762.socket_head_cap_screw-2.brep",
+      "artifact_sha256": "ba3559ad6c9d1ae230c698675e2e834540bf5931a9ef10a37808591b0c5beabd",
+      "passed": true
+    },
+    {
+      "id": "fastener.iso4762.socket_head_cap_screw",
+      "repeat": 3,
+      "valid": true,
+      "bbox_mm": [
+        10.220000200000001,
+        10.220000200000001,
+        26.000000200000002
+      ],
+      "thread_zone_xy_mm": [
+        6.000000230621134,
+        5.999900508900889
+      ],
+      "solids": 1,
+      "material_probes": [
+        {
+          "point_mm": [
+            2.3,
+            0,
+            -10.000000100000001
+          ],
+          "expected_solid": true,
+          "actual_solid": true
+        },
+        {
+          "point_mm": [
+            3.01,
+            0,
+            -10.000000100000001
+          ],
+          "expected_solid": false,
+          "actual_solid": false
+        }
+      ],
+      "artifact": ".runs/48117669-c492-44b4-ad6c-6b3397fdf452/fastener.iso4762.socket_head_cap_screw-3.brep",
+      "artifact_sha256": "ba3559ad6c9d1ae230c698675e2e834540bf5931a9ef10a37808591b0c5beabd",
+      "passed": true
+    },
+    {
+      "id": "bearing.deep_groove_ball.skt",
+      "repeat": 1,
+      "valid": true,
+      "bbox_mm": [
+        22.0000001,
+        22.0000001,
+        7.0
+      ],
+      "thread_zone_xy_mm": null,
+      "solids": 14,
+      "material_probes": [
+        {
+          "point_mm": [
+            3.99,
+            0,
+            3.5
+          ],
+          "expected_solid": false,
+          "actual_solid": false
+        },
+        {
+          "point_mm": [
+            4.01,
+            0,
+            3.5
+          ],
+          "expected_solid": true,
+          "actual_solid": true
+        }
+      ],
+      "artifact": ".runs/48117669-c492-44b4-ad6c-6b3397fdf452/bearing.deep_groove_ball.skt-1.brep",
+      "artifact_sha256": "0e9034288673a0f176941ceb527da6a19f6d962fca55c3cd85edcdfbf2c0bfd1",
+      "passed": true
+    },
+    {
+      "id": "bearing.deep_groove_ball.skt",
+      "repeat": 2,
+      "valid": true,
+      "bbox_mm": [
+        22.0000001,
+        22.0000001,
+        7.0
+      ],
+      "thread_zone_xy_mm": null,
+      "solids": 14,
+      "material_probes": [
+        {
+          "point_mm": [
+            3.99,
+            0,
+            3.5
+          ],
+          "expected_solid": false,
+          "actual_solid": false
+        },
+        {
+          "point_mm": [
+            4.01,
+            0,
+            3.5
+          ],
+          "expected_solid": true,
+          "actual_solid": true
+        }
+      ],
+      "artifact": ".runs/48117669-c492-44b4-ad6c-6b3397fdf452/bearing.deep_groove_ball.skt-2.brep",
+      "artifact_sha256": "0e9034288673a0f176941ceb527da6a19f6d962fca55c3cd85edcdfbf2c0bfd1",
+      "passed": true
+    },
+    {
+      "id": "bearing.deep_groove_ball.skt",
+      "repeat": 3,
+      "valid": true,
+      "bbox_mm": [
+        22.0000001,
+        22.0000001,
+        7.0
+      ],
+      "thread_zone_xy_mm": null,
+      "solids": 14,
+      "material_probes": [
+        {
+          "point_mm": [
+            3.99,
+            0,
+            3.5
+          ],
+          "expected_solid": false,
+          "actual_solid": false
+        },
+        {
+          "point_mm": [
+            4.01,
+            0,
+            3.5
+          ],
+          "expected_solid": true,
+          "actual_solid": true
+        }
+      ],
+      "artifact": ".runs/48117669-c492-44b4-ad6c-6b3397fdf452/bearing.deep_groove_ball.skt-3.brep",
+      "artifact_sha256": "0e9034288673a0f176941ceb527da6a19f6d962fca55c3cd85edcdfbf2c0bfd1",
+      "passed": true
+    },
+    {
+      "id": "thread.iso_metric_external",
+      "repeat": 1,
+      "valid": true,
+      "bbox_mm": [
+        6.0000002056623,
+        5.9999005085839165,
+        8.000000200000004
+      ],
+      "thread_zone_xy_mm": null,
+      "solids": 9,
+      "material_probes": [],
+      "artifact": ".runs/48117669-c492-44b4-ad6c-6b3397fdf452/thread.iso_metric_external-1.brep",
+      "artifact_sha256": "b0c7dc1097762d7a973ac83e696c6bf1b373ae4c77862aa99408f46352a3e339",
+      "passed": true
+    },
+    {
+      "id": "thread.iso_metric_external",
+      "repeat": 2,
+      "valid": true,
+      "bbox_mm": [
+        6.0000002056623,
+        5.9999005085839165,
+        8.000000200000004
+      ],
+      "thread_zone_xy_mm": null,
+      "solids": 9,
+      "material_probes": [],
+      "artifact": ".runs/48117669-c492-44b4-ad6c-6b3397fdf452/thread.iso_metric_external-2.brep",
+      "artifact_sha256": "b0c7dc1097762d7a973ac83e696c6bf1b373ae4c77862aa99408f46352a3e339",
+      "passed": true
+    },
+    {
+      "id": "thread.iso_metric_external",
+      "repeat": 3,
+      "valid": true,
+      "bbox_mm": [
+        6.0000002056623,
+        5.9999005085839165,
+        8.000000200000004
+      ],
+      "thread_zone_xy_mm": null,
+      "solids": 9,
+      "material_probes": [],
+      "artifact": ".runs/48117669-c492-44b4-ad6c-6b3397fdf452/thread.iso_metric_external-3.brep",
+      "artifact_sha256": "b0c7dc1097762d7a973ac83e696c6bf1b373ae4c77862aa99408f46352a3e339",
+      "passed": true
+    }
+  ]
+}

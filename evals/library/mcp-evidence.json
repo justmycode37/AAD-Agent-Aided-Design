@@ -1,0 +1,146 @@
+{
+  "source_sha256": {
+    "quality/__init__.py": "64a7114591c7720ba294fd1db1b3c3ed8921cf4624bd603f0777dbadd123eef9",
+    "quality/_checks.py": "fdaab2a285853137876c74d4be9aec48f0caba88c53a4233692d0b068214216b",
+    "quality/catalog.py": "c81fe4bf2d5f5e5c2538668a65e230fb7713db20168333f3a089e529ac81556b",
+    "quality/materials.py": "33482804ffe970e0a2688514a2c51e91199125f0716fdcaa1b0145f87a66d52f",
+    "quality/process.py": "5ce1b9525f52a1ff4f5f8e1d8cdc145de4885ccba68e9e30826e79489b449f07",
+    "quality/process_geometry.py": "8989456327d256b992d532c0f0d6884df3ec2b005849565aef5f0b91a9453e2c",
+    "quality/process_profiles.py": "fd33d1195299f6148f6f3818ad8448e413ffe39cdcfe0f13b25b1fdb0eae7dfa",
+    "quality/schema.py": "4f257ec560bb90637194a02a8561c73325554c998f0b4c89d751ea829cb5a5da",
+    "quality/spec.py": "7f54bcfac0a7a96ced15503aa5f04fd528df4f5ffa4919e06ea8db1e243d2a3d",
+    "quality/spec_geometry.py": "974810849f65b416bc27f1fd74aff734ad8902c3b820ef8ec5241963bfa324de",
+    "quality/standard_parts.py": "3c4442b5bde2e2eb8e608b93381f7fd56b954f24e766cae5d27cf780c3716914",
+    "platform/__init__.py": "4cc70b2a13a8b631ecd0a6de2d82d2b08e9303db9f3d22724634ccf1a9431cc0",
+    "platform/adapter.py": "bca6eb20c217ec3d5106245caff5a7989faeceb9ba0f6ec0ea8ec8f229f24d06",
+    "platform/cli.py": "07ba59d39268218dfac41a22dc2d8bc6cae2c1a2f7f1f2b2700f1e08e34044f9",
+    "platform/clients/__init__.py": "56456ce9944c2b56aa61848dd585caa05190f52634507092a7ee1a439f83487a",
+    "platform/clients/_formats.py": "5ce6f29cff53c98cb2773864ec4bdb7e427351478322030b0ce25e034eea829b",
+    "platform/clients/_writers.py": "f8dde00133ba26fba6105ef50e5eecc1b807a3cec6956a10343a2c90ff4d24d3",
+    "platform/config.py": "f0a830760e4d07910f5dd3d78e9942d1bfc3d6f6c566593d58110593f4329136",
+    "platform/daemon/__init__.py": "b8ec29e8a1cf933fcd536c631dca378a13d3d2966cd98a02f7a077c88be6e37b",
+    "platform/daemon/__main__.py": "540fd0a5992ca535482a9d44b2e268ce3a39bb47a0576f301214afa5ef4494b9",
+    "platform/daemon/backend.py": "957f1750fab11007eb253a7dd1edf89c0de5c6722a1f98fb342d8746dc165916",
+    "platform/daemon/envelope.py": "6e2e14ffa3127dba1edb965277dfe3cc7bb45da1e6ca9b30619b8fcef07c530e",
+    "platform/daemon/handlers.py": "b79ac5011b1c0b61c0a561aa0e6c56f98e43e87bd677b5c01f78a2f72078e320",
+    "platform/daemon/ops_client.py": "700014b6463316ce8c40c7d61376a261d3501a03cf684677c8913d943f9ff47b",
+    "platform/daemon/patching.py": "859a6811a8866c4874b34fae007963407e18ed9cd08fcdb46804bb198b7bd4e7",
+    "platform/daemon/projects.py": "429b4e2f227528379e5b1f70fdd9405fb81668fa34b3d4aaf878d2fc88edbfa7",
+    "platform/daemon/scenes.py": "5de331a151578da60c877c73221e8e26d2b164320d8409038ea7fa97cd5339c1",
+    "platform/daemon/server.py": "d7d26dd583b26266ddb1dd80b69e4fb86b760d13f4d708f69b71fd8aab0cc775",
+    "platform/daemon/window.py": "1302cfe322c22112891b6c942ea69c123cecc8f29d5a0d103481cbfcbd3c9993",
+    "platform/daemon_ctl.py": "761ac6bc8a3d32ca95634a282e25b263cd5aea463a2e2c683f9daac14bbf4dc0",
+    "platform/doctor.py": "192cd4dfe8689d052ea6cbc9eed5f987be554587caa5a18e9c59e5c35cad7c39",
+    "platform/ops.py": "9aa2fca8e15292a1bafa2b14f107229f3c03fc770317aca6cc9904121b83a8c6",
+    "platform/paths.py": "feeaae6471772119a53ece747db1ba4565a03b2d067c53b11223fcec626229c5",
+    "platform/prewarm.py": "bcd685110717cdffdc1b4dcb6bad4dec8d396930a818a7b723050090e7a7829d",
+    "platform/rpc.py": "a7f4ac502425aeb8abf6167f49863f9de22d1d3f2abb42b419f9f5f85a60be70",
+    "platform/specs.py": "d3dae085f01b34aa22632acfceb4009ba47d66960a9107349d162d2894b46cc6",
+    "platform/stubs/__init__.py": "7cea8bce35f68c46b221695e123e03ea71e91b4e9549074ae269c8d6752145ae",
+    "platform/stubs/scene.py": "d818361499cf99f55325b57a13bcc55dd9111d7bed064c01b0815801ce2a10d9",
+    "platform/tools.py": "6c9539faae271e09317889308743c19e8c6a378c7b104061e7b4a67de718f319",
+    "platform/viewer/__init__.py": "01619f8d7248595671e9a853d62296b76fe254507039510228ba687355df89f4",
+    "guidance/playbooks/build123d-mistakes.md": "3156b52debfdabf12e19ffdb4beae18f149ff8e8e213491d03788cd044338f50",
+    "guidance/playbooks/core-workflow.md": "bc7db46a12f178ffc1f063438242269c3bc51314c1dfe6fdb752d155d28a9172",
+    "guidance/playbooks/failure-recipes.md": "11bb02dea8955c1674393dd90f9a206a97607e204084b88439d6e74b4cf4faf6",
+    "guidance/playbooks/family-brackets.md": "5a092b89b1019a8bc63f9958b614fcb3903a44ea6bb1270da3571e78a959785b",
+    "guidance/playbooks/family-enclosures.md": "0ad316df506fecea4ef76d056677a7cf996adaba19fb343bfbe720afd434eec7",
+    "guidance/playbooks/family-gears.md": "1e9072a4b5b53cc1109141781a5d219871c0379a37b1b3d868ccc418a7617515",
+    "guidance/playbooks/family-hinges.md": "0e0880f97f1f91da9662904b9cf09ee7a64fd0659f26c5248f0b2d176d669eb5",
+    "guidance/playbooks/family-snap-fits.md": "5dd6167bc69aef017af5c81cc37a9ad1f9cf665d2cd394ea728a03013b0375d9",
+    "guidance/playbooks/family-threads.md": "65ecc9ff8765ce21cb86ec9138d2ac72b7a764e2657d1a9144f0a9da23d1fd6f",
+    "guidance/playbooks/process-cnc.md": "25866b17467f3fd2afba5087642970a83c5f0987c75825edd080e9952db4f652",
+    "guidance/playbooks/process-fdm.md": "abc481a0def72e1bee49156b784521c8d31ffeefc9980d187d9112bf7d6596b8",
+    "guidance/playbooks/process-injection.md": "5d119f090500aa2233ec0928346deef8b8f781686f11c4f167f9e3958f8c1500",
+    "guidance/playbooks/process-laser.md": "4d93c9143e1a3f533cf0f48b343926ea3daf7a6b6ea1d2ef0e0a1a871341c1fc",
+    "guidance/playbooks/process-sheet-metal.md": "2a98557afef449e3fd402e1d312ebd44d97a4eef5944f59db26e5d5bf58bd476",
+    "guidance/playbooks/process-sla.md": "f7bf6ed6f6475b470fbed5dce59da142e475044b414cd6ce654c2bf858b33156",
+    "guidance/playbooks/render-review-rubric.md": "efbc1a59a7f92b9c08ac2b4061d294bd7d4182eaf801b4694cb42f09be8a7fd8",
+    "guidance/playbooks/spec-evidence.md": "056f5f19a12e8037cf46536a86b16a3e21e4bd8840e1f70575b0b4ae10cfdcf4",
+    "guidance/server-instructions.txt": "a84a525340b151e3da34deb5cc7ee7ee48f5ee1aa212cebe3ec35968b0926158",
+    "guidance/tool-descriptions.json": "846b47afd7bc25f593ac5f39339c82fc345f26549dc44afcecc83888d1dafc27"
+  },
+  "complete": true,
+  "passed": true,
+  "scope": "deterministic MCP integration; no model-quality or timing estimate",
+  "reproduce": "UV_PROJECT_ENVIRONMENT=packages/quality/.workspace-venv uv run --locked --all-packages --all-extras python evals/library/check_mcp_library.py",
+  "versions": {
+    "aiad": "0.0.1",
+    "aiad-quality": "0.1.0",
+    "mcp": "2.3.0"
+  },
+  "catalog_sha256": "c81fe4bf2d5f5e5c2538668a65e230fb7713db20168333f3a089e529ac81556b",
+  "probe_sha256": "09230afa542e7d15bb73049e90c699121b81292a8d146a4e6fb475c245f630d7",
+  "unknown_id_returned_not_found": true,
+  "path_id_rejected_as_bad_input": true,
+  "records": [
+    {
+      "args": {
+        "action": "search",
+        "kind": "part"
+      },
+      "ok": true,
+      "total": 3
+    },
+    {
+      "args": {
+        "action": "get",
+        "kind": "part",
+        "id": "bearing.deep_groove_ball.skt"
+      },
+      "ok": true,
+      "returned_id": "bearing.deep_groove_ball.skt"
+    },
+    {
+      "args": {
+        "action": "search",
+        "kind": "material"
+      },
+      "ok": true,
+      "total": 4
+    },
+    {
+      "args": {
+        "action": "get",
+        "kind": "material",
+        "id": "aluminum_6061"
+      },
+      "ok": true,
+      "returned_id": "aluminum_6061"
+    },
+    {
+      "args": {
+        "action": "search",
+        "kind": "playbook"
+      },
+      "ok": true,
+      "total": 17
+    },
+    {
+      "args": {
+        "action": "get",
+        "kind": "playbook",
+        "id": "build123d.mistakes.v1"
+      },
+      "ok": true,
+      "returned_id": "build123d.mistakes.v1"
+    },
+    {
+      "args": {
+        "action": "search",
+        "kind": "api"
+      },
+      "ok": true,
+      "total": 3
+    },
+    {
+      "args": {
+        "action": "get",
+        "kind": "api",
+        "id": "api.build123d"
+      },
+      "ok": true,
+      "returned_id": "api.build123d"
+    }
+  ]
+}

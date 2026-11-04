@@ -1,0 +1,105 @@
+"""Exercise actual catalog routing, bounded lookup and installed-resource behavior."""
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+
+import pytest
+
+from aiad_quality import library
+from aiad_quality.catalog import server_instruction_candidate, tool_description_candidates
+
+
+def test_search_returns_bounded_summaries_and_get_loads_one_entry():
+    search = library("search")
+    assert len(search["items"]) == 5
+    assert search["total"] > len(search["items"])
+    assert search["truncated"] is True
+    assert all(set(item) == {"id", "kind", "title", "summary"} for item in search["items"])
+    for summary in search["items"]:
+        result = library("get", kind=summary["kind"], id=summary["id"])
+        assert result["found"] and result["item"]["id"] == summary["id"]
+    assert len(json.dumps(search)) < 2500
+
+
+def test_material_lookup_is_exact_and_defensive():
+    result = library("get", kind="material", id="pla")
+    assert result["found"]
+    assert result["item"]["density_g_cm3"] == 1.24
+    result["item"]["assumptions"]["porosity"] = "mutated"
+    assert "mutated" not in library("get", kind="material", id="pla")["item"]["assumptions"]["porosity"]
+    assert library("get", kind="material", id="PLA")["found"] is False
+
+
+def test_playbook_and_api_search_find_content_without_dumping_text():
+    results = library("search", kind="playbook", query="counterbore")
+    assert results["total"] > 0
+    assert all(item["kind"] == "playbook" and "text" not in item for item in results["items"])
+    entry = library("get", kind="playbook", id=results["items"][0]["id"])["item"]
+    assert "counterbore" in entry["text"].casefold()
+    assert entry["candidate_status"] == "unmeasured"
+    assert library("search", kind="api", query="nominal mass")["total"] > 0
+    assert library("search", query="zzzznotinthecatalogzzzz")["items"] == []
+
+
+@pytest.mark.parametrize("args", [
+    {"action": "execute"}, {"action": []}, {"action": "search", "kind": []},
+    {"action": "search", "kind": "secret"}, {"action": "search", "query": 1},
+    {"action": "search", "query": "x" * 513}, {"action": "search", "id": "pla"},
+    {"action": "get"}, {"action": "get", "id": "../secrets"},
+    {"action": "get", "id": "/etc/passwd"}, {"action": "get", "id": "pla", "query": "pla"},
+])
+def test_catalog_arguments_cannot_be_paths_or_code(args):
+    with pytest.raises(ValueError):
+        library(**args)
+
+
+def test_all_catalog_lookups_are_kernel_free_in_fresh_process():
+    result = subprocess.run([sys.executable, "-c", """
+import sys
+from aiad_quality import library
+for kind in ('part','material','playbook','api'):
+    result=library('search',kind=kind)
+    assert result['total']>0, kind
+    for entry in result['items']:
+        assert library('get',kind=kind,id=entry['id'])['found']
+assert not any(n=='build123d' or n=='OCP' or n.startswith('OCP.') or n=='bd_warehouse' for n in sys.modules)
+"""], capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0, result.stderr
+
+
+def test_repeated_public_calls_do_not_replace_the_function_with_a_module():
+    result = subprocess.run([sys.executable, "-c", """
+import aiad_quality
+for _ in range(3):
+    assert callable(aiad_quality.library)
+    assert aiad_quality.library('get',kind='material',id='pla')['found']
+    assert aiad_quality.library('search',kind='part')['total']>0
+"""], capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0, result.stderr
+
+
+def test_description_candidates_cover_contract_without_claiming_improvement():
+    candidates = tool_description_candidates()
+    assert len(candidates["model_visible"]) == 13
+    assert len(candidates["app_only"]) == 4
+    for description in candidates["app_only"].values():
+        assert description.startswith("Internal viewer tool. Do not call.")
+    for group in ("model_visible", "app_only"):
+        assert all("unmeasured" in desc.casefold() for desc in candidates[group].values())
+    assert "unmeasured" in server_instruction_candidate().casefold()
+
+
+def test_published_core_example_builds_the_requested_geometry():
+    from aiad_quality.catalog import _guidance_root
+    text = _guidance_root().joinpath('playbooks/core-workflow.md').read_text(encoding='utf-8')
+    source = '\n'.join(line[4:] for line in text.splitlines() if line.startswith('    '))
+    assert 'result = bracket.part' in source
+    namespace = {}
+    exec(compile(source, 'core-workflow.md', 'exec'), namespace)
+    shape = namespace['result']
+    assert shape.is_valid and len(shape.solids()) == 1
+    box = shape.bounding_box().size
+    assert (box.X, box.Y, box.Z) == pytest.approx((60, 40, 4), abs=1e-6)
+    assert shape.volume == pytest.approx(60*40*4 - 4*3.141592653589793*2.2**2*4, abs=1e-6)

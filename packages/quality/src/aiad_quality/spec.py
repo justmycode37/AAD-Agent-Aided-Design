@@ -77,6 +77,7 @@ def _check(
     fix_hint: str,
     selector: str | None = None,
     feature: str | None = None,
+    assumptions: str | None = None,
 ) -> Any:
     fields: dict[str, Any] = {
         "id": check_id,
@@ -92,6 +93,8 @@ def _check(
         fields["selector"] = selector
     if feature is not None:
         fields["feature"] = feature
+    if assumptions is not None:
+        fields["assumptions"] = assumptions
     return make_check(**fields)
 
 
@@ -385,10 +388,11 @@ def _eval_mass(req_id: str, level: str, req: dict[str, Any], unit: str, factor: 
         req_id,
         level=level,
         status=_comparison_status(matches, level),
-        message=f"Mass requirement {req_id!r} {'is satisfied' if matches else 'does not match the geometry-derived mass'}.",
-        expected=f"material {material_id}: {_range_text(mass_range)} g",
-        actual=f"{_text_number(mass_g)} g from B-rep volume and {density:g} g/cm³ density",
-        fix_hint="Change the modeled volume or choose a sourced material entry that matches the part.",
+        message=f"Nominal mass estimate for {req_id!r} {'satisfies the requested range' if matches else 'does not match the requested range'}; finished-part mass is unproven.",
+        expected=f"nominal mass using material {material_id}: {_range_text(mass_range)} g",
+        actual=f"{_text_number(mass_g)} g from B-rep volume and {density:g} g/cm³ density; nominal fully dense estimate",
+        assumptions=f"Material definition: {material.get('name', material_id)}. Fully dense solid; no infill, moisture, coatings or temperature adjustment. Nominal density, not a certified finished-part mass. Source: {material.get('source_url', 'not supplied by material provider')}",
+        fix_hint="For nominal mass, change modeled volume or choose the matching sourced material. Measure the manufactured part when finished-part mass must be established.",
         selector="model B-rep volume",
     )
 
