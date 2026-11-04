@@ -702,6 +702,7 @@ class TrialResult:
     backend_origin: TrialOrigin
     state: str
     sample_eligible: bool
+    provisional_eligible: bool
     eligibility_reasons: tuple[str, ...]
     completed: bool
     stop_reason: str
@@ -754,6 +755,7 @@ class TrialResult:
             "backend_origin": self.backend_origin,
             "state": self.state,
             "sample_eligible": self.sample_eligible,
+            "provisional_eligible": self.provisional_eligible,
             "eligibility_reasons": list(self.eligibility_reasons),
             "completed": self.completed,
             "stop_reason": self.stop_reason,

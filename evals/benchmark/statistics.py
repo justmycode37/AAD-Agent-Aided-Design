@@ -47,18 +47,25 @@ class MetricObservation:
     task_id: str
     repetition: int
     value: float | None
+    arm_id: str
 
     def __post_init__(self) -> None:
         _identity(self.task_id, self.repetition)
+        if not isinstance(self.arm_id, str) or not self.arm_id.strip():
+            raise ValueError("arm_id must bind one provider/model/backend/budget/ablation configuration")
         if self.value is not None:
             _finite(self.value, "value")
 
 
 def _index(points: Iterable[MetricObservation]) -> dict[tuple[str, int], float | None]:
     result: dict[tuple[str, int], float | None] = {}
+    arms = set()
     for point in points:
         if not isinstance(point, MetricObservation):
             raise ValueError("expected MetricObservation records")
+        arms.add(point.arm_id)
+        if len(arms) > 1:
+            raise ValueError("mixed comparison arms")
         key = (point.task_id, point.repetition)
         if key in result:
             raise ValueError(f"duplicate task/repetition: {key!r}")
@@ -66,14 +73,30 @@ def _index(points: Iterable[MetricObservation]) -> dict[tuple[str, int], float |
     return result
 
 
-def task_summary(points: Iterable[MetricObservation]) -> dict:
+def _expected_keys(expected: Iterable[tuple[str, int]]) -> set[tuple[str, int]]:
+    result = set()
+    for key in expected:
+        if not isinstance(key, tuple) or len(key) != 2:
+            raise ValueError("expected matrix entries must be task/repetition tuples")
+        _identity(*key)
+        if key in result:
+            raise ValueError("duplicate cell in expected run matrix")
+        result.add(key)
+    return result
+
+
+def task_summary(points: Iterable[MetricObservation], *, expected: Iterable[tuple[str, int]]) -> dict:
     """Equal weight per task; missing observations are counted, never zeroed.
 
     A task with any missing value has an unknown mean. Known-only means remain
     visible for diagnosis but cannot be mistaken for a complete headline result.
     Sample standard deviations use n-1; n < 2 is unknown, not zero variance.
     """
+    points = list(points)
     indexed = _index(points)
+    planned = _expected_keys(expected)
+    missing = sorted(planned - set(indexed))
+    unexpected = sorted(set(indexed) - planned)
     grouped: dict[str, list[tuple[int, float | None]]] = defaultdict(list)
     for (task_id, repeat), value in indexed.items():
         grouped[task_id].append((repeat, value))
@@ -94,10 +117,14 @@ def task_summary(points: Iterable[MetricObservation]) -> dict:
             "known_only_sample_sd": statistics.stdev(known) if len(known) > 1 else None,
         })
     means = [task["mean"] for task in tasks if task["mean"] is not None]
-    complete = bool(tasks) and len(means) == len(tasks)
+    complete = bool(tasks) and len(means) == len(tasks) and not missing and not unexpected
     return {
         "unit": "task; repeated trials are clustered within their task",
         "n_tasks": len(tasks),
+        "arm_id": points[0].arm_id if points else None,
+        "n_expected_trials": len(planned),
+        "missing": missing,
+        "unexpected": unexpected,
         "n_trials": len(indexed),
         "n_unknown": sum(value is None for value in indexed.values()),
         "complete": complete,
@@ -121,6 +148,7 @@ def paired_task_bootstrap(
     candidate: Iterable[MetricObservation],
     baseline: Iterable[MetricObservation],
     *,
+    expected: Iterable[tuple[str, int]],
     statistic: str = "difference",
     confidence: float = 0.95,
     resamples: int = 10_000,
@@ -142,9 +170,12 @@ def paired_task_bootstrap(
         raise ValueError("resamples must be an integer from 1000 to 1000000")
     if type(seed) is not int:
         raise ValueError("seed must be an integer")
+    candidate, baseline = list(candidate), list(baseline)
     left, right = _index(candidate), _index(baseline)
-    missing_left = sorted(set(right) - set(left))
-    missing_right = sorted(set(left) - set(right))
+    planned = _expected_keys(expected)
+    missing_left = sorted(planned - set(left))
+    missing_right = sorted(planned - set(right))
+    unexpected = sorted((set(left) | set(right)) - planned)
     result = {
         "method": "paired task-cluster percentile bootstrap",
         "statistic": statistic,
@@ -155,11 +186,15 @@ def paired_task_bootstrap(
         "n_tasks": len({key[0] for key in set(left) | set(right)}),
         "candidate_missing": missing_left,
         "baseline_missing": missing_right,
+        "unexpected": unexpected,
+        "n_expected_trials": len(planned),
+        "candidate_arm_id": candidate[0].arm_id if candidate else None,
+        "baseline_arm_id": baseline[0].arm_id if baseline else None,
         "estimate": None,
         "interval": None,
         "bootstrap_sample_sd": None,
     }
-    if missing_left or missing_right:
+    if missing_left or missing_right or unexpected:
         return {**result, "reason": "unpaired task/repetition matrix"}
     if not left or any(value is None for value in (*left.values(), *right.values())):
         return {**result, "reason": "empty or unknown observations"}
@@ -211,9 +246,12 @@ class AuditObservation:
     verdict: str  # good, bad, indeterminate
     coverage: str  # complete, bounded
     origin: str  # real_agent, scripted_control
+    arm_id: str
 
     def __post_init__(self) -> None:
         _identity(self.task_id, self.repetition)
+        if not isinstance(self.arm_id, str) or not self.arm_id.strip():
+            raise ValueError("arm_id must identify one comparison configuration")
         if self.native_verified is not None and type(self.native_verified) is not bool:
             raise ValueError("native_verified must be boolean or None")
         if self.verdict not in {"good", "bad", "indeterminate"}:
@@ -246,6 +284,7 @@ def false_verified_summary(
     observations: Iterable[AuditObservation],
     *,
     selected: Iterable[tuple[str, int]],
+    arm_id: str,
     sampling_plan_sha256: str,
     sampling_assumptions: str,
     confidence: float = 0.95,
@@ -260,6 +299,8 @@ def false_verified_summary(
     families or scripted controls. Invoke separately for each comparison arm.
     """
     confidence = _confidence(confidence)
+    if not isinstance(arm_id, str) or not arm_id.strip():
+        raise ValueError("arm_id is required")
     threshold = _finite(threshold, "threshold")
     if not 0 < threshold < 1:
         raise ValueError("threshold must be strictly between zero and one")
@@ -271,6 +312,8 @@ def false_verified_summary(
     for point in observations:
         if not isinstance(point, AuditObservation):
             raise ValueError("expected AuditObservation records")
+        if point.arm_id != arm_id:
+            raise ValueError("mixed comparison arms in native false-verified audit")
         key = point.task_id, point.repetition
         if key in indexed:
             raise ValueError("duplicate task/repetition audit")
@@ -310,6 +353,7 @@ def false_verified_summary(
         "upper": None, "method": "one-sided Clopper-Pearson", "confidence": confidence,
     }
     return {
+        "arm_id": arm_id,
         "sampling_plan_sha256": sampling_plan_sha256,
         "sampling_assumptions": sampling_assumptions,
         "inference_scope": "selected native-verified trials, at most one trial per task, one comparison arm",

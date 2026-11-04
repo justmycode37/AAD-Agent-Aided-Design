@@ -260,7 +260,7 @@ def _provider_tool_specs(tools: Sequence[ToolSpec]) -> tuple[ToolSpec, ...]:
 
 class OpenAIResponsesAdapter:
     family = "openai"
-    origin = "live"
+    origin = "custom"
 
     def __init__(self, client: Any, model: str):
         if not isinstance(model, str) or not model.strip():
@@ -424,7 +424,7 @@ class OpenAIResponsesAdapter:
 
 class AnthropicMessagesAdapter:
     family = "anthropic"
-    origin = "live"
+    origin = "custom"
 
     def __init__(self, client: Any, model: str):
         if not isinstance(model, str) or not model.strip():
@@ -577,9 +577,13 @@ def create_provider_adapter(family: str, model: str):
     if family == "openai":
         from openai import AsyncOpenAI
 
-        return OpenAIResponsesAdapter(AsyncOpenAI(max_retries=0), model)
+        adapter = OpenAIResponsesAdapter(AsyncOpenAI(max_retries=0), model)
+        adapter.origin = "live"
+        return adapter
     if family == "anthropic":
         from anthropic import AsyncAnthropic
 
-        return AnthropicMessagesAdapter(AsyncAnthropic(max_retries=0), model)
+        adapter = AnthropicMessagesAdapter(AsyncAnthropic(max_retries=0), model)
+        adapter.origin = "live"
+        return adapter
     raise ValueError("provider must be explicitly set to openai or anthropic")

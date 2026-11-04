@@ -496,7 +496,10 @@ async def run_agent_loop(
             reasons.add(f"backend_origin_{backend_origin}")
         if missing_usage_turns:
             reasons.add("provider_usage_missing_or_invalid")
-        sample_eligible = not reasons
+        provisional_eligible = not reasons
+        # Live labels are diagnostic declarations. Only the separate host
+        # manifest validator can authenticate a sampled real-agent outcome.
+        reasons.add("host_manifest_validation_required")
         total = None if missing_usage_turns else known_input_tokens + known_output_tokens
         return TrialResult(
             task_id=stage.task_id,
@@ -513,7 +516,8 @@ async def run_agent_loop(
             trial_origin=origin,
             backend_origin=backend_origin,
             state=state,
-            sample_eligible=sample_eligible,
+            sample_eligible=False,
+            provisional_eligible=provisional_eligible,
             eligibility_reasons=tuple(sorted(reasons)),
             completed=completed,
             stop_reason=stop_reason,
@@ -820,6 +824,11 @@ async def run_agent_loop(
                 eligibility_reasons.append("provider_usage_exceeded_pre_call_reservation")
                 state = "ineligible"
                 stop_reason = "provider_usage_exceeded_pre_call_reservation"
+                break
+
+            if monotonic() >= deadline:
+                state = "deadline_exhausted"
+                stop_reason = "provider_response_arrived_after_wall_deadline"
                 break
 
             if not turn.tool_calls:

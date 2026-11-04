@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import stat
+import time
 from types import SimpleNamespace
 from typing import Any, Mapping, Sequence
 
@@ -786,3 +787,35 @@ def test_artifact_stager_bounds_bytes_and_requires_fresh_destination(tmp_path: P
     with pytest.raises(FileExistsError):
         stage_claimed_artifacts(["part.step"], solver_artifact_root=solver,
                                host_artifact_dir=tmp_path / "host", solver_write_roots=(solver,))
+
+
+def test_late_blocking_finish_is_recorded_but_not_accepted():
+    class BlockingProvider(FakeProvider):
+        async def complete(self, max_output_tokens):
+            time.sleep(0.04)
+            return make_turn(ProviderToolCall("late", "benchmark_finish", {
+                "artifacts": [], "claims_requirements_met": True, "summary": "mock late finish",
+            }), usage=make_usage())
+
+    result = asyncio.run(run_agent_loop(
+        make_config(wall_deadline_seconds=0.01), make_stage(), FakeBackend([safe_tool()]),
+        make_preflight(), provider=BlockingProvider([]), trace_sink=InMemoryTraceWriter(),
+    ))
+    assert result.state == "deadline_exhausted"
+    assert result.completed is False and result.model_claims is None
+    assert result.wall_seconds >= 0.04
+    assert result.provider_total_tokens == 120
+
+
+def test_live_labels_alone_never_authenticate_an_agent_sample():
+    provider = FakeProvider([make_turn(ProviderToolCall("finish", "benchmark_finish", {
+        "artifacts": [], "claims_requirements_met": False, "summary": "mock fixture",
+    }), usage=make_usage())])
+    backend, trace = FakeBackend([safe_tool()]), InMemoryTraceWriter()
+    provider.origin = backend.origin = trace.origin = "live"
+    result = asyncio.run(run_agent_loop(make_config(), make_stage(), backend, make_preflight(), provider=provider, trace_sink=trace))
+    assert result.provisional_eligible is True
+    assert result.sample_eligible is False
+    assert "host_manifest_validation_required" in result.eligibility_reasons
+    assert OpenAIResponsesAdapter(object(), "mock").origin == "custom"
+    assert AnthropicMessagesAdapter(object(), "mock").origin == "custom"

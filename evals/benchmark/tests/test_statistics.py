@@ -1,6 +1,7 @@
 """Synthetic statistical controls, never sampled agent outcomes."""
 
 import math
+from dataclasses import replace
 
 import pytest
 
@@ -9,22 +10,32 @@ from evals.benchmark.statistics import (
     MetricObservation,
     exact_binomial_upper,
     false_verified_summary,
-    paired_task_bootstrap,
-    task_summary,
+    paired_task_bootstrap as _paired_task_bootstrap,
+    task_summary as _task_summary,
 )
 
 
+def task_summary(records):
+    return _task_summary(records, expected=sorted({(point.task_id, point.repetition) for point in records}))
+
+
+def paired_task_bootstrap(left, right, **options):
+    expected = sorted({(point.task_id, point.repetition) for point in [*left, *right]})
+    return _paired_task_bootstrap(left, right, expected=expected, **options)
+
+
 def points(task, values):
-    return [MetricObservation(task, i, value) for i, value in enumerate(values, 1)]
+    return [MetricObservation(task, i, value, "synthetic-arm") for i, value in enumerate(values, 1)]
 
 
 def audit(task, *, verified=True, verdict="good", coverage="complete", origin="real_agent", repetition=1):
-    return AuditObservation(task, repetition, verified, verdict, coverage, origin)
+    return AuditObservation(task, repetition, verified, verdict, coverage, origin, "synthetic-arm")
 
 
 def summarize(observations, selected=None):
     return false_verified_summary(
         observations,
+        arm_id="synthetic-arm",
         selected=selected if selected is not None else [(p.task_id, p.repetition) for p in observations],
         sampling_plan_sha256="a" * 64,
         sampling_assumptions="Synthetic fixture only; no real-world inference.",
@@ -54,14 +65,14 @@ def test_unknown_and_single_sample_variance_are_not_zero():
 @pytest.mark.parametrize("value", [True, "1", math.inf, math.nan])
 def test_bad_metric_values_are_rejected(value):
     with pytest.raises(ValueError):
-        MetricObservation("task", 1, value)
+        MetricObservation("task", 1, value, "synthetic-arm")
 
 
 def test_duplicates_and_bool_repetitions_are_rejected():
     with pytest.raises(ValueError, match="duplicate"):
         task_summary(points("one", [1]) * 2)
     with pytest.raises(ValueError):
-        MetricObservation("one", True, 1)
+        MetricObservation("one", True, 1, "synthetic-arm")
 
 
 def test_paired_bootstrap_resamples_task_clusters_and_is_reproducible():
@@ -172,3 +183,30 @@ def test_bounded_good_truthy_flags_and_duplicate_audits_are_rejected():
         audit("one", verified="false")
     with pytest.raises(ValueError, match="duplicate"):
         summarize([audit("one"), audit("one")])
+
+
+def test_expected_matrix_detects_a_task_omitted_from_both_arms():
+    expected = [("one", 1), ("two", 1), ("omitted", 1)]
+    records = points("one", [1]) + points("two", [1])
+    report = _task_summary(records, expected=expected)
+    assert report["complete"] is False
+    assert report["missing"] == [("omitted", 1)]
+    comparison = _paired_task_bootstrap(records, records, expected=expected, resamples=1000)
+    assert comparison["complete"] is False
+    assert comparison["candidate_missing"] == comparison["baseline_missing"] == [("omitted", 1)]
+    assert comparison["interval"] is None
+
+
+def test_mixed_arms_are_rejected_for_metrics_and_audits():
+    records = points("one", [1]) + [replace(points("two", [1])[0], arm_id="other-arm")]
+    with pytest.raises(ValueError, match="mixed"):
+        task_summary(records)
+    with pytest.raises(ValueError, match="mixed"):
+        summarize([audit("one"), replace(audit("two"), arm_id="other-arm")])
+
+
+def test_no_implicit_expected_matrix_or_unexpected_rows():
+    with pytest.raises(TypeError):
+        _task_summary(points("one", [1]))
+    report = _task_summary(points("one", [1]) + points("extra", [1]), expected=[("one", 1)])
+    assert report["complete"] is False and report["unexpected"] == [("extra", 1)]

@@ -31,7 +31,7 @@ The parent-owned launcher should return `TrialLaunch(backend, isolation_prefligh
 - Missing or malformed provider usage stops the loop and makes the trial ineligible. The result reports known input/output sums and uses `null` for a total if any attempted generation has unknown usage. A provider call timeout also leaves usage unknown.
 - Requested MCP image blocks are sent as image input to both providers. App-only scene reads are never exposed; binary geometry payloads in structured results or text are replaced by size and digest metadata.
 - The JSONL trace is exclusive-created with mode `0600`, append-only, flushed per event, and resolved outside every configured solver write root. It stores sanitized raw provider/tool observations, hashes for the public projection, instructions and actual provider tool catalog, plus separate claim events. Auth-like values are redacted. An in-memory sink is marked `mock` and cannot yield a sample-eligible result.
-- A result is sample-eligible only when the provider, backend, and trace origins are all `live`. Fake implementations should declare `origin = "mock"`; custom production bridges must declare `origin = "live"`. A direct official MCP `ClientSession` and `ClientSessionBridge` are recognized as live.
+- Origin labels are provisional diagnostics. The loop always returns `sample_eligible=false` pending a separate host manifest validator. `provisional_eligible` means only that the loop found no local eligibility blocker. Custom provider clients default to custom origin. Forged live labels cannot authenticate a sample.
 - Artifact receipt paths remain model claims. `stage_claimed_artifacts()` is a host-side helper that accepts only existing relative files under the solver output root, rejects absolute/traversing/external/escaping-symlink claims, and copies accepted files to a destination outside all solver write roots. Copying is not geometry validation.
 - Name and argument failures are recorded only as `*_error_proxy` counters. No semantic wrong-tool label is inferred.
 
@@ -66,3 +66,5 @@ PYTHONDONTWRITEBYTECODE=1 uv run --project evals/benchmark/harness python -m pyt
 ```
 
 Those tests use fake provider/MCP implementations and the pinned official provider SDKs over in-memory HTTP transports. They must be reported as mock-origin contract tests, not real-agent outcomes or evidence about CAD quality, verified status, or manufacturability. No provider network or paid model call is made. Parent validation and integration limitations are recorded in `VALIDATION.md`.
+
+Async timeouts are cooperative. A response arriving after the deadline cannot finish the trial, but blocking code can exceed wall time before returning control. The pending host coordinator must enforce the hard deadline in a killable process and retain unknown usage after termination.
