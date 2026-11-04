@@ -169,9 +169,9 @@ def prepare(ctx, request):
         if dimension["kind"] == "hole_diameter":
             dimension["through"] = False
         if request.dimensions == "auto" and units == "in":
-            from .sheet import _format_number
-            dimension["precision"] = 3
-            dimension["display"] = _format_number(dimension["value"], 3)
+            from .sheet import _display_precision, _format_number
+            dimension["precision"] = _display_precision(dimension["value"], 3)
+            dimension["display"] = _format_number(dimension["value"], dimension["precision"])
     rows, unknown = _profile_schedules(evidence, bounds, dimensions, native_sheet) if request.dimensions == "auto" else ([], [])
     native_checks = checks(ctx)
     native_checks.append({"id": "2d.undimensioned_features", "suite": "2d", "level": "error",

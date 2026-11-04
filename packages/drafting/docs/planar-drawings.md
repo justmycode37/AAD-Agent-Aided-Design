@@ -13,8 +13,10 @@ and long-axis angle. Table X/Y coordinates refer to the minimum cut bounds;
 angles are degrees. Score/engrave line segments and circles also receive
 measured table rows. Circle width and length are its diameter; a line has no
 assigned physical width. Every numeric table cell has geometry provenance in
-`DrawingResult.dimensions`. Inch automatic values use three decimal places.
-Explicit dimensions retain the requested precision and tolerance.
+`DrawingResult.dimensions`. Inch automatic values normally use three decimal
+places. Precision expands when needed to keep a nonzero dimension or tolerance
+from printing as zero. The dimension record reports the effective precision.
+Explicit dimensions retain the requested tolerance.
 
 Reference geometry and annotation may extend beyond the cut profile. They
 participate in packing, while dimensions and zero datums still refer to the
@@ -33,6 +35,7 @@ to `verified`.
 Text remains editable annotation at its actual scaled size. A drawing whose
 source text would print below 2.5 mm raises a readable error rather than
 enlarging the modeled text. Use a suitable sheet/scale or a separate detail.
+Source annotation rotation is retained in SVG, DXF, PDF and the PNG preview.
 
 Run `python packages/drafting/examples/planar_sheet.py` from an environment with
 the package installed to regenerate the native laser-panel sample.
