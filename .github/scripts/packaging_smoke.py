@@ -42,6 +42,7 @@ BLOCKED_IMPORTS = (
     "build123d",
     "OCP",
     "vtk",
+    "vtkmodules",
     "aiad.engine",
     "aiad_render",
     "aiad_drafting",
@@ -153,7 +154,11 @@ def _isolated_environment(work_dir: Path, install_cache_dir: Path | None = None)
         raise RuntimeError(f"The isolated install cache must start empty: {paths['uv_cache']}")
 
     env = os.environ.copy()
-    for key in ("PYTHONPATH", "PYTHONHOME", "AIAD_VIEWER_HTML", "UV_PROJECT"):
+    # Overrides that could point the isolated run at another checkout or at real client configs.
+    for key in (
+        "PYTHONPATH", "PYTHONHOME", "AIAD_VIEWER_HTML", "UV_PROJECT", "UV_WORKSPACE",
+        "CODEX_HOME", "CLINE_MCP_SETTINGS_PATH", "CLINE_DATA_DIR", "CLINE_DIR",
+    ):  # fmt: skip
         env.pop(key, None)
     env.update(
         {
@@ -363,7 +368,14 @@ def _stdio_initialize(
                     except (ValueError, TypeError) as exc:
                         error = f"invalid initialize JSON: {exc}"
                     else:
-                        if isinstance(candidate, dict) and candidate.get("id") == 1 and isinstance(candidate.get("result"), dict):
+                        result_body = candidate.get("result") if isinstance(candidate, dict) else None
+                        if (
+                            isinstance(result_body, dict)
+                            and candidate.get("id") == 1
+                            and result_body.get("serverInfo", {}).get("name") == "aiad"
+                            and isinstance(result_body.get("protocolVersion"), str)
+                            and isinstance(result_body.get("capabilities"), dict)
+                        ):
                             response = candidate
                         else:
                             error = f"unexpected initialize response: {candidate!r}"
@@ -544,7 +556,7 @@ def _doctor(executable: Path, *, cwd: Path, env: dict[str, str]) -> dict[str, An
     required_checks = ("project_create", "project_build", "project_show", "scene_integrity", "render", "export")
     checks = {check.get("id"): check for check in result.get("checks", []) if isinstance(check, dict)}
     failed = [name for name in required_checks if checks.get(name, {}).get("status") != "pass"]
-    result["required_cad_checks_passed"] = list(required_checks)
+    result["required_cad_checks_passed"] = [name for name in required_checks if name not in failed]
     build_message = checks.get("project_build", {}).get("message", "")
     result["real_draft_part_built"] = (
         checks.get("project_build", {}).get("status") == "pass"
@@ -634,6 +646,8 @@ def main() -> int:
         build_env = os.environ.copy()
         build_env["UV_CACHE_DIR"] = str(work_dir / "uv-cache-build")
         build_env["UV_PYTHON"] = "3.12"
+        build_env.pop("UV_PROJECT", None)  # The wheels under test must come from this checkout.
+        build_env.pop("UV_WORKSPACE", None)
         build_started = time.monotonic()
         _run_logged(
             [uv, "build", "--all-packages", "--wheel", "--clear", "--out-dir", str(wheel_dir)],
@@ -808,6 +822,8 @@ def main() -> int:
                 check=False,
                 timeout=30.0,
             )
+            if stop.returncode != 0:
+                functional_errors.append(f"aiad daemon stop exited {stop.returncode}: {stop.stderr.strip()[:300]}")
             result["daemon_cleanup"] = {
                 "returncode": stop.returncode,
                 "stdout": stop.stdout.strip(),
@@ -871,6 +887,11 @@ def main() -> int:
         print(f"Machine-readable result: {result_path}", flush=True)
         print(json.dumps(result, indent=2, sort_keys=True), flush=True)
 
+    # Budget misses are reported, not fatal, because PLAN section 9 sets budgets for the reference Mac.
+    # They must stay visible on a green run, so each becomes a CI annotation.
+    if os.environ.get("GITHUB_ACTIONS"):
+        for blocker in result.get("scope", {}).get("release_blockers", []):
+            print(f"::warning title=Release blocker::{blocker}", flush=True)
     return 0 if result["status"].startswith("passed") else 1
 
 
