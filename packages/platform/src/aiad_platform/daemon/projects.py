@@ -14,7 +14,7 @@ from typing import Any
 
 from .. import __version__, paths
 
-NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z")
 GITIGNORE = ".aiad/\nexports/\n"
 
 

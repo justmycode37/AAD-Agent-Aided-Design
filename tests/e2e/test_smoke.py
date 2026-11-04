@@ -7,6 +7,8 @@ import gzip
 import hashlib
 import json
 import time
+import urllib.error
+import urllib.request
 from typing import Any
 
 import pytest
@@ -136,3 +138,34 @@ def test_stateless_protocol_envelope(mcp_process: Any) -> None:
         "tools/call", {"name": "aiad_new", "arguments": {"name": "modern"}, "_meta": meta}
     )
     assert created["structuredContent"]["ok"], created
+
+
+@pytest.mark.usefixtures("engine")
+def test_host_without_apps_gets_a_window_that_serves_the_scene(mcp_process: Any) -> None:
+    initialize(mcp_process)  # This client advertises no MCP Apps support.
+    call(mcp_process, "aiad_new", name="windowed")
+    call(mcp_process, "aiad_build", project="windowed", source=MODEL, wait_s=WAIT_S)
+
+    shown = call(mcp_process, "aiad_show", project="windowed")["structuredContent"]
+    assert shown["viewer"]["mode"] == "window"
+    url = shown["viewer"]["url"]
+    assert url.startswith("http://127.0.0.1:")
+
+    with urllib.request.urlopen(url, timeout=10) as response:
+        assert response.status == 200
+        page = response.read().decode()
+    assert "window.__AIAD_WINDOW__" in page
+
+    token = url.split("token=")[1]
+    request = urllib.request.Request(
+        url.split("/p/")[0] + "/rpc",
+        data=json.dumps({"method": "aiad_show", "params": {"project": "windowed"}}).encode(),
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:
+        result = json.load(response)
+    assert result["structuredContent"]["scene"]["scene_id"] == shown["scene"]["scene_id"]
+
+    with pytest.raises(urllib.error.HTTPError) as denied:
+        urllib.request.urlopen(url.split("?")[0], timeout=10)
+    assert denied.value.code == 401

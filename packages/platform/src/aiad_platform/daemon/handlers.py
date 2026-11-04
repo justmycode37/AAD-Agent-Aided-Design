@@ -6,14 +6,19 @@ import asyncio
 import json
 import logging
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from .. import config, viewer
 from ..rpc import INVALID_PARAMS, RpcError
 from . import backend, scenes
 from .envelope import compact, failure_envelope, sort_checks, text_for
 from .projects import Project, ProjectError, create_project, open_project
+
+if TYPE_CHECKING:
+    from .window import WindowServer
 
 log = logging.getLogger("aiadd.handlers")
 DEFAULT_WAIT_S = 30.0
@@ -35,28 +40,75 @@ class Job:
     task: asyncio.Task[dict[str, Any]] = field(repr=False)
 
 
+def viewer_mode(client: dict[str, Any] | None) -> str:
+    """Which viewer aiad_show offers. `client` is None for calls from the window itself."""
+    setting = config.get("viewer")
+    if setting == "off":
+        return "none"
+    if setting != "auto":
+        return setting
+    # A host that advertises MCP Apps renders inline. Real-host results are in docs/host-matrix.md.
+    if client is None or client.get("supports_ui"):
+        return "inline" if client is not None else "window"
+    return "window"
+
+
 class Handlers:
-    def __init__(self) -> None:
+    def __init__(self, token: str = "", on_window_start: Callable[[int], None] | None = None) -> None:
         self._locks: dict[Path, asyncio.Lock] = defaultdict(asyncio.Lock)
         self._jobs: dict[str, Job] = {}
         self._active = 0
+        self._token = token
+        self._on_window_start = on_window_start
+        self._window: WindowServer | None = None
+        self._window_lock = asyncio.Lock()
 
     @property
     def busy(self) -> bool:
-        return self._active > 0
+        return self._active > 0 or (self._window is not None and self._window.connection_count > 0)
 
     async def close(self) -> None:
         for job in self._jobs.values():
             job.task.cancel()
+        if self._window is not None:
+            await self._window.stop()
+
+    async def _ensure_window(self) -> WindowServer:
+        """Starts the HTTP server the first time a host needs a window, not at daemon startup."""
+        async with self._window_lock:
+            if self._window is None or self._window.port is None:
+                from .window import WindowServer
+
+                window = WindowServer(self._token, self.call, viewer.load_html)
+                port = await window.start()
+                self._window = window
+                if self._on_window_start is not None:
+                    self._on_window_start(port)
+            return self._window
 
     async def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         handler = getattr(self, method, None) if method.startswith("aiad_") else None
         if handler is None:
             return self._not_implemented(method, params)
         try:
-            return await handler(params)
+            result = await handler(params)
         except ProjectError as exc:
             return reply(failure_envelope(params.get("project") or params.get("name") or "", exc.code, "input", exc.message))
+        return self._attach_selection(params, result)
+
+    def _attach_selection(self, params: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+        """Picks made in a window reach the model on its next tool call for that project."""
+        structured = result.get("structured")
+        if self._window is None or "client" not in params or not isinstance(structured, dict):
+            return result
+        project = structured.get("project")
+        selection = self._window.take_selection(project) if project else []
+        if not selection:
+            return result
+        structured["user_selection"] = selection
+        lines = [f"- {item.get('kind')} {item.get('selector')}" for item in selection[:5]]
+        result["text"] = "\n".join([result.get("text", ""), "The user selected in the viewer:", *lines])
+        return result
 
     def _not_implemented(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         if not method.startswith("aiad_"):
@@ -269,7 +321,23 @@ class Handlers:
             },
             next=_next_hints(status),
         )
+        await self._notify_window(project, rev, envelope, result.get("scene"))
         return reply(compact(envelope))
+
+    async def _notify_window(
+        self, project: Project, rev: int, envelope: dict[str, Any], scene: dict[str, Any] | None
+    ) -> None:
+        """An open window follows every new revision. A failure here must not fail the build."""
+        if self._window is None or not self._window.has_viewers(project.name) or not scene:
+            return
+        try:
+            payload = _scene_payload(project.rev_dir(rev))
+            if payload is None:
+                return
+            await asyncio.to_thread(scenes.publish, scene["scene_id"], payload)
+            await self._window.broadcast(project.name, compact({**envelope, "scene": {**scene, "rev": rev}}))
+        except Exception as exc:
+            log.warning("window update failed: %s", exc)
 
     async def aiad_show(self, params: dict[str, Any]) -> dict[str, Any]:
         project = open_project(params.get("project", ""), params.get("client"))
@@ -302,9 +370,18 @@ class Handlers:
             "metrics": meta.get("metrics"),
             "checks_summary": meta.get("checks_summary"),
             "scene": scene,
-            "viewer": {"mode": "inline"},
+            "viewer": await self._viewer_for(project.name, params.get("client")),
         }
         return reply(compact(envelope))
+
+    async def _viewer_for(self, project: str, client: dict[str, Any] | None) -> dict[str, Any]:
+        mode = viewer_mode(client)
+        if mode != "window":
+            return {"mode": mode}
+        window = await self._ensure_window()
+        if client is not None:  # A call from the window itself must not open another one.
+            await asyncio.to_thread(window.open_once, project)
+        return {"mode": "window", "url": window.url(project)}
 
     async def aiad_scene_read(self, params: dict[str, Any]) -> dict[str, Any]:
         try:

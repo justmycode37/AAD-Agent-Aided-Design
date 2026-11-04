@@ -85,6 +85,7 @@ def aiad_env() -> Iterator[dict[str, str]]:
             "HOME": str(home),
             "AIAD_HOME": str(home / ".aiad"),
             "AIAD_IDLE_TIMEOUT_S": "60",
+            "AIAD_NO_BROWSER": "1",
         }
         yield env
         info = home / ".aiad" / "run" / "aiadd.json"

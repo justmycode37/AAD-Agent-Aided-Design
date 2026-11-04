@@ -32,8 +32,9 @@ def _idle_timeout() -> float:
 
 class Daemon:
     def __init__(self) -> None:
-        self.handlers = Handlers()
         self.token = secrets.token_urlsafe(32)
+        self.handlers = Handlers(self.token, self._on_window_start)
+        self.http_port: int | None = None
         self.started = time.time()
         self.clients: set[asyncio.StreamWriter] = set()
         self.last_activity = time.monotonic()
@@ -62,10 +63,14 @@ class Daemon:
             paths.daemon_info_path().unlink(missing_ok=True)
             log.info("aiadd stopped")
 
+    def _on_window_start(self, port: int) -> None:
+        self.http_port = port
+        self._write_info(paths.socket_path())
+
     def _write_info(self, sock: Path) -> None:
         info = {
             "pid": os.getpid(),
-            "http_port": None,
+            "http_port": self.http_port,
             "token": self.token,
             "version": __version__,
             "protocol": PROTOCOL,
