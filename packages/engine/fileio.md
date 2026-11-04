@@ -38,8 +38,10 @@ to a set of exports. Unknown options are errors.
 | `tolerance` | `0.001` | Positive linear tessellation deflection in `ctx.units`, for STL, 3MF and GLB. |
 | `angular_tolerance` | `0.1` | Positive angular tessellation deflection in radians, for STL, 3MF and GLB. |
 
-These are numerical settings, not manufacturing limits. STEP export requires a
-finite, positive-volume solid so the relative comparison is defined. The STEP
+These are numerical settings, not manufacturing limits.
+Mesh exports use fresh absolute OCCT deflection in the context's coordinate
+units, including when a source already has cached triangulation.
+STEP export requires a finite, positive-volume solid so the relative comparison is defined. The STEP
 writer uses build123d 0.13's XDE document builder and OCP 8's CAF writer:
 build123d 0.13's `export_step` was observed to emit an AP214 header even when
 OCCT's AP242 setting was selected. The native STEP settings are restored after

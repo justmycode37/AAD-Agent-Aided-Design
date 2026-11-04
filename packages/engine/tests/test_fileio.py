@@ -217,6 +217,63 @@ class FileIOTests(unittest.TestCase):
         self.assertEqual(len(data), 84 + triangles * 50)
         self.assert_size(bd.import_stl(path), (2, 3, 4))
 
+    def mesh_triangle_count(self, path: Path, fmt: str) -> int:
+        if fmt == "stl":
+            return struct.unpack_from("<I", path.read_bytes(), 80)[0]
+        if fmt == "3mf":
+            reader = bd.Mesher()
+            reader.read(path)
+            return sum(reader.triangle_counts)
+        gltf = GLTF2().load_binary(str(path))
+        return sum(gltf.accessors[p.indices].count // 3 for mesh in gltf.meshes for p in mesh.primitives)
+
+    def test_mesh_deflection_uses_physical_coordinate_units_for_every_format(self) -> None:
+        for fmt in ("stl", "3mf", "glb"):
+            counts = []
+            for units, scale in (("mm", 1), ("in", 25.4)):
+                with self.subTest(fmt=fmt, units=units):
+                    shape = bd.Cylinder(25.4 / scale, 50.8 / scale)
+                    path = export(self.context(units, shape), fmt, self.job / f"physical-{units}.{fmt}",
+                                  tolerance=0.1 / scale, angular_tolerance=2.0)
+                    counts.append(self.mesh_triangle_count(path, fmt))
+            self.assertGreater(counts[0], 0)
+            self.assertEqual(counts[0], counts[1])
+
+    def test_stl_circle_chords_meet_configured_absolute_deflection(self) -> None:
+        radius = 25.4
+        path = export(self.context(shape=bd.Cylinder(radius, 50.8)), "stl", self.job / "chords.stl",
+                      tolerance=0.1, angular_tolerance=2.0)
+        data = path.read_bytes()
+        count = struct.unpack_from("<I", data, 80)[0]
+        sagittas = []
+        for index in range(count):
+            values = struct.unpack_from("<12fH", data, 84 + 50 * index)
+            points = [values[start:start + 3] for start in (3, 6, 9)]
+            if max(p[2] for p in points) - min(p[2] for p in points) < 1e-5:
+                continue
+            for a, b in zip(points, points[1:] + points[:1]):
+                if abs(a[2] - b[2]) < 1e-5:
+                    chord = math.dist(a, b)
+                    sagittas.append(radius - math.sqrt(max(0, radius**2 - chord**2 / 4)))
+        self.assertTrue(sagittas)
+        self.assertLessEqual(max(sagittas), 0.1)
+
+    def test_mesh_export_honors_tighter_angle_and_preserves_source_cache(self) -> None:
+        from OCP.BRep import BRep_Tool
+        from OCP.TopLoc import TopLoc_Location
+
+        shape = bd.Cylinder(10, 20)
+        _, coarse = shape.tessellate(10, 2.0)
+        def source_counts():
+            return [BRep_Tool.Triangulation_s(f.wrapped, TopLoc_Location()).NbTriangles() for f in shape.faces()]
+        original_counts = source_counts()
+        for fmt in ("stl", "3mf", "glb"):
+            with self.subTest(fmt=fmt):
+                path = export(self.context(shape=shape), fmt, self.job / f"angular.{fmt}",
+                              tolerance=10, angular_tolerance=0.05)
+                self.assertGreater(self.mesh_triangle_count(path, fmt), len(coarse))
+                self.assertEqual(source_counts(), original_counts)
+
     def test_3mf_is_readable_and_carries_actual_model_units(self) -> None:
         for units, native in (("mm", bd.Unit.MM), ("in", bd.Unit.IN)):
             with self.subTest(units=units):
@@ -346,6 +403,8 @@ class FileIOTests(unittest.TestCase):
             fileio._validate_glb(path)
 
     def test_destinations_are_confined_even_through_symlinks(self) -> None:
+        with self.assertRaises(FileIOError):
+            export(ModelContext(shape=self.shape, job_dir=Path(self.job.anchor)), "brep", self.job / "root.brep")
         with tempfile.TemporaryDirectory() as outside_name:
             outside = Path(outside_name)
             target = outside / "untouched.brep"

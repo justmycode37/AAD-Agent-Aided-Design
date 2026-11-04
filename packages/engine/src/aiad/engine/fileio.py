@@ -137,10 +137,10 @@ def import_file(
     if fmt is None:
         raise _error("IMPORT_FAILED", "input", f"Unsupported import file extension: {source.suffix!r}.")
     if not source.is_file():
-        raise _error("IMPORT_FAILED", "input", f"The import file does not exist: {source}.")
+        raise _error("IMPORT_FAILED", "input", f"No regular import file is available at: {source}.")
     job = Path(job_dir)
     if not job.is_dir():
-        raise _error("IMPORT_FAILED", "input", f"The job directory does not exist: {job}.")
+        raise _error("IMPORT_FAILED", "input", f"The job directory is not available at: {job}.")
 
     if fmt == "step":
         if source_units is not None:
@@ -249,6 +249,8 @@ def _export_target(job_dir: Path, out: Path) -> Path:
         root = lexical_root.resolve(strict=True)
         if not root.is_dir():
             raise ValueError("job_dir is not a directory")
+        if root.parent == root:
+            raise ValueError("job_dir must be below the filesystem root")
         requested = Path(out)
         if not requested.is_absolute():
             requested = lexical_root / requested
@@ -333,10 +335,34 @@ def _write_export(shape: Any, fmt: str, path: Path, units: str, options: dict[st
     if fmt == "brep":
         ok = bd.export_brep(shape, path)
     elif fmt == "stl":
-        ok = bd.export_stl(shape, path, tolerance=linear, angular_tolerance=angular, ascii_format=False)
+        from OCP.StlAPI import StlAPI_Writer
+
+        _mesh_absolute(shape, linear, angular)
+        writer = StlAPI_Writer()
+        writer.ASCIIMode = False
+        ok = writer.Write(shape.wrapped, str(path))
     elif fmt == "3mf":
         mesher = bd.Mesher(unit=unit)
-        mesher.add_shape(shape, linear_deflection=linear, angular_deflection=angular)
+        if isinstance(shape, bd.Compound):
+            if shape.children:
+                parts = list(shape.children)
+            elif shape.label or shape.color is not None:
+                parts = [shape]
+            else:
+                parts = list(shape)
+        else:
+            parts = [shape]
+        for part in parts:
+            vertices, triangles = _mesh_arrays(part, linear, angular)
+            if len(vertices) < 3 or not triangles:
+                raise ValueError("3MF source has no mesh geometry")
+            mesh = mesher.model.AddMeshObject()
+            mesh.SetGeometry(*bd.Mesher._create_3mf_mesh(vertices, triangles))
+            if part.label:
+                mesh.SetName(part.label)
+            mesher._add_color(part, mesh)
+            mesher.meshes.append(mesh)
+            mesher.model.AddBuildItem(mesh, mesher.wrapper.GetIdentityTransform())
         mesher.write(path)
         ok = True
     else:  # glb
@@ -346,9 +372,51 @@ def _write_export(shape: Any, fmt: str, path: Path, units: str, options: dict[st
         # global axis rotation * the original location, including translation.
         rotation = bd.Location((0, 0, 0), (1, 0, 0), -90)
         shape.location = rotation * shape.location * rotation.inverse()
+        # The glTF wrapper calls Shape.mesh, which uses relative deflection
+        # when no suitable mesh exists. Supply fresh absolute meshes first.
+        pending = [shape]
+        while pending:
+            node = pending.pop()
+            if node.wrapped is not None:
+                _mesh_absolute(node, linear, angular)
+            pending.extend(node.children)
         ok = bd.export_gltf(shape, path, unit=unit, binary=True, linear_deflection=linear, angular_deflection=angular)
     if not ok:
         raise RuntimeError(f"{fmt.upper()} writer did not report success")
+
+
+def _mesh_absolute(shape: Any, linear: float, angular: float) -> None:
+    from OCP.BRepMesh import BRepMesh_IncrementalMesh
+    from OCP.BRepTools import BRepTools
+
+    # export() owns a deep copy: clearing native cache cannot mutate ctx.shape.
+    BRepTools.Clean_s(shape.wrapped)
+    mesher = BRepMesh_IncrementalMesh(shape.wrapped, linear, False, angular, False)
+    if not mesher.IsDone():
+        raise ValueError("absolute native meshing did not complete")
+
+
+def _mesh_arrays(shape: Any, linear: float, angular: float) -> tuple[list, list]:
+    from OCP.BRep import BRep_Tool
+    from OCP.TopAbs import TopAbs_REVERSED
+    from OCP.TopLoc import TopLoc_Location
+
+    _mesh_absolute(shape, linear, angular)
+    vertices, triangles = [], []
+    for face in shape.faces():
+        location = TopLoc_Location()
+        mesh = BRep_Tool.Triangulation_s(face.wrapped, location)
+        if mesh is None:
+            raise ValueError("a face has no native triangulation")
+        offset = len(vertices)
+        transform = location.Transformation()
+        for index in range(1, mesh.NbNodes() + 1):
+            point = mesh.Node(index).Transformed(transform)
+            vertices.append((point.X(), point.Y(), point.Z()))
+        for triangle in mesh.Triangles():
+            order = (1, 3, 2) if face.wrapped.Orientation() == TopAbs_REVERSED else (1, 2, 3)
+            triangles.append(tuple(triangle.Value(index) + offset - 1 for index in order))
+    return vertices, triangles
 
 
 def _read_step_mm(path: Path) -> Any:
