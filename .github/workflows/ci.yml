@@ -47,6 +47,9 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
+      - name: Install headless graphics runtime
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libosmesa6
       - name: Run package tests
         run: >-
           uv run --locked --package "${{ matrix.package.name }}" --all-extras
@@ -68,6 +71,9 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
+      - name: Install headless graphics runtime
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libosmesa6
       - name: Run smoke test
         run: uv run --locked --all-packages --all-extras python -m pytest tests/e2e
 
