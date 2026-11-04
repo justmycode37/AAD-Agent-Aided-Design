@@ -89,7 +89,10 @@ count guard instead of adding an unnecessary `nth=0`.
 For exact measurement, resolve in a live context and pass its entity to
 `entity_shape(ctx, entity)`. The returned topology is bound to that context
 and shape. Serialized entities, another context, or a replaced context shape
-require a fresh resolution. `Entity.index` is only revision-local metadata,
+require a fresh resolution. Native placement/orientation and enumerated topology
+are captured by value; moving a shape in place or adding/removing native
+topology also invalidates its handles. This is not a detector of arbitrary
+low-level edits to shared OCCT surface internals. `Entity.index` is only revision-local metadata,
 not a persistent selector or an exact measurement handle.
 
 The worker wire retains params, physical and generic metadata, part name,

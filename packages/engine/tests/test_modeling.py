@@ -173,6 +173,30 @@ with part("block"):
         with self.assertRaises(ValueError):
             entity_shape(ctx, top)
 
+    def test_in_place_native_changes_invalidate_exact_handles(self) -> None:
+        from build123d import Box, Location, Shell
+        from OCP.BRep import BRep_Builder
+
+        for operation in (lambda shape: shape.move(Location((0, 0, 10))),
+                          lambda shape: shape.wrapped.Reverse()):
+            with self.subTest(operation=operation):
+                ctx = ModelContext(shape=Box(10, 8, 4))
+                top, = resolve(ctx, "face(where='max_z')")
+                self.assertEqual(entity_shape(ctx, top).center().Z, 2)
+                operation(ctx.shape)
+                with self.assertRaisesRegex(ValueError, "native placement or topology changed"):
+                    entity_shape(ctx, top)
+                fresh, = resolve(ctx, "face(where='max_z')")
+                self.assertAlmostEqual(entity_shape(ctx, fresh).center().Z, fresh.geometry["center"][2])
+
+        ctx = ModelContext(shape=Shell(list(Box(10, 8, 4).faces())))
+        top, = resolve(ctx, "face(where='max_z')")
+        bottom = min(ctx.shape.faces(), key=lambda face: face.center().Z)
+        ctx.shape.wrapped.Free(True)
+        BRep_Builder().Remove(ctx.shape.wrapped, bottom.wrapped)
+        with self.assertRaisesRegex(ValueError, "native placement or topology changed"):
+            entity_shape(ctx, top)
+
     def test_param_edits_retain_names_or_return_actual_candidates(self) -> None:
         edited = self.live_build(params={"width": 70, "thickness": 8})
         self.assertTrue(edited.ok, edited.failure)

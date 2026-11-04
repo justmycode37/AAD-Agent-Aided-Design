@@ -100,6 +100,7 @@ def resolve(ctx: Any, selector: str, expect: int | None = None) -> list[Entity]:
             matches,
         )
 
+    native_state = _native_state(ctx.shape) if any(match.topology is not None for match in selected) else None
     result: list[Entity] = []
     for match in selected:
         entity = match.entity
@@ -113,7 +114,7 @@ def resolve(ctx: Any, selector: str, expect: int | None = None) -> list[Entity]:
         if match.topology is not None:
             # Private runtime binding is intentionally absent from dataclass/
             # JSON records. An index alone is never an exact shape reference.
-            entity._aiad_binding = (ctx, ctx.shape, getattr(ctx.shape, "wrapped", None), match.topology)
+            entity._aiad_binding = (ctx, ctx.shape, native_state, match.topology)
         result.append(entity)
     return result
 
@@ -130,9 +131,24 @@ def entity_shape(ctx: Any, entity: Entity) -> Any:
     if entity.kind not in _ACCESSORS:
         raise ValueError(f"unsupported entity kind {entity.kind!r}")
     binding = getattr(entity, "_aiad_binding", None)
-    if binding is None or binding[0] is not ctx or binding[1] is not shape or binding[2] is not getattr(shape, "wrapped", None):
+    if binding is None or binding[0] is not ctx or binding[1] is not shape:
         raise ValueError("resolve the entity in this same unchanged live context before measuring it")
+    current = _native_state(shape)
+    if len(binding[2]) != len(current) or any(not old.IsEqual(new) for old, new in zip(binding[2], current, strict=True)):
+        raise ValueError("the context's native placement or topology changed; resolve the entity again before measuring it")
     return binding[3]
+
+
+def _native_state(shape: Any) -> tuple[Any, ...]:
+    # Python wrappers can retain their identity while move(), Reverse(), or
+    # native topology edits change their contents. Located() makes value
+    # snapshots of native location/orientation rather than retaining aliases.
+    wrapped = [shape.wrapped]
+    for accessor in _ACCESSORS.values():
+        method = getattr(shape, accessor, None)
+        if callable(method):
+            wrapped.extend(topology.wrapped for topology in method())
+    return tuple(item.Located(item.Location()) for item in wrapped)
 
 
 def _parse_selector(selector: str) -> _Spec:
