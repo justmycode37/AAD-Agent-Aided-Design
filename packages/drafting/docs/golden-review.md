@@ -13,7 +13,9 @@ semantic snapshot under `samples/golden/`.
 
 ## Automated evidence
 
-The parent ran the complete Python 3.12 drafting suite: **203 passed**.
+The parent ran the complete locked Python 3.12 drafting suite: **219 passed**,
+including export-review regressions for multiline text and directory symlink
+substitutions during staging, publication and rollback.
 The 17 golden tests rebuild all 15 drawings, compare their semantic snapshots,
 measure every dimension against native OCCT geometry, require no failed drawing
 checks, and audit the DXFs. Separate same-machine checks compare repeated SVG,
