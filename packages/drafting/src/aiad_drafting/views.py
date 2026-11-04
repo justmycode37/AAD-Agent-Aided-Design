@@ -928,6 +928,7 @@ def project_drawing_view(shape: Any, view: DrawingView) -> ProjectedView:
             up=normalized.up,
             hidden_lines=normalized.hidden_lines,
         )
+        _frame(parent, parent_view.direction, parent_view.up)
         parent_projection = project_view(shape, parent_view)
         selected: list[Curve] = []
         for curve in parent_projection.curves:

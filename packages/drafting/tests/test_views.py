@@ -267,3 +267,40 @@ def test_detail_coincident_with_model_circle_keeps_selected_geometry():
     detail = project_drawing_view(Cylinder(10,6), DrawingView(
         name="coincident", kind="detail", parent="top", center=(0,0), radius=10))
     assert any(c.kind == "circle" and c.radius == 10 for c in detail.curves)
+
+
+def test_custom_parent_frame_is_inherited_and_parent_names_normalized(tmp_path):
+    from aiad_drafting import make_drawing
+    from types import SimpleNamespace
+    plate=Box(80,50,6)-Pos(20,0,0)*Cylinder(2,8)
+    result=make_drawing(SimpleNamespace(shape=plate,units="mm"),{
+        "sheet":"A3", "dimensions":"none", "formats":["dxf"],
+        "views":[{"name":"angled", "direction":(0,0,1), "up":(0,1,0)},
+                 {"name":"detail c", "kind":"DETAIL", "parent":"ANGLED", "center":(20,0), "radius":6}]},tmp_path)
+    doc=readfile(result.artifacts["dxf"])
+    # Hole, crop circle and parent crop marker are all analytic circles.
+    assert len(doc.modelspace().query("CIRCLE")) >= 4
+    assert "DETAIL_MARKERS" in doc.layers
+    assert result.views[1]["direction"] == [0,0,1]
+
+
+def test_standalone_detail_with_unknown_parent_frame_fails():
+    with pytest.raises(ValueError,match="requires a direction"):
+        project_drawing_view(Cylinder(10,6),DrawingView(name="d",kind="detail",parent="unknown",center=(0,0),radius=5))
+
+
+def test_hidden_arc_png_is_dashed_and_dxf_pattern_has_strokes(tmp_path):
+    from aiad_drafting.export import write_png
+    from PIL import Image, ImageChops
+    a=arc((20,20),10,20,160,True,dash=True)
+    b=arc((20,20),10,20,160,True,dash=False)
+    write_png(tmp_path/"dashed.png",50,40,[a])
+    write_png(tmp_path/"solid.png",50,40,[b])
+    with Image.open(tmp_path/"dashed.png") as d, Image.open(tmp_path/"solid.png") as solid:
+        assert ImageChops.difference(d,solid).getbbox() is not None
+        count=lambda im: sum(im.convert("L").histogram()[:128])
+        assert 10 < count(d) < count(solid)*0.9
+    write_dxf(tmp_path/"hidden.dxf",50,40,[a])
+    doc=readfile(tmp_path/"hidden.dxf")
+    pattern=doc.linetypes.get("AIAD_HIDDEN").pattern_tags.compile()
+    assert pattern == pytest.approx((1.4,0.9))

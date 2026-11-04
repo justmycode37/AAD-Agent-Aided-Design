@@ -90,6 +90,12 @@ def _coerce_view(value: Any) -> DrawingView:
             scale=_value(value, "scale", _value(value, "scale_multiplier", 1.0)),
             parent=_value(value, "parent"),
         )
+    kind = str(view.kind).strip().lower()
+    if kind not in {"orthographic", "section", "detail"}:
+        raise ValueError("Drawing view kind must be orthographic, section, or detail.")
+    parent = str(view.parent).strip().lower() if view.parent is not None else None
+    parent = {"isometric":"iso"}.get(parent,parent)
+    view = replace(view, kind=kind, parent=parent)
     name = str(view.name).strip().lower()
     if name == "isometric":
         name = "iso"
@@ -1190,6 +1196,26 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
     dimensions = _make_dimensions(request.dimensions, bounds, holes, units)
 
     from .views import project_drawing_view
+    registered = {view.name:view for view in request.views}
+    resolved = []
+    for view in request.views:
+        parent_name = view.parent or "front"
+        parent = registered.get(parent_name)
+        if parent is None and parent_name in _STANDARD_VIEWS:
+            parent = DrawingView(parent_name)
+        if view.kind == "detail" and parent is not None:
+            if parent.kind != "orthographic":
+                raise ValueError("A detail parent must be an orthographic view.")
+            default_direction, default_up = _STANDARD_VIEWS.get(parent.name, (None,None))
+            direction = parent.direction or default_direction
+            up = parent.up or default_up
+            if view.direction is not None and math.dist(_unit(view.direction), _unit(direction)) > 1e-8:
+                raise ValueError("Detail direction must match its parent view.")
+            if view.up is not None and up is not None and math.dist(_unit(view.up), _unit(up)) > 1e-8:
+                raise ValueError("Detail up vector must match its parent view.")
+            view = replace(view, direction=direction, up=up)
+        resolved.append(view)
+    request = replace(request, views=tuple(resolved))
     projections = tuple(project_drawing_view(shape, view) for view in request.views)
     page_width, page_height = SHEET_SIZES_MM[request.sheet]
     unit_factor = UNIT_TO_MM[units]

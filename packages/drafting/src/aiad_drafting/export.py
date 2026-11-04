@@ -271,7 +271,7 @@ def write_dxf(path: Path, width_mm: float, height_mm: float, entities: list[Prim
     if "AIAD_HIDDEN" not in document.linetypes:
         document.linetypes.new(
             "AIAD_HIDDEN",
-            dxfattribs={"description": "AIAD hidden edges", "pattern": [1.4, -0.9]},
+            dxfattribs={"description": "AIAD hidden edges", "pattern": [2.3, 1.4, -0.9]},
         )
 
     layer_colors = {
@@ -502,7 +502,19 @@ def write_png(path: Path, width_mm: float, height_mm: float, entities: list[Prim
                 height_px - round((cy - radius) * raster_scale),
             )
             start, end = _pillow_arc_angles(entity)
-            draw.arc(box, start=start, end=end, fill="#111111", width=line_width)
+            if entity.dash:
+                angle, extent = _reportlab_arc_angles(entity)
+                length = abs(math.radians(extent)*radius)
+                steps = max(16, int(length/0.2))
+                for index in range(steps):
+                    if (length*index/steps) % 2.3 < 1.4:
+                        a = math.radians(angle+extent*index/steps)
+                        b = math.radians(angle+extent*(index+1)/steps)
+                        draw_segment((cx+radius*math.cos(a),cy+radius*math.sin(a)),
+                                     (cx+radius*math.cos(b),cy+radius*math.sin(b)),
+                                     "#111111",line_width,False)
+            else:
+                draw.arc(box, start=start, end=end, fill="#111111", width=line_width)
         elif entity.kind == "text":
             x, y = entity.points[0]
             font_size = max(8, round(entity.height * raster_scale))
