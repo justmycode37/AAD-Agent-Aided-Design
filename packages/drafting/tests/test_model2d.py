@@ -8,6 +8,26 @@ import pytest
 from aiad_drafting.model2d import Entity2D, Point2D, Sheet2D, latest_sheet, sheet2d
 
 
+@pytest.mark.parametrize("invalid", [
+    lambda s: s.circle("bad", (1, 2), 0),
+    lambda s: s.arc("bad", (1, 2), -1, 0, 90),
+    lambda s: s.text("bad", "label", (1, 2), 0, layer="new"),
+    lambda s: s.line("bad", (1, 2), (1, 2), layer="new"),
+    lambda s: s.polyline("bad", [(1, 2), (3, 4), "missing"]),
+    lambda s: s.rectangle("bad", 0, 5, origin=(1, 2)),
+])
+def test_failed_primitives_restore_points_layers_history_and_allow_retry(invalid):
+    sheet = sheet2d("atomic")
+    sheet.line("existing", (0, 0), (10, 0))
+    before = sheet.to_dict()
+    current = sheet2d("other")
+    with pytest.raises(ValueError):
+        invalid(sheet)
+    assert sheet.to_dict() == before
+    assert latest_sheet() is current
+    assert sheet.circle("bad", (3, 4), 1).name == "bad"
+
+
 def test_named_points_primitives_layers_and_exact_native_edges():
     sheet = sheet2d("primitives")
     origin = sheet.point("origin", 0, 0)

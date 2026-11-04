@@ -8,6 +8,36 @@ import pytest
 from aiad_drafting.constraints import ConstraintError, ConstraintSketch
 
 
+def test_coincidence_carries_an_unreferenced_endpoint_without_false_conflict():
+    sketch = ConstraintSketch()
+    sketch.add_point("A", 1_000_000, 0)
+    sketch.add_point("B", 1_000_000.1, 0)
+    sketch.add_point("C", 1_000_000.1, 0)
+    sketch.add_line("AB", "A", "B")
+    sketch.add_constraint("keep_C", "fixed", ["C"])
+    sketch.add_constraint("join_A_C", "coincident", ["A", "C"])
+    before = {name: (point.x, point.y) for name, point in sketch.points.items()}
+    report = sketch.solve(inplace=False)
+    assert report.ok and report.conflicting_constraints == []
+    assert report.dof == 2 and report.rank == 4
+    assert report.points["A"] == pytest.approx(report.points["C"])
+    assert math.dist(report.points["A"], report.points["B"]) == pytest.approx(.1)
+    assert {name: (point.x, point.y) for name, point in sketch.points.items()} == before
+
+
+def test_degenerate_local_trial_is_failed_rather_than_an_infeasibility_claim():
+    sketch = ConstraintSketch()
+    sketch.add_point("A", 1_000_000, 0)
+    sketch.add_point("B", 1_000_000.1, 0)
+    sketch.add_line("AB", "A", "B")
+    sketch.add_constraint("keep_B", "fixed", ["B"])
+    sketch.add_constraint("join", "coincident", ["A", "B"])
+    report = sketch.solve()
+    assert not report.ok and report.status == "failed"
+    assert report.conflicting_constraints == []
+    assert "nondegenerate" in report.message
+
+
 def _length(sketch: ConstraintSketch, name: str) -> float:
     line = sketch.lines[name]
     a, b = sketch.points[line.a], sketch.points[line.b]

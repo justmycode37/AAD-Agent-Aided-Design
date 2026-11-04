@@ -33,10 +33,9 @@ def _sketch(sheet):
             count = len(refs) if entity.closed else len(refs) - 1
             for index in range(count):
                 alias = f"{name}.edge{index}"
-                edge = f"entity:{alias}"
-                # A user may already have an entity with this alias.
-                if edge in sketch.lines:
-                    raise ConstraintError(f"ambiguous sheet edge alias {alias!r}")
+                # Generated edges need a separate private namespace. Public
+                # aliases may be ambiguous without blocking unrelated references.
+                edge = f"edge:{name}:{index}"
                 sketch.add_line(edge, refs[index], refs[(index + 1) % len(refs)])
                 register(alias, edge)
     return sketch, names

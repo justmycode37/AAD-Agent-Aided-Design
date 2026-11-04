@@ -36,6 +36,8 @@ Primitive methods are `point`, `line`, `circle`, `arc`, `polyline`,
 accepted. Coordinates are planar at z=0 and are interpreted in the sheet's
 units. Zero-length lines, zero-area closed polylines, zero or non-finite
 radii/dimensions, and zero or non-finite extrusion heights raise `ValueError`.
+Failed primitive calls restore points, entities, layers and history, so callers
+can correct the input and retry the same names.
 
 Layers `cut`, `score`, and `engrave` exist on every new sheet. Additional layer
 names are added when used. `text()` creates editable text on `engrave` by

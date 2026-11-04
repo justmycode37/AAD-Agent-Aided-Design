@@ -112,3 +112,15 @@ def test_structurally_impossible_tangency_and_ambiguous_names_fail_before_solvin
     with pytest.raises(ConstraintError, match="ambiguous.*edge"):
         sheet.add_constraint("ambiguous", "fixed", ["edge"])
     assert sheet.constraints == []
+
+
+def test_polygon_alias_collisions_only_affect_ambiguous_references():
+    sheet = sheet2d("aliases")
+    sheet.point("datum", 0, 0)
+    sheet.polyline("outline", [(0, 0), (10, 0), (10, 10)], closed=True)
+    sheet.circle("outline.edge0", (30, 30), 2)
+    sheet.add_constraint("lock_datum", "fixed", ["datum"])
+    assert sheet.solve().ok
+    with pytest.raises(ConstraintError, match="ambiguous.*outline.edge0"):
+        sheet.add_constraint("ambiguous_edge", "fixed", ["outline.edge0"])
+    assert len(sheet.constraints) == 1

@@ -10,6 +10,7 @@ from __future__ import annotations
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 import copy
+from functools import wraps
 import json
 import math
 from collections.abc import Iterable, Mapping, Sequence
@@ -162,6 +163,28 @@ def _default_layers() -> dict[str, dict[str, str]]:
     return copy.deepcopy(_DEFAULT_LAYERS)
 
 
+def _atomic_primitive(method):
+    """Restore live registries when validation fails after resolving points."""
+    @wraps(method)
+    def wrapped(self, *args, **kwargs):
+        points, entities = dict(self.points), dict(self.entities)
+        layers, history_size = copy.deepcopy(self.layers), len(self.history)
+        token = _LATEST_SHEET.set(_LATEST_SHEET.get())
+        try:
+            return method(self, *args, **kwargs)
+        except BaseException:
+            self.points.clear()
+            self.points.update(points)
+            self.entities.clear()
+            self.entities.update(entities)
+            self.layers.clear()
+            self.layers.update(layers)
+            del self.history[history_size:]
+            _LATEST_SHEET.reset(token)
+            raise
+    return wrapped
+
+
 @dataclass
 class Sheet2D:
     """A named 2D model with exact native geometry and editable source data."""
@@ -289,6 +312,7 @@ class Sheet2D:
         _LATEST_SHEET.set(self)
         return entity
 
+    @_atomic_primitive
     def point(self, name: str, x: float, y: float) -> Point2D:
         """Create or retrieve a stable named point."""
         point_name = _checked_name(name, "point name")
@@ -301,6 +325,7 @@ class Sheet2D:
         _LATEST_SHEET.set(self)
         return point
 
+    @_atomic_primitive
     def line(
         self,
         name: str,
@@ -318,6 +343,7 @@ class Sheet2D:
             Entity2D(entity_name, "line", self._ensure_layer(layer), (first.name, second.name))
         )
 
+    @_atomic_primitive
     def circle(
         self,
         name: str,
@@ -339,6 +365,7 @@ class Sheet2D:
             )
         )
 
+    @_atomic_primitive
     def arc(
         self,
         name: str,
@@ -381,6 +408,7 @@ class Sheet2D:
             )
         )
 
+    @_atomic_primitive
     def polyline(
         self,
         name: str,
@@ -453,6 +481,7 @@ class Sheet2D:
             return value.as_tuple()
         return _coordinate_pair(value)
 
+    @_atomic_primitive
     def rectangle(
         self,
         name: str,
@@ -487,6 +516,7 @@ class Sheet2D:
             )
         )
 
+    @_atomic_primitive
     def text(
         self,
         name: str,

@@ -91,8 +91,9 @@ integers, strings, and floats.
   constraints. Names are listed in `conflicting_constraints`; conflicting
   constraints are excluded from the proposed geometry and their residuals are
   still reported. `ok` is false and the live sketch is unchanged.
-- `failed`: the numeric optimizer did not converge. The live sketch is
-  unchanged.
+- `failed`: the numeric optimizer did not converge or could not retain
+  nondegenerate geometry. A degenerate local trial does not establish that a
+  constraint is infeasible. The live sketch is unchanged.
 
 Consistent constraints whose Jacobian adds no numerical rank are marked
 `redundant` by name. `rank` comes from the numerical Jacobian of accepted
@@ -115,3 +116,7 @@ maximums. It is a local nonlinear solver, so singular or poorly seeded geometry
 may remain underconstrained, fail to converge, or select a different valid
 branch than intended. Inspect `ok`, statuses, residuals, and DOF before using a
 solution downstream.
+
+A point absent from every constraint can be carried with a moving line endpoint
+to preserve that edge's seed vector when leaving the point in place would
+collapse the line. This introduces no constraint or extra Jacobian rank.

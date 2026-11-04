@@ -391,13 +391,16 @@ class ConstraintSketch:
                     f"{constraint.name!r}: {solver_message}",
                 )
 
+            self._preserve_unused_line_endpoints(layout, trial_vector, trial_constraints)
             invalid_reason = self._invalid_solution_reason(
                 layout, trial_vector, scale, trial_constraints
             )
             if invalid_reason is not None:
-                conflicting.append(constraint.name)
-                conflict_reasons.append(f"{constraint.name}: {invalid_reason}")
-                continue
+                return self._failure_report(
+                    np, layout, current, accepted, redundant, conflicting, current_jac,
+                    f"solver could not find a nondegenerate trial while adding "
+                    f"constraint {constraint.name!r}: {invalid_reason}",
+                )
 
             trial_residuals = {
                 item.name: self._constraint_residuals(item, layout, trial_vector)
@@ -911,6 +914,46 @@ class ConstraintSketch:
             )
 
         raise ConstraintError(f"constraint {constraint.name!r}: unsupported kind {kind!r}")
+
+    def _preserve_unused_line_endpoints(self, layout, vector, constraints):
+        """Carry a wholly free endpoint with its moving neighbor.
+
+        An optimizer has no residual for a point absent from every constraint,
+        so it can leave that point exactly where another endpoint must move.
+        Preserve the seed edge vector using only these unreferenced points;
+        named constraint residuals and Jacobian rank remain unchanged.
+        """
+        used = set()
+        for constraint in constraints:
+            for name in constraint.entities:
+                kind = self._entity_kind(name)
+                if kind == "point":
+                    used.add(name)
+                elif kind == "line":
+                    used.update((self.lines[name].a, self.lines[name].b))
+                elif kind == "circle":
+                    used.add(self.circles[name].center)
+        for _ in range(len(self.lines) + 1):
+            changed = False
+            for line in self.lines.values():
+                a, b = layout.point(vector, line.a), layout.point(vector, line.b)
+                base_a, base_b = layout.base_points[line.a], layout.base_points[line.b]
+                seed_length = hypot(base_b[0] - base_a[0], base_b[1] - base_a[1])
+                if hypot(b[0] - a[0], b[1] - a[1]) > _line_epsilon(*base_a, *base_b, seed_length):
+                    continue
+                for free, anchor in ((line.b, line.a), (line.a, line.b)):
+                    if free in used:
+                        continue
+                    current = layout.point(vector, anchor)
+                    base_free, base_anchor = layout.base_points[free], layout.base_points[anchor]
+                    slots = layout.point_slots[free]
+                    for axis, slot in enumerate(slots):
+                        target = current[axis] + base_free[axis] - base_anchor[axis]
+                        vector[slot] = (target - base_free[axis]) / layout.scale
+                    changed = True
+                    break
+            if not changed:
+                break
 
     def _invalid_solution_reason(
         self,
