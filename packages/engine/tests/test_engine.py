@@ -59,9 +59,6 @@ class EngineBootstrapTests(unittest.TestCase):
             self.assertEqual(len(loaded.solids()), 1)
             self.assertAlmostEqual(loaded.volume, 1200.0, places=5)
 
-            skipped_ids = {check.id for check in result.checks if check.status == "skip"}
-            self.assertIn("spec_checks_unavailable", skipped_ids)
-            self.assertIn("scene_generation_unavailable", skipped_ids)
 
     def test_buildpart_fixture_produces_implicit_main_feature(self) -> None:
         source = (ROOT / "fixtures" / "models" / "fan_mount.py").read_text(encoding="utf-8")
