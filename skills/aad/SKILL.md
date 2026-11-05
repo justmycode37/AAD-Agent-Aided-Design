@@ -671,7 +671,7 @@ plate.rectangle("outline", 80, 40, origin=(0, 0))
 plate.circle("hole", (10, 10), 2.5)
 ```
 
-Sheets offer `point`, `line`, `circle`, `arc`, `polyline`, `rectangle`, `bezier`, `ellipse` and `text`, layers `cut`, `score` and `engrave`, booleans, offsets, patterns, and named constraints. See `packages/drafting/docs/`. An open cut contour fails the build. Spec requirements are not evaluated on sheets yet, so they stay `draft`.
+Sheets offer `point`, `line`, `circle`, `arc`, `polyline`, `rectangle`, `bezier`, `ellipse` and `text`, layers `cut`, `score` and `engrave`, booleans, offsets, patterns, and named constraints. See `packages/drafting/docs/`. An open cut contour fails the build. 2D specs measure `bbox` x/y, closed circular cut-contour hole counts and diameters (including expanded pattern copies), filled cut `area` and whole-sheet `measure: {kind: area}`, plus component catalog requirements. A z bbox, selector-based measurement, and requirement types without a 2D meaning are skipped with an explicit explanation. Laser process settings remain available to 2D process checks. Successful 2D builds remain `draft` while verification is unavailable.
 
 ## Python-only features
 
@@ -685,7 +685,6 @@ These exist in the packages but have no MCP tool. Use them only if you can run P
 Say so plainly rather than working around it silently.
 
 - **`verified` is not reachable,** so every export is marked `UNVERIFIED`.
-- **Spec requirements are not evaluated on 2D sheets.**
 - **No global mate solver, general sheet metal unfolding, Class-A surfacing, or weldment, mold and harness tools.**
 - **`min_wall` and `symmetric` can only disprove,** so a good result stays `skip`.
 - **The viewer cannot edit the model directly.** Sliders and a separate Ask editor are not built. Part selection and exact references work as described above; native composer insertion depends on advertised host support, and stays unavailable on unsupported hosts.

@@ -523,10 +523,16 @@ def _finish_sheet(
         Check(**{key: value for key, value in dict(item).items() if key in keep})
         for item in drafting.checks(context)
     ]
-    checks.append(Check(
-        id="2d_requirements_unproven", suite="2d", level="warn", status="skip",
-        message="Spec requirements are not evaluated on 2D sheets yet, so this revision stays draft.",
-    ))
+    try:
+        quality = importlib.import_module("aad_quality")
+        checks.extend(Check(**{key: value for key, value in dict(item).items() if key in keep})
+                      for item in quality.spec_checks(context))
+        checks.extend(Check(**{key: value for key, value in dict(item).items() if key in keep})
+                      for item in quality.process_checks(context))
+    except Exception as exc:
+        checks.append(Check(id="2d_spec_evaluation_failed", suite="spec", level="error", status="fail",
+                            message="2D specification or process checks could not be evaluated.",
+                            actual=f"{type(exc).__name__}: {exc}"))
     scene = None
     try:
         scene_dir = job_dir / "scene"
