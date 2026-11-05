@@ -391,7 +391,11 @@ def test_prepared_render_roundtrips_only_render_data_to_mesh_worker(tmp_path, mo
 
     monkeypatch.setattr(agent_render, "get_backend", lambda _name: pytest.fail("preparation must not load VTK"))
     prepared = prepare_render(_context(Box(12, 8, 4)), {"views": ["iso"], "size": 128})
-    prepared = json.loads(json.dumps(prepared))
+    from aad_render.render_wire import decode_render_payload, pack_render_payload
+
+    packed = pack_render_payload(prepared["render"]).to_bytes()
+    wire_request, _ = decode_render_payload(packed)
+    prepared = {**prepared, "render": wire_request["render"]}
     assert "inspection" not in prepared["render"]
     assert all(key not in prepared["render"] for key in ("project_dir", "rev", "brep", "shape"))
 
@@ -411,7 +415,7 @@ def _prepared_mesh_payload(labels="faces"):
     prepared = prepare_render(_context(Box(12, 8, 4)), {
         "views": ["iso"], "size": 64, "labels": labels,
     })
-    return json.loads(json.dumps(prepared))["render"]
+    return prepared["render"]
 
 
 @pytest.mark.parametrize("request_field", ["probes", "measure"])
@@ -608,7 +612,7 @@ def test_render_payload_byte_limit_is_enforced(tmp_path, monkeypatch):
     assert not (tmp_path / "output").exists()
 
 
-def test_bounded_worker_payload_skips_a_second_full_json_walk(tmp_path, monkeypatch):
+def test_bounded_worker_payload_skips_a_second_full_size_walk(tmp_path, monkeypatch):
     import aad_render.agent_render as agent_render
 
     monkeypatch.setattr(
@@ -617,7 +621,7 @@ def test_bounded_worker_payload_skips_a_second_full_json_walk(tmp_path, monkeypa
         lambda *_args, **_kwargs: pytest.fail("worker payload was already byte-capped before JSON parsing"),
     )
     with pytest.raises(ValueError, match="unexpected fields"):
-        agent_render._render_mesh_from_bounded_json({"version": 1}, tmp_path / "output", 16)
+        agent_render._render_mesh_from_bounded_payload({"version": 1}, tmp_path / "output", 16)
 
     assert not (tmp_path / "output").exists()
 
@@ -680,8 +684,9 @@ def test_overhang_uses_local_normals_on_a_curved_face(monkeypatch, tmp_path):
     face = scene.faces[0]
     assert len(scene.faces) == 1
     assert len(face.triangle_colors) == len(face.triangles)
-    assert len(set(face.triangle_colors)) > 20
+    assert len({tuple(color) for color in face.triangle_colors}) > 20
     for triangle, color in zip(face.triangles, face.triangle_colors, strict=True):
+        color = tuple(color)
         if color == (154, 160, 166):
             import numpy as np
             a, b, c = (np.asarray(face.points[index]) for index in triangle)

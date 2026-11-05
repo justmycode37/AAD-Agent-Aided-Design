@@ -14,15 +14,14 @@ import os
 import shutil
 import stat
 import sys
-import zlib
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from numbers import Real
 from pathlib import Path
 from typing import Any
 
 RESULT_MARKER = b"AAD_OPS_RESULT:"
 NOT_READY = "NOT_READY"
-PREPARED_RENDER_FILENAME = "prepared-render.json"
+PREPARED_RENDER_FILENAME = "prepared-render.bin"
 
 
 class OpFailure(Exception):
@@ -171,28 +170,20 @@ def op_render_prepare(ctx: Any, args: dict[str, Any], _out: Path) -> dict[str, A
         MAX_INSPECTION_JSON_BYTES,
         MAX_PREPARED_RENDER_BYTES,
         MAX_RENDER_PAYLOAD_BYTES,
-        RENDER_PAYLOAD_ZLIB_PREFIX,
         json_size_limited,
     )
+    from aad_render.render_wire import pack_render_payload
 
     if not isinstance(prepared, dict) or set(prepared) != {"version", "render", "inspection"}:
         raise ValueError("render preparation returned a malformed bundle")
     json_size_limited(prepared["inspection"], MAX_INSPECTION_JSON_BYTES, "render inspection")
-    render_bytes = json.dumps(
-        {"render": prepared["render"]}, separators=(",", ":"), allow_nan=False
-    ).encode("utf-8")
-    if len(render_bytes) > MAX_RENDER_PAYLOAD_BYTES:
+    render_wire = pack_render_payload(prepared["render"])
+    if render_wire.size > MAX_RENDER_PAYLOAD_BYTES:
         raise ValueError(f"render payload exceeds the {MAX_RENDER_PAYLOAD_BYTES}-byte limit")
-    compressed = zlib.compress(render_bytes, level=1)
-    render_wire_bytes = (
-        RENDER_PAYLOAD_ZLIB_PREFIX + compressed
-        if len(RENDER_PAYLOAD_ZLIB_PREFIX) + len(compressed) < len(render_bytes)
-        else render_bytes
-    )
 
-    # The large mesh bypasses worker stdout and the parent's JSON decoder. The
-    # fixed sidecar lives in the operation's write-only job directory; stdout
-    # returns just the exact report and the request needed to finish it.
+    # The packed mesh bypasses worker stdout and the parent's JSON decoder.
+    # The fixed sidecar lives in the operation's write-only job directory;
+    # stdout returns only the exact report and request needed to finish it.
     render_request = prepared["render"].get("request")
     if not isinstance(render_request, dict):
         raise ValueError("render preparation returned no render request")
@@ -203,11 +194,11 @@ def op_render_prepare(ctx: Any, args: dict[str, Any], _out: Path) -> dict[str, A
         "render_payload_file": PREPARED_RENDER_FILENAME,
     }
     json_size_limited(metadata, MAX_PREPARED_RENDER_BYTES, "prepared render result")
-    _write_prepared_render_payload(_out, render_wire_bytes)
+    _write_prepared_render_payload(_out, render_wire.iter_bytes())
     return {"prepared_render": metadata}
 
 
-def _write_prepared_render_payload(out: Path, data: bytes) -> None:
+def _write_prepared_render_payload(out: Path, chunks: bytes | Iterable[bytes | memoryview]) -> None:
     """Create the fixed mesh sidecar without following or replacing a link."""
     nofollow = getattr(os, "O_NOFOLLOW", None)
     if nofollow is None:
@@ -215,12 +206,13 @@ def _write_prepared_render_payload(out: Path, data: bytes) -> None:
     path = Path(out) / PREPARED_RENDER_FILENAME
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow, 0o600)
     try:
-        remaining = memoryview(data)
-        while remaining:
-            written = os.write(fd, remaining)
-            if written <= 0:
-                raise OSError("could not write the prepared render payload")
-            remaining = remaining[written:]
+        for chunk in (chunks,) if isinstance(chunks, bytes) else chunks:
+            remaining = memoryview(chunk)
+            while remaining:
+                written = os.write(fd, remaining)
+                if written <= 0:
+                    raise OSError("could not write the prepared render payload")
+                remaining = remaining[written:]
     except BaseException:
         os.close(fd)
         path.unlink(missing_ok=True)

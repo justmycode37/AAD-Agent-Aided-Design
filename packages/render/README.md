@@ -38,7 +38,8 @@ the normal sandbox policy; remote mode still refuses rendering.
 
 The transport helpers `prepare_render(ctx, req)`, `render_mesh(payload, out)`, and
 `finish_render(prepared, rendered, out)` split exact preparation from VTK rendering. They exchange
-versioned JSON-compatible data so callers can keep B-rep parsing inside a stronger process boundary.
+a compact JSON header and bounded binary geometry arrays so callers can keep B-rep parsing inside a
+stronger process boundary without expanding mesh numbers into decimal JSON.
 
 `render(ctx, req, out)` writes PNG images and `inspection.json` under an output directory and
 returns all their paths. With labels it also returns `labels.json`. Callers must distinguish

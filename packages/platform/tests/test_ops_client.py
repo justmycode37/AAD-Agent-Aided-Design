@@ -213,7 +213,7 @@ def test_render_failure_keeps_brep_and_reports_render_phase(tmp_path, monkeypatc
 
 def test_parent_reads_prepared_mesh_file_with_a_separate_size_cap_and_no_follow(tmp_path, monkeypatch):
     monkeypatch.setattr(ops_client, "MAX_RENDER_PAYLOAD_BYTES", 3)
-    path = tmp_path / "prepared-render.json"
+    path = tmp_path / ops_client.PREPARED_RENDER_FILENAME
     path.write_bytes(b"123")
     assert ops_client._read_prepared_render_payload(path) == b"123"
 
@@ -232,16 +232,27 @@ def test_parent_reads_prepared_mesh_file_with_a_separate_size_cap_and_no_follow(
 
 def test_render_prepare_writes_only_mesh_to_bounded_sidecar(tmp_path, monkeypatch):
     from types import SimpleNamespace
-    import zlib
+
+    import numpy as np
 
     import aad_render
     from aad_platform import ops
-    from aad_render import render_limits
+    from aad_render.render_wire import RENDER_WIRE_MAGIC, decode_render_payload
 
     render = {
         "version": 1,
         "request": {"backend": "vtk", "views": ["iso"], "style": "shaded", "labels": "none"},
-        "scene": {"faces": [{"points": [[0, 0, 0]]}]},
+        "scene": {
+            "faces": [{
+                "index": 0, "source_index": 0, "feature": None,
+                "points": np.asarray([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64),
+                "triangles": np.asarray([[0, 1, 2]], dtype=np.int64),
+                "normal": [0, 0, 1], "anchor": [0, 0, 0],
+                "section_cap": False, "highlighted": False,
+                "color": [194, 201, 208], "triangle_colors": np.empty((0, 3), dtype=np.uint8),
+            }],
+            "lines": [],
+        },
     }
     inspection = {"faces": [{"surface": "plane"}]}
     monkeypatch.setattr(aad_render, "prepare_render", lambda _ctx, _request: {
@@ -255,10 +266,14 @@ def test_render_prepare_writes_only_mesh_to_bounded_sidecar(tmp_path, monkeypatc
     assert prepared["render_payload_file"] == ops.PREPARED_RENDER_FILENAME
     payload_path = tmp_path / ops.PREPARED_RENDER_FILENAME
     payload_bytes = payload_path.read_bytes()
-    if payload_bytes.startswith(render_limits.RENDER_PAYLOAD_ZLIB_PREFIX):
-        payload_bytes = zlib.decompress(payload_bytes[len(render_limits.RENDER_PAYLOAD_ZLIB_PREFIX) :])
-    assert payload_bytes == json.dumps({"render": render}, separators=(",", ":"), allow_nan=False).encode()
-    assert json.loads(payload_bytes) == {"render": render}
+    assert payload_bytes.startswith(RENDER_WIRE_MAGIC)
+    decoded, size = decode_render_payload(payload_bytes)
+    assert size == len(payload_bytes)
+    assert decoded["render"]["request"] == render["request"]
+    assert decoded["render"]["scene"]["faces"][0]["points"].tolist() == [
+        [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0],
+    ]
+    assert "inspection" not in decoded
 
     symlink_out = tmp_path / "symlink-out"
     symlink_out.mkdir()
@@ -270,18 +285,26 @@ def test_render_prepare_writes_only_mesh_to_bounded_sidecar(tmp_path, monkeypatc
     assert target.read_bytes() == b"keep"
 
 
-def test_render_prepare_compresses_a_large_mesh_sidecar(tmp_path, monkeypatch):
+def test_render_prepare_packs_numeric_mesh_arrays_without_json_expansion(tmp_path, monkeypatch):
     from types import SimpleNamespace
-    import zlib
+
+    import numpy as np
 
     import aad_render
     from aad_platform import ops
-    from aad_render import render_limits
+    from aad_render.render_wire import RENDER_WIRE_MAGIC, decode_render_payload
+
+    points = np.arange(60_000, dtype=np.float64).reshape(-1, 3) / 7
+    triangles = (np.arange(30_000, dtype=np.uint32).reshape(-1, 3) % len(points))
 
     render = {
         "version": 1,
         "request": {"backend": "vtk", "views": ["iso"], "style": "shaded", "labels": "none"},
-        "scene": {"repeated": "x" * 10_000},
+        "scene": {"faces": [{
+            "points": points,
+            "triangles": triangles,
+            "triangle_colors": np.empty((0, 3), dtype=np.uint8),
+        }], "lines": []},
     }
     monkeypatch.setattr(aad_render, "prepare_render", lambda _ctx, _request: {
         "version": 1, "render": render, "inspection": {}
@@ -289,9 +312,20 @@ def test_render_prepare_compresses_a_large_mesh_sidecar(tmp_path, monkeypatch):
 
     ops.op_render_prepare(SimpleNamespace(kind="part"), {}, tmp_path)
     payload = (tmp_path / ops.PREPARED_RENDER_FILENAME).read_bytes()
-    assert payload.startswith(render_limits.RENDER_PAYLOAD_ZLIB_PREFIX)
-    raw = zlib.decompress(payload[len(render_limits.RENDER_PAYLOAD_ZLIB_PREFIX) :])
-    assert json.loads(raw) == {"render": render}
+    assert payload.startswith(RENDER_WIRE_MAGIC)
+    roundtripped, _ = decode_render_payload(payload)
+    face = roundtripped["render"]["scene"]["faces"][0]
+    assert np.array_equal(face["points"], points)
+    assert np.array_equal(face["triangles"], triangles)
+    json_payload = json.dumps(
+        {"render": {**render, "scene": {"faces": [{
+            "points": points.tolist(),
+            "triangles": triangles.tolist(),
+            "triangle_colors": [],
+        }], "lines": []}}},
+        separators=(",", ":"), allow_nan=False,
+    ).encode()
+    assert len(payload) < len(json_payload)
 
 
 @pytest.mark.parametrize(("fd", "stream"), [(1, "stdout"), (2, "stderr")])

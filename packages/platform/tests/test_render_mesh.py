@@ -11,43 +11,106 @@ import aad_platform.ops as operations
 from aad_platform.ops import _render_result
 
 
-def test_mesh_worker_caps_json_bytes_before_parsing(monkeypatch):
+def test_mesh_worker_caps_payload_bytes_before_decoding(monkeypatch):
     from aad_render import render_limits
+    from aad_render.render_wire import pack_render_payload
 
-    raw = b'{"render":{}}'
-    monkeypatch.setattr(render_limits, "MAX_RENDER_PAYLOAD_BYTES", len(raw) - 1)
+    wire = pack_render_payload({"version": 1}).to_bytes()
+    monkeypatch.setattr(render_limits, "MAX_RENDER_PAYLOAD_BYTES", len(wire) - 1)
 
-    with pytest.raises(ValueError, match="render payload exceeds"):
-        mesh_worker._read_request(BytesIO(raw))
-
-
-def test_mesh_worker_returns_the_size_of_the_bounded_json_record():
-    raw = b'{"render":{"version":1}}'
-    request, size = mesh_worker._read_request(BytesIO(raw))
-    assert request == {"render": {"version": 1}}
-    assert size == len(raw)
-
-
-def test_mesh_worker_bounds_decompression_and_reports_uncompressed_size(monkeypatch):
-    import zlib
-
-    from aad_render import render_limits
-
-    raw = b'{"render":{"note":"' + b"x" * 1000 + b'"}}'
-    wire = render_limits.RENDER_PAYLOAD_ZLIB_PREFIX + zlib.compress(raw, level=1)
-    monkeypatch.setattr(render_limits, "MAX_RENDER_PAYLOAD_BYTES", len(raw))
-    request, size = mesh_worker._read_request(BytesIO(wire))
-    assert request == {"render": {"note": "x" * 1000}}
-    assert size == len(raw)
-
-    monkeypatch.setattr(render_limits, "MAX_RENDER_PAYLOAD_BYTES", 128)
     with pytest.raises(ValueError, match="render payload exceeds"):
         mesh_worker._read_request(BytesIO(wire))
 
 
+def test_mesh_worker_returns_the_size_of_the_bounded_binary_record():
+    from aad_render.render_wire import pack_render_payload
+
+    wire = pack_render_payload({"version": 1}).to_bytes()
+    request, size = mesh_worker._read_request(BytesIO(wire))
+    assert request == {"render": {"version": 1}}
+    assert size == len(wire)
+
+
+def test_mesh_worker_decodes_packed_mesh_arrays_without_json_number_lists():
+    import numpy as np
+
+    from aad_render.render_wire import pack_render_payload
+
+    points = np.asarray([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64)
+    triangles = np.asarray([[0, 1, 2]], dtype=np.int64)
+    wire = pack_render_payload({"version": 1, "scene": {
+        "faces": [{
+            "points": points,
+            "triangles": triangles,
+            "triangle_colors": np.empty((0, 3), dtype=np.uint8),
+        }], "lines": [],
+    }}).to_bytes()
+
+    request, size = mesh_worker._read_request(BytesIO(wire))
+
+    face = request["render"]["scene"]["faces"][0]
+    assert size == len(wire)
+    assert np.array_equal(face["points"], points)
+    assert np.array_equal(face["triangles"], triangles.astype(np.uint32))
+
+
+def test_mesh_worker_rejects_binary_array_counts_before_creating_views(monkeypatch):
+    import numpy as np
+
+    from aad_render import render_limits
+    from aad_render.render_wire import pack_render_payload
+
+    wire = pack_render_payload({"version": 1, "scene": {
+        "faces": [{
+            "points": np.zeros((2, 3), dtype=np.float64),
+            "triangles": np.empty((0, 3), dtype=np.int64),
+            "triangle_colors": np.empty((0, 3), dtype=np.uint8),
+        }], "lines": [],
+    }}).to_bytes()
+    monkeypatch.setattr(render_limits, "MAX_RENDER_VERTICES", 1)
+
+    with pytest.raises(ValueError, match="vertices"):
+        mesh_worker._read_request(BytesIO(wire))
+
+
+def test_mesh_worker_rejects_trailing_binary_mesh_data():
+    import numpy as np
+
+    from aad_render.render_wire import pack_render_payload
+
+    wire = pack_render_payload({"version": 1, "scene": {
+        "faces": [{
+            "points": np.zeros((2, 3), dtype=np.float64),
+            "triangles": np.empty((0, 3), dtype=np.int64),
+            "triangle_colors": np.empty((0, 3), dtype=np.uint8),
+        }], "lines": [],
+    }}).to_bytes()
+
+    with pytest.raises(ValueError, match="trailing or unreferenced"):
+        mesh_worker._read_request(BytesIO(wire + b"x"))
+
+
+def test_mesh_worker_caps_binary_header_before_parsing(monkeypatch):
+    import struct
+
+    from aad_render import render_limits
+    from aad_render.render_wire import RENDER_WIRE_MAGIC
+
+    monkeypatch.setattr(render_limits, "MAX_RENDER_HEADER_BYTES", 16)
+    wire = RENDER_WIRE_MAGIC + struct.pack(">I", 17)
+    with pytest.raises(ValueError, match="metadata header is out of bounds"):
+        mesh_worker._read_request(BytesIO(wire))
+
+
 def test_mesh_worker_rejects_nonfinite_json_constants():
+    import struct
+
+    from aad_render.render_wire import RENDER_WIRE_MAGIC
+
+    header = b'{"render":{"coordinate":NaN}}'
+    wire = RENDER_WIRE_MAGIC + struct.pack(">I", len(header)) + header
     with pytest.raises(ValueError, match="non-finite"):
-        mesh_worker._read_request(BytesIO(b'{"render":{"coordinate":NaN}}'))
+        mesh_worker._read_request(BytesIO(wire))
 
 
 def test_parent_caps_json_artifact_reads(tmp_path, monkeypatch):

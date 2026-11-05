@@ -1,4 +1,4 @@
-"""Resource limits for the JSON handoff to the out-of-sandbox mesh renderer."""
+"""Resource limits for the prepared mesh handoff to the out-of-sandbox renderer."""
 
 import json
 from collections.abc import Callable
@@ -8,10 +8,11 @@ MAX_RENDER_SIZE = 2048
 MAX_RENDER_VIEWS = 9
 MAX_RENDER_PANES = 4
 
-# The 492-part hexarotor payload measured about 291 MB at 512 px. This leaves
-# room for larger assemblies while keeping untrusted JSON transfers bounded.
+# The aggregate cap bounds the binary arrays, JSON header and the worker input buffer.
+# Separate face, vertex and triangle limits leave headroom for the measured 492-part assembly.
 MAX_RENDER_PAYLOAD_BYTES = 384 * 1024 * 1024
-RENDER_PAYLOAD_ZLIB_PREFIX = b"AADZ"
+# Labels and inspection metadata travel in the JSON header, separate from arrays.
+MAX_RENDER_HEADER_BYTES = 32 * 1024 * 1024
 # The prepare worker writes the mesh to a bounded sidecar; stdout carries only
 # inspection plus small request metadata.
 MAX_PREPARED_RENDER_BYTES = 36 * 1024 * 1024

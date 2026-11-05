@@ -227,7 +227,7 @@ def render(ctx: Any, req: Any, out: Path) -> list[Path]:
 
 
 def prepare_render(ctx: Any, req: Any) -> dict[str, Any]:
-    """Prepare exact inspection and a JSON-safe mesh payload without opening VTK."""
+    """Prepare exact inspection and transfer-ready mesh data without opening VTK."""
     request = _read_request(req)
     shape = _field(ctx, "shape", None)
     if shape is None:
@@ -470,8 +470,8 @@ def render_mesh(payload: dict[str, Any], out: Path) -> dict[str, Any]:
     return _render_mesh_payload(payload, out)
 
 
-def _render_mesh_from_bounded_json(payload: dict[str, Any], out: Path, serialized_size: int) -> dict[str, Any]:
-    """Render JSON that the worker already read under its byte limit."""
+def _render_mesh_from_bounded_payload(payload: dict[str, Any], out: Path, serialized_size: int) -> dict[str, Any]:
+    """Render data the worker already read under its byte limit."""
     _validate_render_payload_size(payload, serialized_size=serialized_size)
     return _render_mesh_payload(payload, out)
 
@@ -480,7 +480,10 @@ def _validate_render_payload_size(payload: Any, *, serialized_size: int | None =
     if not isinstance(payload, dict) or payload.get("version") != 1:
         raise ValueError("unsupported prepared render payload version")
     if serialized_size is None:
-        _limits.json_size_limited(payload, _limits.MAX_RENDER_PAYLOAD_BYTES, "render payload")
+        from .render_wire import render_payload_size
+
+        if render_payload_size(payload) > _limits.MAX_RENDER_PAYLOAD_BYTES:
+            raise ValueError(f"render payload exceeds the {_limits.MAX_RENDER_PAYLOAD_BYTES}-byte limit")
     elif (
         isinstance(serialized_size, bool)
         or not isinstance(serialized_size, int)
@@ -575,7 +578,7 @@ def finish_render(prepared: dict[str, Any], rendered: dict[str, Any], out: Path)
 
 
 def render_prepared(prepared: dict[str, Any], out: Path) -> list[Path]:
-    """Render and finalize a JSON bundle produced by :func:`prepare_render`."""
+    """Render and finalize a bundle produced by :func:`prepare_render`."""
     return finish_render(prepared, render_mesh(prepared["render"], out), out)
 
 
@@ -586,31 +589,57 @@ def _scene_to_payload(scene: RenderScene) -> dict[str, Any]:
             raise ValueError(f"{name} contain non-finite coordinates")
         return array.tolist()
 
+    def finite_points(values: Any, name: str) -> np.ndarray:
+        array = np.asarray(values, dtype=np.float64)
+        if array.size and not np.isfinite(array).all():
+            raise ValueError(f"{name} contain non-finite coordinates")
+        if array.ndim != 2 or array.shape[1] != 3:
+            raise ValueError(f"{name} must be an N by 3 array")
+        return np.ascontiguousarray(array, dtype="<f8")
+
+    def triangle_indexes(values: Any, point_count: int) -> np.ndarray:
+        array = np.asarray(values)
+        if array.ndim != 2 or array.shape[1] != 3 or array.dtype.kind not in "iu":
+            raise ValueError("render triangles must be an N by 3 integer array")
+        if array.size and (int(array.min()) < 0 or int(array.max()) >= point_count):
+            raise ValueError("triangle index is outside its face vertex array")
+        return np.ascontiguousarray(array, dtype=np.int64)
+
+    def triangle_colors(values: Any) -> np.ndarray:
+        array = np.asarray(values)
+        if not array.size:
+            return np.empty((0, 3), dtype=np.uint8)
+        if array.ndim != 2 or array.shape[1] != 3 or array.dtype.kind not in "iu":
+            raise ValueError("render triangle colors must be an N by 3 integer array")
+        if int(array.min()) < 0 or int(array.max()) > 255:
+            raise ValueError("render triangle colors must contain byte values")
+        return np.ascontiguousarray(array, dtype=np.uint8)
+
     return {
         "faces": [
             {
                 "index": int(face.index),
                 "source_index": None if face.source_index is None else int(face.source_index),
                 "feature": face.feature,
-                "points": finite_float_list(face.points, "render face points"),
-                "triangles": np.asarray(face.triangles).tolist(),
-                "normal": finite_float_list(face.normal, "render face normal"),
-                "anchor": finite_float_list(face.anchor, "render face anchor"),
+                "points": (points := finite_points(face.points, "render face points")),
+                "triangles": triangle_indexes(face.triangles, len(points)),
+                "normal": list(finite_float_list(face.normal, "render face normal")),
+                "anchor": list(finite_float_list(face.anchor, "render face anchor")),
                 "section_cap": bool(face.section_cap),
                 "highlighted": bool(face.highlighted),
                 "color": np.asarray(face.color, dtype=np.int64).tolist(),
-                "triangle_colors": np.asarray(face.triangle_colors, dtype=np.int64).tolist(),
+                "triangle_colors": triangle_colors(face.triangle_colors),
             }
             for face in scene.faces
         ],
         "lines": [
             {
-                "points": finite_float_list(line.points, "render line points"),
+                "points": finite_points(line.points, "render line points"),
                 "role": line.role,
                 "index": None if line.index is None else int(line.index),
                 "source_index": None if line.source_index is None else int(line.source_index),
                 "feature": line.feature,
-                "anchor": finite_float_list(line.anchor, "render line anchor") if line.anchor is not None else None,
+                "anchor": list(finite_float_list(line.anchor, "render line anchor")) if line.anchor is not None else None,
                 "highlighted": bool(line.highlighted),
             }
             for line in scene.lines
@@ -1042,18 +1071,15 @@ def _scene_from_payload(payload: dict[str, Any]) -> RenderScene:
     vertex_count = triangle_count = 0
     for raw_face in raw_faces:
         face = _require_dict(raw_face, "render face")
-        points = _require_list(face.get("points"), "face points")
-        triangles = _require_list(face.get("triangles"), "face triangles")
-        vertex_count += len(points)
-        triangle_count += len(triangles)
+        vertex_count += _payload_row_count(face.get("points"), "face points")
+        triangle_count += _payload_row_count(face.get("triangles"), "face triangles")
         if vertex_count > _limits.MAX_RENDER_VERTICES:
             raise ValueError(f"render has more than {_limits.MAX_RENDER_VERTICES} vertices")
         if triangle_count > _limits.MAX_RENDER_TRIANGLES:
             raise ValueError(f"render has more than {_limits.MAX_RENDER_TRIANGLES} triangles")
     for raw_line in raw_lines:
         line = _require_dict(raw_line, "render line")
-        points = _require_list(line.get("points"), "line points")
-        vertex_count += len(points)
+        vertex_count += _payload_row_count(line.get("points"), "line points")
         if vertex_count > _limits.MAX_RENDER_VERTICES:
             raise ValueError(f"render has more than {_limits.MAX_RENDER_VERTICES} vertices")
 
@@ -1068,22 +1094,22 @@ def _scene_from_payload(payload: dict[str, Any]) -> RenderScene:
         face_index = _nonnegative_int(face["index"], "face index", maximum=_limits.MAX_RENDER_FACES - 1)
         source_index = _optional_index(face["source_index"], "source face index")
         feature = None if face["feature"] is None else _bounded_text(face["feature"], "face feature")
-        raw_points = _require_list(face["points"], "face points")
-        points = [_vec3(point, "face vertex") for point in raw_points]
-        raw_triangles = _require_list(face["triangles"], "face triangles")
-        triangles = []
-        for raw_triangle in raw_triangles:
-            triangle = _require_list(raw_triangle, "triangle indices")
-            if len(triangle) != 3:
-                raise ValueError("each render triangle must have three indexes")
-            indexes = tuple(_nonnegative_int(value, "triangle index", maximum=max(len(points) - 1, 0)) for value in triangle)
-            if not points or any(value >= len(points) for value in indexes):
-                raise ValueError("triangle index is outside its face vertex array")
-            triangles.append(indexes)
-        raw_colors = _require_list(face["triangle_colors"], "triangle colors")
-        if raw_colors and len(raw_colors) != len(triangles):
-            raise ValueError("render triangle colors must match the triangle count")
-        colors = tuple(_rgb(color, "triangle color") for color in raw_colors)
+        points = _points_array(face["points"], "face points")
+        triangles = _triangles_array(face["triangles"], len(points))
+        raw_colors = face["triangle_colors"]
+        if isinstance(raw_colors, np.ndarray):
+            if raw_colors.ndim != 2 or raw_colors.shape[1] != 3 or raw_colors.dtype.kind not in "iu":
+                raise ValueError("triangle colors must be an N by 3 integer array")
+            if len(raw_colors) and len(raw_colors) != len(triangles):
+                raise ValueError("render triangle colors must match the triangle count")
+            if raw_colors.size and (int(raw_colors.min()) < 0 or int(raw_colors.max()) > 255):
+                raise ValueError("triangle colors must contain byte values")
+            colors = np.asarray(raw_colors, dtype=np.uint8)
+        else:
+            raw_colors = _require_list(raw_colors, "triangle colors")
+            if raw_colors and len(raw_colors) != len(triangles):
+                raise ValueError("render triangle colors must match the triangle count")
+            colors = tuple(_rgb(color, "triangle color") for color in raw_colors)
         section_cap, highlighted = face["section_cap"], face["highlighted"]
         if not isinstance(section_cap, bool) or not isinstance(highlighted, bool):
             raise ValueError("render face flags must be booleans")
@@ -1092,8 +1118,8 @@ def _scene_from_payload(payload: dict[str, Any]) -> RenderScene:
                 index=face_index,
                 source_index=source_index,
                 feature=feature,
-                points=np.asarray(points, dtype=np.float64),
-                triangles=np.asarray(triangles, dtype=np.int64).reshape(-1, 3),
+                points=points,
+                triangles=triangles,
                 normal=_vec3(face["normal"], "face normal"),
                 anchor=_vec3(face["anchor"], "face anchor"),
                 section_cap=section_cap,
@@ -1109,7 +1135,7 @@ def _scene_from_payload(payload: dict[str, Any]) -> RenderScene:
         line = _require_dict(raw_line, "render line")
         if set(line) != {"points", "role", "index", "source_index", "feature", "anchor", "highlighted"}:
             raise ValueError("render line has unexpected fields")
-        points = [_vec3(point, "line point") for point in _require_list(line["points"], "line points")]
+        points = _points_array(line["points"], "line points")
         if len(points) < 2:
             raise ValueError("render line must have at least two points")
         role = line["role"]
@@ -1122,7 +1148,7 @@ def _scene_from_payload(payload: dict[str, Any]) -> RenderScene:
             raise ValueError("render line highlighted flag must be boolean")
         lines.append(
             RenderLine(
-                points=tuple(points),
+                points=points,
                 role=role,
                 index=_optional_index(line["index"], "line index"),
                 source_index=_optional_index(line["source_index"], "source edge index"),
@@ -1146,6 +1172,46 @@ def _scene_from_payload(payload: dict[str, Any]) -> RenderScene:
     if not isinstance(data_colors, bool):
         raise ValueError("render data colors flag must be boolean")
     return RenderScene(faces, lines, bounds, units, section_label, data_colors)
+
+
+def _payload_row_count(value: Any, name: str) -> int:
+    if isinstance(value, np.ndarray):
+        if value.ndim != 2 or value.shape[1] != 3:
+            raise ValueError(f"{name} must be an N by 3 array")
+        return int(value.shape[0])
+    return len(_require_list(value, name))
+
+
+def _points_array(value: Any, name: str) -> np.ndarray:
+    if isinstance(value, np.ndarray):
+        if value.ndim != 2 or value.shape[1] != 3 or value.dtype.kind not in "fiu":
+            raise ValueError(f"{name} must be an N by 3 numeric array")
+        points = np.asarray(value, dtype=np.float64)
+        if points.size and not np.isfinite(points).all():
+            raise ValueError(f"{name} contain non-finite coordinates")
+        return points
+    raw_points = _require_list(value, name)
+    return np.asarray([_vec3(point, "face vertex" if name == "face points" else "line point") for point in raw_points], dtype=np.float64).reshape(-1, 3)
+
+
+def _triangles_array(value: Any, point_count: int) -> np.ndarray:
+    if isinstance(value, np.ndarray):
+        if value.ndim != 2 or value.shape[1] != 3 or value.dtype.kind not in "iu":
+            raise ValueError("triangle indices must be an N by 3 integer array")
+        if value.size and (int(value.min()) < 0 or int(value.max()) >= point_count):
+            raise ValueError("triangle index is outside its face vertex array")
+        return np.asarray(value, dtype=np.int64)
+    raw_triangles = _require_list(value, "face triangles")
+    triangles = []
+    for raw_triangle in raw_triangles:
+        triangle = _require_list(raw_triangle, "triangle indices")
+        if len(triangle) != 3:
+            raise ValueError("each render triangle must have three indexes")
+        indexes = tuple(_nonnegative_int(index, "triangle index", maximum=max(point_count - 1, 0)) for index in triangle)
+        if not point_count or any(index >= point_count for index in indexes):
+            raise ValueError("triangle index is outside its face vertex array")
+        triangles.append(indexes)
+    return np.asarray(triangles, dtype=np.int64).reshape(-1, 3)
 
 
 def _json_safe(value: Any) -> Any:

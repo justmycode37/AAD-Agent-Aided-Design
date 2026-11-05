@@ -23,14 +23,14 @@ def render(ctx: Any, req: Any, out: Path) -> list[Path]:
 
 
 def prepare_render(ctx: Any, req: Any) -> dict[str, Any]:
-    """Prepare B-rep inspection and a JSON mesh payload without importing VTK."""
+    """Prepare B-rep inspection and mesh data without importing VTK."""
     from .agent_render import prepare_render as impl
 
     return impl(ctx, req)
 
 
 def render_mesh(payload: dict[str, Any], out: Path) -> dict[str, Any]:
-    """Render the prepared mesh payload to PNGs and return image visibility metadata."""
+    """Render prepared mesh data to PNGs and return image visibility metadata."""
     from .agent_render import render_mesh as impl
 
     return impl(payload, out)
