@@ -104,7 +104,7 @@ class SpecIssue:
 COMPONENT_ITEM_LIMIT = 500
 REQUIREMENT_TYPES = frozenset({
     "bbox", "area", "solids", "holes", "min_wall", "clearance", "mass_g", "symmetric",
-    "measure", "material_at_point", "interference", "matches_reference", "components",
+    "measure", "material_at_point", "interference", "matches_reference", "components", "position", "fit",
 })
 
 
@@ -307,12 +307,12 @@ def _validate_measure_shape(measure: Any, path: tuple[str | int, ...]) -> None:
     selector_a = fields.get("a", fields.get("selector"))
     if not isinstance(selector_a, str) or not selector_a.strip():
         raise ValueError(f"{_path_text(path)} requires a non-empty selector in a or selector")
-    if kind == "distance":
+    if kind in {"distance", "angle"}:
         selector_b = fields.get("b")
         if not isinstance(selector_b, str) or not selector_b.strip():
-            raise ValueError(f"{_path_text(path)} distance requires a non-empty b selector")
+            raise ValueError(f"{_path_text(path)} {kind} requires a non-empty b selector")
     elif "b" in fields:
-        raise ValueError(f"{_path_text(path)} only distance accepts b")
+        raise ValueError(f"{_path_text(path)} only distance and angle accept b")
 
 
 def _validate_requirement(req: dict[str, Any], index: int, units: str) -> list[SpecIssue]:
@@ -325,7 +325,20 @@ def _validate_requirement(req: dict[str, Any], index: int, units: str) -> list[S
     if not isinstance(level, str) or level not in {"error", "warn"}:
         issues.append(SpecIssue("level must be 'error' or 'warn'", path + ("level",), index))
 
-    type_fields = [key for key in req if key not in {"id", "level"}]
+    if "covers" in req:
+        covers = req["covers"]
+        if isinstance(covers, str):
+            if not covers.strip() or len(covers) > 2000:
+                issues.append(SpecIssue("covers must be non-empty text of at most 2000 characters", path + ("covers",), index))
+        elif isinstance(covers, list):
+            if not covers or len(covers) > 100 or any(
+                not isinstance(item, str) or not item.strip() or len(item) > 2000 for item in covers
+            ):
+                issues.append(SpecIssue("covers must be a non-empty list of at most 100 non-empty strings", path + ("covers",), index))
+        else:
+            issues.append(SpecIssue("covers must be non-empty text or a list of non-empty strings", path + ("covers",), index))
+
+    type_fields = [key for key in req if key not in {"id", "level", "covers"}]
     known = [key for key in type_fields if key in REQUIREMENT_TYPES]
     if not known:
         # Unknown types are deliberately retained so the evaluator can emit a skip.
@@ -349,9 +362,11 @@ def _validate_requirement(req: dict[str, Any], index: int, units: str) -> list[S
         "interference": {"id", "level", "interference"},
         "matches_reference": {"id", "level", "matches_reference"},
         "components": {"id", "level", "components"},
+        "position": {"id", "level", "position"},
+        "fit": {"id", "level", "fit"},
     }[field]
     try:
-        _check_keys(req, allowed, path)
+        _check_keys(req, allowed | {"covers"}, path)
         body = req[field]
         if field == "area":
             parse_numeric_range(body, default_unit=units, power=2, path=path + (field,))
@@ -478,6 +493,47 @@ def _validate_requirement(req: dict[str, Any], index: int, units: str) -> list[S
             for position, item in enumerate(body):
                 if not isinstance(item, dict) or ("id" in item) == ("custom" in item):
                     raise ValueError(f"{_path_text(path + (field, position))} needs exactly one of id or custom")
+        elif field == "position":
+            values = _require_mapping(body, path + (field,))
+            _check_keys(values, {"selector", "hole", "target", "tolerance"}, path + (field,))
+            selectors = [key for key in ("selector", "hole") if key in values]
+            if len(selectors) != 1:
+                raise ValueError(f"{_path_text(path + (field,))} requires exactly one of selector or hole")
+            selector = values[selectors[0]]
+            if not isinstance(selector, str) or not selector.strip():
+                raise ValueError(f"{_path_text(path + (field,))}.{selectors[0]} must be a non-empty semantic selector")
+            target = values.get("target")
+            if not isinstance(target, list) or len(target) != 3:
+                raise ValueError(f"{_path_text(path + (field,))}.target must be three coordinates")
+            for axis, coordinate in zip("xyz", target, strict=True):
+                parsed = parse_numeric_range(coordinate, default_unit=units, path=path + (field, "target", axis))
+                if parsed.minimum != parsed.maximum:
+                    raise ValueError(f"{_path_text(path + (field, 'target', axis))} must be one exact coordinate")
+            tolerance = parse_numeric_range(values.get("tolerance"), default_unit=units, path=path + (field, "tolerance"))
+            if tolerance.minimum is None or tolerance.minimum < 0 or tolerance.minimum != tolerance.maximum:
+                raise ValueError(f"{_path_text(path + (field,))}.tolerance must be one non-negative finite length")
+        elif field == "fit":
+            values = _require_mapping(body, path + (field,))
+            _check_keys(values, {"a", "b", "clearance", "interference"}, path + (field,))
+            for side in ("a", "b"):
+                if not isinstance(values.get(side), str) or not values[side].strip():
+                    raise ValueError(f"{_path_text(path + (field,))}.{side} must name a body or semantic selector")
+            modes = [key for key in ("clearance", "interference") if key in values]
+            if len(modes) != 1:
+                raise ValueError(f"{_path_text(path + (field,))} requires exactly one of clearance or interference")
+            mode = modes[0]
+            bounds = _require_mapping(values[mode], path + (field, mode))
+            _check_keys(bounds, {"min", "max"}, path + (field, mode))
+            if not bounds:
+                raise ValueError(f"{_path_text(path + (field, mode))} requires min or max")
+            fit_range = parse_numeric_range(
+                bounds,
+                default_unit="mm" if mode == "interference" else units,
+                power=3 if mode == "interference" else 1,
+                path=path + (field, mode),
+            )
+            if any(bound is not None and bound < 0 for bound in (fit_range.minimum, fit_range.maximum)):
+                raise ValueError(f"{_path_text(path + (field, mode))} bounds must be non-negative")
     except (ValueError, TypeError, KeyError) as exc:
         issues.append(SpecIssue(str(exc), path, index))
     return issues

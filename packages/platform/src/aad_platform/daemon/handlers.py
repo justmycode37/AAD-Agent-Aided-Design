@@ -23,6 +23,7 @@ from .envelope import compact, failure_envelope, sort_checks, text_for
 from .ops_client import job_request, run_op
 from .patching import PatchError, apply_patch
 from .projects import Project, ProjectError, create_project, open_project
+from .request_data import normalize_request, request_next_hints, request_review
 
 if TYPE_CHECKING:
     from .window import WindowServer
@@ -146,6 +147,10 @@ class Handlers:
             _parse_spec(params.get("spec"))
         except ValueError as exc:
             return reply(failure_envelope(params.get("name", ""), "BAD_INPUT", "input", f"spec is not valid YAML: {exc}"))
+        try:
+            request_data = normalize_request(params["request"]) if "request" in params else None
+        except ValueError as exc:
+            return reply(failure_envelope(params.get("name", ""), "BAD_INPUT", "input", f"request is invalid: {exc}"))
         project = create_project(
             params.get("name", ""),
             client=client,
@@ -155,6 +160,7 @@ class Handlers:
             material=params.get("material"),
             spec=params.get("spec"),
             source=params.get("source"),
+            request=request_data,
         )
         envelope = {
             "ok": True,
@@ -240,6 +246,12 @@ class Handlers:
                         project.name, "BAD_INPUT", "input", f"{exc} Read the head with aad_inspect or send full source.", head_rev=head
                     )
                 )
+        try:
+            request_data = normalize_request(params["request"]) if "request" in params else project.read_request()
+        except (ProjectError, ValueError) as exc:
+            project.discard_job(job_dir)
+            message = exc.message if isinstance(exc, ProjectError) else str(exc)
+            return reply(failure_envelope(project.name, "BAD_INPUT", "input", f"request is invalid: {message}", head_rev=head))
         spec_text = params.get("spec")
         if spec_text is None and (project.path / "spec.yaml").exists():
             spec_text = (project.path / "spec.yaml").read_text()
@@ -248,6 +260,7 @@ class Handlers:
         except ValueError as exc:
             project.discard_job(job_dir)
             return reply(failure_envelope(project.name, "BAD_INPUT", "input", f"spec is not valid YAML: {exc}", head_rev=head))
+        review = request_review(request_data, spec)
         if not backend.engine_available():
             project.discard_job(job_dir)
             return reply(
@@ -294,15 +307,24 @@ class Handlers:
             )
             envelope["checks"] = sort_checks(compact(result.get("checks") or []))
             envelope["checks_summary"] = result.get("checks_summary")
+            envelope["request_review"] = review
+            lead_hint = None
             if (job_dir / "part.brep").is_file():
                 # A built candidate is evidence for the fix. The head, source and spec stay as they were.
                 project.retain_failed_job(job_dir, job_id, compact(envelope))
                 envelope["job"] = job_id
                 envelope["artifacts"] = {"part.brep": str(job_dir / "part.brep")}
-                envelope["next"] = [f"Inspect the failed candidate with aad_history action='job' job='{job_id}'."]
+                lead_hint = f"Inspect the failed candidate with aad_history action='job' job='{job_id}'."
             else:
                 project.discard_job(job_dir)
-            return reply(compact(envelope))
+            envelope["next"] = request_next_hints(
+                request_data,
+                review,
+                result.get("status", "failed"),
+                status_hints=["Fix failed checks before rebuilding."],
+                lead_hint=lead_hint,
+            )
+            return reply(_request_response(envelope, review))
         if result.get("scene") is None:
             brep = job_dir / "part.brep"
             if brep.exists():
@@ -323,12 +345,19 @@ class Handlers:
             "metrics": result.get("metrics"),
             "checks": sort_checks(compact(result.get("checks") or [])),
             "checks_summary": result.get("checks_summary"),
+            "request_review": review,
         }
         if params.get("dry_run"):
             project.discard_job(job_dir)
             envelope["head_rev"] = head
             envelope["summary"] = f"Dry run of {project.name}: {envelope['summary']}"
-            return reply(compact(envelope))
+            envelope["next"] = request_next_hints(
+                request_data,
+                review,
+                status,
+                status_hints=_next_hints(status, result.get("checks") or []),
+            )
+            return reply(_request_response(envelope, review))
         if result.get("scene"):
             result["scene"]["status"] = "verified" if status == "verified" else "draft"
         (job_dir / "meta.json").write_text(
@@ -367,7 +396,7 @@ class Handlers:
             )
         # Imports are the source of these copies, so each revision does not keep another one.
         shutil.rmtree(job_dir / "assets", ignore_errors=True)
-        rev = project.commit_revision(job_dir, source, spec_text)
+        rev = project.commit_revision(job_dir, source, spec_text, request_data)
         envelope.update(
             rev=rev,
             head_rev=rev,
@@ -377,10 +406,15 @@ class Handlers:
                 for name in ("model.py", "part.brep", "sheet.json")
                 if (project.rev_dir(rev) / name).exists()
             },
-            next=_next_hints(status, result.get("checks") or []),
+            next=request_next_hints(
+                request_data,
+                review,
+                status,
+                status_hints=_next_hints(status, result.get("checks") or []),
+            ),
         )
         await self._notify_window(project, rev, envelope, result.get("scene"))
-        return reply(compact(envelope))
+        return reply(_request_response(envelope, review))
 
     async def _notify_window(
         self, project: Project, rev: int, envelope: dict[str, Any], scene: dict[str, Any] | None
@@ -590,6 +624,7 @@ class Handlers:
             material=meta.get("material"),
             spec=spec_file.read_text() if spec_file.exists() else None,
             source=(project.rev_dir(rev) / "model.py").read_text(),
+            request=project.read_request(rev),
         )
         return reply(
             {
@@ -665,17 +700,51 @@ class Handlers:
                 return self._op_failed(project, rev, result)
             topology = result["topology"]
             return reply({**base, "topology": topology, "summary": f"Rev {rev} topology: {json.dumps(topology)}"})
-        return reply(
-            compact(
-                {
-                    **base,
-                    "summary": f"{project.name} rev {rev} ({base['status']}).",
-                    "metrics": meta.get("metrics"),
-                    "checks": sort_checks(meta.get("checks") or []),
-                    "checks_summary": meta.get("checks_summary"),
-                }
+        spec_path = project.rev_dir(rev) / "spec.yaml"
+        try:
+            spec = _parse_spec(spec_path.read_text() if spec_path.exists() else None)
+            request_data = project.read_request(rev)
+        except (OSError, ValueError, ProjectError) as exc:
+            return reply(
+                failure_envelope(
+                    project.name, "BAD_INPUT", "input", f"Could not read request/spec data for rev {rev}: {exc}",
+                    head_rev=project.head_rev,
+                )
             )
-        )
+        review = request_review(request_data, spec)
+        if request_data is None:
+            review_summary = "No captured request; spec meaning is not assessed."
+        else:
+            without = review["requirements_without_covers"]
+            if review.get("requirements_count") is None:
+                link_text = "unavailable"
+            else:
+                link_text = ", ".join(without) if without else "none"
+            review_summary = (
+                f"Requirements without covers links: {link_text}; "
+                f"open questions: {len(request_data['open_questions'])}; "
+                f"not checked: {len(request_data['not_checked'])}. Meaning is not assessed."
+            )
+        return reply(_request_response(
+            {
+                **base,
+                "summary": f"{project.name} rev {rev} ({base['status']}). {review_summary}",
+                "metrics": meta.get("metrics"),
+                "checks": sort_checks(meta.get("checks") or []),
+                "checks_summary": meta.get("checks_summary"),
+                "request": request_data,
+                "request_review": review,
+                "next": request_next_hints(
+                    request_data,
+                    review,
+                    base["status"],
+                    status_hints=_next_hints(base["status"], meta.get("checks") or []),
+                ),
+            },
+            review,
+            request_data,
+            include_request=True,
+        ))
 
     async def aad_query(self, params: dict[str, Any]) -> dict[str, Any]:
         project = open_project(params.get("project", ""), params.get("client"))
@@ -1048,6 +1117,21 @@ def _add_warn(result: dict[str, Any], check_id: str, message: str) -> None:
     )
     summary = result.setdefault("checks_summary", {})
     summary["warn"] = summary.get("warn", 0) + 1
+
+
+def _request_response(
+    envelope: dict[str, Any],
+    review: dict[str, Any],
+    request_data: dict[str, Any] | None = None,
+    *,
+    include_request: bool = False,
+) -> dict[str, Any]:
+    """Keep empty request-review lists explicit after general envelope compaction."""
+    result = compact(envelope)
+    result["request_review"] = review
+    if include_request and request_data is not None:
+        result["request"] = request_data
+    return result
 
 
 def _scene_payload(rev_dir: Path) -> Path | None:

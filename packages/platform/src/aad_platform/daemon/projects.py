@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import __version__, paths
+from .request_data import normalize_request, serialize_request
 
 NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z")
 JOB_ID_RE = re.compile(r"[0-9a-f]{12}")
@@ -67,6 +68,10 @@ class Project:
     def jobs_dir(self) -> Path:
         return self.path / ".aad" / "jobs"
 
+    @property
+    def request_path(self) -> Path:
+        return self.path / "request.json"
+
     def meta(self) -> dict[str, Any]:
         return json.loads(self.meta_path.read_text())
 
@@ -97,9 +102,13 @@ class Project:
         model = (source / "model.py").read_bytes().decode("utf-8")
         spec_path = source / "spec.yaml"
         spec = spec_path.read_bytes().decode("utf-8") if spec_path.exists() else None
+        request_path = source / "request.json"
+        request_text = request_path.read_bytes().decode("utf-8") if request_path.exists() else None
+        if request_text is not None:
+            request_text = serialize_request(normalize_request(json.loads(request_text)))
         meta = self.meta()
         meta["head_rev"] = rev
-        targets = [self.path / "model.py", self.path / "spec.yaml", self.meta_path]
+        targets = [self.path / "model.py", self.path / "spec.yaml", self.request_path, self.meta_path]
         originals = {path: path.read_bytes().decode("utf-8") if path.exists() else None for path in targets}
         try:
             write_atomic(targets[0], model)
@@ -107,6 +116,10 @@ class Project:
                 targets[1].unlink(missing_ok=True)
             else:
                 write_atomic(targets[1], spec)
+            if request_text is None:
+                targets[2].unlink(missing_ok=True)
+            else:
+                write_atomic(targets[2], request_text)
             self.write_meta(meta)
         except OSError:
             for path, original in originals.items():
@@ -116,19 +129,39 @@ class Project:
                     write_atomic(path, original)
             raise
 
+    def read_request(self, rev: int | None = None) -> dict[str, Any] | None:
+        """Read and validate project request data from the working copy or a revision."""
+        path = self.request_path if rev is None else self.rev_dir(rev) / "request.json"
+        if not path.exists():
+            return None
+        try:
+            return normalize_request(json.loads(path.read_text(encoding="utf-8")))
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            raise ProjectError("BAD_INPUT", f"Stored request data at {path} is invalid: {exc}") from exc
+
     def new_job_dir(self) -> tuple[str, Path]:
         job = uuid.uuid4().hex[:12]
         job_dir = self.jobs_dir / job
         job_dir.mkdir(parents=True)
         return job, job_dir
 
-    def commit_revision(self, job_dir: Path, source: str, spec: str | None) -> int:
+    def commit_revision(
+        self,
+        job_dir: Path,
+        source: str,
+        spec: str | None,
+        request: dict[str, Any] | None = None,
+    ) -> int:
         """Promote a finished job to the next immutable revision and move the head."""
         rev = self.next_rev()
         target = self.rev_dir(rev)
         (job_dir / "model.py").write_text(source)
         if spec is not None:
             (job_dir / "spec.yaml").write_text(spec)
+        if request is not None:
+            (job_dir / "request.json").write_text(serialize_request(request), encoding="utf-8")
+        else:
+            (job_dir / "request.json").unlink(missing_ok=True)
         os.replace(job_dir, target)
         self.checkout(rev)
         return rev
@@ -173,6 +206,7 @@ def create_project(
     material: str | None = None,
     spec: str | None = None,
     source: str | None = None,
+    request: dict[str, Any] | None = None,
 ) -> Project:
     if not NAME_RE.match(name or ""):
         raise ProjectError(
@@ -183,6 +217,11 @@ def create_project(
         raise ProjectError("BAD_INPUT", f"kind must be part, assembly or 2d, not {kind!r}.")
     if units not in ("mm", "in"):
         raise ProjectError("BAD_INPUT", f"units must be mm or in, not {units!r}.")
+    if request is not None:
+        try:
+            request = normalize_request(request)
+        except ValueError as exc:
+            raise ProjectError("BAD_INPUT", str(exc)) from exc
     path = (resolve_root(client) / name).resolve()
     if (path / "project.json").exists():
         raise ProjectError("BAD_INPUT", f"Project {name!r} already exists at {path}. Use a new name.")
@@ -208,6 +247,8 @@ def create_project(
         (path / ".gitignore").write_text(GITIGNORE)
     if spec is not None:
         write_atomic(path / "spec.yaml", spec)
+    if request is not None:
+        write_atomic(project.request_path, serialize_request(request))
     if source is not None:
         write_atomic(path / "model.py", source)
     _remember(name, path)

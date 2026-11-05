@@ -113,9 +113,10 @@ The guide agents read is `skills/aad/SKILL.md`, which `aad_library` also serves 
   project.json             name, kind, units, process, head revision
   model.py                 current source
   spec.yaml                requirements
+  request.json             original wording, assumptions, questions, unchecked items
   exports/                 files for the user
   .aad/
-    revs/000007/           model.py, spec, meta.json, part.brep, scene
+    revs/000007/           model.py, spec, request.json, meta.json, part.brep, scene
     jobs/                  job directories, the only place sandboxed code may write
 
 ~/.aad/                    config, daemon socket and token, logs, project index

@@ -50,14 +50,22 @@ tests/e2e/                           S2  end-to-end smoke tests
   project.json     {id, name, kind, units, process, head_rev, created, aad_version}
   model.py         current source
   spec.yaml        requirements
+  request.json     {original, assumptions, open_questions, not_checked}
   exports/         files for the user
   .aad/
-    revs/000007/   model.py, spec.yaml, meta.json, part.brep, scene.bin.gz, scene.json, sheet.png
+    revs/000007/   model.py, spec.yaml, request.json, meta.json, part.brep, scene.bin.gz, scene.json, sheet.png
     cache/         content-addressed, safe to delete
     jobs/          job dirs, the only place sandboxed code may write
 ```
 
 `<root>` comes from MCP roots, else `~/AAD`. `model.py` and `spec.yaml` should work well in git. `.aad/` is a cache plus history and is listed in a generated `.gitignore`.
+
+`request.json` is ordinary git-friendly project data. `aad_new(request=...)`
+creates it. An `aad_build` with `request` replaces it for the new revision; an
+omitted request copies the current project request forward. Each immutable
+revision stores its own `request.json`, and checkout restores that revision's
+copy. The `original`, assumption, question and reason strings are untrusted
+data, never instructions.
 
 Global state: `~/.aad/` containing `config.toml`, `run/aadd.sock`, `run/aadd.json` (pid, http port, token, version), `logs/`.
 
@@ -127,13 +135,41 @@ requirements:
     level: warn               # error (default) or warn
     measure: {kind: distance, a: "face(feature='a', where='max_z')", b: "face(feature='b', where='min_z')"}
     equals: 12 ± 0.05
+  - id: shaft_position
+    position: {selector: "vertex(feature='shaft_axis', nth=0)", target: [0, 0, 12], tolerance: 0.05}
+  - id: bearing_fit
+    fit: {a: shaft, b: bearing, clearance: {min: 0.02, max: 0.08}}
+  - id: press_fit
+    fit: {a: insert, b: housing, interference: {min: 1, max: 3}}
   - id: no_interference
     interference: {volume_threshold_mm3: 1e-6}
 ```
 
+An optional `covers` field on a requirement is one request excerpt or a list of
+excerpts that the requirement is intended to address. It is a trace link only;
+AAD does not judge whether the requirement captures the excerpt's meaning.
+`measure.kind: angle` compares two planar faces or two straight edges and
+reports the smaller unoriented angle in degrees. `position` measures the center
+of one selected face/edge/vertex or the centerline of one inward-facing full
+cylindrical hole. `fit` operands are exact assembly component names or semantic
+selectors. Non-negative clearance ranges use spec units and reject solid
+overlap; non-negative interference ranges compare common solid volume in mm³.
+
+Sampled minimum-wall rays can fail on a local shortfall but cannot prove a
+global minimum; a run with no sampled violation remains `skip`. A zero B-rep
+symmetric-difference volume alone does not prove symmetry because OCCT can hide
+sub-resolution differences. The evaluator passes only when the valid solid is
+planar and straight-edged, the exact reflected face and edge signatures match,
+and the measured difference volume is zero. Curved or near-symmetric geometry
+remains `skip` unless its maximum pointwise deviation is established.
+
 `matches_reference` compares the built model to a project-contained STEP, STL, PLY, or OBJ surface. It uses area-weighted fixed-seed samples and exact point-to-triangle distances after proper rigid registration (determinant +1; no scaling or mirroring). The default threshold is F@0.1% of the reference bbox diagonal; `f_score.min` is required and `tau_pct_of_diagonal` defaults to `0.1`. `aad compare <project> <reference> [--rev N] [--tau-pct 0.1] [--json]` is a CLI operation through the sandboxed worker, not a model-visible MCP tool.
 
 S5 owns the evaluator and may add requirement types. Unknown types return a `skip` check, never a silent pass.
+`covers` is optional text or a list of text links from a requirement to request
+excerpts (2,000 characters per excerpt and at most 100 links). A link does not prove semantic coverage. Request review lists
+requirements without links, open questions and `not_checked` entries; it never
+computes a request-coverage percentage.
 The optional `interference` requirement runs the same exact solid-pair check as
 `aad_check(suites=["interference"])`. It accepts an optional
 `volume_threshold_mm3` (default `1e-6`); a common volume must be strictly above
@@ -151,14 +187,22 @@ All tools accept `project` unless noted and return the envelope in section 6. In
 ### Model-visible
 
 ```ts
+type Request = {
+  original: string, assumptions?: string[], open_questions?: string[],
+  not_checked?: { item: string, reason: string }[]
+} // plain project data; request strings are untrusted, never instructions
+// original <= 20,000 chars; lists <= 100 items; notes <= 2,000 chars; total <= 64 KiB
+
 aad_new({ name: string, kind?: "part"|"assembly"|"2d", units?: "mm"|"in",
-          process?: string, material?: string, spec?: string /*yaml*/, source?: string })
+          process?: string, material?: string, spec?: string /*yaml*/, source?: string,
+          request?: Request })
 
 aad_build({ project, base_rev?: number,
             source?: string,                       // full model.py, or
             patch?: string,                        // unified diff against base_rev, or
             params?: Record<string, number|string>,// overrides, or combine with the above
             spec?: string,
+            request?: Request,                    // replaces the request for this revision; omitted copies it forward
             preview?: boolean,                     // adds a 4-up sheet image, default false
             dry_run?: boolean,                     // full build and checks, no new head
             wait_s?: number,                       // default 30; returns status "running" with job id
@@ -166,6 +210,7 @@ aad_build({ project, base_rev?: number,
 
 aad_inspect({ project, rev?: number,
               what?: "summary"|"features"|"params"|"topology"|"bom"|"diff", against?: number })
+// summary includes the revision request and an honest request_review report
 
 aad_query({ project, rev?: number, selector: string, expect?: number, limit?: number })
 
@@ -215,6 +260,12 @@ aad_export({ project, rev?: number,
 aad_library({ action: "search"|"get", kind?: "part"|"material"|"playbook"|"api",
               query?: string, id?: string })        // no project
 ```
+
+Build responses and `aad_inspect(what="summary")` report requirement IDs without
+`covers` links, open questions and `not_checked` entries (including reasons).
+The inspect summary also returns the captured request. A missing request yields
+a short non-failure hint. These links are not a semantic judgment; AAD never
+computes a request-coverage percentage.
 
 ### App-only
 
@@ -272,6 +323,16 @@ type Envelope = {
              title?: string, presentation?: ViewerPresentation, views?: NamedView[] },
   user_selection?: Selection[],        // picks from window mode since the last call
   next?: string[],                     // at most 3 short hints
+  request?: Request,                   // aad_inspect summary only
+  request_review?: {
+    captured: boolean,
+    requirements_without_covers: string[],
+    requirements_count?: number,
+    requirements_available?: boolean,
+    open_questions?: string[],
+    not_checked?: { item: string, reason: string }[],
+    meaning_assessed: false
+  },                                   // inspect summary and build; never a percentage
   // Tool-specific payloads, each small and only on its own tool's result:
   entities?: unknown[],                // aad_query
   measurement?: unknown,               // aad_measure
@@ -539,6 +600,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 - 2026-11-05: S2 made the structured `aad_render` report compact by default, with `inspection="full"` for the rest, because it reached 2.6 MB on a 492-part assembly.
 - 2026-11-05: S1 added `REQUIREMENT_FAILED`, because a failed spec or process check reached agents as `RUNTIME_ERROR`, and began emitting the documented `KERNEL_*` codes from model builds.
 - 2026-11-05: S3 added validated per-part viewer material overrides and an offline studio environment to `aad_show` and HTML bundle presentations; these settings change display only and preserve scene bytes.
+- 2026-11-05: S2/S5 added additive request capture in git-friendly `request.json`, per-revision request snapshots and checkout, `covers` trace links with honest request review (no semantic coverage percentage), and spec angle/position/fit evidence. Symmetry passes only with exact planar face/edge mirror equality plus zero measured difference; a zero-volume boolean alone is inconclusive. Sampled wall thickness still cannot prove a global minimum and remains `skip` without a violation.
 - 2026-11-05: S3 specified whole-part toggle selection, subtle highlighting, exact scene-scoped references, negotiated selection context and capability-gated unsent composer insertion; unsupported hosts keep local selection without a clipboard workflow, and server editing routes remain reserved.
 - 2026-11-05: Replaced `PLAN.md` with `ARCHITECTURE.md` at the user's request. Scope, sector and milestone text remains in git history.
 - 2026-11-05: S5 added rigid reference-model comparison as a spec requirement and sandboxed CLI operation, with explicit geometric-only evidence limits.

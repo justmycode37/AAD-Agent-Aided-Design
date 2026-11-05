@@ -145,3 +145,60 @@ def test_matches_reference_spec_has_finite_unitless_threshold():
         "      f_score: {min: 0.99, tau_pct_of_diagonal: 0.1}\n"
     )
     assert parsed["requirements"][0]["matches_reference"]["f_score"]["min"] == 0.99
+
+
+def test_angle_measure_requires_two_selectors_and_accepts_degree_ranges():
+    parsed = load_spec(
+        "requirements:\n"
+        "  - id: corner\n"
+        "    measure: {kind: angle, a: \"face(where='max_z')\", b: \"face(where='max_x')\"}\n"
+        "    equals: '90 ± 0.5'\n"
+    )
+    assert parsed["requirements"][0]["measure"]["kind"] == "angle"
+    with pytest.raises(SpecValidationError, match="angle requires a non-empty b selector"):
+        load_spec({"requirements": [{"id": "corner", "measure": {"kind": "angle", "a": "face()"}, "equals": 90}]})
+
+
+def test_position_schema_accepts_feature_and_hole_selectors_and_rejects_ambiguous_inputs():
+    parsed = load_spec({"requirements": [
+        {"id": "feature_origin", "position": {"selector": "vertex(feature='boss', nth=0)", "target": [0, 0, 0], "tolerance": "0.1 mm"}},
+        {"id": "hole_center", "position": {"hole": "face(feature='holes', kind='cylinder')", "target": [0, 0, 0], "tolerance": 0.05}},
+    ]})
+    assert len(parsed["requirements"]) == 2
+    for position in (
+        {"selector": "face()", "hole": "face()", "target": [0, 0, 0], "tolerance": 0.1},
+        {"selector": "face()", "target": [0, 0], "tolerance": 0.1},
+        {"selector": "face()", "target": [0, 0, 0], "tolerance": -0.1},
+    ):
+        with pytest.raises(SpecValidationError):
+            load_spec({"requirements": [{"id": "bad_position", "position": position}]})
+
+
+def test_fit_schema_accepts_clearance_or_volume_range_and_rejects_both():
+    parsed = load_spec({"requirements": [
+        {"id": "gap", "fit": {"a": "shaft", "b": "bearing", "clearance": {"min": "0.02 mm", "max": "0.08 mm"}}},
+        {"id": "press", "fit": {"a": "insert", "b": "housing", "interference": {"min": 1, "max": 3}}},
+    ]})
+    assert len(parsed["requirements"]) == 2
+    with pytest.raises(SpecValidationError, match="exactly one of clearance or interference"):
+        load_spec({"requirements": [{"id": "bad_fit", "fit": {
+            "a": "shaft", "b": "bearing", "clearance": {"min": 0}, "interference": {"max": 1},
+        }}]})
+    with pytest.raises(SpecValidationError, match="wrong unit exponent"):
+        load_spec({"requirements": [{"id": "bad_volume", "fit": {
+            "a": "shaft", "b": "bearing", "interference": {"max": "1 mm^2"},
+        }}]})
+    with pytest.raises(SpecValidationError, match="bounds must be non-negative"):
+        load_spec({"requirements": [{"id": "negative_gap", "fit": {
+            "a": "shaft", "b": "bearing", "clearance": {"min": -0.1},
+        }}]})
+
+
+def test_covers_is_an_optional_link_and_is_validated():
+    parsed = load_spec({"requirements": [
+        {"id": "size", "bbox": {"x": 10}, "covers": "the requested width"},
+        {"id": "holes", "holes": {"count": 4}, "covers": ["mounting pattern", "fasteners"]},
+    ]})
+    assert parsed["requirements"][0]["covers"] == "the requested width"
+    with pytest.raises(SpecValidationError):
+        load_spec({"requirements": [{"id": "size", "bbox": {"x": 10}, "covers": []}]})

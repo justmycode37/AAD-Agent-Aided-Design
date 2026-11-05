@@ -567,9 +567,7 @@ def _eval_symmetry(req_id: str, level: str, req: dict[str, Any], unit: str, fact
     if tolerance_mm is None or tolerance_mm < 0:
         raise geometry.UnsupportedGeometry("symmetry tolerance is invalid")
     difference_mm3 = geometry.symmetry_difference_volume(_shape_or_skip(ctx), body["plane"], factor)
-    expected = (
-        f"a certified pointwise mirror-deviation bound about {body['plane']} ≤ {_actual_value(tolerance_mm, power=1, unit=unit)}"
-    )
+    expected = f"mirror symmetry about {body['plane']} within {_actual_value(tolerance_mm, power=1, unit=unit)}"
     actual = f"B-rep symmetric-difference volume {_text_number(difference_mm3)} mm^3"
     separation = geometry.mirror_separation_mm(_shape_or_skip(ctx), body['plane'], factor)
     if separation > tolerance_mm + 1e-6:
@@ -577,11 +575,37 @@ def _eval_symmetry(req_id: str, level: str, req: dict[str, Any], unit: str, fact
             message=f"Symmetry requirement {req_id!r} fails: the model and its mirror are separated beyond tolerance.",
             expected=expected, actual=actual + f"; minimum model-to-mirror separation {separation:.8g} mm",
             fix_hint="Place corresponding geometry within the requested mirror tolerance.")
-    # Booleans may erase differences below kernel resolution. No certified
-    # pointwise error bound is exposed here, including when volume is zero.
+
+    exact_match = False
+    exact_match_reason = "exact planar mirror comparison is unavailable"
+    if difference_mm3 == 0.0:
+        try:
+            exact_match = geometry.symmetry_exact_polyhedral_match(_shape_or_skip(ctx), body["plane"], factor)
+            if not exact_match:
+                exact_match_reason = "exact planar face and edge signatures differ"
+        except geometry.UnsupportedGeometry as exc:
+            exact_match_reason = str(exc)
+
+    if exact_match:
+        return _check(
+            req_id,
+            level=level,
+            status="pass",
+            message=f"Symmetry requirement {req_id!r} is satisfied by an exact planar B-rep mirror comparison.",
+            expected=expected,
+            actual=actual + "; all planar face supports and straight boundary edges exactly match after reflection",
+            fix_hint="Keep the mirrored geometry and plane unchanged when editing the model.",
+            selector=f"B-rep reflected about {body['plane']}",
+            assumptions="The valid volumetric B-rep consists of planar faces with straight edges, and the exact reflected face and edge signatures match. This proves the compared solid geometry is within any nonnegative mirror tolerance; non-solid annotations and external behavior are outside the check.",
+        )
+    # A volume comparison or minimum separation cannot bound maximum pointwise
+    # deviation. Keep near-symmetry unknown unless exact planar boundaries match.
     status = "skip"
     message = f"Symmetry requirement {req_id!r} has only a volume diagnostic; its pointwise tolerance is unproven."
-    actual += f"; pointwise deviation relative to {_actual_value(tolerance_mm, power=1, unit=unit)} and the kernel error bound are unknown"
+    actual += (
+        f"; {exact_match_reason}; pointwise deviation relative to "
+        f"{_actual_value(tolerance_mm, power=1, unit=unit)} and the kernel error bound are unknown"
+    )
     return _check(
         req_id,
         level=level,
@@ -643,15 +667,112 @@ def _eval_custom_measure(req_id: str, level: str, req: dict[str, Any], unit: str
     selector = f"{measure['kind']}: {measure.get('a', measure.get('selector'))}"
     if measure.get("b"):
         selector += f" to {measure['b']}"
+    expected = _range_text(expected_range)
+    actual_text = _actual_value(actual, power=power, unit=unit) if power else _text_number(actual)
+    if measure["kind"] == "angle":
+        expected += " degrees"
+        actual_text += " degrees"
     return _check(
         req_id,
         level=level,
         status=_comparison_status(matches, level),
         message=f"Custom selector measurement {req_id!r} {'is satisfied' if matches else 'does not match the resolved geometry'}.",
-        expected=_range_text(expected_range),
-        actual=_actual_value(actual, power=power, unit=unit) if power else _text_number(actual),
+        expected=expected,
+        actual=actual_text,
         fix_hint="Correct the semantic selectors or change the model so their resolved geometry meets the stated measurement.",
         selector=selector,
+    )
+
+
+def _eval_position(req_id: str, level: str, req: dict[str, Any], unit: str, factor: float | None, ctx: Any) -> Any:
+    if factor is None:
+        raise geometry.UnsupportedGeometry("context units are not known")
+    body = req["position"]
+    target = tuple(
+        _range(value, unit=unit, path=("requirements", req_id, "position", "target", axis)).minimum
+        for axis, value in zip("xyz", body["target"], strict=True)
+    )
+    tolerance = _range(body["tolerance"], unit=unit, path=("requirements", req_id, "position", "tolerance"))
+    tolerance_mm = tolerance.minimum
+    if tolerance_mm is None or tolerance_mm < 0:
+        raise geometry.UnsupportedGeometry("position tolerance is invalid")
+    if "hole" in body:
+        actual_point, deviation_mm = geometry.hole_axis_position_mm(ctx, body["hole"], target, factor)
+        definition = "shortest distance from target point to the selected inward cylindrical hole axis"
+        selector = f"hole axis: {body['hole']}"
+    else:
+        actual_point = geometry.selector_position_mm(ctx, body["selector"], factor)
+        deviation_mm = math.dist(actual_point, target)
+        definition = "Euclidean distance from target point to the selected entity center"
+        selector = body["selector"]
+    if not math.isfinite(deviation_mm):
+        raise geometry.UnsupportedGeometry("position deviation is not finite")
+    matches = deviation_mm <= tolerance_mm
+    target_text = ", ".join(_actual_value(value, power=1, unit=unit) for value in target)
+    actual_point_text = ", ".join(_actual_value(value, power=1, unit=unit) for value in actual_point)
+    return _check(
+        req_id,
+        level=level,
+        status=_comparison_status(matches, level),
+        message=f"Position requirement {req_id!r} {'is within tolerance' if matches else 'is outside tolerance'}.",
+        expected=f"target ({target_text}) within {_actual_value(tolerance_mm, power=1, unit=unit)}",
+        actual=(
+            f"{definition}: deviation {_actual_value(deviation_mm, power=1, unit=unit)}; "
+            f"measured center/axis point ({actual_point_text})"
+        ),
+        fix_hint="Adjust the named feature or hole location, or correct the target position and tolerance.",
+        selector=selector,
+        assumptions="A feature selector measures the center of one selected face/edge or the point of one vertex. A hole selector measures the axis of one inward-facing full cylindrical face; the target's axial coordinate is ignored.",
+    )
+
+
+def _eval_fit(req_id: str, level: str, req: dict[str, Any], unit: str, factor: float | None, ctx: Any) -> Any:
+    if factor is None:
+        raise geometry.UnsupportedGeometry("context units are not known")
+    body = req["fit"]
+    first, second = body["a"], body["b"]
+    if "clearance" in body:
+        expected_range = _range(body["clearance"], unit=unit, path=("requirements", req_id, "fit", "clearance"))
+        actual_mm, overlap_mm3 = geometry.fit_clearance_mm(ctx, first, second, factor)
+        if actual_mm is None:
+            return _check(
+                req_id,
+                level=level,
+                status=_comparison_status(False, level),
+                message=f"Fit requirement {req_id!r} has solid interference and does not satisfy the clearance range.",
+                expected=f"clearance between {first} and {second}: {_range_text(expected_range)} with no solid overlap",
+                actual=f"common solid volume {_text_number(overlap_mm3)} mm³; minimum clearance is not defined",
+                fix_hint="Move or reshape the bodies to remove overlap, then meet the requested clearance range.",
+                selector=f"{first} to {second}",
+            )
+        matches = _within(actual_mm, expected_range)
+        return _check(
+            req_id,
+            level=level,
+            status=_comparison_status(matches, level),
+            message=f"Fit clearance requirement {req_id!r} {'is satisfied' if matches else 'does not match the measured pair gap'}.",
+            expected=f"clearance between {first} and {second}: {_range_text(expected_range)}",
+            actual=f"minimum B-rep separation {_actual_value(actual_mm, power=1, unit=unit)}",
+            fix_hint="Adjust the body placement or the specified clearance range.",
+            selector=f"{first} to {second}",
+            assumptions="Named operands resolve to exact assembly component bodies. Selector operands resolve to one face, edge or vertex. Solid overlap is checked when both operands contain solids; other selector pairs report minimum geometric separation only.",
+        )
+
+    expected_range = _range(
+        body["interference"], unit="mm", power=3, path=("requirements", req_id, "fit", "interference")
+    )
+    actual_mm3 = geometry.fit_interference_mm3(ctx, first, second, factor)
+    matches = _within(actual_mm3, expected_range)
+    return _check(
+        req_id,
+        level=level,
+        status=_comparison_status(matches, level),
+        message=f"Fit interference-volume requirement {req_id!r} {'is satisfied' if matches else 'does not match the measured overlap'}.",
+        expected=f"common volume between {first} and {second}: {_range_text(expected_range)}",
+        actual=f"B-rep common solid volume {_actual_value(actual_mm3, power=3, unit='mm')}",
+        fix_hint="Adjust the body placement or the specified interference-volume range.",
+        selector=f"{first} to {second}",
+        assumptions="The interference range measures exact common B-rep solid volume in mm³; it does not establish contact pressure, stress, or a manufacturing fit class.",
     )
 
 
@@ -710,7 +831,7 @@ def _eval_components(req_id: str, level: str, req: dict[str, Any]) -> Any:
 def _evaluate_one(req: dict[str, Any], index: int, doc: dict[str, Any], ctx: Any, native_factor: float | None) -> Any:
     req_id = _requirement_id(req, index)
     level = _level(req)
-    types = [key for key in req if key not in {"id", "level"}]
+    types = [key for key in req if key not in {"id", "level", "covers"}]
     supported = {
         "bbox",
         "area",
@@ -725,6 +846,8 @@ def _evaluate_one(req: dict[str, Any], index: int, doc: dict[str, Any], ctx: Any
         "interference",
         "matches_reference",
         "components",
+        "position",
+        "fit",
     }
     known = [key for key in types if key in supported]
     if len(known) != 1:
@@ -772,7 +895,7 @@ def _evaluate_one(req: dict[str, Any], index: int, doc: dict[str, Any], ctx: Any
             if lower is not None and sampled.minimum_mm < lower - 1e-6:
                 return _check(req_id, level=level, status=_comparison_status(False, level),
                     message=f"Minimum-wall requirement {req_id!r} fails at a measured local wall ray.",
-                    expected=f"global minimum wall at least {lower:.8g} mm",
+                    expected=f"global minimum wall at least {_actual_value(lower, power=1, unit=unit)}",
                     actual=f"local wall ray {sampled.minimum_mm:.8g} mm at face {sampled.face_index}",
                     fix_hint="Thicken the reported local wall and rerun the screen; passing samples do not prove a global minimum.")
         except GeometryUnavailable:
@@ -781,9 +904,9 @@ def _evaluate_one(req: dict[str, Any], index: int, doc: dict[str, Any], ctx: Any
             req_id,
             level=level,
             status="skip",
-            message=f"Global minimum-wall requirement {req_id!r} is not measured by the current evaluator.",
+            message=f"Global minimum-wall requirement {req_id!r} remains unknown; sampled rays cannot prove a global minimum.",
             expected=f"at least {_range_text(target)} global wall thickness",
-            actual="unknown (a bbox or sparse point samples cannot establish global minimum thickness)",
+            actual="unknown (sampled thickness can reveal a local shortfall, but finite samples cannot prove a global minimum)",
             fix_hint="Use a validated global B-rep thickness algorithm or add a local material_at_point check for specific locations.",
             selector="global B-rep wall thickness",
         )
@@ -795,6 +918,10 @@ def _evaluate_one(req: dict[str, Any], index: int, doc: dict[str, Any], ctx: Any
         return _eval_symmetry(req_id, level, req, unit, native_factor, ctx)
     if field == "measure":
         return _eval_custom_measure(req_id, level, req, unit, native_factor, ctx)
+    if field == "position":
+        return _eval_position(req_id, level, req, unit, native_factor, ctx)
+    if field == "fit":
+        return _eval_fit(req_id, level, req, unit, native_factor, ctx)
     if field == "components":
         return _eval_components(req_id, level, req)
     if field == "material_at_point":
