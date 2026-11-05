@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from build123d import Box, Compound, Cylinder, Face, Pos, Shell, Solid, Sphere
+from build123d import Box, Compound, Cone, Cylinder, Face, Pos, Shell, Solid, Sphere
 
 from aad.engine.gate import (
     GateTolerances,
@@ -125,14 +125,29 @@ class GeometricGateTests(unittest.TestCase):
         self.assertEqual(checks["brep_valid"].status, "fail")
         self.assertIn("BRepCheck_Analyzer.IsValid()=false", checks["brep_valid"].actual)
 
-    def test_degenerate_kernel_edges_are_reported_even_for_a_valid_sphere(self) -> None:
-        shape = Sphere(5)
-        self.assertTrue(shape.is_valid)
-        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
-            edge_check = check_map(hard_checks(context(shape, Path(tmp))))["edge_quality"]
-        self.assertEqual(edge_check.status, "fail")
-        self.assertNotIn("degenerate_edges=0", edge_check.actual)
-        self.assertTrue(edge_check.heuristic)
+    def test_surface_poles_pass_and_stay_reported(self) -> None:
+        for shape, poles in ((Sphere(5), 2), (Cone(5, 0, 10), 1)):
+            self.assertTrue(shape.is_valid)
+            with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
+                checks = check_map(hard_checks(context(shape, Path(tmp))))
+            self.assertEqual(checks["edge_quality"].status, "pass", checks["edge_quality"].actual)
+            self.assertIn(f"surface_pole_edges={poles}", checks["edge_quality"].actual)
+            self.assertIn("degenerate_edges=0", checks["edge_quality"].actual)
+            self.assertTrue(checks["edge_quality"].heuristic)
+            self.assertEqual(checks["mesh_watertight"].status, "pass", checks["mesh_watertight"].actual)
+            self.assertNotIn("collapsed_triangles=0", checks["mesh_watertight"].actual)
+
+    def test_collapsed_triangles_cannot_hide_an_open_mesh(self) -> None:
+        vertices = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]]
+        triangles = [[0, 2, 1], [0, 1, 3], [1, 2, 3], [0, 0, 1]]  # Missing face, plus a collapsed one.
+        check = _check_mesh_arrays(vertices, triangles, GateTolerances())
+        self.assertEqual(check.status, "fail")
+        self.assertIn("collapsed_triangles=1", check.actual)
+        self.assertIn("boundary_edges=3", check.actual)
+
+    def test_only_collapsed_triangles_do_not_pass(self) -> None:
+        check = _check_mesh_arrays([[0, 0, 0], [1, 0, 0]], [[0, 0, 1]], GateTolerances())
+        self.assertEqual(check.status, "fail")
 
     def test_undefined_zero_area_kernel_face_is_rejected(self) -> None:
         from OCP.BRep import BRep_Builder
