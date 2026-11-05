@@ -5,6 +5,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import math
 import operator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -15,6 +16,7 @@ if TYPE_CHECKING:
 
 
 PART_COLOR = "#b8c0cc"  # A neutral machined look, rather than ocp-tessellate's default yellow.
+_DROP_FROM_SCENE = object()
 
 
 @dataclass
@@ -356,6 +358,66 @@ class _NumpyEncoder(json.JSONEncoder):
         return super().default(value)
 
 
+def _scene_json_value(value: Any, _active: set[int] | None = None) -> Any:
+    """Keep scene data JSON-safe while dropping opaque shape metadata.
+
+    ``ocp-tessellate`` copies shape materials and other attributes into its
+    scene tree. Those values can be library-specific objects (for example,
+    ``bd_warehouse``'s ``FinishedMaterial``), which are useful to the CAD
+    model but have no representation in the viewer scene. Drop an unsupported
+    mapping entry as a whole, while leaving the geometry tree intact.
+    """
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else _DROP_FROM_SCENE
+
+    try:
+        import numpy as np
+    except ImportError:
+        np = None
+    if np is not None:
+        if isinstance(value, np.generic):
+            return _scene_json_value(value.item(), _active)
+        if isinstance(value, np.ndarray):
+            return _scene_json_value(value.tolist(), _active)
+
+    if isinstance(value, (Mapping, list, tuple)):
+        active = _active if _active is not None else set()
+        identity = id(value)
+        if identity in active:
+            return _DROP_FROM_SCENE
+        active.add(identity)
+        try:
+            if isinstance(value, Mapping):
+                result: dict[str, Any] = {}
+                for key, item in value.items():
+                    if isinstance(key, str):
+                        json_key = key
+                    elif isinstance(key, (bool, int, float)):
+                        json_key = str(key)
+                    else:
+                        continue
+                    safe_item = _scene_json_value(item, active)
+                    if safe_item is not _DROP_FROM_SCENE:
+                        result[json_key] = safe_item
+                return result
+
+            result = []
+            for item in value:
+                safe_item = _scene_json_value(item, active)
+                if safe_item is _DROP_FROM_SCENE:
+                    # A list can be geometry or metadata. Let the containing
+                    # mapping drop it rather than changing a geometry sequence.
+                    return _DROP_FROM_SCENE
+                result.append(safe_item)
+            return result
+        finally:
+            active.remove(identity)
+
+    return _DROP_FROM_SCENE
+
+
 def _manifest_context(ctx: Any, bbox: list[float], parts: list[dict[str, Any]], total_bytes: int, triangles: int):
     params, has_params = _params(ctx)
     checks_summary = _json_value(getattr(ctx, "checks_summary")) if hasattr(ctx, "checks_summary") else None
@@ -500,8 +562,23 @@ def _write_single_scene(ctx: Any, out: Path) -> tuple[Any, dict[str, Any]]:
     shapes["feature_map"] = feature_map
     # TCV 5.1.3 directly decodes this instance/reference form in Viewer.render.
     # ocp_tessellate emits Float32 geometry; no extra decimal rounding is used.
-    binary_tree = numpy_to_buffer_json({"instances": meshed, "shapes": shapes})
-    payload = json.dumps(binary_tree, cls=_NumpyEncoder, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    # Clean the shape tree before ocp-tessellate recursively walks it. This
+    # tree contains display metadata, while mesh arrays stay in `meshed` and
+    # retain the binary-buffer encoding.
+    safe_shapes = _scene_json_value(shapes)
+    if not isinstance(safe_shapes, dict):
+        raise TypeError("scene shape tree is not JSON-compatible")
+    binary_tree = numpy_to_buffer_json({"instances": meshed, "shapes": safe_shapes})
+    safe_tree = _scene_json_value(binary_tree)
+    if not isinstance(safe_tree, dict):
+        raise TypeError("scene tree is not JSON-compatible")
+    payload = json.dumps(
+        safe_tree,
+        cls=_NumpyEncoder,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
     compressed = gzip.compress(payload, compresslevel=6, mtime=0)
 
     out.mkdir(parents=True, exist_ok=True)

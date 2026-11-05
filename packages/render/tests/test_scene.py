@@ -338,3 +338,25 @@ def test_mirrored_solid_mesh_matches_its_bbox(tmp_path):
 def test_part_color_is_neutral(tmp_path):
     manifest = make_scene(_context(Box(1, 1, 1)), tmp_path)
     assert manifest.parts[0]["color"] == "#b8c0cc"
+
+
+def test_opaque_shape_material_metadata_is_dropped(tmp_path):
+    shape = Box(1, 1, 1)
+    shape._material = object()
+
+    make_scene(_context(shape), tmp_path)
+
+    part = _shape_tree(_payload(tmp_path))["parts"][0]
+    assert "material" not in part
+
+
+def test_cyclic_shape_material_metadata_is_dropped(tmp_path):
+    shape = Box(1, 1, 1)
+    material = {"name": "custom"}
+    material["cycle"] = material
+    shape._material = material
+
+    make_scene(_context(shape), tmp_path)
+
+    part = _shape_tree(_payload(tmp_path))["parts"][0]
+    assert part["material"] == {"name": "custom"}
