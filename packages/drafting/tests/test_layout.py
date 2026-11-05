@@ -171,7 +171,7 @@ def test_dense_mixed_hole_plate_has_visible_dimensions_and_no_layout_collisions(
     assert result.ok, result.checks
 
 
-def test_text_below_minimum_is_not_used_and_overlong_notes_fail_visibly(tmp_path):
+def test_minimum_text_is_checked_and_overlong_notes_suppress_output(tmp_path):
     long_note = "uncuttable-note-" * 700
     result = make_drawing(
         SimpleNamespace(shape=Box(30, 20, 5), units="mm", name="Overflow review"),
@@ -184,11 +184,16 @@ def test_text_below_minimum_is_not_used_and_overlong_notes_fail_visibly(tmp_path
         ),
         tmp_path,
     )
-    labels = ET.parse(result.artifacts["svg"]).getroot().findall(".//{http://www.w3.org/2000/svg}text")
-    assert all(float(item.attrib["font-size"]) >= 2.5 for item in labels)
+    assert result.artifacts == {}
+    assert result.preview is None
+    assert not list(tmp_path.glob("drawing.*"))
+    assert result.summary.startswith("Drawing not written")
+    assert "Next steps:" in result.summary
     assert len(result.notes[0]) == len(long_note)
+    assert _check(result, "minimum_text_height")["status"] == "pass"
     assert _check(result, "schedule_bounds")["status"] == "fail"
     assert _check(result, "text_margins")["status"] == "fail"
+    assert all(check.get("fix_hint") for check in result.checks if check["status"] == "fail")
     assert not result.ok
 
 

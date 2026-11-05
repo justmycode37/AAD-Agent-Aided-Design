@@ -71,12 +71,12 @@ class DrawingRequest:
         DrawingView("right"),
         DrawingView("iso"),
     )
-    dimensions: str | Sequence[DimensionSpec | Mapping[str, Any]] = "auto"
+    dimensions: str | Sequence[DimensionSpec | Mapping[str, Any]] | None = None
     style: str = "iso"
     title_block: Mapping[str, str] = field(default_factory=dict)
     notes: Sequence[str] = ()
     revisions: Sequence[Mapping[str, str]] = ()
-    bom: bool | str = False
+    bom: bool | str | None = None
     formats: Sequence[str] = ("svg", "dxf", "pdf")
 
 

@@ -87,12 +87,12 @@ def _value(source: Any, name: str, default: Any = None) -> Any:
     return getattr(source, name, default)
 
 
-def _request_field_is_omitted(request: Any, name: str, default: Any) -> bool:
+def _request_field_is_omitted(request: Any, name: str) -> bool:
     if request is None:
         return True
     if isinstance(request, Mapping):
         return name not in request or request[name] is None
-    return getattr(request, name, default) == default
+    return getattr(request, name, None) is None
 
 
 def _drawing_fix_hint(check_id: str) -> str:
@@ -1800,9 +1800,9 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
     request = _normalize_request(req)
     if context_value(ctx, "kind") == "assembly":
         defaults = {}
-        if _request_field_is_omitted(req, "dimensions", "auto"):
+        if _request_field_is_omitted(req, "dimensions"):
             defaults["dimensions"] = tuple(DimensionSpec("overall", axis=axis) for axis in ("x", "y", "z"))
-        if _request_field_is_omitted(req, "bom", False):
+        if _request_field_is_omitted(req, "bom"):
             defaults["bom"] = True
         if defaults:
             request = replace(request, **defaults)
