@@ -227,19 +227,23 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
             failure.feature = failure.feature or getattr(exc, "_aad_feature", None)
         else:
             file_name, line = _source_location(exc, source_path)
+            kernel_code = _kernel_failure_code(exc)
+            where = f" at {file_name}:{line}" if file_name and line else ""
             failure = Failure(
-                code="RUNTIME_ERROR",
-                phase="runtime",
+                code=kernel_code or "RUNTIME_ERROR",
+                phase="kernel" if kernel_code else "runtime",
                 message=(
-                    f"The model script raised {type(exc).__name__} at {file_name}:{line}."
-                    if file_name and line
-                    else f"The model script raised {type(exc).__name__}."
+                    f"The kernel refused this operation{where}: {type(exc).__name__}."
+                    if kernel_code
+                    else f"The model script raised {type(exc).__name__}{where}."
                 ),
                 kernel_message=str(exc) or type(exc).__name__,
                 file=file_name,
                 line=line,
                 feature=getattr(exc, "_aad_feature", "main" if file_name else None),
-                repair=["Inspect the reported source line and the exception detail, then rebuild."],
+                repair=_KERNEL_REPAIRS.get(
+                    kernel_code or "", ["Inspect the reported source line and the exception detail, then rebuild."]
+                ),
             )
         result = _failed_result(
             failure,
@@ -408,7 +412,19 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
         ok = False
         summary = "A BREP artifact was saved, but the hard geometry gate failed."
     elif quality_failed:
-        failure = None
+        failed_ids = [check.id for check in checks if check.level == "error" and check.status == "fail"]
+        failure = Failure(
+            code="REQUIREMENT_FAILED",
+            phase="validate",
+            message=f"The model built, but these error-level checks failed: {', '.join(failed_ids)}.",
+            feature="main",
+            file=source_path.name,
+            repair=[
+                "Read expected and actual in each failed check, and fix the model if it misses the request.",
+                "If the dimension was meant to change, send the updated spec in the same aad_build call.",
+                "Inspect the kept candidate with aad_history(action='job').",
+            ],
+        )
         status = "failed"
         ok = False
         summary = "A BREP artifact was saved, but one or more error-level quality checks failed."
@@ -910,6 +926,79 @@ def _optional_render(context: ModelContext, requested: bool) -> tuple[dict[str, 
             message="Agent rendering failed; the built BREP artifact was retained.",
             actual=f"{type(exc).__name__}: {exc}",
         )
+
+
+# build123d function names, deepest call first, that identify the refused operation.
+_KERNEL_OPERATIONS = {
+    "fillet": "KERNEL_FILLET_FAILED",
+    "max_fillet": "KERNEL_FILLET_FAILED",
+    "chamfer": "KERNEL_CHAMFER_FAILED",
+    "offset": "KERNEL_SHELL_FAILED",
+    "offset_3d": "KERNEL_SHELL_FAILED",
+    "shell": "KERNEL_SHELL_FAILED",
+    "thicken": "KERNEL_SHELL_FAILED",
+    "sweep": "KERNEL_SWEEP_FAILED",
+    "loft": "KERNEL_SWEEP_FAILED",
+    "make_loft": "KERNEL_SWEEP_FAILED",
+    "revolve": "KERNEL_SWEEP_FAILED",
+    "extrude": "KERNEL_SWEEP_FAILED",
+    "_bool_op": "KERNEL_BOOLEAN_FAILED",
+    "fuse": "KERNEL_BOOLEAN_FAILED",
+    "cut": "KERNEL_BOOLEAN_FAILED",
+    "intersect": "KERNEL_BOOLEAN_FAILED",
+    "split": "KERNEL_BOOLEAN_FAILED",
+}
+_KERNEL_REPAIRS = {
+    "KERNEL_FILLET_FAILED": [
+        "Use a smaller radius. max_fillet() on the shape gives the largest that fits.",
+        "Fillet fewer edges at once, or fillet before cutting nearby features.",
+    ],
+    "KERNEL_CHAMFER_FAILED": [
+        "Use a smaller length, or chamfer fewer edges at once.",
+        "Chamfer before cutting nearby features.",
+    ],
+    "KERNEL_SHELL_FAILED": [
+        "Make the wall thinner than the smallest local radius or the part's half thickness.",
+        "Shell before adding fillets and small features.",
+    ],
+    "KERNEL_SWEEP_FAILED": [
+        "Check that the profile is closed, does not cross itself, and does not cross the axis or path.",
+        "Check that a sweep profile is smaller than the path's tightest bend.",
+    ],
+    "KERNEL_BOOLEAN_FAILED": [
+        "Move faces that only just touch so that the tools clearly overlap or clearly miss.",
+        "Check both shapes are valid, and apply the operation to fewer bodies at a time.",
+    ],
+    "KERNEL_OTHER": [
+        "The kernel gave no specific cause. Check for zero or negative sizes at the reported line.",
+        "Reduce the operation to its smallest failing case, then rebuild.",
+    ],
+}
+
+
+def _kernel_failure_code(exc: BaseException) -> str | None:
+    """Name the refused operation, only when the kernel layer raised the error.
+
+    A TypeError, a typo, or a plain raise in the model stays RUNTIME_ERROR. A
+    ValueError counts only when it comes from a recognized build123d operation.
+    """
+    native = type(exc).__module__.startswith("OCP")
+    if not native and not isinstance(exc, (ValueError, RuntimeError)):
+        return None
+    try:
+        frames = traceback.extract_tb(exc.__traceback__)
+    except Exception:
+        return "KERNEL_OTHER" if native else None
+    kernel_frames = [frame.name for frame in frames if "build123d" in Path(frame.filename).parts]
+    if not kernel_frames and not native:
+        return None
+    if "_validate_builder" in kernel_frames:  # An API misuse, not a kernel refusal.
+        return None
+    for name in reversed(kernel_frames):
+        code = _KERNEL_OPERATIONS.get(name)
+        if code:
+            return code
+    return "KERNEL_OTHER" if native else None
 
 
 def _source_location(exc: BaseException, source_path: Path) -> tuple[str | None, int | None]:

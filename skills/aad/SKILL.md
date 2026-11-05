@@ -398,9 +398,10 @@ A sliver edge is usually a coincidence between two surfaces; moving one by a sma
 | Code | Meaning | What to do |
 |---|---|---|
 | `SYNTAX_ERROR`, `RUNTIME_ERROR` | The script failed | Read `line` and `kernel_message` |
-| `HARD_GATE_FAILED` | See above. A `RUNTIME_ERROR` saying an error-level check failed means a requirement failed | Read the checks. Inspect the kept candidate with `aad_history(action="job")` |
+| `HARD_GATE_FAILED` | See above | Read the checks. Inspect the kept candidate with `aad_history(action="job")` |
+| `REQUIREMENT_FAILED` | The model built, but an error-level spec or process check failed. The message names them | Fix the model, or send the updated spec in the same call if the change was meant. The candidate is kept, as above |
 | `SELECTOR_EMPTY`, `SELECTOR_AMBIGUOUS` | Wrong selector count | Use the returned candidates |
-| `KERNEL_BOOLEAN_FAILED`, `KERNEL_FILLET_FAILED`, `KERNEL_CHAMFER_FAILED`, `KERNEL_SHELL_FAILED`, `KERNEL_SWEEP_FAILED`, `KERNEL_OTHER` | The kernel refused an operation | Try a smaller radius or a different order, and read `repair` |
+| `KERNEL_BOOLEAN_FAILED`, `KERNEL_FILLET_FAILED`, `KERNEL_CHAMFER_FAILED`, `KERNEL_SHELL_FAILED`, `KERNEL_SWEEP_FAILED`, `KERNEL_OTHER` | The kernel refused an operation. Sweep includes extrude, revolve and loft. Named from the build123d call that raised | Read `kernel_message`, `line` and `repair` |
 | `INVALID_SOLID` | The result is not a usable solid | Check the profile |
 | `TIMEOUT`, `OUT_OF_MEMORY`, `WORKER_CRASH` | The process ended early. The head revision is safe | Raise `timeout_s`, or simplify |
 | `SANDBOX_DENIED` | The OS sandbox is unavailable or refused an action | Run `aad doctor`. There is no way to bypass it |

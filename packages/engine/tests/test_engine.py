@@ -110,6 +110,39 @@ class EngineBootstrapTests(unittest.TestCase):
             self.assertEqual(runtime.failure.line, 2)
             self.assertIn("fixture failure", runtime.failure.kernel_message)
 
+    def test_kernel_refusals_get_their_documented_codes(self):
+        cases = {
+            "KERNEL_FILLET_FAILED": "with BuildPart() as b:\n    Box(10, 10, 10)\n    fillet(b.edges(), radius=8)\nresult = b.part",
+            "KERNEL_CHAMFER_FAILED": "with BuildPart() as b:\n    Box(10, 10, 10)\n    chamfer(b.edges(), length=8)\nresult = b.part",
+            "KERNEL_SWEEP_FAILED": "with BuildPart() as b:\n    with BuildSketch(Plane.XZ):\n        Rectangle(10, 10)\n    revolve(axis=Axis.Z)\nresult = b.part",
+            "KERNEL_OTHER": "result = Box(0, 1, 1)",
+            # Script and API mistakes are not kernel refusals.
+            "RUNTIME_ERROR": "raise ValueError('my own check')",
+        }
+        for code, body in cases.items():
+            with self.subTest(code=code), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                result = run_build(BuildRequest(
+                    source="from build123d import *\n" + body, project_dir=root, job_dir=root / "job",
+                ))
+                self.assertEqual(result.failure.code, code, result.failure.kernel_message)
+                self.assertEqual(result.failure.phase, "kernel" if code != "RUNTIME_ERROR" else "runtime")
+                self.assertIsNotNone(result.failure.line)
+                self.assertTrue(result.failure.repair)
+
+    def test_builder_misuse_and_typos_stay_runtime_errors(self):
+        for body in (
+            "with BuildPart():\n    with BuildSketch():\n        Polyline((0, 0), (1, 1), (1, 0))",
+            "Box(1, 1, 1).nope",
+            "Box(1, 1, 1, color=2)",
+        ):
+            with self.subTest(body=body), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                result = run_build(BuildRequest(
+                    source="from build123d import *\n" + body, project_dir=root, job_dir=root / "job",
+                ))
+                self.assertEqual(result.failure.code, "RUNTIME_ERROR", result.failure.kernel_message)
+
     def test_optional_hook_failures_warn_without_discarding_brep(self) -> None:
         source = """from pathlib import Path
 import sys
