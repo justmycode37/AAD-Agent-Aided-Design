@@ -653,6 +653,7 @@ Sheets offer `point`, `line`, `circle`, `arc`, `polyline`, `rectangle`, `bezier`
 These exist in the packages but have no MCP tool. Use them only if you can run Python in the AAD environment.
 
 - **Comparison library:** `aad_quality.compare`.
+- **Repository-only offline assembly example:** [Seamaster wristwatch](https://github.com/justmycode37/AAD-Agent-Aided-Design/tree/main/fixtures/examples/seamaster) builds a detailed wristwatch with a closed bracelet, sampled checks, CAD exports and the canonical viewer. Run `uv run --locked --all-packages --with shapely==2.2.0 python fixtures/examples/seamaster/build.py` from the repository root. This script performs I/O and is not an `aad_build` model payload; it stays `draft` and its custom mechanism is not operationally validated.
 
 ## What does not work yet
 

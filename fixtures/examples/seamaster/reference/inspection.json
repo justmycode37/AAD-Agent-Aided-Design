@@ -1,0 +1,1672 @@
+{
+  "status": "draft",
+  "parts": 613,
+  "invalid_parts": [],
+  "meshes": [
+    {
+      "driver": "Barrel external wheel 96",
+      "driven": "Center driving pinion 12",
+      "actual_distance_mm": 7.211102550927978,
+      "nominal_distance_mm": 7.211102550927978,
+      "error_mm": 0.0,
+      "ratio": 8.0
+    },
+    {
+      "driver": "Center minute wheel 80",
+      "driven": "Third pinion 10",
+      "actual_distance_mm": 4.5,
+      "nominal_distance_mm": 4.5,
+      "error_mm": 0.0,
+      "ratio": 8.0
+    },
+    {
+      "driver": "Third wheel 75",
+      "driven": "Fourth pinion 10",
+      "actual_distance_mm": 3.4,
+      "nominal_distance_mm": 3.4,
+      "error_mm": 0.0,
+      "ratio": 7.5
+    },
+    {
+      "driver": "Fourth seconds wheel 96",
+      "driven": "Escape pinion 8",
+      "actual_distance_mm": 3.38,
+      "nominal_distance_mm": 3.38,
+      "error_mm": 0.0,
+      "ratio": 12.0
+    },
+    {
+      "driver": "Fourth seconds transfer 32",
+      "driven": "Seconds idler 24",
+      "actual_distance_mm": 2.8,
+      "nominal_distance_mm": 2.8000000000000003,
+      "error_mm": -4.440892098500626e-16,
+      "ratio": 1.3333333333333333
+    },
+    {
+      "driver": "Seconds idler 24",
+      "driven": "Central seconds return 32",
+      "actual_distance_mm": 2.8,
+      "nominal_distance_mm": 2.8000000000000003,
+      "error_mm": -4.440892098500626e-16,
+      "ratio": 0.75
+    },
+    {
+      "driver": "Cannon pinion 12",
+      "driven": "Minute intermediate wheel 36",
+      "actual_distance_mm": 2.4,
+      "nominal_distance_mm": 2.4000000000000004,
+      "error_mm": -4.440892098500626e-16,
+      "ratio": 0.3333333333333333
+    },
+    {
+      "driver": "Minute intermediate pinion 10",
+      "driven": "Hour wheel 40",
+      "actual_distance_mm": 2.4,
+      "nominal_distance_mm": 2.4,
+      "error_mm": 0.0,
+      "ratio": 0.25
+    },
+    {
+      "driver": "Hour calendar drive 40",
+      "driven": "Daily calendar wheel 80",
+      "actual_distance_mm": 4.8,
+      "nominal_distance_mm": 4.8,
+      "error_mm": 0.0,
+      "ratio": 0.5
+    },
+    {
+      "driver": "Manual lower crown wheel 40",
+      "driven": "Manual lower intermediate 32",
+      "actual_distance_mm": 3.6,
+      "nominal_distance_mm": 3.6,
+      "error_mm": 0.0,
+      "ratio": 1.25
+    },
+    {
+      "driver": "Manual lower intermediate 32",
+      "driven": "Manual reduction wheel 68",
+      "actual_distance_mm": 5.0,
+      "nominal_distance_mm": 5.0,
+      "error_mm": 0.0,
+      "ratio": 0.47058823529411764
+    },
+    {
+      "driver": "Manual reduction wheel 68",
+      "driven": "Manual idler wheel 40",
+      "actual_distance_mm": 5.4,
+      "nominal_distance_mm": 5.4,
+      "error_mm": 0.0,
+      "ratio": 1.7
+    },
+    {
+      "driver": "Manual idler wheel 40",
+      "driven": "Manual barrel arbor wheel 36",
+      "actual_distance_mm": 3.8000000000000016,
+      "nominal_distance_mm": 3.8000000000000003,
+      "error_mm": 1.3322676295501878e-15,
+      "ratio": 1.1111111111111112
+    },
+    {
+      "driver": "Minute intermediate wheel 36",
+      "driven": "Setting transfer 24",
+      "actual_distance_mm": 3.0000000000000004,
+      "nominal_distance_mm": 3.0,
+      "error_mm": 4.440892098500626e-16,
+      "ratio": 1.5
+    },
+    {
+      "driver": "Setting transfer 24",
+      "driven": "Setting intermediate 24",
+      "actual_distance_mm": 2.3999999999999995,
+      "nominal_distance_mm": 2.4000000000000004,
+      "error_mm": -8.881784197001252e-16,
+      "ratio": 1.0
+    },
+    {
+      "driver": "Setting intermediate 24",
+      "driven": "Setting wheel 24",
+      "actual_distance_mm": 2.3999999999999995,
+      "nominal_distance_mm": 2.4000000000000004,
+      "error_mm": -8.881784197001252e-16,
+      "ratio": 1.0
+    },
+    {
+      "driver": "Rotor winding gear 36",
+      "driven": "Auto reverser input 18",
+      "actual_distance_mm": 2.7,
+      "nominal_distance_mm": 2.7,
+      "error_mm": 0.0,
+      "ratio": 2.0
+    },
+    {
+      "driver": "Auto reduction 64",
+      "driven": "Auto intermediate 16",
+      "actual_distance_mm": 4.0,
+      "nominal_distance_mm": 4.0,
+      "error_mm": 0.0,
+      "ratio": 4.0
+    },
+    {
+      "driver": "Auto output pinion 12",
+      "driven": "Barrel winding ratchet 36",
+      "actual_distance_mm": 1.7394690889085367,
+      "nominal_distance_mm": 1.7394690889085367,
+      "error_mm": 0.0,
+      "ratio": 0.3333333333333333
+    }
+  ],
+  "fits": [
+    {
+      "interface": "Third upper",
+      "shaft_radius": 0.14,
+      "bearing_bore_radius": 0.16,
+      "radial_clearance_mm": 0.02
+    },
+    {
+      "interface": "Third lower",
+      "shaft_radius": 0.14,
+      "bearing_bore_radius": 0.16,
+      "radial_clearance_mm": 0.02
+    },
+    {
+      "interface": "Third endstone",
+      "shaft_radius": 0.0,
+      "bearing_bore_radius": 0.02,
+      "radial_clearance_mm": 0.02
+    },
+    {
+      "interface": "Fourth upper",
+      "shaft_radius": 0.14,
+      "bearing_bore_radius": 0.16,
+      "radial_clearance_mm": 0.02
+    },
+    {
+      "interface": "Fourth lower",
+      "shaft_radius": 0.14,
+      "bearing_bore_radius": 0.16,
+      "radial_clearance_mm": 0.02
+    },
+    {
+      "interface": "Fourth endstone",
+      "shaft_radius": 0.0,
+      "bearing_bore_radius": 0.02,
+      "radial_clearance_mm": 0.02
+    },
+    {
+      "interface": "Escape upper",
+      "shaft_radius": 0.11,
+      "bearing_bore_radius": 0.13,
+      "radial_clearance_mm": 0.02
+    },
+    {
+      "interface": "Escape lower",
+      "shaft_radius": 0.11,
+      "bearing_bore_radius": 0.13,
+      "radial_clearance_mm": 0.02
+    },
+    {
+      "interface": "Escape endstone",
+      "shaft_radius": 0.0,
+      "bearing_bore_radius": 0.02,
+      "radial_clearance_mm": 0.02
+    },
+    {
+      "interface": "Seconds idler lower",
+      "shaft_radius": 0.11999999999999998,
+      "bearing_bore_radius": 0.13999999999999999,
+      "radial_clearance_mm": 0.02
+    },
+    {
+      "interface": "Seconds idler lower",
+      "shaft_radius": 0.11999999999999998,
+      "bearing_bore_radius": 0.13999999999999999,
+      "radial_clearance_mm": 0.02
+    },
+    {
+      "interface": "Seconds idler endstone",
+      "shaft_radius": 0.0,
+      "bearing_bore_radius": 0.02,
+      "radial_clearance_mm": 0.02
+    },
+    {
+      "interface": "Pallet bearing 0.63",
+      "shaft_radius": 0.09999999999999999,
+      "bearing_bore_radius": 0.12,
+      "radial_clearance_mm": 0.02
+    },
+    {
+      "interface": "Pallet bearing -2.52",
+      "shaft_radius": 0.09999999999999999,
+      "bearing_bore_radius": 0.12,
+      "radial_clearance_mm": 0.02
+    },
+    {
+      "interface": "Balance shock bearing 0.63",
+      "shaft_radius": 0.09,
+      "bearing_bore_radius": 0.11,
+      "radial_clearance_mm": 0.02
+    },
+    {
+      "interface": "Balance shock bearing -2.52",
+      "shaft_radius": 0.09,
+      "bearing_bore_radius": 0.11,
+      "radial_clearance_mm": 0.02
+    },
+    {
+      "interface": "Barrel arbor upper",
+      "shaft_radius": 0.5499999999999999,
+      "bearing_bore_radius": 0.57,
+      "radial_clearance_mm": 0.02
+    }
+  ],
+  "limits": [
+    "Custom Swiss-lever mechanism, not Omega Co-Axial 8800 production geometry.",
+    "Escapement lock/drop, winding face gear contact, clutch engagement and calendar jump timing are NOT dynamically proven.",
+    "No rate, torque, power reserve, fatigue, shock or 300m pressure certification.",
+    "Micro threads are geometric nominal interfaces; production tolerances and thread gauges remain necessary."
+  ],
+  "oscillator_sizing": {
+    "target_hz": 3,
+    "cad_inertia_kg_m2": 1.6937401147378566e-10,
+    "assumed_E_N_mm2": 160000.0,
+    "ribbon_width_mm": 0.1,
+    "ribbon_thickness_mm": 0.016292460060670748,
+    "spring_length_mm": 95.81857593448869,
+    "torsional_stiffness_Nmm_per_rad": 6.0179561606586046e-05,
+    "method": "First-order EI/L ribbon stiffness and CAD inertia; ignores amplitude dependence, escapement impulses, thermal drift and material variation."
+  },
+  "train_ratios": {
+    "center_to_fourth": 60.0,
+    "fourth_to_escape": 12.0,
+    "center_to_escape": 720.0,
+    "hour_reduction": 12.0,
+    "calendar_drive_hours": 24.0,
+    "escape_teeth": 15,
+    "design_beats_per_second": 6.0
+  },
+  "mesh_sweeps": [
+    {
+      "driver": "Barrel external wheel 96",
+      "driven": "Center driving pinion 12",
+      "samples": 25,
+      "max_polygon_interference_area_mm2": 0.0,
+      "transverse_contact_ratio": 1.335193360265553
+    },
+    {
+      "driver": "Center minute wheel 80",
+      "driven": "Third pinion 10",
+      "samples": 25,
+      "max_polygon_interference_area_mm2": 0.0,
+      "transverse_contact_ratio": 1.3176849294405222
+    },
+    {
+      "driver": "Third wheel 75",
+      "driven": "Fourth pinion 10",
+      "samples": 25,
+      "max_polygon_interference_area_mm2": 0.0,
+      "transverse_contact_ratio": 1.3161677760770785
+    },
+    {
+      "driver": "Fourth seconds wheel 96",
+      "driven": "Escape pinion 8",
+      "samples": 25,
+      "max_polygon_interference_area_mm2": 0.0,
+      "transverse_contact_ratio": 1.3040011986506037
+    },
+    {
+      "driver": "Fourth seconds transfer 32",
+      "driven": "Seconds idler 24",
+      "samples": 25,
+      "max_polygon_interference_area_mm2": 0.0,
+      "transverse_contact_ratio": 1.3449144559409894
+    },
+    {
+      "driver": "Seconds idler 24",
+      "driven": "Central seconds return 32",
+      "samples": 25,
+      "max_polygon_interference_area_mm2": 0.0,
+      "transverse_contact_ratio": 1.3449144559409894
+    },
+    {
+      "driver": "Cannon pinion 12",
+      "driven": "Minute intermediate wheel 36",
+      "samples": 25,
+      "max_polygon_interference_area_mm2": 0.0,
+      "transverse_contact_ratio": 1.3059865095291456
+    },
+    {
+      "driver": "Minute intermediate pinion 10",
+      "driven": "Hour wheel 40",
+      "samples": 25,
+      "max_polygon_interference_area_mm2": 0.0,
+      "transverse_contact_ratio": 1.2965983956321154
+    },
+    {
+      "driver": "Hour calendar drive 40",
+      "driven": "Daily calendar wheel 80",
+      "samples": 25,
+      "max_polygon_interference_area_mm2": 0.0,
+      "transverse_contact_ratio": 1.3989251371273286
+    },
+    {
+      "driver": "Manual lower crown wheel 40",
+      "driven": "Manual lower intermediate 32",
+      "samples": 25,
+      "max_polygon_interference_area_mm2": 0.0,
+      "transverse_contact_ratio": 1.368471788096934
+    },
+    {
+      "driver": "Manual lower intermediate 32",
+      "driven": "Manual reduction wheel 68",
+      "samples": 25,
+      "max_polygon_interference_area_mm2": 0.0,
+      "transverse_contact_ratio": 1.385579832975699
+    },
+    {
+      "driver": "Manual reduction wheel 68",
+      "driven": "Manual idler wheel 40",
+      "samples": 25,
+      "max_polygon_interference_area_mm2": 0.0,
+      "transverse_contact_ratio": 1.3949466481976864
+    },
+    {
+      "driver": "Manual idler wheel 40",
+      "driven": "Manual barrel arbor wheel 36",
+      "samples": 25,
+      "max_polygon_interference_area_mm2": 0.0,
+      "transverse_contact_ratio": 1.3735891087439134
+    },
+    {
+      "driver": "Minute intermediate wheel 36",
+      "driven": "Setting transfer 24",
+      "samples": 25,
+      "max_polygon_interference_area_mm2": 0.0,
+      "transverse_contact_ratio": 1.3500317765879688
+    },
+    {
+      "driver": "Setting transfer 24",
+      "driven": "Setting intermediate 24",
+      "samples": 25,
+      "max_polygon_interference_area_mm2": 0.0,
+      "transverse_contact_ratio": 1.330723939007032
+    },
+    {
+      "driver": "Setting intermediate 24",
+      "driven": "Setting wheel 24",
+      "samples": 25,
+      "max_polygon_interference_area_mm2": 0.0,
+      "transverse_contact_ratio": 1.330723939007032
+    },
+    {
+      "driver": "Rotor winding gear 36",
+      "driven": "Auto reverser input 18",
+      "samples": 25,
+      "max_polygon_interference_area_mm2": 0.0,
+      "transverse_contact_ratio": 1.3333935405814787
+    },
+    {
+      "driver": "Auto reduction 64",
+      "driven": "Auto intermediate 16",
+      "samples": 25,
+      "max_polygon_interference_area_mm2": 0.0,
+      "transverse_contact_ratio": 1.345623110581337
+    },
+    {
+      "driver": "Auto output pinion 12",
+      "driven": "Barrel winding ratchet 36",
+      "samples": 25,
+      "max_polygon_interference_area_mm2": 0.0,
+      "transverse_contact_ratio": 1.3059865095291463
+    }
+  ],
+  "exact_intersections": [
+    {
+      "a": "Barrel external wheel 96",
+      "b": "Center driving pinion 12",
+      "category": "gear mesh nominal pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Center minute wheel 80",
+      "b": "Third pinion 10",
+      "category": "gear mesh nominal pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Third wheel 75",
+      "b": "Fourth pinion 10",
+      "category": "gear mesh nominal pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Fourth seconds wheel 96",
+      "b": "Escape pinion 8",
+      "category": "gear mesh nominal pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Fourth seconds transfer 32",
+      "b": "Seconds idler 24",
+      "category": "gear mesh nominal pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Seconds idler 24",
+      "b": "Central seconds return 32",
+      "category": "gear mesh nominal pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Cannon pinion 12",
+      "b": "Minute intermediate wheel 36",
+      "category": "gear mesh nominal pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Minute intermediate pinion 10",
+      "b": "Hour wheel 40",
+      "category": "gear mesh nominal pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Hour calendar drive 40",
+      "b": "Daily calendar wheel 80",
+      "category": "gear mesh nominal pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Manual lower crown wheel 40",
+      "b": "Manual lower intermediate 32",
+      "category": "gear mesh nominal pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Manual lower intermediate 32",
+      "b": "Manual reduction wheel 68",
+      "category": "gear mesh nominal pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Manual reduction wheel 68",
+      "b": "Manual idler wheel 40",
+      "category": "gear mesh nominal pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Manual idler wheel 40",
+      "b": "Manual barrel arbor wheel 36",
+      "category": "gear mesh nominal pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Minute intermediate wheel 36",
+      "b": "Setting transfer 24",
+      "category": "gear mesh nominal pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Setting transfer 24",
+      "b": "Setting intermediate 24",
+      "category": "gear mesh nominal pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Setting intermediate 24",
+      "b": "Setting wheel 24",
+      "category": "gear mesh nominal pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Rotor winding gear 36",
+      "b": "Auto reverser input 18",
+      "category": "gear mesh nominal pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Auto reduction 64",
+      "b": "Auto intermediate 16",
+      "category": "gear mesh nominal pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Auto output pinion 12",
+      "b": "Barrel winding ratchet 36",
+      "category": "gear mesh nominal pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link -1 00",
+      "b": "Bracelet structural link -1 01",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link -1 01",
+      "b": "Bracelet structural link -1 02",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link -1 02",
+      "b": "Bracelet structural link -1 03",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link -1 03",
+      "b": "Bracelet structural link -1 04",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link -1 04",
+      "b": "Bracelet structural link -1 05",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link -1 05",
+      "b": "Bracelet structural link -1 06",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link -1 06",
+      "b": "Bracelet structural link -1 07",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link -1 07",
+      "b": "Bracelet structural link -1 08",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link -1 08",
+      "b": "Bracelet structural link -1 09",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link -1 09",
+      "b": "Bracelet structural link -1 10",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link -1 10",
+      "b": "Bracelet structural link -1 11",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link -1 11",
+      "b": "Bracelet structural link -1 12",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link 1 00",
+      "b": "Bracelet structural link 1 01",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link 1 01",
+      "b": "Bracelet structural link 1 02",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link 1 02",
+      "b": "Bracelet structural link 1 03",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link 1 03",
+      "b": "Bracelet structural link 1 04",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link 1 04",
+      "b": "Bracelet structural link 1 05",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link 1 05",
+      "b": "Bracelet structural link 1 06",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link 1 06",
+      "b": "Bracelet structural link 1 07",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link 1 07",
+      "b": "Bracelet structural link 1 08",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link 1 08",
+      "b": "Bracelet structural link 1 09",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link 1 09",
+      "b": "Bracelet structural link 1 10",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link 1 10",
+      "b": "Bracelet structural link 1 11",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link 1 11",
+      "b": "Bracelet structural link 1 12",
+      "category": "adjacent bracelet link in wrist pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Hour skeleton hand",
+      "b": "Minute skeleton hand",
+      "category": "hands at displayed pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Minute skeleton hand",
+      "b": "Red seconds hand",
+      "category": "hands at displayed pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Red seconds hand",
+      "b": "Sapphire crystal",
+      "category": "hands at displayed pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Seconds staff solid 0.24",
+      "b": "Minute cannon tube ID0.30 OD0.56",
+      "category": "hands at displayed pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Minute cannon tube ID0.30 OD0.56",
+      "b": "Hour pipe ID0.64 OD1.00",
+      "category": "hands at displayed pose",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Barrel external wheel 96",
+      "b": "Movement retaining spacer keyed stem slot",
+      "category": "moving gear vs stationary support",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Center driving pinion 12",
+      "b": "Movement retaining spacer keyed stem slot",
+      "category": "moving gear vs stationary support",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Center minute wheel 80",
+      "b": "Movement retaining spacer keyed stem slot",
+      "category": "moving gear vs stationary support",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Third pinion 10",
+      "b": "Movement retaining spacer keyed stem slot",
+      "category": "moving gear vs stationary support",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Third wheel 75",
+      "b": "Movement retaining spacer keyed stem slot",
+      "category": "moving gear vs stationary support",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Fourth pinion 10",
+      "b": "Movement retaining spacer keyed stem slot",
+      "category": "moving gear vs stationary support",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Fourth seconds wheel 96",
+      "b": "Movement retaining spacer keyed stem slot",
+      "category": "moving gear vs stationary support",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Escape pinion 8",
+      "b": "Movement retaining spacer keyed stem slot",
+      "category": "moving gear vs stationary support",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Fourth seconds transfer 32",
+      "b": "Movement retaining spacer keyed stem slot",
+      "category": "moving gear vs stationary support",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Seconds idler 24",
+      "b": "Movement retaining spacer keyed stem slot",
+      "category": "moving gear vs stationary support",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Central seconds return 32",
+      "b": "Movement retaining spacer keyed stem slot",
+      "category": "moving gear vs stationary support",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Cannon pinion 12",
+      "b": "Movement retaining spacer keyed stem slot",
+      "category": "moving gear vs stationary support",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Minute intermediate wheel 36",
+      "b": "Movement retaining spacer keyed stem slot",
+      "category": "moving gear vs stationary support",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Minute intermediate pinion 10",
+      "b": "Movement retaining spacer keyed stem slot",
+      "category": "moving gear vs stationary support",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Hour wheel 40",
+      "b": "Movement retaining spacer keyed stem slot",
+      "category": "moving gear vs stationary support",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Hour calendar drive 40",
+      "b": "Movement retaining spacer keyed stem slot",
+      "category": "moving gear vs stationary support",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Daily calendar wheel 80",
+      "b": "Movement retaining spacer keyed stem slot",
+      "category": "moving gear vs stationary support",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Winding crown wheel 40",
+      "b": "Movement retaining spacer keyed stem slot",
+      "category": "moving gear vs stationary support",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Setting transfer 24",
+      "b": "Movement retaining spacer keyed stem slot",
+      "category": "moving gear vs stationary support",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Setting intermediate 24",
+      "b": "Movement retaining spacer keyed stem slot",
+      "category": "moving gear vs stationary support",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Setting wheel 24",
+      "b": "Movement retaining spacer keyed stem slot",
+      "category": "moving gear vs stationary support",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Seconds staff solid 0.24",
+      "b": "Barrel external wheel 96",
+      "category": "nonmating shaft versus rotating gear",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Minute cannon tube ID0.30 OD0.56",
+      "b": "Barrel external wheel 96",
+      "category": "nonmating shaft versus rotating gear",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Third stepped arbor",
+      "b": "Center minute wheel 80",
+      "category": "nonmating shaft versus rotating gear",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Fourth stepped arbor",
+      "b": "Center minute wheel 80",
+      "category": "nonmating shaft versus rotating gear",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Deployant folding blade -1",
+      "b": "Deployant clasp machined hollow shell",
+      "category": "folded clasp blade versus shell",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link -1 12",
+      "b": "Deployant clasp machined hollow shell",
+      "category": "last bracelet link versus clasp shell",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link -1 12",
+      "b": "Deployant folding blade -1",
+      "category": "last bracelet link versus folding blade",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Deployant folding blade 1",
+      "b": "Deployant clasp machined hollow shell",
+      "category": "folded clasp blade versus shell",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link 1 12",
+      "b": "Deployant clasp machined hollow shell",
+      "category": "last bracelet link versus clasp shell",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Bracelet structural link 1 12",
+      "b": "Deployant folding blade 1",
+      "category": "last bracelet link versus folding blade",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Deployant folding blade -1",
+      "b": "Deployant folding blade 1",
+      "category": "clasp central hinge",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Caseback modeled helical thread",
+      "b": "Caseback female threaded press insert",
+      "category": "caseback male and female thread",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Caseback threaded skirt",
+      "b": "Caseback female threaded press insert",
+      "category": "caseback neck versus threaded receiver",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Caseback threaded skirt",
+      "b": "Midcase and drilled lyre lugs",
+      "category": "caseback neck versus case",
+      "intersection_mm3": 0
+    },
+    {
+      "a": "Crown tube modeled helical thread",
+      "b": "Screw down crown hollow knurled cap",
+      "category": "crown male and female thread",
+      "intersection_mm3": 0
+    }
+  ],
+  "bracelet_articulation_sweep": [
+    {
+      "side": -1,
+      "joint": 0,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": -1,
+      "joint": 1,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": -1,
+      "joint": 2,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": -1,
+      "joint": 3,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": -1,
+      "joint": 4,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": -1,
+      "joint": 5,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": -1,
+      "joint": 6,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": -1,
+      "joint": 7,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": -1,
+      "joint": 8,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": -1,
+      "joint": 9,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": -1,
+      "joint": 10,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": -1,
+      "joint": 11,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": 1,
+      "joint": 0,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": 1,
+      "joint": 1,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": 1,
+      "joint": 2,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": 1,
+      "joint": 3,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": 1,
+      "joint": 4,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": 1,
+      "joint": 5,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": 1,
+      "joint": 6,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": 1,
+      "joint": 7,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": 1,
+      "joint": 8,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": 1,
+      "joint": 9,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": 1,
+      "joint": 10,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    },
+    {
+      "side": 1,
+      "joint": 11,
+      "angle_offsets_deg": [
+        -4,
+        0,
+        4
+      ],
+      "max_intersection_mm3": 0
+    }
+  ],
+  "nominal_hand_layer_clearances_mm": {
+    "dial_hour": 0.26,
+    "hour_minute": 0.295,
+    "minute_seconds": 0.315,
+    "seconds_crystal": 0.5575,
+    "seconds_minute_radial": 0.03,
+    "minute_hour_radial": 0.04
+  },
+  "bracelet": {
+    "pose": "closed oval wrist loop",
+    "link_count": 26,
+    "joint_count": 26,
+    "pin_bore_diametral_clearance_mm": 0.1,
+    "case_diameter_mm": 42.0,
+    "case_thickness_mm": 13.56,
+    "lug_to_lug_mm": 49.9,
+    "stations_yz_mm": [
+      [
+        23.2,
+        -0.6
+      ],
+      [
+        27.42406019504741,
+        -2.2000471617454993
+      ],
+      [
+        30.435154500268297,
+        -5.655139011535722
+      ],
+      [
+        32.494036722384806,
+        -9.785745952171887
+      ],
+      [
+        33.874910516540055,
+        -14.18031414164251
+      ],
+      [
+        34.73398506146622,
+        -18.700677933781357
+      ],
+      [
+        35.14850273572096,
+        -23.28639068042344
+      ],
+      [
+        35.14850273572096,
+        -27.913609319576555
+      ],
+      [
+        34.73398506146622,
+        -32.49932206621864
+      ],
+      [
+        33.874910516540055,
+        -37.019685858357484
+      ],
+      [
+        32.494036722384806,
+        -41.414254047828116
+      ],
+      [
+        30.435154500268297,
+        -45.54486098846428
+      ],
+      [
+        27.42406019504741,
+        -48.9999528382545
+      ],
+      [
+        23.2,
+        -50.6
+      ]
+    ],
+    "pivots": [
+      {
+        "side": -1,
+        "index": 0,
+        "point": [
+          0,
+          -27.42406019504741,
+          -2.2000471617454993
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": -1,
+        "index": 1,
+        "point": [
+          0,
+          -30.435154500268297,
+          -5.655139011535722
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": -1,
+        "index": 2,
+        "point": [
+          0,
+          -32.494036722384806,
+          -9.785745952171887
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": -1,
+        "index": 3,
+        "point": [
+          0,
+          -33.874910516540055,
+          -14.18031414164251
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": -1,
+        "index": 4,
+        "point": [
+          0,
+          -34.73398506146622,
+          -18.700677933781357
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": -1,
+        "index": 5,
+        "point": [
+          0,
+          -35.14850273572096,
+          -23.28639068042344
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": -1,
+        "index": 6,
+        "point": [
+          0,
+          -35.14850273572096,
+          -27.913609319576555
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": -1,
+        "index": 7,
+        "point": [
+          0,
+          -34.73398506146622,
+          -32.49932206621864
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": -1,
+        "index": 8,
+        "point": [
+          0,
+          -33.874910516540055,
+          -37.019685858357484
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": -1,
+        "index": 9,
+        "point": [
+          0,
+          -32.494036722384806,
+          -41.414254047828116
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": -1,
+        "index": 10,
+        "point": [
+          0,
+          -30.435154500268297,
+          -45.54486098846428
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": -1,
+        "index": 11,
+        "point": [
+          0,
+          -27.42406019504741,
+          -48.9999528382545
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": -1,
+        "index": 12,
+        "point": [
+          0,
+          -23.2,
+          -50.6
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": 1,
+        "index": 0,
+        "point": [
+          0,
+          27.42406019504741,
+          -2.2000471617454993
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": 1,
+        "index": 1,
+        "point": [
+          0,
+          30.435154500268297,
+          -5.655139011535722
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": 1,
+        "index": 2,
+        "point": [
+          0,
+          32.494036722384806,
+          -9.785745952171887
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": 1,
+        "index": 3,
+        "point": [
+          0,
+          33.874910516540055,
+          -14.18031414164251
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": 1,
+        "index": 4,
+        "point": [
+          0,
+          34.73398506146622,
+          -18.700677933781357
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": 1,
+        "index": 5,
+        "point": [
+          0,
+          35.14850273572096,
+          -23.28639068042344
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": 1,
+        "index": 6,
+        "point": [
+          0,
+          35.14850273572096,
+          -27.913609319576555
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": 1,
+        "index": 7,
+        "point": [
+          0,
+          34.73398506146622,
+          -32.49932206621864
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": 1,
+        "index": 8,
+        "point": [
+          0,
+          33.874910516540055,
+          -37.019685858357484
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": 1,
+        "index": 9,
+        "point": [
+          0,
+          32.494036722384806,
+          -41.414254047828116
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": 1,
+        "index": 10,
+        "point": [
+          0,
+          30.435154500268297,
+          -45.54486098846428
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": 1,
+        "index": 11,
+        "point": [
+          0,
+          27.42406019504741,
+          -48.9999528382545
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      },
+      {
+        "side": 1,
+        "index": 12,
+        "point": [
+          0,
+          23.2,
+          -50.6
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "pin_diameter": 0.8,
+        "bore_diameter": 0.9
+      }
+    ]
+  },
+  "case_geometry_measured_mm": {
+    "bezel_x_extent": 41.89641255605382,
+    "lug_to_lug": 49.9000002,
+    "top_crystal_z": 6.780000000000001,
+    "bottom_caseback_z": -6.78
+  },
+  "selected_checks_passed": true,
+  "selected_check_failures": []
+}

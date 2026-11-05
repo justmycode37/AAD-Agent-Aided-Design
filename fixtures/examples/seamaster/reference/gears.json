@@ -1,0 +1,482 @@
+[
+  {
+    "name": "Barrel external wheel 96",
+    "teeth": 96,
+    "module_mm": 0.1335389361282959,
+    "pressure_angle_deg": 30,
+    "center": [
+      -6,
+      4
+    ],
+    "z": -0.8,
+    "width": 0.24,
+    "bore_radius": 0.57,
+    "phase_deg": 0,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Center driving pinion 12",
+    "teeth": 12,
+    "module_mm": 0.1335389361282959,
+    "pressure_angle_deg": 30,
+    "center": [
+      0,
+      0
+    ],
+    "z": -0.8,
+    "width": 0.18,
+    "bore_radius": 0.31,
+    "phase_deg": 251.78939226618195,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Center minute wheel 80",
+    "teeth": 80,
+    "module_mm": 0.1,
+    "pressure_angle_deg": 30,
+    "center": [
+      0,
+      0
+    ],
+    "z": -1.3,
+    "width": 0.18,
+    "bore_radius": 0.31,
+    "phase_deg": 0,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Third pinion 10",
+    "teeth": 10,
+    "module_mm": 0.1,
+    "pressure_angle_deg": 30,
+    "center": [
+      4.2,
+      1.6155494421403511
+    ],
+    "z": -1.3,
+    "width": 0.18,
+    "bore_radius": 0.16,
+    "phase_deg": 27.35522803185512,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Third wheel 75",
+    "teeth": 75,
+    "module_mm": 0.08,
+    "pressure_angle_deg": 30,
+    "center": [
+      4.2,
+      1.6155494421403511
+    ],
+    "z": -0.7,
+    "width": 0.18,
+    "bore_radius": 0.16,
+    "phase_deg": 0,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Fourth pinion 10",
+    "teeth": 10,
+    "module_mm": 0.08,
+    "pressure_angle_deg": 30,
+    "center": [
+      4.2,
+      -1.7844505578596488
+    ],
+    "z": -0.7,
+    "width": 0.18,
+    "bore_radius": 0.16,
+    "phase_deg": 153.0,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Fourth seconds wheel 96",
+    "teeth": 96,
+    "module_mm": 0.065,
+    "pressure_angle_deg": 30,
+    "center": [
+      4.2,
+      -1.7844505578596488
+    ],
+    "z": -0.25,
+    "width": 0.18,
+    "bore_radius": 0.16,
+    "phase_deg": 0,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Escape pinion 8",
+    "teeth": 8,
+    "module_mm": 0.065,
+    "pressure_angle_deg": 30,
+    "center": [
+      4.2,
+      -5.164450557859649
+    ],
+    "z": -0.25,
+    "width": 0.15,
+    "bore_radius": 0.13,
+    "phase_deg": 112.5,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Fourth seconds transfer 32",
+    "teeth": 32,
+    "module_mm": 0.1,
+    "pressure_angle_deg": 30,
+    "center": [
+      4.2,
+      -1.7844505578596488
+    ],
+    "z": -1.59,
+    "width": 0.13,
+    "bore_radius": 0.16,
+    "phase_deg": 0,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Seconds idler 24",
+    "teeth": 24,
+    "module_mm": 0.1,
+    "pressure_angle_deg": 30,
+    "center": [
+      2.734632252526992,
+      0.6014868605706591
+    ],
+    "z": -1.59,
+    "width": 0.13,
+    "bore_radius": 0.14,
+    "phase_deg": 111.13285558524564,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Central seconds return 32",
+    "teeth": 32,
+    "module_mm": 0.1,
+    "pressure_angle_deg": 30,
+    "center": [
+      0,
+      0
+    ],
+    "z": -1.59,
+    "width": 0.13,
+    "bore_radius": 0.12,
+    "phase_deg": 168.98371601325968,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Cannon pinion 12",
+    "teeth": 12,
+    "module_mm": 0.1,
+    "pressure_angle_deg": 30,
+    "center": [
+      0,
+      0
+    ],
+    "z": 1.28,
+    "width": 0.16,
+    "bore_radius": 0.15,
+    "phase_deg": 0,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Minute intermediate wheel 36",
+    "teeth": 36,
+    "module_mm": 0.1,
+    "pressure_angle_deg": 30,
+    "center": [
+      2.4,
+      0
+    ],
+    "z": 1.28,
+    "width": 0.16,
+    "bore_radius": 0.14,
+    "phase_deg": 185.0,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Minute intermediate pinion 10",
+    "teeth": 10,
+    "module_mm": 0.096,
+    "pressure_angle_deg": 30,
+    "center": [
+      2.4,
+      0
+    ],
+    "z": 1.52,
+    "width": 0.14,
+    "bore_radius": 0.14,
+    "phase_deg": 0,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Hour wheel 40",
+    "teeth": 40,
+    "module_mm": 0.096,
+    "pressure_angle_deg": 30,
+    "center": [
+      0,
+      0
+    ],
+    "z": 1.52,
+    "width": 0.14,
+    "bore_radius": 0.32,
+    "phase_deg": 49.5,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Hour calendar drive 40",
+    "teeth": 40,
+    "module_mm": 0.08,
+    "pressure_angle_deg": 30,
+    "center": [
+      0,
+      0
+    ],
+    "z": 1.02,
+    "width": 0.12,
+    "bore_radius": 0.32,
+    "phase_deg": 0,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Daily calendar wheel 80",
+    "teeth": 80,
+    "module_mm": 0.08,
+    "pressure_angle_deg": 30,
+    "center": [
+      0,
+      4.8
+    ],
+    "z": 1.02,
+    "width": 0.12,
+    "bore_radius": 0.14,
+    "phase_deg": 317.25,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Winding crown wheel 40",
+    "teeth": 40,
+    "module_mm": 0.1,
+    "pressure_angle_deg": 30,
+    "center": [
+      10.0,
+      0
+    ],
+    "z": -0.8,
+    "width": 0.25,
+    "bore_radius": 0.25,
+    "phase_deg": 0,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Manual lower crown wheel 40",
+    "teeth": 40,
+    "module_mm": 0.1,
+    "pressure_angle_deg": 30,
+    "center": [
+      10,
+      0
+    ],
+    "z": -3.0,
+    "width": 0.1,
+    "bore_radius": 0.22,
+    "phase_deg": 0,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Manual lower intermediate 32",
+    "teeth": 32,
+    "module_mm": 0.1,
+    "pressure_angle_deg": 30,
+    "center": [
+      7.2,
+      2.2627416997969525
+    ],
+    "z": -3.0,
+    "width": 0.1,
+    "bore_radius": 0.17,
+    "phase_deg": 143.0045071447919,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Manual reduction wheel 68",
+    "teeth": 68,
+    "module_mm": 0.1,
+    "pressure_angle_deg": 30,
+    "center": [
+      2.3,
+      3.2577291369035697
+    ],
+    "z": -3.0,
+    "width": 0.1,
+    "bore_radius": 0.17,
+    "phase_deg": 3.1767893516662298,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Manual idler wheel 40",
+    "teeth": 40,
+    "module_mm": 0.1,
+    "pressure_angle_deg": 30,
+    "center": [
+      -2.5593087784585857,
+      5.612961226442801
+    ],
+    "z": -3.0,
+    "width": 0.1,
+    "bore_radius": 0.17,
+    "phase_deg": 235.28082441322408,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Manual barrel arbor wheel 36",
+    "teeth": 36,
+    "module_mm": 0.1,
+    "pressure_angle_deg": 30,
+    "center": [
+      -6,
+      4
+    ],
+    "z": -3.0,
+    "width": 0.1,
+    "bore_radius": 0.55,
+    "phase_deg": 316.60102354684653,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Setting transfer 24",
+    "teeth": 24,
+    "module_mm": 0.1,
+    "pressure_angle_deg": 30,
+    "center": [
+      5.4,
+      0
+    ],
+    "z": 1.28,
+    "width": 0.12,
+    "bore_radius": 0.17,
+    "phase_deg": 270.0,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Setting intermediate 24",
+    "teeth": 24,
+    "module_mm": 0.1,
+    "pressure_angle_deg": 30,
+    "center": [
+      7.8,
+      0
+    ],
+    "z": 1.28,
+    "width": 0.12,
+    "bore_radius": 0.17,
+    "phase_deg": 277.5,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Setting wheel 24",
+    "teeth": 24,
+    "module_mm": 0.1,
+    "pressure_angle_deg": 30,
+    "center": [
+      10.2,
+      0
+    ],
+    "z": 1.28,
+    "width": 0.12,
+    "bore_radius": 0.17,
+    "phase_deg": 270.0,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Rotor winding gear 36",
+    "teeth": 36,
+    "module_mm": 0.1,
+    "pressure_angle_deg": 30,
+    "center": [
+      0,
+      0
+    ],
+    "z": -3.45,
+    "width": 0.16,
+    "bore_radius": 0.3,
+    "phase_deg": 0,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Auto reverser input 18",
+    "teeth": 18,
+    "module_mm": 0.1,
+    "pressure_angle_deg": 30,
+    "center": [
+      -2.7,
+      0
+    ],
+    "z": -3.45,
+    "width": 0.16,
+    "bore_radius": 0.2,
+    "phase_deg": 10.0,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Auto reduction 64",
+    "teeth": 64,
+    "module_mm": 0.1,
+    "pressure_angle_deg": 30,
+    "center": [
+      -2.7,
+      0
+    ],
+    "z": -3.15,
+    "width": 0.16,
+    "bore_radius": 0.2,
+    "phase_deg": 0,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Auto intermediate 16",
+    "teeth": 16,
+    "module_mm": 0.1,
+    "pressure_angle_deg": 30,
+    "center": [
+      -6,
+      2.2605309110914633
+    ],
+    "z": -3.15,
+    "width": 0.16,
+    "bore_radius": 0.18,
+    "phase_deg": 199.19245665115284,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Auto output pinion 12",
+    "teeth": 12,
+    "module_mm": 0.07247787870452237,
+    "pressure_angle_deg": 30,
+    "center": [
+      -6,
+      2.2605309110914633
+    ],
+    "z": -2.8,
+    "width": 0.14,
+    "bore_radius": 0.18,
+    "phase_deg": 0,
+    "backlash_pair_mm": 0.012
+  },
+  {
+    "name": "Barrel winding ratchet 36",
+    "teeth": 36,
+    "module_mm": 0.07247787870452237,
+    "pressure_angle_deg": 30,
+    "center": [
+      -6,
+      4
+    ],
+    "z": -2.8,
+    "width": 0.14,
+    "bore_radius": 0.55,
+    "phase_deg": 305.0,
+    "backlash_pair_mm": 0.012
+  }
+]
