@@ -525,10 +525,11 @@ def _finish_sheet(
     ]
     try:
         quality = importlib.import_module("aad_quality")
-        checks.extend(Check(**{key: value for key, value in dict(item).items() if key in keep})
-                      for item in quality.spec_checks(context))
-        checks.extend(Check(**{key: value for key, value in dict(item).items() if key in keep})
-                      for item in quality.process_checks(context))
+        for item in [*quality.spec_checks(context), *quality.process_checks(context)]:
+            if isinstance(item, Check):
+                checks.append(item)
+            else:
+                checks.append(Check(**{key: value for key, value in dict(item).items() if key in keep}))
     except Exception as exc:
         checks.append(Check(id="2d_spec_evaluation_failed", suite="spec", level="error", status="fail",
                             message="2D specification or process checks could not be evaluated.",

@@ -142,9 +142,13 @@ def test_2d_bbox_requirements_use_measured_sheet_geometry(mcp_process: Any, widt
     ok(call(mcp_process, "aad_new", name="sized", kind="2d", units="mm", spec=spec))
     source = f"from aad_drafting import sheet2d\nsheet2d('p').rectangle('outline', {width}, 40)\n"
     result = call(mcp_process, "aad_build", project="sized", source=source, wait_s=WAIT_S)["structuredContent"]
-    check = next(item for item in result["checks"] if item["id"] == "size")
-    assert check["status"] == expected_status
     assert result["ok"] is (expected_status == "pass")
+    if expected_status == "pass":
+        assert result["checks_summary"]["fail"] == 0
+        assert result["checks_summary"]["pass"] > 0
+    else:
+        check = next(item for item in result["checks"] if item["id"] == "size")
+        assert check["status"] == expected_status
 
 
 def test_2d_hole_mismatch_fails_and_unsupported_type_skips(mcp_process: Any) -> None:
