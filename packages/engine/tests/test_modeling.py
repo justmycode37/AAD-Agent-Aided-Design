@@ -121,6 +121,30 @@ class ModelingTests(unittest.TestCase):
         with self.assertRaises(SelectorError):
             resolve(ctx, "face(feature='stock', where='max_z')")
 
+    def test_curved_models_are_single_solids_through_worker_and_brep(self) -> None:
+        from build123d import GeomType, import_brep
+
+        for name in ("curved_housing", "freeform_sweep", "spline_profile"):
+            with self.subTest(model=name):
+                source = (ROOT / f"fixtures/models/{name}.py").read_text()
+                built = self.live_build(source)
+                self.assertTrue(built.ok, built.failure)
+                shape = built.context.shape
+                self.assertTrue(shape.is_valid)
+                self.assertEqual(len(shape.solids()), 1)
+                self.assertGreater(shape.volume, 0)
+                self.assertTrue(any(f.geom_type == GeomType.BSPLINE for f in shape.faces()))
+                # Preserve the exact curved solid through the worker's export.
+                restored = import_brep(self.root / str(self.jobs) / "part.brep")
+                self.assertTrue(restored.is_valid)
+                self.assertEqual(len(restored.solids()), 1)
+                self.assertAlmostEqual(restored.volume, shape.volume, places=4)
+                if name == "curved_housing":
+                    # Open cavity and real flange bores, rather than a solid blob.
+                    self.assertFalse(shape.is_inside((0, 0, 60)))
+                    self.assertTrue(shape.is_inside((50, 0, 6)))
+                    self.assertFalse(shape.is_inside((56, 0, 3)))
+
     def test_box_hole_fillet_names_lines_intent_dependencies_and_coverage(self) -> None:
         built = self.live_build()
         self.assertTrue(built.ok, built.failure)

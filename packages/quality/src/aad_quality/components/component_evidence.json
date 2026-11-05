@@ -1,0 +1,1636 @@
+{
+"battery.li_ion.INR21700-P42A": {
+"checked": "2026-11-05",
+"note": "45 A needs temperature monitoring; 30 A without.",
+"source": "Web search result read for this part",
+"status": "web_checked",
+"url": "https://www.nkon.nl/molicel-21700a-4200mah-30a.html"
+},
+"connector.JST-GH.10pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_GH_BM10B-GHS-TBT_1x10-1MP_P1.25mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-GH.2pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_GH_BM02B-GHS-TBT_1x02-1MP_P1.25mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-GH.3pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_GH_BM03B-GHS-TBT_1x03-1MP_P1.25mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-GH.4pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_GH_BM04B-GHS-TBT_1x04-1MP_P1.25mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-GH.5pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_GH_BM05B-GHS-TBT_1x05-1MP_P1.25mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-GH.6pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_GH_BM06B-GHS-TBT_1x06-1MP_P1.25mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-GH.7pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_GH_BM07B-GHS-TBT_1x07-1MP_P1.25mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-GH.8pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_GH_BM08B-GHS-TBT_1x08-1MP_P1.25mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-GH.9pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_GH_BM09B-GHS-TBT_1x09-1MP_P1.25mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-PH-SMD.10pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_PH_S10B-PH-SM4-TB_1x10-1MP_P2.00mm_Horizontal.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-PH-SMD.2pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_PH_S2B-PH-SM4-TB_1x02-1MP_P2.00mm_Horizontal.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-PH-SMD.3pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_PH_S3B-PH-SM4-TB_1x03-1MP_P2.00mm_Horizontal.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-PH-SMD.4pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_PH_S4B-PH-SM4-TB_1x04-1MP_P2.00mm_Horizontal.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-PH-SMD.5pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_PH_S5B-PH-SM4-TB_1x05-1MP_P2.00mm_Horizontal.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-PH-SMD.6pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_PH_S6B-PH-SM4-TB_1x06-1MP_P2.00mm_Horizontal.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-PH-SMD.7pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_PH_S7B-PH-SM4-TB_1x07-1MP_P2.00mm_Horizontal.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-PH-SMD.8pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_PH_S8B-PH-SM4-TB_1x08-1MP_P2.00mm_Horizontal.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-PH-SMD.9pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_PH_S9B-PH-SM4-TB_1x09-1MP_P2.00mm_Horizontal.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-SH.10pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_SH_BM10B-SRSS-TB_1x10-1MP_P1.00mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-SH.2pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_SH_BM02B-SRSS-TB_1x02-1MP_P1.00mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-SH.3pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_SH_BM03B-SRSS-TB_1x03-1MP_P1.00mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-SH.4pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_SH_BM04B-SRSS-TB_1x04-1MP_P1.00mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-SH.5pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_SH_BM05B-SRSS-TB_1x05-1MP_P1.00mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-SH.6pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_SH_BM06B-SRSS-TB_1x06-1MP_P1.00mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-SH.7pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_SH_BM07B-SRSS-TB_1x07-1MP_P1.00mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-SH.8pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_SH_BM08B-SRSS-TB_1x08-1MP_P1.00mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-SH.9pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_SH_BM09B-SRSS-TB_1x09-1MP_P1.00mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-XH.10pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_XH_B10B-XH-AM_1x10_P2.50mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-XH.11pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_XH_B11B-XH-A_1x11_P2.50mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-XH.12pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_XH_B12B-XH-AM_1x12_P2.50mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-XH.2pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_XH_B2B-XH-AM_1x02_P2.50mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-XH.3pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_XH_B3B-XH-AM_1x03_P2.50mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-XH.4pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_XH_B4B-XH-AM_1x04_P2.50mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-XH.5pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_XH_B5B-XH-AM_1x05_P2.50mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-XH.6pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_XH_B6B-XH-AM_1x06_P2.50mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-XH.7pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_XH_B7B-XH-AM_1x07_P2.50mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-XH.8pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_XH_B8B-XH-AM_1x08_P2.50mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.JST-XH.9pin": {
+"source": "KiCad footprints: Connector_JST.pretty/JST_XH_B9B-XH-AM_1x09_P2.50mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.MicroSD": {
+"source": "KiCad footprints: Connector_Card.pretty/microSD_HC_Hirose_DM3AT-SF-PEJM5.kicad_mod",
+"status": "footprint_library"
+},
+"connector.Molex-MicroFit.10pin": {
+"source": "KiCad footprints: Connector_Molex.pretty/Molex_Micro-Fit_3.0_43045-1012_2x05_P3.00mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.Molex-MicroFit.12pin": {
+"source": "KiCad footprints: Connector_Molex.pretty/Molex_Micro-Fit_3.0_43045-1212_2x06_P3.00mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.Molex-MicroFit.2pin": {
+"source": "KiCad footprints: Connector_Molex.pretty/Molex_Micro-Fit_3.0_43045-0212_2x01_P3.00mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.Molex-MicroFit.4pin": {
+"source": "KiCad footprints: Connector_Molex.pretty/Molex_Micro-Fit_3.0_43045-0412_2x02_P3.00mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.Molex-MicroFit.6pin": {
+"source": "KiCad footprints: Connector_Molex.pretty/Molex_Micro-Fit_3.0_43045-0612_2x03_P3.00mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.Molex-MicroFit.8pin": {
+"source": "KiCad footprints: Connector_Molex.pretty/Molex_Micro-Fit_3.0_43045-0812_2x04_P3.00mm_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.RJ45-MagJack": {
+"source": "KiCad footprints: Connector_RJ.pretty/RJ45_Hanrun_HR911105A.kicad_mod",
+"status": "footprint_library"
+},
+"connector.U.FL": {
+"source": "KiCad footprints: Connector_Coaxial.pretty/U.FL_Hirose_U.FL-R-SMT-1_Vertical.kicad_mod",
+"status": "footprint_library"
+},
+"connector.XT30": {
+"checked": "2026-11-05",
+"note": "Current ratings seen; housing dimensions not confirmed.",
+"source": "Web search result read for this part",
+"status": "web_checked",
+"url": "https://www.tme.com/ca/en/katalog/p,amass_1260/"
+},
+"connector.XT60": {
+"checked": "2026-11-05",
+"note": "Current ratings seen; housing dimensions not confirmed.",
+"source": "Web search result read for this part",
+"status": "web_checked",
+"url": "https://octopart.com/xt60h-f-amass-118051282"
+},
+"elec.addressable.APA102": {
+"datasheet_url": "http://www.led-color.com/upload/201506/APA102%20LED.pdf",
+"source": "KiCad symbols 9.0.0: LED:APA102",
+"status": "symbol_library"
+},
+"elec.addressable.BPW34": {
+"datasheet_url": "http://www.vishay.com/docs/81521/bpw34.pdf",
+"source": "KiCad symbols 9.0.0: Sensor_Optical:BPW34",
+"status": "symbol_library"
+},
+"elec.addressable.LTR-303ALS-01": {
+"datasheet_url": "https://optoelectronics.liteon.com/upload/download/DS86-2013-0004/LTR-303ALS-01_DS_V1.pdf",
+"source": "KiCad symbols 9.0.0: Sensor_Optical:LTR-303ALS-01",
+"status": "symbol_library"
+},
+"elec.addressable.SK6812": {
+"datasheet_url": "https://cdn-shop.adafruit.com/product-files/1138/SK6812+LED+datasheet+.pdf",
+"source": "KiCad symbols 9.0.0: LED:SK6812",
+"status": "symbol_library"
+},
+"elec.addressable.WS2812B": {
+"datasheet_url": "https://cdn-shop.adafruit.com/datasheets/WS2812B.pdf",
+"source": "KiCad symbols 9.0.0: LED:WS2812B",
+"status": "symbol_library"
+},
+"elec.addressable.WS2812B-2020": {
+"datasheet_url": "https://cdn-shop.adafruit.com/product-files/4684/4684_WS2812B-2020_V1.3_EN.pdf",
+"source": "KiCad symbols 9.0.0: LED:WS2812B-2020",
+"status": "symbol_library"
+},
+"elec.battery.ACS712": {
+"datasheet_url": "http://www.allegromicro.com/~/media/Files/Datasheets/ACS712-Datasheet.ashx?la=en",
+"source": "KiCad symbols 9.0.0: Sensor_Current:ACS712xLCTR-05B",
+"status": "symbol_library"
+},
+"elec.battery.BQ24075": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/bq24075.pdf",
+"source": "KiCad symbols 9.0.0: Battery_Management:BQ24075RGT",
+"status": "symbol_library"
+},
+"elec.battery.BQ25895": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/bq25895.pdf",
+"source": "KiCad symbols 9.0.0: Battery_Management:BQ25895RTW",
+"status": "symbol_library"
+},
+"elec.battery.DW01A": {
+"datasheet_url": "https://hmsemi.com/downfile/DW01A.PDF",
+"source": "KiCad symbols 9.0.0: Battery_Management:DW01A",
+"status": "symbol_library"
+},
+"elec.battery.INA219": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/ina219.pdf",
+"source": "KiCad symbols 9.0.0: Sensor_Energy:INA219AxD",
+"status": "symbol_library"
+},
+"elec.battery.INA226": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/ina226.pdf",
+"source": "KiCad symbols 9.0.0: Sensor_Energy:INA226",
+"status": "symbol_library"
+},
+"elec.battery.IR2104": {
+"datasheet_url": "https://www.infineon.com/dgdl/ir2104.pdf?fileId=5546d462533600a4015355c7c1c31671",
+"source": "KiCad symbols 9.0.0: Driver_FET:IR2104",
+"status": "symbol_library"
+},
+"elec.battery.IR2110": {
+"datasheet_url": "https://www.infineon.com/dgdl/ir2110.pdf?fileId=5546d462533600a4015355c80333167e",
+"source": "KiCad symbols 9.0.0: Driver_FET:IR2110",
+"status": "symbol_library"
+},
+"elec.battery.IR2184": {
+"datasheet_url": "https://www.infineon.com/dgdl/ir2184.pdf?fileId=5546d462533600a4015355c955e616d4",
+"source": "KiCad symbols 9.0.0: Driver_FET:IR2184",
+"status": "symbol_library"
+},
+"elec.battery.MCP73831": {
+"datasheet_url": "http://ww1.microchip.com/downloads/en/DeviceDoc/20001984g.pdf",
+"source": "KiCad symbols 9.0.0: Battery_Management:MCP73831-2-OT",
+"status": "symbol_library"
+},
+"elec.battery.TC4427": {
+"datasheet_url": "https://ww1.microchip.com/downloads/en/DeviceDoc/20001422G.pdf",
+"source": "KiCad symbols 9.0.0: Driver_FET:TC4427xOA",
+"status": "symbol_library"
+},
+"elec.battery.TP4056": {
+"datasheet_url": "https://www.lcsc.com/datasheet/lcsc_datasheet_2410121619_TOPPOWER-Nanjing-Extension-Microelectronics-TP4056-42-ESOP8_C16581.pdf",
+"source": "KiCad symbols 9.0.0: Battery_Management:TP4056-42-ESOP8",
+"status": "symbol_library"
+},
+"elec.bipolar.2N3055": {
+"datasheet_url": "http://www.onsemi.com/pub_link/Collateral/2N3055-D.PDF",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:2N3055",
+"status": "symbol_library"
+},
+"elec.bipolar.2N3904": {
+"datasheet_url": "https://www.onsemi.com/pub/Collateral/2N3903-D.PDF",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:2N3904",
+"status": "symbol_library"
+},
+"elec.bipolar.2N3906": {
+"datasheet_url": "https://www.onsemi.com/pub/Collateral/2N3906-D.PDF",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:2N3906",
+"status": "symbol_library"
+},
+"elec.bipolar.BC327": {
+"datasheet_url": "http://www.onsemi.com/pub_link/Collateral/BC327-D.PDF",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:BC327",
+"status": "symbol_library"
+},
+"elec.bipolar.BC337": {
+"datasheet_url": "https://diotec.com/tl_files/diotec/files/pdf/datasheets/bc337.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:BC337",
+"status": "symbol_library"
+},
+"elec.bipolar.BC547": {
+"datasheet_url": "https://www.onsemi.com/pub/Collateral/BC550-D.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:BC547",
+"status": "symbol_library"
+},
+"elec.bipolar.BC548": {
+"datasheet_url": "https://www.onsemi.com/pub/Collateral/BC550-D.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:BC548",
+"status": "symbol_library"
+},
+"elec.bipolar.BC549": {
+"datasheet_url": "https://www.onsemi.com/pub/Collateral/BC550-D.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:BC549",
+"status": "symbol_library"
+},
+"elec.bipolar.BC557": {
+"datasheet_url": "https://www.onsemi.com/pub/Collateral/BC556BTA-D.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:BC557",
+"status": "symbol_library"
+},
+"elec.bipolar.BC558": {
+"datasheet_url": "https://www.onsemi.com/pub/Collateral/BC556BTA-D.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:BC558",
+"status": "symbol_library"
+},
+"elec.bipolar.BC807": {
+"datasheet_url": "https://www.onsemi.com/pub/Collateral/BC808-D.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:BC807",
+"status": "symbol_library"
+},
+"elec.bipolar.BC817": {
+"datasheet_url": "https://www.onsemi.com/pub/Collateral/BC818-D.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:BC817",
+"status": "symbol_library"
+},
+"elec.bipolar.BC847": {
+"datasheet_url": "http://www.infineon.com/dgdl/Infineon-BC847SERIES_BC848SERIES_BC849SERIES_BC850SERIES-DS-v01_01-en.pdf?fileId=db3a304314dca389011541d4630a1657",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:BC847",
+"status": "symbol_library"
+},
+"elec.bipolar.BC857": {
+"datasheet_url": "https://www.onsemi.com/pub/Collateral/BC860-D.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:BC857",
+"status": "symbol_library"
+},
+"elec.bipolar.BD139": {
+"datasheet_url": "http://www.st.com/internet/com/TECHNICAL_RESOURCES/TECHNICAL_LITERATURE/DATASHEET/CD00001225.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:BD139",
+"status": "symbol_library"
+},
+"elec.bipolar.BD140": {
+"datasheet_url": "http://www.st.com/internet/com/TECHNICAL_RESOURCES/TECHNICAL_LITERATURE/DATASHEET/CD00001225.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:BD140",
+"status": "symbol_library"
+},
+"elec.bipolar.MJ2955": {
+"datasheet_url": "http://www.onsemi.com/pub_link/Collateral/2N3055-D.PDF",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:MJ2955",
+"status": "symbol_library"
+},
+"elec.bipolar.MJE13005": {
+"datasheet_url": "http://www.onsemi.com/pub_link/Collateral/MJE13005-D.PDF",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:MJE13005G",
+"status": "symbol_library"
+},
+"elec.bipolar.MMBT2222A": {
+"datasheet_url": "https://assets.nexperia.com/documents/data-sheet/MMBT2222A.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:MMBT2222A",
+"status": "symbol_library"
+},
+"elec.bipolar.MMBT3904": {
+"datasheet_url": "https://www.onsemi.com/pdf/datasheet/pzt3904-d.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:MMBT3904",
+"status": "symbol_library"
+},
+"elec.bipolar.MMBT3906": {
+"datasheet_url": "https://www.onsemi.com/pdf/datasheet/pzt3906-d.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:MMBT3906",
+"status": "symbol_library"
+},
+"elec.bipolar.PN2222A": {
+"datasheet_url": "https://www.onsemi.com/pub/Collateral/PN2222-D.PDF",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:PN2222A",
+"status": "symbol_library"
+},
+"elec.bipolar.S8050": {
+"datasheet_url": "http://www.unisonic.com.tw/datasheet/S8050.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:S8050",
+"status": "symbol_library"
+},
+"elec.bipolar.S8550": {
+"datasheet_url": "http://www.unisonic.com.tw/datasheet/S8550.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:S8550",
+"status": "symbol_library"
+},
+"elec.bipolar.TIP120": {
+"datasheet_url": "https://www.onsemi.com/pub/Collateral/TIP120-D.PDF",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:TIP120",
+"status": "symbol_library"
+},
+"elec.bipolar.TIP122": {
+"datasheet_url": "https://www.onsemi.com/pub/Collateral/TIP120-D.PDF",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:TIP122",
+"status": "symbol_library"
+},
+"elec.bipolar.TIP127": {
+"datasheet_url": "https://www.onsemi.com/pub/Collateral/TIP120-D.PDF",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:TIP127",
+"status": "symbol_library"
+},
+"elec.bipolar.TIP41C": {
+"datasheet_url": "https://www.centralsemi.com/get_document.php?cmp=1&mergetype=pd&mergepath=pd&pdf_id=tip41.PDF",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:TIP41C",
+"status": "symbol_library"
+},
+"elec.bipolar.TIP42C": {
+"datasheet_url": "https://www.centralsemi.com/get_document.php?cmp=1&mergetype=pd&mergepath=pd&pdf_id=TIP42.PDF",
+"source": "KiCad symbols 9.0.0: Transistor_BJT:TIP42C",
+"status": "symbol_library"
+},
+"elec.bridge.GBU4M": {
+"datasheet_url": "http://www.vishay.com/docs/88656/gbu4a.pdf",
+"source": "KiCad symbols 9.0.0: Diode_Bridge:GBU4M",
+"status": "symbol_library"
+},
+"elec.interface.ADS1115": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/ads1113.pdf",
+"source": "KiCad symbols 9.0.0: Analog_ADC:ADS1115IDGS",
+"status": "symbol_library"
+},
+"elec.interface.CH340C": {
+"datasheet_url": "https://datasheet.lcsc.com/szlcsc/Jiangsu-Qin-Heng-CH340C_C84681.pdf",
+"source": "KiCad symbols 9.0.0: Interface_USB:CH340C",
+"status": "symbol_library"
+},
+"elec.interface.CH340G": {
+"datasheet_url": "http://www.datasheet5.com/pdf-local-2195953",
+"source": "KiCad symbols 9.0.0: Interface_USB:CH340G",
+"status": "symbol_library"
+},
+"elec.interface.CP2102N": {
+"datasheet_url": "https://www.silabs.com/documents/public/data-sheets/cp2102n-datasheet.pdf",
+"source": "KiCad symbols 9.0.0: Interface_USB:CP2102N-Axx-xQFN20",
+"status": "symbol_library"
+},
+"elec.interface.ENC28J60": {
+"datasheet_url": "http://ww1.microchip.com/downloads/en/devicedoc/39662e.pdf",
+"source": "KiCad symbols 9.0.0: Interface_Ethernet:ENC28J60x-ML",
+"status": "symbol_library"
+},
+"elec.interface.FT232RL": {
+"datasheet_url": "https://www.ftdichip.com/Support/Documents/DataSheets/ICs/DS_FT232R.pdf",
+"source": "KiCad symbols 9.0.0: Interface_USB:FT232RL",
+"status": "symbol_library"
+},
+"elec.interface.HX711": {
+"datasheet_url": "https://web.archive.org/web/20220615044707/https://akizukidenshi.com/download/ds/avia/hx711.pdf",
+"source": "KiCad symbols 9.0.0: Analog_ADC:HX711",
+"status": "symbol_library"
+},
+"elec.interface.LAN8720A": {
+"datasheet_url": "http://ww1.microchip.com/downloads/en/DeviceDoc/8720a.pdf",
+"source": "KiCad symbols 9.0.0: Interface_Ethernet:LAN8720A",
+"status": "symbol_library"
+},
+"elec.interface.MAX232": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/max232.pdf",
+"source": "KiCad symbols 9.0.0: Interface_UART:MAX232",
+"status": "symbol_library"
+},
+"elec.interface.MAX3232": {
+"datasheet_url": "https://datasheets.maximintegrated.com/en/ds/MAX3222-MAX3241.pdf",
+"source": "KiCad symbols 9.0.0: Interface_UART:MAX3232",
+"status": "symbol_library"
+},
+"elec.interface.MAX485": {
+"datasheet_url": "https://datasheets.maximintegrated.com/en/ds/MAX1487E-MAX491E.pdf",
+"source": "KiCad symbols 9.0.0: Interface_UART:MAX485E",
+"status": "symbol_library"
+},
+"elec.interface.MCP23017": {
+"datasheet_url": "https://ww1.microchip.com/downloads/aemDocuments/documents/APID/ProductDocuments/DataSheets/MCP23017-Data-Sheet-DS20001952.pdf",
+"source": "KiCad symbols 9.0.0: Interface_Expansion:MCP23017_ML",
+"status": "symbol_library"
+},
+"elec.interface.MCP2515": {
+"datasheet_url": "http://ww1.microchip.com/downloads/en/DeviceDoc/21801e.pdf",
+"source": "KiCad symbols 9.0.0: Interface_CAN_LIN:MCP2515-xSO",
+"status": "symbol_library"
+},
+"elec.interface.MCP2551": {
+"datasheet_url": "http://ww1.microchip.com/downloads/en/devicedoc/21667d.pdf",
+"source": "KiCad symbols 9.0.0: Interface_CAN_LIN:MCP2551-I-P",
+"status": "symbol_library"
+},
+"elec.interface.MCP3008": {
+"datasheet_url": "http://ww1.microchip.com/downloads/en/DeviceDoc/21295d.pdf",
+"source": "KiCad symbols 9.0.0: Analog_ADC:MCP3008",
+"status": "symbol_library"
+},
+"elec.interface.MCP4725": {
+"datasheet_url": "http://ww1.microchip.com/downloads/en/DeviceDoc/22039d.pdf",
+"source": "KiCad symbols 9.0.0: Analog_DAC:MCP4725xxx-xCH",
+"status": "symbol_library"
+},
+"elec.interface.PCA9685": {
+"datasheet_url": "http://www.nxp.com/docs/en/data-sheet/PCA9685.pdf",
+"source": "KiCad symbols 9.0.0: Driver_LED:PCA9685BS",
+"status": "symbol_library"
+},
+"elec.interface.PCF8574": {
+"datasheet_url": "http://www.nxp.com/docs/en/data-sheet/PCF8574_PCF8574A.pdf",
+"source": "KiCad symbols 9.0.0: Interface_Expansion:PCF8574AP",
+"status": "symbol_library"
+},
+"elec.interface.PCM5102A": {
+"datasheet_url": "https://www.ti.com/lit/ds/symlink/pcm5102a.pdf",
+"source": "KiCad symbols 9.0.0: Audio:PCM5102A",
+"status": "symbol_library"
+},
+"elec.interface.SN65HVD230": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/sn65hvd230.pdf",
+"source": "KiCad symbols 9.0.0: Interface_CAN_LIN:SN65HVD230",
+"status": "symbol_library"
+},
+"elec.interface.TCA9548A": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/tca9548a.pdf",
+"source": "KiCad symbols 9.0.0: Interface_Expansion:TCA9548AMRGER",
+"status": "symbol_library"
+},
+"elec.interface.W5500": {
+"datasheet_url": "http://wizwiki.net/wiki/lib/exe/fetch.php/products:w5500:w5500_ds_v109e.pdf",
+"source": "KiCad symbols 9.0.0: Interface_Ethernet:W5500",
+"status": "symbol_library"
+},
+"elec.linear.AMS1117-3.3": {
+"datasheet_url": "http://www.advanced-monolithic.com/pdf/ds1117.pdf",
+"source": "KiCad symbols 9.0.0: Regulator_Linear:AMS1117-3.3",
+"status": "symbol_library"
+},
+"elec.linear.AMS1117-5.0": {
+"datasheet_url": "http://www.advanced-monolithic.com/pdf/ds1117.pdf",
+"source": "KiCad symbols 9.0.0: Regulator_Linear:AMS1117-5.0",
+"status": "symbol_library"
+},
+"elec.linear.L78L05": {
+"datasheet_url": "http://www.st.com/content/ccc/resource/technical/document/datasheet/15/55/e5/aa/23/5b/43/fd/CD00000446.pdf/files/CD00000446.pdf/jcr:content/translations/en.CD00000446.pdf",
+"source": "KiCad symbols 9.0.0: Regulator_Linear:L78L05_SO8",
+"status": "symbol_library"
+},
+"elec.linear.LM1117-3.3": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/lm1117.pdf",
+"source": "KiCad symbols 9.0.0: Regulator_Linear:LM1117MP-3.3",
+"status": "symbol_library"
+},
+"elec.linear.LM317L": {
+"datasheet_url": "http://www.ti.com/lit/ds/snvs775k/snvs775k.pdf",
+"source": "KiCad symbols 9.0.0: Regulator_Linear:LM317L_SO8",
+"status": "symbol_library"
+},
+"elec.linear.LT1086": {
+"datasheet_url": "https://www.analog.com/media/en/technical-documentation/data-sheets/1086ffs.pdf",
+"source": "KiCad symbols 9.0.0: Regulator_Linear:LT1086-12",
+"status": "symbol_library"
+},
+"elec.linear.MCP1825S-3302": {
+"datasheet_url": "http://ww1.microchip.com/downloads/en/devicedoc/22056b.pdf",
+"source": "KiCad symbols 9.0.0: Regulator_Linear:MCP1825S",
+"status": "symbol_library"
+},
+"elec.linear.TLV1117-33": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/tlv1117.pdf",
+"source": "KiCad symbols 9.0.0: Regulator_Linear:TLV1117-33",
+"status": "symbol_library"
+},
+"elec.linear.XC6206P332MR": {
+"datasheet_url": "https://www.torexsemi.com/file/xc6206/XC6206.pdf",
+"source": "KiCad symbols 9.0.0: Regulator_Linear:XC6206PxxxMR",
+"status": "symbol_library"
+},
+"elec.logic.CD4017B": {
+"datasheet_url": "http://www.intersil.com/content/dam/Intersil/documents/cd40/cd4017bms-22bms.pdf",
+"source": "KiCad symbols 9.0.0: 4xxx:4017",
+"status": "symbol_library"
+},
+"elec.logic.CD4051B": {
+"datasheet_url": "http://www.intersil.com/content/dam/Intersil/documents/cd40/cd4051bms-52bms-53bms.pdf",
+"source": "KiCad symbols 9.0.0: 4xxx:4051",
+"status": "symbol_library"
+},
+"elec.logic.CD4060B": {
+"datasheet_url": "https://www.st.com/resource/en/datasheet/m74hc4060.pdf",
+"source": "KiCad symbols 9.0.0: 4xxx:4060",
+"status": "symbol_library"
+},
+"elec.logic.CD4066B": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/cd4066b.pdf",
+"source": "KiCad symbols 9.0.0: 4xxx:4066",
+"status": "symbol_library"
+},
+"elec.logic.CD74HC4067": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/cd74hc4067.pdf",
+"source": "KiCad symbols 9.0.0: 74xx:CD74HC4067M",
+"status": "symbol_library"
+},
+"elec.logic.SN74AHCT125": {
+"datasheet_url": "https://www.ti.com/lit/ds/symlink/sn74ahct125.pdf",
+"source": "KiCad symbols 9.0.0: 74xx:74AHCT125",
+"status": "symbol_library"
+},
+"elec.logic.SN74HC00": {
+"datasheet_url": "http://www.ti.com/lit/gpn/sn74hc00",
+"source": "KiCad symbols 9.0.0: 74xx:74HC00",
+"status": "symbol_library"
+},
+"elec.logic.SN74HC02": {
+"datasheet_url": "http://www.ti.com/lit/gpn/sn74hc02",
+"source": "KiCad symbols 9.0.0: 74xx:74HC02",
+"status": "symbol_library"
+},
+"elec.logic.SN74HC04": {
+"datasheet_url": "https://assets.nexperia.com/documents/data-sheet/74HC_HCT04.pdf",
+"source": "KiCad symbols 9.0.0: 74xx:74HC04",
+"status": "symbol_library"
+},
+"elec.logic.SN74HC138": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/cd74hc238.pdf",
+"source": "KiCad symbols 9.0.0: 74xx:74HC138",
+"status": "symbol_library"
+},
+"elec.logic.SN74HC14": {
+"datasheet_url": "http://www.ti.com/lit/gpn/sn74HC14",
+"source": "KiCad symbols 9.0.0: 74xx:74HC14",
+"status": "symbol_library"
+},
+"elec.logic.SN74HC165": {
+"datasheet_url": "https://assets.nexperia.com/documents/data-sheet/74HC_HCT165.pdf",
+"source": "KiCad symbols 9.0.0: 74xx:74HC165",
+"status": "symbol_library"
+},
+"elec.logic.SN74HC245": {
+"datasheet_url": "http://www.ti.com/lit/gpn/sn74HC245",
+"source": "KiCad symbols 9.0.0: 74xx:74HC245",
+"status": "symbol_library"
+},
+"elec.logic.SN74HC595": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/sn74hc595.pdf",
+"source": "KiCad symbols 9.0.0: 74xx:74HC595",
+"status": "symbol_library"
+},
+"elec.logic.SN74HC74": {
+"source": "KiCad symbols 9.0.0: 74xx:74HC74",
+"status": "symbol_library"
+},
+"elec.logic.SN74HC86": {
+"datasheet_url": "http://www.ti.com/lit/gpn/sn74HC86",
+"source": "KiCad symbols 9.0.0: 74xx:74HC86",
+"status": "symbol_library"
+},
+"elec.logic.SN74LVC1G14": {
+"datasheet_url": "https://www.ti.com/lit/sg/scyt129e/scyt129e.pdf",
+"source": "KiCad symbols 9.0.0: 74xGxx:74LVC1G14",
+"status": "symbol_library"
+},
+"elec.logic.TXB0104": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/txb0104.pdf",
+"source": "KiCad symbols 9.0.0: Logic_LevelTranslator:TXB0104PW",
+"status": "symbol_library"
+},
+"elec.logic.TXS0108E": {
+"source": "KiCad symbols 9.0.0: Logic_LevelTranslator:TXS0108EPW",
+"status": "symbol_library"
+},
+"elec.memory.24LC256": {
+"datasheet_url": "http://ww1.microchip.com/downloads/en/devicedoc/21203m.pdf",
+"source": "KiCad symbols 9.0.0: Memory_EEPROM:24LC256",
+"status": "symbol_library"
+},
+"elec.memory.FM24CL16B": {
+"datasheet_url": "https://www.infineon.com/dgdl/Infineon-FM24CL16B_16-Kbit_(2_K_8)_Serial_(I2C)_F-RAM-DataSheet-v13_00-EN.pdf?fileId=8ac78c8c7d0d8da4017d0ec99cb241e9",
+"source": "KiCad symbols 9.0.0: Memory_NVRAM:FM24CL16B",
+"status": "symbol_library"
+},
+"elec.memory.W25Q128JV": {
+"datasheet_url": "https://www.winbond.com/resource-files/w25q128jv_dtr%20revc%2003272018%20plus.pdf",
+"source": "KiCad symbols 9.0.0: Memory_Flash:W25Q128JVE",
+"status": "symbol_library"
+},
+"elec.memory.W25Q16JV": {
+"datasheet_url": "https://www.winbond.com/hq/support/documentation/levelOne.jsp?__locale=en&DocNo=DA00-W25Q16JV.1",
+"source": "KiCad symbols 9.0.0: Memory_Flash:W25Q16JVSS",
+"status": "symbol_library"
+},
+"elec.microcontroller.ATSAMD21G18A": {
+"datasheet_url": "http://ww1.microchip.com/downloads/en/DeviceDoc/SAM_D21_DA1_Family_Data%20Sheet_DS40001882E.pdf",
+"source": "KiCad symbols 9.0.0: MCU_Microchip_SAMD:ATSAMD21G18A-A",
+"status": "symbol_library"
+},
+"elec.microcontroller.ATmega2560-16AU": {
+"datasheet_url": "http://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2549-8-bit-AVR-Microcontroller-ATmega640-1280-1281-2560-2561_datasheet.pdf",
+"source": "KiCad symbols 9.0.0: MCU_Microchip_ATmega:ATmega2560-16A",
+"status": "symbol_library"
+},
+"elec.microcontroller.ATmega328P-AU": {
+"datasheet_url": "http://ww1.microchip.com/downloads/en/DeviceDoc/ATmega328_P%20AVR%20MCU%20with%20picoPower%20Technology%20Data%20Sheet%2040001984A.pdf",
+"source": "KiCad symbols 9.0.0: MCU_Microchip_ATmega:ATmega328P-A",
+"status": "symbol_library"
+},
+"elec.microcontroller.ATmega328P-PU": {
+"datasheet_url": "http://ww1.microchip.com/downloads/en/DeviceDoc/ATmega328_P%20AVR%20MCU%20with%20picoPower%20Technology%20Data%20Sheet%2040001984A.pdf",
+"source": "KiCad symbols 9.0.0: MCU_Microchip_ATmega:ATmega328P-P",
+"status": "symbol_library"
+},
+"elec.microcontroller.ATmega32U4-AU": {
+"datasheet_url": "http://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-7766-8-bit-AVR-ATmega16U4-32U4_Datasheet.pdf",
+"source": "KiCad symbols 9.0.0: MCU_Microchip_ATmega:ATmega32U4-A",
+"status": "symbol_library"
+},
+"elec.microcontroller.ATtiny13A": {
+"datasheet_url": "https://ww1.microchip.com/downloads/aemDocuments/documents/MCU08/ProductDocuments/DataSheets/ATtiny13A-Data-Sheet-DS40002307A.pdf",
+"source": "KiCad symbols 9.0.0: MCU_Microchip_ATtiny:ATtiny13A-S",
+"status": "symbol_library"
+},
+"elec.microcontroller.ATtiny85-20PU": {
+"datasheet_url": "http://ww1.microchip.com/downloads/en/DeviceDoc/atmel-2586-avr-8-bit-microcontroller-attiny25-attiny45-attiny85_datasheet.pdf",
+"source": "KiCad symbols 9.0.0: MCU_Microchip_ATtiny:ATtiny85-20P",
+"status": "symbol_library"
+},
+"elec.microcontroller.ATtiny85-20SU": {
+"datasheet_url": "http://ww1.microchip.com/downloads/en/DeviceDoc/atmel-2586-avr-8-bit-microcontroller-attiny25-attiny45-attiny85_datasheet.pdf",
+"source": "KiCad symbols 9.0.0: MCU_Microchip_ATtiny:ATtiny85-20S",
+"status": "symbol_library"
+},
+"elec.microcontroller.PIC16F877A": {
+"datasheet_url": "http://ww1.microchip.com/downloads/en/DeviceDoc/39582b.pdf",
+"source": "KiCad symbols 9.0.0: MCU_Microchip_PIC16:PIC16F877A-IP",
+"status": "symbol_library"
+},
+"elec.microcontroller.RP2040": {
+"datasheet_url": "https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf",
+"source": "KiCad symbols 9.0.0: MCU_RaspberryPi:RP2040",
+"status": "symbol_library"
+},
+"elec.microcontroller.STM32F030F4P6": {
+"datasheet_url": "https://www.st.com/resource/en/datasheet/stm32f030f4.pdf",
+"source": "KiCad symbols 9.0.0: MCU_ST_STM32F0:STM32F030F4Px",
+"status": "symbol_library"
+},
+"elec.microcontroller.STM32F103C8T6": {
+"datasheet_url": "https://www.st.com/resource/en/datasheet/stm32f103c8.pdf",
+"source": "KiCad symbols 9.0.0: MCU_ST_STM32F1:STM32F103C8Tx",
+"status": "symbol_library"
+},
+"elec.microcontroller.STM32F401CCU6": {
+"datasheet_url": "https://www.st.com/resource/en/datasheet/stm32f401cc.pdf",
+"source": "KiCad symbols 9.0.0: MCU_ST_STM32F4:STM32F401CCUx",
+"status": "symbol_library"
+},
+"elec.microcontroller.STM32F405RGT6": {
+"datasheet_url": "https://www.st.com/resource/en/datasheet/stm32f405rg.pdf",
+"source": "KiCad symbols 9.0.0: MCU_ST_STM32F4:STM32F405RGTx",
+"status": "symbol_library"
+},
+"elec.microcontroller.STM32F407VGT6": {
+"datasheet_url": "https://www.st.com/resource/en/datasheet/stm32f407vg.pdf",
+"source": "KiCad symbols 9.0.0: MCU_ST_STM32F4:STM32F407VGTx",
+"status": "symbol_library"
+},
+"elec.microcontroller.STM32F411CEU6": {
+"datasheet_url": "https://www.st.com/resource/en/datasheet/stm32f411ce.pdf",
+"source": "KiCad symbols 9.0.0: MCU_ST_STM32F4:STM32F411CEUx",
+"status": "symbol_library"
+},
+"elec.microcontroller.STM32G431CBT6": {
+"datasheet_url": "https://www.st.com/resource/en/datasheet/stm32g431cb.pdf",
+"source": "KiCad symbols 9.0.0: MCU_ST_STM32G4:STM32G431CBTx",
+"status": "symbol_library"
+},
+"elec.microcontroller.STM32H743VIT6": {
+"datasheet_url": "https://www.st.com/resource/en/datasheet/stm32h743vi.pdf",
+"source": "KiCad symbols 9.0.0: MCU_ST_STM32H7:STM32H743VITx",
+"status": "symbol_library"
+},
+"elec.microcontroller.nRF52840-QIAA": {
+"datasheet_url": "http://infocenter.nordicsemi.com/topic/com.nordic.infocenter.nrf52/dita/nrf52/chips/nrf52840.html",
+"source": "KiCad symbols 9.0.0: MCU_Nordic:nRF52840",
+"status": "symbol_library"
+},
+"elec.mosfet.2N7000": {
+"datasheet_url": "https://www.vishay.com/docs/70226/70226.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_FET:2N7000",
+"status": "symbol_library"
+},
+"elec.mosfet.2N7002": {
+"datasheet_url": "https://www.onsemi.com/pub/Collateral/NDS7002A-D.PDF",
+"source": "KiCad symbols 9.0.0: Transistor_FET:2N7002",
+"status": "symbol_library"
+},
+"elec.mosfet.AO3400A": {
+"datasheet_url": "http://www.aosmd.com/pdfs/datasheet/AO3400A.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_FET:AO3400A",
+"status": "symbol_library"
+},
+"elec.mosfet.AO3401A": {
+"datasheet_url": "http://www.aosmd.com/pdfs/datasheet/AO3401A.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_FET:AO3401A",
+"status": "symbol_library"
+},
+"elec.mosfet.BS170": {
+"datasheet_url": "https://www.onsemi.com/pub/Collateral/BS170-D.PDF",
+"source": "KiCad symbols 9.0.0: Transistor_FET:BS170",
+"status": "symbol_library"
+},
+"elec.mosfet.BSS138": {
+"datasheet_url": "https://www.onsemi.com/pub/Collateral/BSS138-D.PDF",
+"source": "KiCad symbols 9.0.0: Transistor_FET:BSS138",
+"status": "symbol_library"
+},
+"elec.mosfet.BSS84": {
+"datasheet_url": "http://assets.nexperia.com/documents/data-sheet/BSS84.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_FET:BSS84",
+"status": "symbol_library"
+},
+"elec.mosfet.CSD18540Q5B": {
+"datasheet_url": "http://www.ti.com/lit/gpn/csd18540q5b",
+"source": "KiCad symbols 9.0.0: Transistor_FET:CSD18540Q5B",
+"status": "symbol_library"
+},
+"elec.mosfet.IRF3205": {
+"datasheet_url": "http://www.irf.com/product-info/datasheets/data/irf3205.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_FET:IRF3205",
+"status": "symbol_library"
+},
+"elec.mosfet.IRF4905": {
+"datasheet_url": "http://www.infineon.com/dgdl/irf4905.pdf?fileId=5546d462533600a4015355e32165197c",
+"source": "KiCad symbols 9.0.0: Transistor_FET:IRF4905",
+"status": "symbol_library"
+},
+"elec.mosfet.IRF540N": {
+"datasheet_url": "http://www.irf.com/product-info/datasheets/data/irf540n.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_FET:IRF540N",
+"status": "symbol_library"
+},
+"elec.mosfet.IRF9540N": {
+"datasheet_url": "http://www.irf.com/product-info/datasheets/data/irf9540n.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_FET:IRF9540N",
+"status": "symbol_library"
+},
+"elec.mosfet.IRFP4468": {
+"datasheet_url": "https://www.infineon.com/dgdl/irfp4468pbf.pdf?fileId=5546d462533600a40153562c73472019",
+"source": "KiCad symbols 9.0.0: Transistor_FET:IRFP4468PbF",
+"status": "symbol_library"
+},
+"elec.mosfet.IRLB8721": {
+"datasheet_url": "http://www.infineon.com/dgdl/irlb8721pbf.pdf?fileId=5546d462533600a40153566056732591",
+"source": "KiCad symbols 9.0.0: Transistor_FET:IRLB8721PBF",
+"status": "symbol_library"
+},
+"elec.mosfet.IRLML6402": {
+"datasheet_url": "https://www.infineon.com/dgdl/irlml6402pbf.pdf?fileId=5546d462533600a401535668d5c2263c",
+"source": "KiCad symbols 9.0.0: Transistor_FET:IRLML6402",
+"status": "symbol_library"
+},
+"elec.mosfet.IRLZ34N": {
+"datasheet_url": "http://www.infineon.com/dgdl/irlz34npbf.pdf?fileId=5546d462533600a40153567206892720",
+"source": "KiCad symbols 9.0.0: Transistor_FET:IRLZ34N",
+"status": "symbol_library"
+},
+"elec.mosfet.IRLZ44N": {
+"datasheet_url": "http://www.irf.com/product-info/datasheets/data/irlz44n.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_FET:IRLZ44N",
+"status": "symbol_library"
+},
+"elec.motor.A4988": {
+"checked": "2026-11-05",
+"note": "Orderable code A4988SETTR-T, 5 x 5 mm QFN-28.",
+"source": "Web search result read for this part",
+"status": "web_checked",
+"url": "https://www.digikey.com/en/products/detail/allegro-microsystems/A4988SETTR-T/2237991"
+},
+"elec.motor.DRV8833": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/drv8833.pdf",
+"source": "KiCad symbols 9.0.0: Driver_Motor:DRV8833PWP",
+"status": "symbol_library"
+},
+"elec.motor.DRV8871": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/drv8871.pdf",
+"source": "KiCad symbols 9.0.0: Driver_Motor:DRV8871DDA",
+"status": "symbol_library"
+},
+"elec.motor.L293D": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/l293.pdf",
+"source": "KiCad symbols 9.0.0: Driver_Motor:L293D",
+"status": "symbol_library"
+},
+"elec.motor.L298N": {
+"datasheet_url": "http://www.st.com/st-web-ui/static/active/en/resource/technical/document/datasheet/CD00000240.pdf",
+"source": "KiCad symbols 9.0.0: Driver_Motor:L298HN",
+"status": "symbol_library"
+},
+"elec.motor.TB6612FNG": {
+"datasheet_url": "https://toshiba.semicon-storage.com/us/product/linear/motordriver/detail.TB6612FNG.html",
+"source": "KiCad symbols 9.0.0: Driver_Motor:TB6612FNG",
+"status": "symbol_library"
+},
+"elec.motor.TMC2130": {
+"datasheet_url": "http://www.trinamic.com/fileadmin/assets/Products/ICs_Documents/TMC2130_datasheet.pdf",
+"source": "KiCad symbols 9.0.0: Driver_Motor:TMC2130-LA",
+"status": "symbol_library"
+},
+"elec.motor.TMC5160": {
+"datasheet_url": "https://www.trinamic.com/fileadmin/assets/Products/ICs_Documents/TMC5160A_Datasheet_Rev1.14.pdf",
+"source": "KiCad symbols 9.0.0: Driver_Motor:TMC5160A-TA",
+"status": "symbol_library"
+},
+"elec.motor.ULN2003A": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/uln2003a.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_Array:ULN2003A",
+"status": "symbol_library"
+},
+"elec.motor.ULN2803A": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/uln2803a.pdf",
+"source": "KiCad symbols 9.0.0: Transistor_Array:ULN2803A",
+"status": "symbol_library"
+},
+"elec.motor.VNH5019": {
+"datasheet_url": "https://www.st.com/resource/en/datasheet/vnh5019a-e.pdf",
+"source": "KiCad symbols 9.0.0: Driver_Motor:VNH5019A-E",
+"status": "symbol_library"
+},
+"elec.opamp.AD620": {
+"datasheet_url": "https://www.analog.com/media/en/technical-documentation/data-sheets/AD620.pdf",
+"source": "KiCad symbols 9.0.0: Amplifier_Instrumentation:AD620",
+"status": "symbol_library"
+},
+"elec.opamp.INA128": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/ina128.pdf",
+"source": "KiCad symbols 9.0.0: Amplifier_Instrumentation:INA128",
+"status": "symbol_library"
+},
+"elec.opamp.INA333": {
+"datasheet_url": "https://www.ti.com/lit/ds/symlink/ina333.pdf",
+"source": "KiCad symbols 9.0.0: Amplifier_Instrumentation:INA333xxDGK",
+"status": "symbol_library"
+},
+"elec.opamp.LM311": {
+"datasheet_url": "https://www.st.com/resource/en/datasheet/lm311.pdf",
+"source": "KiCad symbols 9.0.0: Comparator:LM311",
+"status": "symbol_library"
+},
+"elec.opamp.LM324": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/lm2902-n.pdf",
+"source": "KiCad symbols 9.0.0: Amplifier_Operational:LM324",
+"status": "symbol_library"
+},
+"elec.opamp.LM339": {
+"datasheet_url": "https://www.st.com/resource/en/datasheet/lm139.pdf",
+"source": "KiCad symbols 9.0.0: Comparator:LM339",
+"status": "symbol_library"
+},
+"elec.opamp.LM358": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/lm2904-n.pdf",
+"source": "KiCad symbols 9.0.0: Amplifier_Operational:LM358",
+"status": "symbol_library"
+},
+"elec.opamp.LM386": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/lm386.pdf",
+"source": "KiCad symbols 9.0.0: Amplifier_Audio:LM386",
+"status": "symbol_library"
+},
+"elec.opamp.LM393": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/lm393.pdf",
+"source": "KiCad symbols 9.0.0: Comparator:LM393",
+"status": "symbol_library"
+},
+"elec.opamp.LM741": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/lm741.pdf",
+"source": "KiCad symbols 9.0.0: Amplifier_Operational:LM741",
+"status": "symbol_library"
+},
+"elec.opamp.LMV321": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/lmv324.pdf",
+"source": "KiCad symbols 9.0.0: Amplifier_Operational:LMV321",
+"status": "symbol_library"
+},
+"elec.opamp.LMV358": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/lmv324.pdf",
+"source": "KiCad symbols 9.0.0: Amplifier_Operational:LMV358",
+"status": "symbol_library"
+},
+"elec.opamp.MAX98357A": {
+"datasheet_url": "https://www.analog.com/media/en/technical-documentation/data-sheets/MAX98357A-MAX98357B.pdf",
+"source": "KiCad symbols 9.0.0: Audio:MAX98357A",
+"status": "symbol_library"
+},
+"elec.opamp.MCP6001": {
+"datasheet_url": "https://ww1.microchip.com/downloads/en/DeviceDoc/MCP6001-1R-1U-2-4-1-MHz-Low-Power-Op-Amp-DS20001733L.pdf",
+"source": "KiCad symbols 9.0.0: Amplifier_Operational:MCP6001-OT",
+"status": "symbol_library"
+},
+"elec.opamp.MCP6002": {
+"datasheet_url": "http://ww1.microchip.com/downloads/en/DeviceDoc/21733j.pdf",
+"source": "KiCad symbols 9.0.0: Amplifier_Operational:MCP6002-xMC",
+"status": "symbol_library"
+},
+"elec.opamp.MCP6004": {
+"datasheet_url": "http://ww1.microchip.com/downloads/en/DeviceDoc/21733j.pdf",
+"source": "KiCad symbols 9.0.0: Amplifier_Operational:MCP6004",
+"status": "symbol_library"
+},
+"elec.opamp.NE5532": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/ne5532.pdf",
+"source": "KiCad symbols 9.0.0: Amplifier_Operational:NE5532",
+"status": "symbol_library"
+},
+"elec.opamp.OPA2134": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/opa134.pdf",
+"source": "KiCad symbols 9.0.0: Amplifier_Operational:OPA2134",
+"status": "symbol_library"
+},
+"elec.opamp.OPA2340": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/opa4340.pdf",
+"source": "KiCad symbols 9.0.0: Amplifier_Operational:OPA2340",
+"status": "symbol_library"
+},
+"elec.opamp.TL071": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/tl071.pdf",
+"source": "KiCad symbols 9.0.0: Amplifier_Operational:TL071",
+"status": "symbol_library"
+},
+"elec.opamp.TL072": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/tl071.pdf",
+"source": "KiCad symbols 9.0.0: Amplifier_Operational:TL072",
+"status": "symbol_library"
+},
+"elec.opamp.TL074": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/tl071.pdf",
+"source": "KiCad symbols 9.0.0: Amplifier_Operational:TL074",
+"status": "symbol_library"
+},
+"elec.optocoupler.4N35": {
+"datasheet_url": "https://www.vishay.com/docs/81181/4n35.pdf",
+"source": "KiCad symbols 9.0.0: Isolator:4N35",
+"status": "symbol_library"
+},
+"elec.optocoupler.6N137": {
+"datasheet_url": "https://docs.broadcom.com/docs/AV02-0940EN",
+"source": "KiCad symbols 9.0.0: Isolator:6N137",
+"status": "symbol_library"
+},
+"elec.optocoupler.EL817": {
+"datasheet_url": "http://www.everlight.com/file/ProductFile/EL817.pdf",
+"source": "KiCad symbols 9.0.0: Isolator:EL817",
+"status": "symbol_library"
+},
+"elec.optocoupler.HCPL-2631": {
+"datasheet_url": "https://docs.broadcom.com/docs/AV02-0940EN",
+"source": "KiCad symbols 9.0.0: Isolator:HCPL-2631",
+"status": "symbol_library"
+},
+"elec.optocoupler.LTV-817": {
+"datasheet_url": "http://www.us.liteon.com/downloads/LTV-817-827-847.PDF",
+"source": "KiCad symbols 9.0.0: Isolator:LTV-817",
+"status": "symbol_library"
+},
+"elec.optocoupler.PC817": {
+"datasheet_url": "http://www.soselectronic.cz/a_info/resource/d/pc817.pdf",
+"source": "KiCad symbols 9.0.0: Isolator:PC817",
+"status": "symbol_library"
+},
+"elec.optocoupler.TLP250": {
+"datasheet_url": "http://toshiba.semicon-storage.com/info/docget.jsp?did=16821&prodName=TLP250",
+"source": "KiCad symbols 9.0.0: Driver_FET:TLP250",
+"status": "symbol_library"
+},
+"elec.rectifier.1N4001": {
+"datasheet_url": "http://www.vishay.com/docs/88503/1n4001.pdf",
+"source": "KiCad symbols 9.0.0: Diode:1N4001",
+"status": "symbol_library"
+},
+"elec.rectifier.1N4004": {
+"datasheet_url": "http://www.vishay.com/docs/88503/1n4001.pdf",
+"source": "KiCad symbols 9.0.0: Diode:1N4004",
+"status": "symbol_library"
+},
+"elec.rectifier.1N4007": {
+"datasheet_url": "http://www.vishay.com/docs/88503/1n4001.pdf",
+"source": "KiCad symbols 9.0.0: Diode:1N4007",
+"status": "symbol_library"
+},
+"elec.rectifier.1N5408": {
+"datasheet_url": "http://www.vishay.com/docs/88516/1n5400.pdf",
+"source": "KiCad symbols 9.0.0: Diode:1N5408",
+"status": "symbol_library"
+},
+"elec.rectifier.US1M": {
+"datasheet_url": "https://www.diodes.com/assets/Datasheets/ds16008.pdf",
+"source": "KiCad symbols 9.0.0: Diode:US1M",
+"status": "symbol_library"
+},
+"elec.schottky.1N5817": {
+"datasheet_url": "http://www.vishay.com/docs/88525/1n5817.pdf",
+"source": "KiCad symbols 9.0.0: Diode:1N5817",
+"status": "symbol_library"
+},
+"elec.schottky.1N5819": {
+"datasheet_url": "http://www.vishay.com/docs/88525/1n5817.pdf",
+"source": "KiCad symbols 9.0.0: Diode:1N5819",
+"status": "symbol_library"
+},
+"elec.schottky.1N5822": {
+"datasheet_url": "http://www.vishay.com/docs/88526/1n5820.pdf",
+"source": "KiCad symbols 9.0.0: Diode:1N5822",
+"status": "symbol_library"
+},
+"elec.schottky.MBRS340": {
+"datasheet_url": "https://www.onsemi.com/download/data-sheet/pdf/mbrs340t3-d.pdf",
+"source": "KiCad symbols 9.0.0: Diode:MBRS340",
+"status": "symbol_library"
+},
+"elec.schottky.SS14": {
+"datasheet_url": "https://www.vishay.com/docs/88746/ss12.pdf",
+"source": "KiCad symbols 9.0.0: Diode:SS14",
+"status": "symbol_library"
+},
+"elec.schottky.SS34": {
+"datasheet_url": "https://www.vishay.com/docs/88751/ss32.pdf",
+"source": "KiCad symbols 9.0.0: Diode:SS34",
+"status": "symbol_library"
+},
+"elec.sensor.ACS758": {
+"datasheet_url": "http://www.allegromicro.com/~/media/Files/Datasheets/ACS758-Datasheet.ashx?la=en",
+"source": "KiCad symbols 9.0.0: Sensor_Current:ACS758xCB-050B-PFF",
+"status": "symbol_library"
+},
+"elec.sensor.APDS-9960": {
+"datasheet_url": "https://docs.broadcom.com/doc/AV02-4191EN",
+"source": "KiCad symbols 9.0.0: Sensor:APDS-9960",
+"status": "symbol_library"
+},
+"elec.sensor.AS5048A": {
+"datasheet_url": "https://ams.com/documents/20143/36005/AS5048_DS000298_4-00.pdf",
+"source": "KiCad symbols 9.0.0: Sensor_Magnetic:AS5048A",
+"status": "symbol_library"
+},
+"elec.sensor.BME280": {
+"datasheet_url": "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf",
+"source": "KiCad symbols 9.0.0: Sensor:BME280",
+"status": "symbol_library"
+},
+"elec.sensor.BME680": {
+"datasheet_url": "https://ae-bst.resource.bosch.com/media/_tech/media/datasheets/BST-BME680-DS001.pdf",
+"source": "KiCad symbols 9.0.0: Sensor:BME680",
+"status": "symbol_library"
+},
+"elec.sensor.BMP280": {
+"datasheet_url": "https://ae-bst.resource.bosch.com/media/_tech/media/datasheets/BST-BMP280-DS001.pdf",
+"source": "KiCad symbols 9.0.0: Sensor_Pressure:BMP280",
+"status": "symbol_library"
+},
+"elec.sensor.BNO055": {
+"datasheet_url": "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bno055-ds000.pdf",
+"source": "KiCad symbols 9.0.0: Sensor_Motion:BNO055",
+"status": "symbol_library"
+},
+"elec.sensor.DS18B20": {
+"datasheet_url": "http://datasheets.maximintegrated.com/en/ds/DS18B20.pdf",
+"source": "KiCad symbols 9.0.0: Sensor_Temperature:DS18B20",
+"status": "symbol_library"
+},
+"elec.sensor.ICM-20948": {
+"datasheet_url": "http://www.invensense.com/wp-content/uploads/2016/06/DS-000189-ICM-20948-v1.3.pdf",
+"source": "KiCad symbols 9.0.0: Sensor_Motion:ICM-20948",
+"status": "symbol_library"
+},
+"elec.sensor.LIS3DH": {
+"datasheet_url": "https://www.st.com/resource/en/datasheet/cd00274221.pdf",
+"source": "KiCad symbols 9.0.0: Sensor_Motion:LIS3DH",
+"status": "symbol_library"
+},
+"elec.sensor.LIS3MDL": {
+"datasheet_url": "https://www.st.com/resource/en/datasheet/lis3mdl.pdf",
+"source": "KiCad symbols 9.0.0: Sensor_Magnetic:LIS3MDL",
+"status": "symbol_library"
+},
+"elec.sensor.LM35": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/lm35.pdf",
+"source": "KiCad symbols 9.0.0: Sensor_Temperature:LM35-D",
+"status": "symbol_library"
+},
+"elec.sensor.LSM6DS3": {
+"datasheet_url": "https://www.st.com/resource/en/datasheet/lsm6ds3tr-c.pdf",
+"source": "KiCad symbols 9.0.0: Sensor_Motion:LSM6DS3",
+"status": "symbol_library"
+},
+"elec.sensor.MAX31855": {
+"datasheet_url": "http://datasheets.maximintegrated.com/en/ds/MAX31855.pdf",
+"source": "KiCad symbols 9.0.0: Sensor_Temperature:MAX31855KASA",
+"status": "symbol_library"
+},
+"elec.sensor.MPU-6050": {
+"datasheet_url": "https://invensense.tdk.com/wp-content/uploads/2015/02/MPU-6000-Datasheet1.pdf",
+"source": "KiCad symbols 9.0.0: Sensor_Motion:MPU-6050",
+"status": "symbol_library"
+},
+"elec.sensor.MPU-9250": {
+"datasheet_url": "https://invensense.tdk.com/wp-content/uploads/2015/02/PS-MPU-9250A-01-v1.1.pdf",
+"source": "KiCad symbols 9.0.0: Sensor_Motion:MPU-9250",
+"status": "symbol_library"
+},
+"elec.sensor.MS5611": {
+"datasheet_url": "https://www.te.com/commerce/DocumentDelivery/DDEController?Action=srchrtrv&DocNm=MS5611-01BA03&DocType=Data+Sheet&DocLang=English",
+"source": "KiCad symbols 9.0.0: Sensor_Pressure:MS5611-01BA",
+"status": "symbol_library"
+},
+"elec.sensor.SCD40": {
+"datasheet_url": "https://sensirion.com/media/documents/E0F04247/631EF271/CD_DS_SCD40_SCD41_Datasheet_D1.pdf",
+"source": "KiCad symbols 9.0.0: Sensor_Gas:SCD40-D-R2",
+"status": "symbol_library"
+},
+"elec.sensor.SHT31-DIS": {
+"datasheet_url": "https://www.sensirion.com/fileadmin/user_upload/customers/sensirion/Dokumente/2_Humidity_Sensors/Datasheets/Sensirion_Humidity_Sensors_SHT3x_Datasheet_digital.pdf",
+"source": "KiCad symbols 9.0.0: Sensor_Humidity:SHT31-DIS",
+"status": "symbol_library"
+},
+"elec.sensor.SHT40": {
+"datasheet_url": "https://sensirion.com/media/documents/33FD6951/624C4357/Datasheet_SHT4x.pdf",
+"source": "KiCad symbols 9.0.0: Sensor_Humidity:SHT4x",
+"status": "symbol_library"
+},
+"elec.sensor.TMP117": {
+"datasheet_url": "https://www.ti.com/lit/ds/symlink/tmp117.pdf",
+"source": "KiCad symbols 9.0.0: Sensor_Temperature:TMP117xxDRV",
+"status": "symbol_library"
+},
+"elec.sensor.TMP36": {
+"datasheet_url": "https://www.analog.com/media/en/technical-documentation/data-sheets/TMP35_36_37.pdf",
+"source": "KiCad symbols 9.0.0: Sensor_Temperature:TMP36xS",
+"status": "symbol_library"
+},
+"elec.sensor.VL53L0X": {
+"source": "KiCad footprints: OptoDevice.pretty/ST_VL53L0X.kicad_mod",
+"status": "footprint_library"
+},
+"elec.sensor.VL53L1X": {
+"source": "KiCad footprints: OptoDevice.pretty/ST_VL53L1X.kicad_mod",
+"status": "footprint_library"
+},
+"elec.smallsignal.1N4148": {
+"datasheet_url": "https://assets.nexperia.com/documents/data-sheet/1N4148_1N4448.pdf",
+"source": "KiCad symbols 9.0.0: Diode:1N4148",
+"status": "symbol_library"
+},
+"elec.smallsignal.1N4148W": {
+"datasheet_url": "https://www.vishay.com/docs/85748/1n4148w.pdf",
+"source": "KiCad symbols 9.0.0: Diode:1N4148W",
+"status": "symbol_library"
+},
+"elec.smallsignal.1N5711": {
+"datasheet_url": "https://www.microsemi.com/document-portal/doc_download/8865-lds-0040-datasheet",
+"source": "KiCad symbols 9.0.0: Diode:1N5711",
+"status": "symbol_library"
+},
+"elec.smallsignal.BAT54": {
+"datasheet_url": "http://www.diodes.com/_files/datasheets/ds11005.pdf",
+"source": "KiCad symbols 9.0.0: Diode:BAT54A",
+"status": "symbol_library"
+},
+"elec.smallsignal.BAT54C": {
+"datasheet_url": "http://www.diodes.com/_files/datasheets/ds11005.pdf",
+"source": "KiCad symbols 9.0.0: Diode:BAT54C",
+"status": "symbol_library"
+},
+"elec.smallsignal.BAT54S": {
+"datasheet_url": "https://www.diodes.com/assets/Datasheets/ds11005.pdf",
+"source": "KiCad symbols 9.0.0: Diode:BAT54S",
+"status": "symbol_library"
+},
+"elec.smallsignal.BAT85": {
+"datasheet_url": "https://assets.nexperia.com/documents/data-sheet/BAT85.pdf",
+"source": "KiCad symbols 9.0.0: Diode:BAT85",
+"status": "symbol_library"
+},
+"elec.smallsignal.BAV99": {
+"datasheet_url": "https://assets.nexperia.com/documents/data-sheet/BAV99_SER.pdf",
+"source": "KiCad symbols 9.0.0: Diode:BAV99",
+"status": "symbol_library"
+},
+"elec.switching.AP2112K-3.3": {
+"datasheet_url": "https://www.diodes.com/assets/Datasheets/AP2112.pdf",
+"source": "KiCad symbols 9.0.0: Regulator_Linear:AP2112K-3.3",
+"status": "symbol_library"
+},
+"elec.switching.LM2575": {
+"datasheet_url": "http://ww1.microchip.com/downloads/en/DeviceDoc/lm2575.pdf",
+"source": "KiCad symbols 9.0.0: Regulator_Switching:LM2575-5.0BT",
+"status": "symbol_library"
+},
+"elec.switching.LM2576": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/lm2576.pdf",
+"source": "KiCad symbols 9.0.0: Regulator_Switching:LM2576HVS-12",
+"status": "symbol_library"
+},
+"elec.switching.LM2596S-5.0": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/lm2596.pdf",
+"source": "KiCad symbols 9.0.0: Regulator_Switching:LM2596S-5",
+"status": "symbol_library"
+},
+"elec.switching.LM2596S-ADJ": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/lm2596.pdf",
+"source": "KiCad symbols 9.0.0: Regulator_Switching:LM2596S-ADJ",
+"status": "symbol_library"
+},
+"elec.switching.LMR16006": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/lmr16006y-q1.pdf",
+"source": "KiCad symbols 9.0.0: Regulator_Switching:LMR16006YQ",
+"status": "symbol_library"
+},
+"elec.switching.MC34063": {
+"datasheet_url": "http://www.onsemi.com/pub_link/Collateral/MC34063A-D.PDF",
+"source": "KiCad symbols 9.0.0: Regulator_Switching:MC34063AP",
+"status": "symbol_library"
+},
+"elec.switching.MT3608": {
+"datasheet_url": "https://www.olimex.com/Products/Breadboarding/BB-PWR-3608/resources/MT3608.pdf",
+"source": "KiCad symbols 9.0.0: Regulator_Switching:MT3608",
+"status": "symbol_library"
+},
+"elec.switching.TPS5430": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/tps5430.pdf",
+"source": "KiCad symbols 9.0.0: Regulator_Switching:TPS5430DDA",
+"status": "symbol_library"
+},
+"elec.switching.TPS61200": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/tps61200.pdf",
+"source": "KiCad symbols 9.0.0: Regulator_Switching:TPS61200DRC",
+"status": "symbol_library"
+},
+"elec.switching.TPS62130": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/tps62130.pdf",
+"source": "KiCad symbols 9.0.0: Regulator_Switching:TPS62130",
+"status": "symbol_library"
+},
+"elec.thyristor.BTA16-600B": {
+"datasheet_url": "https://www.st.com/resource/en/datasheet/bta16.pdf",
+"source": "KiCad symbols 9.0.0: Triac_Thyristor:BTA16-600B",
+"status": "symbol_library"
+},
+"elec.thyristor.DB3": {
+"datasheet_url": "http://cdn-reichelt.de/documents/datenblatt/A100/DB%203%23st.pdf",
+"source": "KiCad symbols 9.0.0: Diode:DB3",
+"status": "symbol_library"
+},
+"elec.thyristor.MOC3021": {
+"datasheet_url": "https://www.onsemi.com/pub/Collateral/MOC3023M-D.PDF",
+"source": "KiCad symbols 9.0.0: Relay_SolidState:MOC3021M",
+"status": "symbol_library"
+},
+"elec.thyristor.MOC3041": {
+"datasheet_url": "https://www.onsemi.com/pub/Collateral/MOC3043M-D.pdf",
+"source": "KiCad symbols 9.0.0: Relay_SolidState:MOC3041M",
+"status": "symbol_library"
+},
+"elec.voltage.DS1307": {
+"datasheet_url": "https://datasheets.maximintegrated.com/en/ds/DS1307.pdf",
+"source": "KiCad symbols 9.0.0: Timer_RTC:DS1307+",
+"status": "symbol_library"
+},
+"elec.voltage.DS3231": {
+"datasheet_url": "http://datasheets.maximintegrated.com/en/ds/DS3231.pdf",
+"source": "KiCad symbols 9.0.0: Timer_RTC:DS3231M",
+"status": "symbol_library"
+},
+"elec.voltage.LM4040": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/lm4040-n.pdf",
+"source": "KiCad symbols 9.0.0: Reference_Voltage:LM4040DBZ-10",
+"status": "symbol_library"
+},
+"elec.voltage.LMC555": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/lmc555.pdf",
+"source": "KiCad symbols 9.0.0: Timer:LMC555xM",
+"status": "symbol_library"
+},
+"elec.voltage.NE555": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/ne555.pdf",
+"source": "KiCad symbols 9.0.0: Timer:NE555P",
+"status": "symbol_library"
+},
+"elec.voltage.NE556": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/ne556.pdf",
+"source": "KiCad symbols 9.0.0: Timer:NE556",
+"status": "symbol_library"
+},
+"elec.voltage.PCF8563": {
+"datasheet_url": "https://www.nxp.com/docs/en/data-sheet/PCF8563.pdf",
+"source": "KiCad symbols 9.0.0: Timer_RTC:PCF8563T",
+"status": "symbol_library"
+},
+"elec.voltage.REF3030": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/ref3033.pdf",
+"source": "KiCad symbols 9.0.0: Reference_Voltage:REF3030",
+"status": "symbol_library"
+},
+"elec.voltage.TL431": {
+"datasheet_url": "http://www.ti.com/lit/ds/symlink/tl431.pdf",
+"source": "KiCad symbols 9.0.0: Reference_Voltage:TL431D",
+"status": "symbol_library"
+},
+"elec.wireless.ESP32-C3-WROOM-02": {
+"datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32-c3-wroom-02_datasheet_en.pdf",
+"source": "KiCad symbols 9.0.0: RF_Module:ESP32-C3-WROOM-02",
+"status": "symbol_library"
+},
+"elec.wireless.ESP32-S3-WROOM-1": {
+"datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32-s3-wroom-1_wroom-1u_datasheet_en.pdf",
+"source": "KiCad symbols 9.0.0: RF_Module:ESP32-S3-WROOM-1",
+"status": "symbol_library"
+},
+"elec.wireless.ESP32-WROOM-32E": {
+"datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32-wroom-32e_esp32-wroom-32ue_datasheet_en.pdf",
+"source": "KiCad symbols 9.0.0: RF_Module:ESP32-WROOM-32E",
+"status": "symbol_library"
+},
+"elec.wireless.ESP32-WROOM-32U": {
+"datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32-wroom-32d_esp32-wroom-32u_datasheet_en.pdf",
+"source": "KiCad symbols 9.0.0: RF_Module:ESP32-WROOM-32U",
+"status": "symbol_library"
+},
+"elec.wireless.ESP8266-12F": {
+"datasheet_url": "http://wiki.ai-thinker.com/_media/esp8266/esp8266_series_modules_user_manual_v1.1.pdf",
+"source": "KiCad symbols 9.0.0: RF_Module:ESP-12F",
+"status": "symbol_library"
+},
+"elec.wireless.NEO-M8N": {
+"datasheet_url": "https://content.u-blox.com/sites/default/files/NEO-M8-FW3_DataSheet_UBX-15031086.pdf",
+"source": "KiCad symbols 9.0.0: RF_GPS:NEO-M8N",
+"status": "symbol_library"
+},
+"elec.wireless.RFM95W": {
+"datasheet_url": "https://www.hoperf.com/data/upload/portal/20181127/5bfcbea20e9ef.pdf",
+"source": "KiCad symbols 9.0.0: RF_Module:RFM95W-868S2",
+"status": "symbol_library"
+},
+"elec.wireless.SX1276": {
+"datasheet_url": "https://semtech.my.salesforce.com/sfc/p/#E0000000JelG/a/2R0000001Rbr/6EfVZUorrpoKFfvaF_Fkpgp5kzjiNyiAbqcpqh9qSjE",
+"source": "KiCad symbols 9.0.0: RF:SX1276",
+"status": "symbol_library"
+},
+"elec.zener.1N4733A": {
+"datasheet_url": "https://www.vishay.com/docs/85816/1n4728a.pdf",
+"source": "KiCad symbols 9.0.0: Diode:1N47xxA",
+"status": "symbol_library"
+},
+"elec.zener.1N4742A": {
+"datasheet_url": "https://www.vishay.com/docs/85816/1n4728a.pdf",
+"source": "KiCad symbols 9.0.0: Diode:1N47xxA",
+"status": "symbol_library"
+},
+"elec.zener.BZX84C3V3": {
+"datasheet_url": "https://diotec.com/tl_files/diotec/files/pdf/datasheets/bzx84c2v4.pdf",
+"source": "KiCad symbols 9.0.0: Diode:BZX84Cxx",
+"status": "symbol_library"
+},
+"elec.zener.BZX84C5V1": {
+"datasheet_url": "https://diotec.com/tl_files/diotec/files/pdf/datasheets/bzx84c2v4.pdf",
+"source": "KiCad symbols 9.0.0: Diode:BZX84Cxx",
+"status": "symbol_library"
+},
+"elec.zener.PRTR5V0U2X": {
+"datasheet_url": "https://assets.nexperia.com/documents/data-sheet/PRTR5V0U2X.pdf",
+"source": "KiCad symbols 9.0.0: Power_Protection:PRTR5V0U2X",
+"status": "symbol_library"
+},
+"elec.zener.USBLC6-2SC6": {
+"datasheet_url": "https://www.st.com/resource/en/datasheet/usblc6-2.pdf",
+"source": "KiCad symbols 9.0.0: Power_Protection:USBLC6-2SC6",
+"status": "symbol_library"
+},
+"linear.rail.MGN12H": {
+"checked": "2026-11-05",
+"source": "Web search result read for this part",
+"status": "web_checked",
+"url": "https://www.123-3d.co.uk/HIWIN-MGN12H-linear-slider-block-i3904-t344.html"
+},
+"motor.bldc.MN2212-920KV": {
+"checked": "2026-11-05",
+"note": "V2.0 listing.",
+"source": "Web search result read for this part",
+"status": "web_checked",
+"url": "https://store.tmotor.com/product/mn2212-v2-motor-navigator-type.html"
+},
+"motor.fan.NF-A4x10_FLX": {
+"checked": "2026-11-05",
+"note": "Maker gives 40 x 40 x 11 mm (12 with anti-vibration pads), 32 mm hole spacing.",
+"source": "Web search result read for this part",
+"status": "web_checked",
+"url": "https://noctua.at/en/nf-a4x10-flx/specification"
+},
+"motor.servo.MG996R": {
+"checked": "2026-11-05",
+"source": "Web search result read for this part",
+"status": "web_checked",
+"url": "https://courses.ece.cornell.edu/ece5990/ECE5725_Spring2020_Projects/May_15_Demo/Smart Lock/W_pp445_yl656/datasheet/MG996R_Tower-Pro.pdf"
+},
+"motor.servo.SG90": {
+"checked": "2026-11-05",
+"note": "Sources conflict on outline (22-23.1 x 11.5-12.2 x 27-31 mm). Envelope uses the largest values.",
+"source": "Web search result read for this part",
+"status": "web_checked",
+"url": "https://bit.nkust.edu.tw/~csshieh/teach/111A/mc/datasheet/SG90.pdf"
+},
+"motor.servo.XL430-W250-T": {
+"checked": "2026-11-05",
+"source": "Web search result read for this part",
+"status": "web_checked",
+"url": "https://emanual.robotis.com/docs/en/dxl/x/xl430-w250/"
+},
+"motor.stepper.17HS19-2004S1": {
+"checked": "2026-11-05",
+"source": "Web search result read for this part",
+"status": "web_checked",
+"url": "https://omc-stepperonline.com/nema-17-bipolar-59ncm-84oz-in-2a-42x48mm-4-wires-w-1m-cable-and-connector.html"
+},
+"motor.stepper.17HS4401": {
+"checked": "2026-11-05",
+"note": "Generic name with no single maker. Listings conflict: 1.5-1.7 A, 38-40.4 mm body. Measure the motor actually bought.",
+"source": "Web search result read for this part",
+"status": "web_checked",
+"url": "https://www.digikey.fi/en/products/detail/olimex-ltd/SM-17HS4401/25823679"
+},
+"motor.stepper.23HS22-2804S": {
+"checked": "2026-11-05",
+"note": "6.35 mm shaft; 23HS22-2804S1 is a different 6 mm part.",
+"source": "Web search result read for this part",
+"status": "web_checked",
+"url": "https://omc-stepperonline.com/nema-23-bipolar-1-8deg-1-26nm-178-4oz-in-2-8a-2-5v-57x57x56mm-4-wires.html"
+},
+"motor.stepper.28BYJ-48": {
+"checked": "2026-11-05",
+"note": "Exact gear ratio reported as 63.684:1 by a measurement source.",
+"source": "Web search result read for this part",
+"status": "web_checked",
+"url": "https://www.olimex.com/Products/Robot-CNC-Parts/StepperMotors/SM-5VDC-DRV/"
+},
+"power.meanwell.IRM-05-5": {
+"datasheet_url": "https://www.meanwell.com/Upload/PDF/IRM-05/IRM-05-SPEC.PDF",
+"source": "KiCad symbols 9.0.0: Converter_ACDC:IRM-05-5",
+"status": "symbol_library"
+},
+"power.meanwell.IRM-10-5": {
+"datasheet_url": "https://www.meanwell.com/Upload/PDF/IRM-10/IRM-10-SPEC.PDF",
+"source": "KiCad symbols 9.0.0: Converter_ACDC:IRM-10-5",
+"status": "symbol_library"
+},
+"power.meanwell.IRM-20-12": {
+"datasheet_url": "http://www.meanwell.com/Upload/PDF/IRM-20/IRM-20-SPEC.PDF",
+"source": "KiCad symbols 9.0.0: Converter_ACDC:IRM-20-12",
+"status": "symbol_library"
+},
+"power.meanwell.LRS-100-24": {
+"checked": "2026-11-05",
+"note": "24 V 4.5 A = 108 W; retailer figures, maker PDF not read.",
+"source": "Web search result read for this part",
+"status": "web_checked",
+"url": "https://www.arrow.com/en/products/lrs-100-24/mean-well-enterprises"
+},
+"power.module.HLK-PM01": {
+"datasheet_url": "https://h.hlktech.com/download/ACDC%E7%94%B5%E6%BA%90%E6%A8%A1%E5%9D%973W%E7%B3%BB%E5%88%97/1/%E6%B5%B7%E5%87%8C%E7%A7%913W%E7%B3%BB%E5%88%97%E7%94%B5%E6%BA%90%E6%A8%A1%E5%9D%97%E8%A7%84%E6%A0%BC%E4%B9%A6V2.8.pdf",
+"source": "KiCad symbols 9.0.0: Converter_ACDC:HLK-PM01",
+"status": "symbol_library"
+},
+"power.module.HLK-PM03": {
+"datasheet_url": "https://h.hlktech.com/download/ACDC%E7%94%B5%E6%BA%90%E6%A8%A1%E5%9D%973W%E7%B3%BB%E5%88%97/1/%E6%B5%B7%E5%87%8C%E7%A7%913W%E7%B3%BB%E5%88%97%E7%94%B5%E6%BA%90%E6%A8%A1%E5%9D%97%E8%A7%84%E6%A0%BC%E4%B9%A6V2.8.pdf",
+"source": "KiCad symbols 9.0.0: Converter_ACDC:HLK-PM03",
+"status": "symbol_library"
+},
+"power.module.R-78E3.3-0.5": {
+"datasheet_url": "https://www.recom-power.com/pdf/Innoline/R-78Exx-0.5.pdf",
+"source": "KiCad symbols 9.0.0: Regulator_Switching:R-78E3.3-0.5",
+"status": "symbol_library"
+},
+"power.module.R-78E5.0-0.5": {
+"datasheet_url": "https://www.recom-power.com/pdf/Innoline/R-78Exx-0.5.pdf",
+"source": "KiCad symbols 9.0.0: Regulator_Switching:R-78E5.0-0.5",
+"status": "symbol_library"
+},
+"protection.ptc.MF-R110": {
+"checked": "2026-11-05",
+"source": "Web search result read for this part",
+"status": "web_checked",
+"url": "https://azcus.digikey.com/en/products/detail/bourns-inc/MF-R110/259970"
+},
+"relay.pcb.SRD-05VDC-SL-C": {
+"checked": "2026-11-05",
+"note": "Listings vary on switching current; maker PDF not read.",
+"source": "Web search result read for this part",
+"status": "web_checked",
+"url": "https://www.lcsc.com/product-detail/C35449.html"
+},
+"switch.microswitch.D2F-01": {
+"checked": "2026-11-05",
+"note": "Rated 0.1 A at 30 VDC; a 3 A rating belongs to D2F.",
+"source": "Web search result read for this part",
+"status": "web_checked",
+"url": "https://octopart.com/zh/part/omron/D2F-01"
+},
+"switch.tactile.B3U-1000P": {
+"source": "KiCad footprints: Button_Switch_SMD.pretty/SW_SPST_B3U-1000P-B.kicad_mod",
+"status": "footprint_library"
+}
+}

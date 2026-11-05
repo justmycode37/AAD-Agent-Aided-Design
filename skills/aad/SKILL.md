@@ -160,7 +160,7 @@ See [Import and export](#import-and-export). Arguments: `formats`, `options`, `a
 
 ### aad_library: look things up
 
-`action` is `search` (with `kind` and `query`) or `get` (with `kind` and `id`). `kind` is `part`, `material`, `playbook` or `api`. See [Library](#library).
+`action` is `search` (with `kind` and `query`), `get` (with `kind` and `id`) or `check` (with `items`, a bill of materials). `kind` is `part`, `component`, `material`, `playbook` or `api`. `search` returns five results; when `truncated` is true, pass `next_offset` as `offset` for more. A component search with no full match returns the closest families with `partial_match: true`. See [Library](#library).
 
 ### Tools that are not for you
 
@@ -335,6 +335,7 @@ requirements:
 | `clearance` | `{with: path, min, max}` | Distance to a STEP file in the project | Overlap never satisfies it |
 | `interference` | `{volume_threshold_mm3}` | Overlaps between solids | Default threshold 1e-6. Unknown is never a pass |
 | `matches_reference` | `{path, f_score: {min, tau_pct_of_diagonal}}` | Closeness to a STEP, STL, PLY or OBJ file in the project | See below |
+| `components` | `[{id, <option>: value, qty}, {custom, reason}]` | Each id is in the component catalog with a stocked option, and each custom part states why | Compares the list with the catalog. It does not inspect the geometry, prove the model uses these parts, or prove stock |
 | `symmetric` | `{plane: XY, XZ or YZ, tolerance}` | Can disprove symmetry | A good result stays `skip` |
 | `min_wall` | `n` | Can catch a thin wall | A good result stays `skip` |
 
@@ -564,7 +565,7 @@ Revisions never change. A failed build leaves the head alone. Use `checkout` to 
 
 ## Library
 
-- **Playbooks:** `aad.guide.v1` (this guide), `workflow.capabilities.v1` (working code for each CAD job), `workflow.core.v1`, `failure.recipes.v1`, `build123d.mistakes.v1`, `spec.evidence.v1`, `review.render.v1`, `viewer.presentation.v1`.
+- **Playbooks:** `aad.guide.v1` (this guide), `workflow.capabilities.v1` (working code for each CAD job), `components.real-parts.v1` (choosing purchased parts), `modeling.curved-freeform.v1` (lofts, sweeps and splines), `workflow.core.v1`, `failure.recipes.v1`, `build123d.mistakes.v1`, `spec.evidence.v1`, `review.render.v1`, `viewer.presentation.v1`.
 - **Part-family playbooks:** `family.bracket.v1`, `family.enclosure.v1`, `family.gear.v1`, `family.hinge.v1`, `family.snap_fit.v1`, `family.thread.v1`.
 - **Process playbooks:** `process.fdm_pla.v1`, `process.sla.v1`, `process.cnc_3axis.v1`, `process.sheet_metal.v1`, `process.laser.v1`, `process.injection.v1`.
 - **API notes:** `api.build123d`, `api.quality.spec`, `api.quality.process`.
@@ -589,6 +590,15 @@ Revisions never change. A failed build leaves the head alone. Use `checkout` to 
 Also, using upstream defaults and simple threads: `fastener.iso4017.hex_head_screw`, `fastener.iso10642.countersunk_screw`, `fastener.iso7380.button_head_screw`, `fastener.iso4026.set_screw`, `nut.iso4032.hex_nut`, `washer.iso7089.plain`, `bearing.angular_contact.skt`, `bearing.cylindrical_roller.skt`, `seal.iso3601.o_ring`, `ring.external_snap`, `ring.internal_snap`, `key.parallel`, `gear.spur`, `gear.helical`, `gear.rack`, `gear.worm`, `sprocket.roller_chain`, `flange.weld_neck`, `flange.blind`.
 
 Build one with `from aad_quality.standard_parts import make_part`, outside any builder. `bd_warehouse` also provides `ClearanceHole`, `TapHole`, `ThreadedHole`, `InsertHole` and `PressFitHole`.
+
+**Real components:** never invent a purchased part. `kind="component"` lists over 2,000 purchasable units: fasteners, bearings, seals, springs, semiconductors, passives, sensors, relays, switches, motors, connectors, batteries, power parts and MCUs.
+
+1. `get` `component.index` for the categories and families, or search by function and size, such as `M3 socket head`, `608 bearing` or `nema 17`.
+2. `get` the record and use only values from its `choices`.
+3. Validate the list with `action="check"` or a `components` spec requirement.
+4. In `model.py`, `from aad_quality.components import make_envelope` builds a simplified fit solid, outside any builder. It has no threads, teeth or pins. It is in millimetres unless you pass `units="in"`.
+
+Each record's `evidence.status` says what is known: `web_checked`, `symbol_library`, `footprint_library`, `source_table`, `standard_series` or `author_recall`. `author_recall` values are not independently checked, so read the datasheet. No status proves stock, price, lifecycle or that a part suits its load. If the catalog lacks a part, name a real candidate from a datasheet and report it as unverified.
 
 ## Command line
 

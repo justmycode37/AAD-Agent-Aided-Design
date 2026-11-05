@@ -89,7 +89,8 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "aad_build",
         "description": (
-            "Run model.py (build123d plus the aad helpers) and return numbers, check results and exact "
+            "Run model.py (full build123d plus the aad helpers: splines, lofts, sweeps, revolves, "
+            "booleans and fillets, not just primitives) and return numbers, check results and exact "
             "failures. A successful build makes a new revision; a failure never moves the head. Send "
             "full source, a unified diff, param overrides, or any combination. If it returns status "
             "'running', poll with aad_history action 'job'."
@@ -343,13 +344,19 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "aad_library",
-        "description": "Look up standard parts, materials, playbooks and API docs on demand.",
+        "description": (
+            "Look up real purchasable components (screws, bearings, transistors, motors, connectors and more), "
+            "materials, playbooks and API docs. search returns five at a time; pass offset for more. "
+            "check validates a bill of materials in items."
+        ),
         "inputSchema": _schema(
             {
-                "action": _enum("search", "get"),
-                "kind": _enum("part", "material", "playbook", "api"),
+                "action": _enum("search", "get", "check"),
+                "kind": _enum("part", "component", "material", "playbook", "api"),
                 "query": {"type": "string"},
                 "id": {"type": "string"},
+                "offset": {"type": "integer", "minimum": 0},
+                "items": {"type": "array", "items": {"type": "object"}},
             },
             ["action"],
         ),
@@ -441,5 +448,11 @@ INSTRUCTIONS = (
     "Default to physical realism: model interiors, functional components, attachments and power/control paths "
     "unless the user requests simplification. Check fit, critical interference and moving clearances; provide "
     "interior views. Distinguish representative geometry and checked fit from validated performance. "
+    "Modeling supports the full build123d namespace: curved profiles, Spline/Bezier, loft, sweep, revolve, shell/offset, booleans and fillet. "
+    "Choose geometry to match the requested silhouette; use lofted sections for tapered cast housings "
+    "and spline paths/profiles for freeform parts. Search aad_library for 'curved freeform' for recipes. "
+    "Never invent purchased parts: pick screws, bearings, semiconductors, motors and connectors from "
+    "aad_library kind=component and validate the list with action=check. Invent freely for the custom "
+    "parts around them. If a part is not in the catalog, say it is unverified. "
     "Fetch playbook viewer.presentation.v1 with aad_library for viewer capabilities, recipes and sourced analysis; never invent stress results."
 )

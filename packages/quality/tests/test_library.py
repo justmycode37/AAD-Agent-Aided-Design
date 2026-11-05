@@ -33,6 +33,27 @@ def test_material_lookup_is_exact_and_defensive():
     assert library("get", kind="material", id="PLA")["found"] is False
 
 
+def test_curved_modeling_recipes_are_discoverable_and_build_single_solids():
+    import re
+    from aad._runtime import configure_params
+    from aad.modeling import configure_modeling
+    from build123d import GeomType
+
+    results = library("search", kind="playbook", query="curved freeform")
+    assert any(item["id"] == "modeling.curved-freeform.v1" for item in results["items"])
+    entry = library("get", kind="playbook", id="modeling.curved-freeform.v1")["item"]
+    recipes = re.findall(r"```python\n(.*?)```", entry["text"], re.S)
+    assert len(recipes) == 3
+    for source in recipes:
+        configure_params()
+        configure_modeling(source)
+        namespace = {}
+        exec(compile(source, entry["id"], "exec"), namespace)
+        shape = namespace["result"]
+        assert shape.is_valid and len(shape.solids()) == 1
+        assert any(face.geom_type == GeomType.BSPLINE for face in shape.faces())
+
+
 def test_playbook_and_api_search_find_content_without_dumping_text():
     results = library("search", kind="playbook", query="counterbore")
     assert results["total"] > 0
