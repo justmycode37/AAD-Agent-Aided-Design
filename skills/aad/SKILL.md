@@ -518,7 +518,7 @@ Skill `aad-viewing` and playbook `viewer.presentation.v1` give more detail.
 
 ## Drawings
 
-`aad_drawing` creates a dimensioned sheet from a 3D revision, with a PNG preview. All numbers come from the geometry.
+`aad_drawing` creates a dimensioned sheet from a 3D revision, with a PNG preview. All numbers come from the geometry. Section and detail view labels show a scale suffix only when their scale differs from the sheet scale. Treat generated dimensions as geometry-derived annotations; AAD drawings do not provide GD&T or establish shop readiness.
 
 | Argument | Values |
 |---|---|

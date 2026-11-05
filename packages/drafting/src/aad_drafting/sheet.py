@@ -1060,7 +1060,8 @@ def _view_label_entities(
         label = labels.get(name) or name.upper()
         if item.projection.metadata.get("kind") in {"section", "detail"}:
             magnification = item.projection.metadata.get("scale", 1.0)
-            label += f"  x{magnification:g} SHEET SCALE"
+            if abs(float(magnification) - 1.0) > 1e-9:
+                label += f"  x{magnification:g} SCALE"
         value = str(label).upper()
         candidates = (
             (item.center[0], item.bounds.ymax + 5.0, "center"),
