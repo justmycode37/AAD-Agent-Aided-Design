@@ -2,8 +2,8 @@
 // Set AAD_E2E_GPU=1 for real-GPU numbers on a Mac; the default software GL also runs in CI.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { gunzipSync, gzipSync } from "node:zlib";
-import { createHash } from "node:crypto";
+import { deflateSync, gunzipSync, gzipSync } from "node:zlib";
+import { createHash, randomBytes } from "node:crypto";
 import { chromium } from "playwright";
 import { openRefHost } from "./ref-host.mjs";
 import { fakeMcp, loadFixture } from "./fake-mcp.mjs";
@@ -16,6 +16,24 @@ const OUT = "test-output";
 mkdirSync(OUT, { recursive: true });
 const html = readFileSync("dist/aad-viewer.html", "utf8");
 const gpu = process.env.AAD_E2E_GPU === "1";
+function pngChunk(type, data) {
+  const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+  const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(Buffer.concat([type, data])));
+  return Buffer.concat([len, type, data, crc]);
+}
+function crc32(buf) {
+  let crc = 0xffffffff;
+  for (const byte of buf) { crc ^= byte; for (let k = 0; k < 8; k++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0); }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+function pngData(bytes) {
+  const width = 1024, height = Math.ceil(bytes.length / (width * 3));
+  const padded = Buffer.alloc(width * height * 3); bytes.copy(padded);
+  const rows = Buffer.alloc(height * (width * 3 + 1));
+  for (let y = 0; y < height; y++) padded.copy(rows, y * (width * 3 + 1) + 1, y * width * 3, (y + 1) * width * 3);
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(height, 4); ihdr[8] = 8; ihdr[9] = 2;
+  return `data:image/png;base64,${Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]), pngChunk(Buffer.from("IHDR"), ihdr), pngChunk(Buffer.from("IDAT"), deflateSync(rows, { level: 1 })), pngChunk(Buffer.from("IEND"), Buffer.alloc(0))]).toString("base64")}`;
+}
 const fixture = loadFixture("tests/fixtures/bracket");
 let failures = 0;
 const check = (ok, label, detail = "") => {
@@ -471,6 +489,36 @@ await scenario("chunk-retry", { scene: big, fakeOpts: { failFirstReadAt: 128 * 1
   check(mcp.stats.failed === 1, "the injected failure happened");
   check(diag.load.retries === 1, "the chunk was retried", String(diag.load.retries));
 });
+
+// Exercise the HTML-only bundled transport with >14 MiB of incompressible scene bytes.
+{
+  const source = JSON.parse(gunzipSync(assembly.blob));
+  source._synthetic_padding = randomBytes(14 * 1024 * 1024).toString("base64");
+  const payload = gzipSync(JSON.stringify(source), { level: 0 });
+  const chunkSize = 1024 * 1024;
+  const chunks = Array.from({ length: Math.ceil(payload.length / chunkSize) }, (_, i) => payload.subarray(i * chunkSize, (i + 1) * chunkSize));
+  const assets = chunks.map(pngData);
+  const manifest = { ...assembly.manifest, total_bytes: payload.length, scene_id: createHash("sha256").update(payload).digest("hex") };
+  const config = JSON.stringify({ manifest, assets, chunk_bytes: chunks.map(x => x.length) }).replaceAll("<", "\\u003c");
+  const file = resolve(OUT, "large-bundled-scene.html");
+  writeFileSync(file, html.replace("<head>", `<head><script>window.__AAD_EMBEDDED_SCENE__=${config};</script>`));
+  const browser = await chromium.launch({ headless: true, channel: "chromium", args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
+  try {
+    const page = await (await browser.newContext()).newPage();
+    const start = Date.now(); await page.goto(`file://${file}`);
+    await page.waitForFunction(() => ["ready", "error"].includes(globalThis.__aad?.state), null, { timeout: 120000 });
+    check(await page.evaluate(() => globalThis.__aad.state) === "ready", "14 MiB chunked bundled scene reaches ready");
+    check(payload.length >= 14 * 1024 * 1024 && chunks.length > 1, "synthetic scene exceeds 14 MiB and spans chunks", `${(payload.length / 1048576).toFixed(2)} MiB / ${chunks.length} chunks`);
+    console.log(`     bundled scene load ${(Date.now() - start)} ms`);
+    const missingConfig = { manifest, assets: [...assets], chunk_bytes: chunks.map(x => x.length) };
+    missingConfig.assets[1] = "";
+    const missingFile = resolve(OUT, "large-bundled-scene-missing-chunk.html");
+    writeFileSync(missingFile, html.replace("<head>", `<head><script>window.__AAD_EMBEDDED_SCENE__=${JSON.stringify(missingConfig)};</script>`));
+    await page.goto(`file://${missingFile}`);
+    await page.waitForFunction(() => globalThis.__aad?.state === "error", null, { timeout: 30000 });
+    check(String(await page.evaluate(() => globalThis.__aad.error)).includes("chunk 1 is missing"), "a missing PNG chunk reports an explicit error");
+  } finally { await browser.close(); }
+}
 
 if (failures) {
   console.error(`${failures} check(s) failed`);

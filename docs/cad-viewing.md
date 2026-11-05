@@ -109,6 +109,8 @@ list keeps the selected ID when present, otherwise selects Original. Local
 windows receive the same results through WebSocket updates.
 
 The same CAD engine runs in MCP Apps, local windows, and HTML/offline exports.
+HTML exports use lossless PNG scene chunks and verify chunk/total byte counts
+and the scene SHA-256 before rendering; missing chunks show an error.
 The original scene bytes are hash-verified and never simplified, rounded, or
 retessellated. Hiding, clipping, camera choices, and exploded poses only affect
 presentation.

@@ -2,12 +2,34 @@ import base64
 import gzip
 import hashlib
 import json
+import os
+import re
+import struct
+import zlib
 from xml.etree import ElementTree
 
 import pytest
 
 from aad_platform.viewer.bundle import export_bundle
 from aad_platform.viewer import viewer_path
+
+
+def decode_rgb_png(data, count):
+    assert data[:8] == b"\x89PNG\r\n\x1a\n"
+    offset = 8
+    compressed = bytearray()
+    while offset < len(data):
+        length = struct.unpack(">I", data[offset:offset + 4])[0]
+        kind = data[offset + 4:offset + 8]
+        chunk = data[offset + 8:offset + 8 + length]
+        assert zlib.crc32(kind + chunk) & 0xffffffff == struct.unpack(">I", data[offset + 8 + length:offset + 12 + length])[0]
+        if kind == b"IHDR": width, height = struct.unpack(">II", chunk[:8])
+        if kind == b"IDAT": compressed.extend(chunk)
+        offset += 12 + length
+        if kind == b"IEND": break
+    rows = zlib.decompress(compressed)
+    stride = width * 3
+    return b"".join(rows[y * (stride + 1) + 1:y * (stride + 1) + 1 + stride] for y in range(height))[:count]
 
 
 @pytest.fixture(params=["original", "Getriebe – Gehäuse"])
@@ -36,17 +58,16 @@ def test_bundle_preserves_original_scene_bytes_and_complete_manifest(saved_scene
     html = viewer.read_text(encoding="utf-8")
     config = json.loads(html.split("window.__AAD_EMBEDDED_SCENE__ = ", 1)[1].split(";</script>", 1)[0])
     assert config["manifest"] == manifest
-    asset = ElementTree.parse(config["asset"])
-    metadata = asset.find("{http://www.w3.org/2000/svg}metadata")
-    assert metadata.attrib == {"id": "aad-scene", "encoding": "base64+gzip"}
-    assert base64.b64decode(metadata.text) == payload
+    assets = re.findall(r'<img src="data:image/png;base64,([^"]+)" data-aad-chunk="\d+">', html)
+    assert len(assets) == len(config["chunk_bytes"]) == 1
+    assert decode_rgb_png(base64.b64decode(assets[0]), config["chunk_bytes"][0]) == payload
     assert (source / "scene.bin.gz").read_bytes() == payload
     runtime = next((tmp_path / "export").glob("viewer-*.svg"))
     runtime_metadata = ElementTree.parse(runtime).find("{http://www.w3.org/2000/svg}metadata")
     assert base64.b64decode(runtime_metadata.text) == viewer_path().read_bytes()
     assert len(html) < 512_000  # Scene and CAD runtime travel as assets, not tool arguments.
     standalone = (tmp_path / "export" / "standalone.html").read_text(encoding="utf-8")
-    assert "data:image/svg+xml;base64," in standalone
+    assert "data:image/png;base64," in standalone
     assert 'src="/src/main.ts"' not in standalone
 
 
@@ -96,3 +117,27 @@ def test_bundle_rejects_unknown_part_before_writing(saved_scene, tmp_path):
     with pytest.raises(ValueError, match="Unknown part"):
         export_bundle(source, tmp_path / "export", presentation={"isolate": ["missing"]})
     assert not (tmp_path / "export").exists()
+
+
+def test_14_34mb_scene_fits_inline_estimate_and_oversize_points_to_standalone(tmp_path):
+    source = tmp_path / "scene"
+    source.mkdir()
+    payload = os.urandom(14_340_000)
+    manifest = {"scene_id": hashlib.sha256(payload).hexdigest(), "total_bytes": len(payload),
+                "triangles": 1, "project": "synthetic", "rev": 1, "status": "draft", "parts": []}
+    (source / "scene.bin.gz").write_bytes(payload)
+    (source / "scene.json").write_text(json.dumps(manifest), encoding="utf-8")
+    output = tmp_path / "fits"
+    viewer = export_bundle(source, output)
+    assert viewer.exists() and (output / "standalone.html").exists()
+    assert sum(path.stat().st_size for path in output.glob("scene-*.png")) * 4 / 3 < 25 * 1024 * 1024
+
+    too_large = os.urandom(20 * 1024 * 1024)
+    manifest.update(scene_id=hashlib.sha256(too_large).hexdigest(), total_bytes=len(too_large))
+    (source / "scene.bin.gz").write_bytes(too_large)
+    (source / "scene.json").write_text(json.dumps(manifest), encoding="utf-8")
+    oversized = tmp_path / "oversized"
+    with pytest.raises(ValueError, match=r"host-specific 25 MiB.*standalone.html"):
+        export_bundle(source, oversized)
+    assert (oversized / "standalone.html").exists()
+    assert not (oversized / "viewer.html").exists()

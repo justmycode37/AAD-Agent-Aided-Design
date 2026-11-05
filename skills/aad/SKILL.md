@@ -672,6 +672,8 @@ Every command takes `--json` for machine-readable output.
 python -m aad_platform.viewer.bundle <revision>/scene <output_dir> [--title T] [--view V] [--presentation JSON] [--views JSON] [--controls simple|cad]
 ```
 
+HTML bundles split scene data into lossless PNG chunks. The viewer checks chunk and total byte counts and the scene SHA-256; missing chunks stop loading with an error. If an export exceeds the current T3 `html_preview` inline limit (25 MiB, host-specific), it leaves `standalone.html` and reports that path.
+
 It writes `viewer.html` for chat, and an offline `standalone.html`. `--controls cad` enables the CAD panels in the standalone page only. The original scene bytes are preserved.
 
 ## 2D sheets

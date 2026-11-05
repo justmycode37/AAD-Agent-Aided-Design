@@ -179,7 +179,7 @@ revision association attached to the analysis source.
 
 ## Exports
 
-MCP Apps use the original scene chunks. For HTML-only chat, export with
+MCP Apps use the original scene chunks. HTML-only exports split the saved scene into lossless RGB PNG chunks, verify their byte counts and overall SHA-256, and stop with an error if a chunk is missing. Export reports an error and points to `standalone.html` when its estimate exceeds the host-specific inline limit. For HTML-only chat, export with
 `python -m aad_platform.viewer.bundle SCENE_DIR OUTPUT_DIR --views 'JSON'`.
 Pass `viewer.html` to the host's HTML preview then display tools; supported
 hosts inline its local SVG metadata assets losslessly. `standalone.html` works
