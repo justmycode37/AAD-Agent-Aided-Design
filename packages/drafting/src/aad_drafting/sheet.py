@@ -36,6 +36,7 @@ from .layout import (
     bom_from_context,
     compose_auxiliary_layout,
     drawing_geometry_margin_overflow,
+    entity_bounds,
     hole_callout_text,
     pack_views,
     primitive_intersects_rect,
@@ -407,6 +408,8 @@ def _hole_diameter_dimensions(
 ) -> list[dict[str, Any]]:
     result = []
     for group in _hole_groups(holes, indices):
+        counterbores = {(hole.counterbore_diameter, hole.counterbore_depth) for hole in group}
+        counterbore_diameter, counterbore_depth = next(iter(counterbores)) if len(counterbores) == 1 else (None, None)
         result.append(
             _dimension_record(
                 kind="hole_diameter",
@@ -425,6 +428,10 @@ def _hole_diameter_dimensions(
                 ),
             )
         )
+        if counterbore_diameter is not None and counterbore_depth is not None:
+            result[-1]["counterbore_diameter"] = counterbore_diameter
+            result[-1]["counterbore_depth"] = counterbore_depth
+            result[-1]["source"]["counterbore"] = "coaxial interior cylindrical face radius and axial length"
     return result
 
 
@@ -1026,7 +1033,17 @@ def _draw_hole_dimensions(
             _arrowed_hole_leader(entities,path,diameter["id"])
             leader_ids.add(diameter["id"])
 
-        entities.append(text(label, label_x, label_y, 2.8, "DIMENSIONS", dimension_id=diameter["id"]))
+        visible_label = label.replace("⌴ ", "   ")
+        entities.append(text(visible_label, label_x, label_y, 2.8, "DIMENSIONS", dimension_id=diameter["id"]))
+        if diameter.get("counterbore_diameter") is not None:
+            prefix = f"{diameter.get('count') or 1}X " if (diameter.get("count") or 1) > 1 else ""
+            symbol_x = label_x + text_width_mm(prefix, 2.8)
+            symbol = (
+                line(symbol_x, label_y + 1.0, symbol_x, label_y - 0.7, "DIMENSIONS", 0.18),
+                line(symbol_x, label_y - 0.7, symbol_x + 1.7, label_y - 0.7, "DIMENSIONS", 0.18),
+                line(symbol_x + 1.7, label_y - 0.7, symbol_x + 1.7, label_y + 1.0, "DIMENSIONS", 0.18),
+            )
+            entities.extend(symbol)
 
     return leader_ids
 
@@ -1046,6 +1063,291 @@ def _sheet_frame(entities: list[Primitive], width: float, height: float) -> None
     )
 
 
+def _draw_cylinder_diameter_callouts(
+    entities,
+    placed,
+    dimensions,
+    view_geometry,
+    sheet_width,
+    sheet_height,
+):
+    """Place measured axial-cylinder diameters in clear space around their view."""
+    candidates = [d for d in dimensions if d.get("kind") == "cylinder_size" and d.get("full_circle")]
+    by_view = {name: [] for name in placed}
+    for dimension in candidates:
+        axis = dimension["source"].get("axis")
+        origin = dimension["source"].get("axis_origin")
+        if not axis or not origin:
+            continue
+        if abs(axis[2]) > 0.98:
+            continue  # Axial Z features are already annotated with the top-view hole callouts/table.
+        view = next((item for item in placed.values()
+                     if abs(sum(axis[i] * item.projection.direction[i] for i in range(3))) > 0.98), None)
+        if view is None:
+            continue
+        station = (dimension["source"]["station_min"] + dimension["source"]["station_max"]) / 2
+        origin_station = sum(axis[i] * origin[i] for i in range(3))
+        center = tuple(origin[i] + axis[i] * (station - origin_station) for i in range(3))
+        point = _sheet_point(view, project_point(center, view.projection))
+        by_view[view.projection.name].append((dimension, point))
+    for name, values in by_view.items():
+        values.sort(key=lambda item: (float(item[0]["value"]), item[0]["id"]))
+        for index, (dimension, point) in enumerate(values):
+            view = placed[name]
+            label = f"DIA {dimension['value']:g}"
+            lane_step = max(2.8 * 1.35 + 2.0, 6.0)
+            lane_offsets = [0.0]
+            for lane in range(1, 10):
+                lane_offsets.extend((lane * lane_step, -lane * lane_step))
+
+            placements = []
+            # Prefer the right side as before, then look around the other edges.
+            # The neighboring views can change with font metrics and kernel
+            # projection details, so every candidate is checked against the
+            # actual projected strokes rather than relying on a fixed gap.
+            for offset in lane_offsets:
+                placements.append(text(
+                    label, view.bounds.xmax + 5.5, view.bounds.center[1] + offset,
+                    2.8, "DIMENSIONS", "left", dimension_id=dimension["id"],
+                ))
+                placements.append(text(
+                    label, view.bounds.xmin - 5.5, view.bounds.center[1] + offset,
+                    2.8, "DIMENSIONS", "right", dimension_id=dimension["id"],
+                ))
+                placements.append(text(
+                    label, view.bounds.center[0] + offset, view.bounds.ymax + 5.5,
+                    2.8, "DIMENSIONS", "center", dimension_id=dimension["id"],
+                ))
+                placements.append(text(
+                    label, view.bounds.center[0] + offset, view.bounds.ymin - 5.5,
+                    2.8, "DIMENSIONS", "center", dimension_id=dimension["id"],
+                ))
+
+            selected = None
+            leader = None
+            for placement in placements:
+                label_bounds = text_bounds(placement)
+                if label_bounds is None or (
+                    label_bounds.xmin < MARGIN_MM - 1e-7
+                    or label_bounds.ymin < MARGIN_MM - 1e-7
+                    or label_bounds.xmax > sheet_width - MARGIN_MM + 1e-7
+                    or label_bounds.ymax > sheet_height - MARGIN_MM + 1e-7
+                ):
+                    continue
+                if text_view_collisions([placement], view_geometry):
+                    continue
+                combined = [*entities, placement]
+                candidate_index = len(combined) - 1
+                if any(candidate_index in pair for pair in text_text_collisions(combined)):
+                    continue
+
+                if point[0] < label_bounds.xmin:
+                    end = (label_bounds.xmin - 1.5, min(max(point[1], label_bounds.ymin), label_bounds.ymax))
+                elif point[0] > label_bounds.xmax:
+                    end = (label_bounds.xmax + 1.5, min(max(point[1], label_bounds.ymin), label_bounds.ymax))
+                elif point[1] < label_bounds.ymin:
+                    end = (min(max(point[0], label_bounds.xmin), label_bounds.xmax), label_bounds.ymin - 1.5)
+                else:
+                    end = (min(max(point[0], label_bounds.xmin), label_bounds.xmax), label_bounds.ymax + 1.5)
+                candidate_leader = replace(
+                    line(*point, *end, "DIMENSIONS", 0.16),
+                    dimension_id=dimension["id"],
+                    view_name=name,
+                )
+                if any(
+                    primitive_intersects_rect(candidate_leader, text_bounds(entity))
+                    for entity in entities if entity.kind == "text" and text_bounds(entity) is not None
+                ):
+                    continue
+                other_view_collision = False
+                for other_name, geometry in view_geometry.items():
+                    if other_name == name:
+                        continue
+                    if any(
+                        (bounds := entity_bounds(entity)) is not None
+                        and primitive_intersects_rect(candidate_leader, bounds)
+                        for entity in geometry
+                    ):
+                        other_view_collision = True
+                        break
+                if other_view_collision:
+                    continue
+                if any(
+                    primitive_intersects_rect(
+                        candidate_leader,
+                        Rect(
+                            other.bounds.xmin,
+                            other.bounds.ymin,
+                            other.bounds.xmax,
+                            other.bounds.ymax,
+                        ),
+                    )
+                    for other_name, other in placed.items()
+                    if other_name != name
+                ):
+                    continue
+                selected, leader = placement, candidate_leader
+                break
+
+            if selected is None:
+                # Keep the annotation visible and let the drawing validator
+                # report a fit problem if no clear position exists.
+                end = (view.bounds.xmax + 4.0, view.bounds.ymax - 6.0 - index * 6.0)
+                selected = text(label, end[0] + 1.5, end[1], 2.8,
+                                "DIMENSIONS", dimension_id=dimension["id"])
+                leader = replace(line(*point, *end, "DIMENSIONS", 0.16),
+                                 dimension_id=dimension["id"], view_name=name)
+            entities.append(leader)
+            entities.append(selected)
+
+
+def _section_geometry_dimensions(shape, bounds, views, units):
+    """Measure orthogonal cavity walls and depth from section bounding planes."""
+    from OCP.BRepAdaptor import BRepAdaptor_Surface
+    from OCP.BRepClass3d import BRepClass3d_SolidClassifier
+    from OCP.GeomAbs import GeomAbs_Plane
+    from OCP.TopAbs import TopAbs_IN, TopAbs_REVERSED
+    from OCP.gp import gp_Pnt
+
+    sections = [view for view in views if view.kind == "section"]
+    if not sections:
+        return []
+    try:
+        solids = list(shape.solids())
+    except Exception:
+        return []
+    # Face ownership and inside tests are ambiguous when components are loose.
+    if len(solids) != 1:
+        return []
+    solid = getattr(solids[0], "wrapped", solids[0])
+    faces = list(shape.faces())
+    section_planes = {str(getattr(view, "plane", "") or "").upper() for view in sections}
+    planes: dict[int, list[tuple[float, int, float, int]]] = {0: [], 1: [], 2: []}
+    for index, face in enumerate(faces):
+        surface = BRepAdaptor_Surface(getattr(face, "wrapped", face))
+        if surface.GetType() != GeomAbs_Plane:
+            continue
+        plane = surface.Plane()
+        direction = plane.Axis().Direction()
+        axis = max(range(3), key=lambda i: abs((direction.X(), direction.Y(), direction.Z())[i]))
+        vector = (direction.X(), direction.Y(), direction.Z())
+        if abs(vector[axis]) < 0.999999:
+            continue
+        position = (plane.Location().X(), plane.Location().Y(), plane.Location().Z())[axis]
+        orientation = -1.0 if getattr(face, "wrapped", face).Orientation() == TopAbs_REVERSED else 1.0
+        planes[axis].append((float(position), index, vector[axis] * orientation, len(face.wires())))
+
+    opening = None
+    for face_index, face in enumerate(faces):
+        surface = BRepAdaptor_Surface(getattr(face, "wrapped", face))
+        if surface.GetType() != GeomAbs_Plane:
+            continue
+        plane = surface.Plane()
+        direction = plane.Axis().Direction()
+        if direction.Z() < 0.999999 or abs(plane.Location().Z() - bounds.zmax) > 1e-5:
+            continue
+        for wire in face.wires()[1:]:
+            wire_size = wire.bounding_box().size
+            if wire_size.X >= bounds.size[0] * 0.5 and wire_size.Y >= bounds.size[1] * 0.5:
+                orientation = -1.0 if getattr(face, "wrapped", face).Orientation() == TopAbs_REVERSED else 1.0
+                opening = (face_index, wire.bounding_box(), direction.Z() * orientation)
+                break
+        if opening:
+            break
+    if not opening:
+        return []
+
+    result = []
+    wall_axes = (0,) if "XZ" in section_planes else (1,) if "YZ" in section_planes else (0, 1)
+    for axis in wall_axes:
+        groups: dict[float, list[int]] = {}
+        normals: dict[float, float] = {}
+        for position, index, normal, _ in planes[axis]:
+            groups.setdefault(round(position, 6), []).append(index)
+            normals[round(position, 6)] = normal
+        positions = sorted(groups)
+        gaps = [(right-left, left, right, groups[left][0], groups[right][0])
+                for left, right in zip(positions, positions[1:])
+                if right-left > 0.5 and normals[left] * normals[right] < 0]
+        proven = []
+        for gap in sorted(gaps):
+            value, low, high, low_face, high_face = gap
+            first_box, second_box = faces[low_face].bounding_box(), faces[high_face].bounding_box()
+            mins = (max(first_box.min.X, second_box.min.X), max(first_box.min.Y, second_box.min.Y), max(first_box.min.Z, second_box.min.Z))
+            maxs = (min(first_box.max.X, second_box.max.X), min(first_box.max.Y, second_box.max.Y), min(first_box.max.Z, second_box.max.Z))
+            other_axes = [i for i in range(3) if i != axis]
+            if any(maxs[i] <= mins[i] + 1e-6 for i in other_axes):
+                continue
+            point = [0.0, 0.0, 0.0]
+            point[axis] = (low + high) / 2
+            for i in other_axes:
+                point[i] = (mins[i] + maxs[i]) / 2
+            classifier = BRepClass3d_SolidClassifier(solid)
+            classifier.Perform(gp_Pnt(*point), 1e-7)
+            if classifier.State() == TopAbs_IN:
+                proven.append((gap, point))
+        if proven:
+            (value, low, high, low_face, high_face), middle = proven[0]
+            a, b = list(middle), list(middle)
+            a[axis], b[axis] = low, high
+            result.append({"kind": "wall_thickness", "value": value, "axis": "xyz"[axis],
+                "unit": units, "display": f"WALL {value:g}", "id": f"wall.{'xyz'[axis]}.{low_face}.{high_face}",
+                "source": {"type": "distance_between_parallel_planar_faces", "face_indices": [low_face, high_face], "measurement": "absolute plane offset difference", "points": [a,b]}})
+            break
+
+    if opening and ("XZ" in section_planes or "YZ" in section_planes):
+        top_face_index, opening_box, top_normal = opening
+        top_z = planes[2]
+        top_position = max((record[0] for record in top_z), default=None)
+        floors = []
+        for position, face_index, normal, _ in top_z:
+            if position >= top_position - 1e-6 or normal * top_normal <= 0:
+                continue
+            floor_box = faces[face_index].bounding_box()
+            if (floor_box.min.X > opening_box.min.X + 1e-5 or
+                    floor_box.max.X < opening_box.max.X - 1e-5 or
+                    floor_box.min.Y > opening_box.min.Y + 1e-5 or
+                    floor_box.max.Y < opening_box.max.Y - 1e-5):
+                continue
+            floor_sample = gp_Pnt(
+                (opening_box.min.X + opening_box.max.X) / 2,
+                (opening_box.min.Y + opening_box.max.Y) / 2,
+                position - normal * 1e-4,
+            )
+            classifier = BRepClass3d_SolidClassifier(solid)
+            classifier.Perform(floor_sample, 1e-7)
+            if classifier.State() != TopAbs_IN:
+                continue
+            floors.append((position, face_index))
+        if floors:
+            low, low_face = max(floors)
+            value, high, high_face = top_position - low, top_position, top_face_index
+            points = [[(opening_box.min.X+opening_box.max.X)/2,
+                       (opening_box.min.Y+opening_box.max.Y)/2, low],
+                      [(opening_box.min.X+opening_box.max.X)/2,
+                       (opening_box.min.Y+opening_box.max.Y)/2, high]]
+            result.append({"kind": "cavity_depth", "value": value, "axis": "z", "unit": units,
+                "display": f"CAVITY {value:g}", "id": f"cavity.z.{low_face}.{high_face}",
+                "source": {"type": "distance_between_parallel_planar_faces", "face_indices": [low_face, high_face], "measurement": "section top plane - cavity floor plane", "points": points}})
+    return result
+
+
+def _draw_section_dimensions(entities, placed, dimensions, views):
+    section = next((view for view in views if view.kind == "section" and view.name in placed), None)
+    if section is None:
+        return
+    pane = placed[section.name]
+    for index, dimension in enumerate(d for d in dimensions if d["kind"] in {"wall_thickness", "cavity_depth"}):
+        points = dimension["source"].get("points")
+        if not points:
+            continue
+        first, last = [_sheet_point(pane, project_point(tuple(point), pane.projection)) for point in points]
+        middle = ((first[0]+last[0])/2, (first[1]+last[1])/2)
+        label_point = (pane.bounds.xmax + 5.0, pane.bounds.ymax - 5.0 - 6.0 * index)
+        entities.append(line(*middle, *label_point, "DIMENSIONS", 0.16))
+        entities.append(text(dimension["display"], *label_point, 2.8, "DIMENSIONS", dimension_id=dimension["id"]))
+
+
 def _view_label_entities(
     entities: list[Primitive],
     placed: dict[str, _PlacedView],
@@ -1060,7 +1362,8 @@ def _view_label_entities(
         label = labels.get(name) or name.upper()
         if item.projection.metadata.get("kind") in {"section", "detail"}:
             magnification = item.projection.metadata.get("scale", 1.0)
-            label += f"  x{magnification:g} SHEET SCALE"
+            if abs(float(magnification) - 1.0) > 1e-9:
+                label += f"  x{magnification:g} SCALE"
         value = str(label).upper()
         candidates = (
             (item.center[0], item.bounds.ymax + 5.0, "center"),
@@ -1127,9 +1430,16 @@ def _view_markers(entities, shape, placed, request):
             entities.append(line(*start, *end, layer="SECTION_MARKERS", width=0.3, dash=True))
             dx, dy = end[0]-start[0], end[1]-start[1]
             length = math.hypot(dx,dy)
-            nx, ny = -dy/length, dx/length
-            for x,y in (start,end):
-                entities.append(line(x,y,x+3*nx,y+3*ny,layer="SECTION_MARKERS",width=0.3))
+            nx = sum(trace.normal[i] * parent.projection.right[i] for i in range(3))
+            ny = sum(trace.normal[i] * parent.projection.up[i] for i in range(3))
+            normal_length = math.hypot(nx, ny)
+            if normal_length > 1e-9:
+                nx, ny = nx / normal_length, ny / normal_length
+                for tip in (start, end):
+                    base = (tip[0] - 3.0 * nx, tip[1] - 3.0 * ny)
+                    wing = (0.9 * ny, -0.9 * nx)
+                    entities.append(line(*tip, base[0] + wing[0], base[1] + wing[1], layer="SECTION_MARKERS", width=0.3))
+                    entities.append(line(*tip, base[0] - wing[0], base[1] - wing[1], layer="SECTION_MARKERS", width=0.3))
             label = spec.label or spec.name.upper()
             width, height = SHEET_SIZES_MM[request.sheet]
             candidates = [
@@ -1496,6 +1806,8 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
             view = replace(view, direction=direction, up=up)
         resolved.append(view)
     request = replace(request, views=tuple(resolved))
+    if not planar and request.dimensions == "auto":
+        dimensions.extend(_section_geometry_dimensions(shape, bounds, request.views, units))
     projections = (planar["projection"],) if planar else tuple(project_drawing_view(shape, view) for view in request.views)
     page_width, page_height = SHEET_SIZES_MM[request.sheet]
     unit_factor = UNIT_TO_MM[units]
@@ -1565,6 +1877,15 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
         page_height,
     )
     entities[first_hole_entity:]=[replace(e,view_name="top") for e in entities[first_hole_entity:]]
+    _draw_cylinder_diameter_callouts(
+        entities,
+        placed,
+        dimensions,
+        view_geometry,
+        page_width,
+        page_height,
+    )
+    _draw_section_dimensions(entities, placed, dimensions, request.views)
     marker_start = len(entities)
     _view_markers(entities, shape, placed, request)
     marker_geometry = [entity for entity in entities[marker_start:] if entity.kind != "text"]

@@ -61,10 +61,10 @@ What a CAD package such as SolidWorks, Fusion or NX does, and how an agent does 
 |---|---|---|
 | 2D projects through the tools | Added | `kind: "2d"` used to fail at build. Build, check, show, render and export now work. |
 | 2D sheet specification checks | Added | Measured XY bounds, closed circular cut-hole counts and diameters (including pattern copies), filled cut area and component catalog checks. Unsupported 3D-only requirements skip explicitly; successful sheets remain draft. |
-| Drawing views, sections, details, auto dimensions | Existing | `aad_drawing` |
+| Drawing views, sections, details, auto dimensions | Improved | `aad_drawing`; geometry-derived counterbore symbols, axial cylinder sizes, single-solid open-cavity wall/depth dimensions, section arrows, and AAD revision title fields. Ambiguous or multi-solid cavity measurements are omitted; section/detail labels omit a scale suffix at 1:1. |
 | Notes, revision table, BOM on the sheet | Added to the tool | They existed in the library, but the tool did not expose them |
 | Tolerances on explicit dimensions | Existing | `DimensionSpec` |
-| GD&T and PMI | Missing | Out of scope |
+| GD&T and PMI | Missing | Out of scope; drawings are not shop-ready certification |
 
 ## Exchange
 

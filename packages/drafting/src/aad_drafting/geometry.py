@@ -38,6 +38,8 @@ class Hole:
     radius: float
     face_indices: tuple[int, ...]
     z_span: tuple[float, float]
+    counterbore_diameter: float | None = None
+    counterbore_depth: float | None = None
 
 
 @dataclass(frozen=True)
@@ -242,6 +244,16 @@ def through_holes(shape: Any, bounds: Bounds3D) -> list[Hole]:
             radius=hole["radius"],
             face_indices=tuple(hole["faces"]),
             z_span=hole["z"],
+            counterbore_diameter=next((2.0 * feature.radius for feature in cylindrical_surfaces
+                if feature.interior and feature.full_circle and abs(feature.axis[2] - 1.0) < 1e-7
+                and math.dist(feature.axis_origin[:2], (hole["x"], hole["y"])) < tolerance
+                and feature.radius > hole["radius"] + tolerance
+                and min(abs(feature.station_min - hole["z"][1]), abs(feature.station_max - hole["z"][0])) < tolerance * 10), None),
+            counterbore_depth=next((feature.length for feature in cylindrical_surfaces
+                if feature.interior and feature.full_circle and abs(feature.axis[2] - 1.0) < 1e-7
+                and math.dist(feature.axis_origin[:2], (hole["x"], hole["y"])) < tolerance
+                and feature.radius > hole["radius"] + tolerance
+                and min(abs(feature.station_min - hole["z"][1]), abs(feature.station_max - hole["z"][0])) < tolerance * 10), None),
         )
         for index, hole in enumerate(ordered)
     ]

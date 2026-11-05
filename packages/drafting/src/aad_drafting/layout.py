@@ -214,7 +214,10 @@ def wrap_text(value: str, width_mm: float, height_mm: float = MIN_TEXT_HEIGHT_MM
 def hole_callout_text(dimension: Mapping[str, Any]) -> str:
     count = dimension.get("count") or 1
     prefix = f"{count}X " if count > 1 else ""
-    return f"{prefix}DIA {dimension['display']}" + (" THRU" if dimension.get("through", True) else "")
+    bore = ""
+    if dimension.get("counterbore_diameter") is not None and dimension.get("counterbore_depth") is not None:
+        bore = f"⌴ DIA {dimension['counterbore_diameter']:g} x {dimension['counterbore_depth']:g}, "
+    return f"{prefix}{bore}DIA {dimension['display']}" + (" THRU" if dimension.get("through", True) else "")
 
 
 def ordinate_count_prefix(dimension: Mapping[str, Any]) -> str:
@@ -739,10 +742,11 @@ def _title_values(
     if revisions:
         latest_revision = revisions[-1].get("revision", "")
     if not latest_revision:
-        latest_revision = str(_value(context, "revision", "") or "")
+        latest_revision = str(_value(context, "revision", _value(context, "rev", "")) or "")
+    default_drawing_no = f"AAD-R{latest_revision}" if latest_revision else _context_name(context)
     values = {
         "title": str(title_block.get("title", _context_name(context))),
-        "drawing_no": str(title_block.get("drawing_no", "-")),
+        "drawing_no": str(title_block.get("drawing_no", default_drawing_no)),
         "revision": str(title_block.get("revision", latest_revision or "-")),
         "scale": scale_label,
         "units": units.upper(),
