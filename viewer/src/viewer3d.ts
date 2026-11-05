@@ -88,10 +88,45 @@ export function mountCad3d(
     if (!fullControls) viewer.setKeyMap(Object.fromEntries([
       "axes", "axes0", "grid", "gridxy", "perspective", "transparent", "blackedges", "zscale", "reset", "resize", "iso", "front", "rear", "top", "bottom", "left", "right", "explode", "distance", "properties", "select", "help", "play", "stop", "tree", "clip", "material", "zebra", "studio",
     ].map(action => [action, ""])) as never);
+    const camera = viewer.rendered.camera as any;
+    const clipRanges = [camera.pCamera, camera.oCamera].map(c => ({ camera: c, far: c.far }));
+    const restoreFarPlanes = () => {
+      // Native CAD collapse can keep a zoomed-out camera. Cover the assembled
+      // model at that distance until its framing is restored as well.
+      const sphere = viewer.bbox!.boundingSphere();
+      const needed = camera.getCamera().position.distanceTo(sphere.center) + 2 * sphere.radius;
+      for (const range of clipRanges) { range.camera.far = Math.max(range.far, needed); range.camera.updateProjectionMatrix(); }
+    };
+    const extendFarPlanes = (bounds: any) => {
+      if (bounds.isEmpty()) return;
+      const sphere = bounds.boundingSphere();
+      const far = Math.max(100 * sphere.radius, camera.getCamera().position.distanceTo(sphere.center) + 2 * sphere.radius);
+      for (const range of clipRanges) {
+        range.camera.far = Math.max(range.far, far);
+        range.camera.updateProjectionMatrix();
+      }
+    };
+    const unsubscribeExplode = viewer.state.subscribe("animationMode", change => {
+      if (change.new !== "explode") restoreFarPlanes();
+    });
+    const nativeReset = viewer.reset;
+    viewer.reset = () => {
+      nativeReset();
+      // The engine resets its controls target but leaves the camera wrapper's
+      // zoom origin at the last pan position.
+      camera.target.copy(viewer.rendered.controls.getTarget());
+      if (viewer.state.get("animationMode") !== "explode") restoreFarPlanes();
+      viewer.update(true, false);
+    };
+    const visibleKey = () => JSON.stringify(Object.entries(viewer.getStates()).filter(([, state]) => state.includes(1)).map(([id]) => id).sort());
+    let plannedVisibility = "";
+    let explodeSettings: [number, number, number] = [2, 1, 2.5];
     // Use the engine's animation lifecycle in both interfaces, with an axial
     // layout that also separates concentric parts instead of scaling centers.
     viewer.explode = (duration = 2, speed = 1, multiplier = 2.5) => {
       viewer.clearAnimation();
+      explodeSettings = [duration, speed, multiplier];
+      plannedVisibility = visibleKey();
       const groups = viewer.rendered.nestedGroup.groups;
       (viewer.rendered.nestedGroup.rootGroup as any).updateMatrixWorld(true);
       const parts: ExplodePart[] = [];
@@ -101,16 +136,30 @@ export function mountCad3d(
         if (!bounds.isEmpty()) parts.push({ id, min: bounds.min.toArray(), max: bounds.max.toArray() });
       }
       const strength = Math.max(0, multiplier / 2.5);
-      for (const [id, offset] of planExplodeLayout(parts).offsets) {
+      const offsets = planExplodeLayout(parts).offsets;
+      const explodedBounds = (viewer.bbox! as any).clone().makeEmpty();
+      for (const part of parts) {
+        const delta = (groups[part.id] as any).position.clone().fromArray(offsets.get(part.id)!).multiplyScalar(strength);
+        explodedBounds.expandByPoint(delta.clone().fromArray(part.min).add(delta));
+        explodedBounds.expandByPoint(delta.clone().fromArray(part.max).add(delta));
+      }
+      let tracks = 0;
+      for (const id of Object.keys(viewer.getStates())) {
         const group = groups[id] as any;
+        if (!group) continue;
+        // Keep zero tracks for hidden leaves, so even hiding the last visible
+        // piece keeps explode mode ready for a later tree visibility change.
+        const offset = offsets.get(id) ?? [0, 0, 0];
         const delta = group.position.clone().fromArray(offset).multiplyScalar(strength);
         if (group.parent) {
           const origin = group.parent.worldToLocal(group.position.clone().set(0, 0, 0));
           group.parent.worldToLocal(delta).sub(origin);
         }
         viewer.addPositionTrack(id, [0, duration], [[0, 0, 0], delta.toArray()]);
+        tracks++;
       }
-      if (parts.length) viewer.initAnimation(duration, speed, "E", false);
+      if (tracks) viewer.initAnimation(duration, speed, "E", false);
+      extendFarPlanes(explodedBounds);
     };
     let mode: DisplayMode = "shaded-edges";
     let lastSize = cadSize(opts.width, opts.height);
@@ -123,6 +172,22 @@ export function mountCad3d(
       viewer.renderer.render = () => {};
       batchDepth++;
       try { action(); } finally { batchDepth--; viewer.renderer.render = render; viewer.update(true, false); }
+    };
+    // Tree notifications cover native checkbox/group changes and both public
+    // visibility setters, after the entire visibility change has completed.
+    const tree = viewer.rendered.treeview as any;
+    const notifyVisibility = tree.notificationHandler;
+    tree.notificationHandler = () => {
+      if (viewer.state.get("animationMode") === "explode" && visibleKey() !== plannedVisibility) {
+        const time = viewer.getRelativeTime();
+        const playing = (viewer as any).clipAction?.isRunning() && !(viewer as any).clipAction.paused;
+        batch(() => {
+          viewer.explode(...explodeSettings);
+          viewer.setRelativeTime(time);
+          if (playing) viewer.controlAnimation("play");
+        });
+      }
+      notifyVisibility();
     };
     const initialStates = structuredClone(viewer.getStates());
     const painted: { mesh: any; material: any }[] = [];
@@ -162,8 +227,11 @@ export function mountCad3d(
         if (state.includes(1) && group) bounds.expandByObject(group, false);
       }
       if (bounds.isEmpty()) return;
-      viewer.setCameraTarget(bounds.center());
+      const center = bounds.center();
+      viewer.setCameraTarget(center);
+      camera.target.fromArray(center);
       viewer.setCameraZoom(FIT_ZOOM * viewer.bbox!.boundingSphere().radius / Math.max(1e-9, bounds.boundingSphere().radius));
+      if (viewer.state.get("animationMode") === "explode") extendFarPlanes(bounds);
     };
     const setExploded = (flag: boolean) => {
       if (flag === (viewer.state.get("animationMode") === "explode")) return;
@@ -176,6 +244,7 @@ export function mountCad3d(
         viewer.setExplode(false);
         viewer.rendered.camera.target.copy(assembledWrapperTarget);
         viewer.setCameraLocationSettings(assembledCamera.position, assembledCamera.quaternion, assembledCamera.target, assembledCamera.zoom);
+        restoreFarPlanes();
       }
     };
     const isolateParts = (ids: string[]) => {
@@ -232,6 +301,7 @@ export function mountCad3d(
       },
       dispose() {
         disposeNavigation();
+        unsubscribeExplode();
         setAnalysis();
         viewer.dispose();
       },

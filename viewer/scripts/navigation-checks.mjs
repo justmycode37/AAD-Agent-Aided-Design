@@ -156,5 +156,15 @@ export async function checkNavigation({ page, frame, check, label = "navigation"
   await button("Reset").click();
   after = await state(frame);
   check(near(after.position, home.position) && near(after.target, home.target) && near(after.wrapperTarget, home.wrapperTarget) && near(after.quaternion, home.quaternion) && closeTo(after.zoom, home.zoom, 1e-6), `${label}: Reset undoes panning`);
+  await frame.evaluate(() => globalThis.__viewer.reset());
+  const nativeHome = await state(frame);
+  await page.mouse.move(x, y);
+  await wheel(300, 150);
+  await frame.evaluate(() => globalThis.__viewer.reset());
+  after = await state(frame);
+  check(near(after.position, nativeHome.position) && near(after.target, nativeHome.target) && near(after.wrapperTarget, after.target) && closeTo(after.zoom, nativeHome.zoom, 1e-6), `${label}: native CAD Reset restores both camera targets and zoom after a pan`);
+  await frame.evaluate(() => globalThis.__viewer.setOrtho(true));
+  check(closeTo((await state(frame)).zoom, nativeHome.zoom, 1e-6), `${label}: projection switching after native Reset keeps the restored zoom`);
+  await frame.evaluate(() => globalThis.__viewer.setOrtho(false));
   await frame.evaluate(() => { delete navigator.platform; delete navigator.maxTouchPoints; });
 }

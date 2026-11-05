@@ -8,7 +8,7 @@ import { chromium } from "playwright";
 import { openRefHost } from "./ref-host.mjs";
 import { fakeMcp, loadFixture } from "./fake-mcp.mjs";
 import { checkNavigation } from "./navigation-checks.mjs";
-import { concentricFixture, checkExplode } from "./explode-checks.mjs";
+import { concentricFixture, checkExplode, checkExplodedCamera } from "./explode-checks.mjs";
 
 const OUT = "test-output";
 mkdirSync(OUT, { recursive: true });
@@ -102,6 +102,12 @@ await scenario("trackpad-navigation", { scene: assembly }, async ({ host }) => {
 });
 await scenario("concentric-exploded-layout", { scene: concentricFixture(fixture), strictCsp: true }, async ({ host }) => {
   await checkExplode({ frame: host.frame(), check });
+});
+await scenario("asymmetric-exploded-camera", { scene: concentricFixture(fixture, 4, true) }, async ({ host }) => {
+  await checkExplodedCamera({ frame: host.frame(), check });
+});
+await scenario("large-exploded-camera", { scene: concentricFixture(fixture, 40) }, async ({ host }) => {
+  await checkExplodedCamera({ frame: host.frame(), check, large: true });
 });
 await scenario("simple-controls-and-agent-views", { scene: assembly, strictCsp: true }, async ({ host, mcp, diag }) => {
   const frame = host.frame();
@@ -364,6 +370,17 @@ await scenario("grid-new-scene-uses-its-recipe", { scene: assembly, fakeOpts: { 
     await page.locator(".tcv_grid-xy").evaluate(e => e.click());
     await chooseView(page, "Grid on");
     await checkGrid(page, [false, false, true], true, "a native plane change remains the preference for later views");
+    await page.locator('[data-path="/Group"] > .tv-node-content > .tv-nav-marker').click();
+    const partIcon = page.locator('[data-path="/Group/main"] .tv-icon0');
+    await partIcon.click();
+    await page.evaluate(() => { const v = globalThis.__viewer; v.setExplode(true); v.setRelativeTime(1); });
+    await partIcon.click();
+    check(await page.evaluate(() => {
+      const v = globalThis.__viewer;
+      const boxes = Object.keys(v.getStates()).map(id => v.bbox.clone().makeEmpty().expandByObject(v.rendered.nestedGroup.groups[id], false));
+      return Object.values(v.getStates()).every(s => s.includes(1)) && Math.max(boxes[1].min.x - boxes[0].max.x, boxes[0].min.x - boxes[1].max.x) > 20;
+    }), "native tree re-showing a part regenerates the exploded layout");
+    await page.evaluate(() => globalThis.__viewer.setExplode(false));
     check(errors.length === 0, "full CAD grid page has no page errors", errors.join(" | "));
     await page.screenshot({ path: `${OUT}/grid-cad.png` });
   } finally { await browser.close(); }
