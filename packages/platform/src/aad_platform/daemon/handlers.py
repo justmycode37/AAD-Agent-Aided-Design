@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import difflib
 import json
+import math
 import logging
 import os
 import shutil
@@ -30,7 +31,19 @@ if TYPE_CHECKING:
 log = logging.getLogger("aadd.handlers")
 DEFAULT_WAIT_S = 30.0
 BUILD_TIMEOUT_S = 60.0
+MAX_BUILD_TIMEOUT_S = 600.0
 NOT_BUILT_YET = "aad_build has not produced a revision yet."
+
+
+def _build_timeout(value: Any) -> float:
+    """The worker's kill limit. Large assemblies may ask for more, up to a hard ceiling."""
+    if value is None:
+        return BUILD_TIMEOUT_S
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+        raise ValueError("timeout_s must be a positive number of seconds.")
+    if value > MAX_BUILD_TIMEOUT_S:
+        raise ValueError(f"timeout_s {value:g} is over the {MAX_BUILD_TIMEOUT_S:g} second limit.")
+    return float(value)
 
 
 def reply(envelope: dict[str, Any], images: list[dict[str, str]] | None = None) -> dict[str, Any]:
@@ -247,6 +260,11 @@ class Handlers:
                     head_rev=head,
                 )
             )
+        try:
+            timeout_s = _build_timeout(params.get("timeout_s"))
+        except ValueError as exc:
+            project.discard_job(job_dir)
+            return reply(failure_envelope(project.name, "BAD_INPUT", "input", str(exc), head_rev=head))
         rev = project.next_rev()
         overrides = dict(params.get("params") or {})
         if params.get("source") is None and head is not None:
@@ -265,7 +283,7 @@ class Handlers:
             material=meta.get("material"),
             process=meta.get("process"),
             preview=bool(params.get("preview")),
-            timeout_s=BUILD_TIMEOUT_S,
+            timeout_s=timeout_s,
         )
         if not result.get("ok"):
             envelope = failure_envelope(

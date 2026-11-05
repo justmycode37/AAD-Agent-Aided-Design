@@ -137,3 +137,15 @@ def test_duplicate_yaml_cannot_create_or_advance_project(project):
     result = asyncio.run(handler.aad_build({"project": "p", "source": "result = None", "spec": duplicate}))
     assert result["structured"]["failure"]["code"] == "BAD_INPUT"
     assert project.head_rev is None
+
+
+def test_build_timeout_defaults_and_accepts_a_bounded_value():
+    assert handlers._build_timeout(None) == handlers.BUILD_TIMEOUT_S
+    assert handlers._build_timeout(240) == 240.0
+    assert handlers._build_timeout(handlers.MAX_BUILD_TIMEOUT_S) == handlers.MAX_BUILD_TIMEOUT_S
+
+
+@pytest.mark.parametrize("value", [0, -1, True, "90", float("nan"), float("inf"), handlers.MAX_BUILD_TIMEOUT_S + 1])
+def test_build_timeout_refuses_values_outside_its_limit(value):
+    with pytest.raises(ValueError, match="timeout_s"):
+        handlers._build_timeout(value)

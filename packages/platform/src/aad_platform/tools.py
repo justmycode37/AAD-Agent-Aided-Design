@@ -109,6 +109,12 @@ TOOLS: list[dict[str, Any]] = [
                 "preview": {"type": "boolean", "description": "Add a 4-up image. Default false."},
                 "dry_run": {"type": "boolean", "description": "Full build and checks, no new head."},
                 "wait_s": {"type": "number", "minimum": 0, "description": "Seconds to wait. Default 30."},
+                "timeout_s": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 600,
+                    "description": "Seconds before the build worker is killed. Default 60, for large assemblies up to 600.",
+                },
             },
             ["project"],
         ),

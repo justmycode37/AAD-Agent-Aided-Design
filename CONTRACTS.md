@@ -142,7 +142,8 @@ aad_build({ project, base_rev?: number,
             spec?: string,
             preview?: boolean,                     // adds a 4-up sheet image, default false
             dry_run?: boolean,                     // full build and checks, no new head
-            wait_s?: number })                     // default 30; returns status "running" with job id
+            wait_s?: number,                       // default 30; returns status "running" with job id
+            timeout_s?: number })                  // worker kill limit, default 60, max 600
 
 aad_inspect({ project, rev?: number,
               what?: "summary"|"features"|"params"|"topology"|"diff", against?: number })
@@ -481,10 +482,10 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 
 ## 11. Changelog
 
+- 2026-11-05: Added optional `timeout_s` to `aad_build` in section 5, because the fixed 60 second kill limit stopped a full gearbox assembly that needed about 80 seconds.
 - 2026-11-05: S2/S3 added optional agent-controlled viewer presentations to `aad_show` and its result, following the user’s request for simple user controls and detailed views prepared through chat.
 - 2026-11-05: S2/S3 added optional `presentation.inside` to describe a real interior view and conditionally expose an inside/outside button, at the user's request.
 - 2026-11-05: S2/S3 added `aad_show.views`, sourced component analysis display, and full native CAD controls outside chat; replaced the separate Inside button with curated Views, at the user's request.
-
 - 2026-11-04: Marked the viewer as display-only in section 8, following the user's direction in issue #35. No interface was removed.
 - 2026-11-04: S2 added optional tool-specific fields to the envelope in section 6, so that results of query, measure, inspect, history, import and library have named places.
 - 2026-11-04: S2 specified the window transport's routes in section 8, because S3's transport and S2's server need the same paths and shapes.

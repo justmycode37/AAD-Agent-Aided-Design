@@ -64,6 +64,7 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument("--param", action="append", default=[], metavar="K=V", help="override a declared parameter")
     build.add_argument("--preview", action="store_true", help="request a build preview")
     build.add_argument("--create", action="store_true", help="create the project before building")
+    build.add_argument("--timeout", type=float, metavar="S", help="seconds before the build worker is killed (default 60, max 600)")
     build.add_argument("--json", action="store_true", help="machine-readable output")
 
     show = sub.add_parser("show", help="show a project revision")
@@ -475,6 +476,8 @@ def _remote_command(args: argparse.Namespace) -> int:
                 return _finish({"ok": False, "error": str(exc)}, args.json)
         if args.preview:
             params["preview"] = True
+        if args.timeout is not None:
+            params["timeout_s"] = args.timeout
         calls.append(("aad_build", params))
     elif args.command == "show":
         params = {"project": args.project, "client": dict(CLI_CLIENT)}
