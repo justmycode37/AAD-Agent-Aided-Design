@@ -37,3 +37,5 @@ html, body { background:transparent !important; overflow:visible; }
 .aad-hint span { display:block; }
 .aad-error { color:var(--destructive,#ff8a80); padding:8px 0; white-space:pre-wrap; }
 .aad-frame [hidden] { display:none !important; }
+
+.aad-part-label { position:absolute; top:46px; left:16px; z-index:200; max-width:calc(100% - 32px); color:var(--muted-foreground,var(--aad-muted)); font-size:12px; font-weight:400; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none; }

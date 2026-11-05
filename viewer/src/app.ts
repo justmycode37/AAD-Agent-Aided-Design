@@ -49,6 +49,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
           </fieldset>
           <div id="aad-view-menu" class="aad-view-menu" role="menu" aria-label="Model views" hidden></div>
         </div>
+        <div class="aad-part-label" hidden></div>
         <button class="aad-expand" type="button" data-control="fullscreen" aria-label="Make bigger" title="Make bigger" hidden>${icon('<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>')}</button>
         <div class="aad-progress" role="status">Opening your model…<progress max="100" value="0"></progress></div>
         <div class="aad-reference" role="status" hidden></div>
@@ -63,6 +64,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
   q(".aad-frame").dataset.controls = transport.controls ?? "simple";
   const fail = (error: unknown) => {
     diagnostics.state = "error"; diagnostics.error = String((error as Error)?.stack ?? error);
+    q(".aad-part-label").hidden = true;
     q(".aad-progress").hidden = true; q(".aad-error").hidden = false;
     q(".aad-error").textContent = `Could not open this model: ${(error as Error)?.message ?? error}`;
     console.error(error);
@@ -74,6 +76,16 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
   let referenceTimer: number | undefined;
   const inserting = new Set<string>();
   const sameRevision = (a: SceneManifest, b: SceneManifest) => a.project === b.project && a.rev === b.rev && a.scene_id === b.scene_id;
+  // Numbers belong to the original manifest, never the filtered view or GPU face IDs.
+  let partLabels = new Map<string, string>();
+  let hoveredPath: string | null = null;
+  const showHoveredPart = (path: string | null) => {
+    hoveredPath = path;
+    const label = path ? partLabels.get(path) : undefined;
+    const element = q(".aad-part-label");
+    element.textContent = label ?? "";
+    element.hidden = !label;
+  };
   const stageSelection = (paths: string[]) => {
     if (!manifest || !transport.stageSelection) return;
     // A mesh path absent from the current scene has no identity to share.
@@ -117,7 +129,10 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
       referenceAttempt++;
       hideReference();
     }
+    const keepHover = manifest && sameRevision(manifest, next) ? hoveredPath : null;
     manifest = structuredClone(next);
+    partLabels = new Map(manifest.parts.map((part, index) => [part.path, `${part.name} · #${index + 1}`]));
+    showHoveredPart(keepHover);
   };
   let requested: Partial<NonNullable<Envelope["viewer"]>> = {};
   let requestKey = "";
@@ -289,6 +304,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
       return;
     }
     diagnostics.state = "loading";
+    showHoveredPart(null);
     const nextScene = env.scene;
     if (nextScene.format !== "tcv-5") throw new Error(`Unsupported scene format ${nextScene.format}`);
     q<HTMLFieldSetElement>(".aad-toolbar").disabled = true;
@@ -310,7 +326,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
     if (!view.fullControls) {
       view.viewer.renderer.domElement.tabIndex = 0;
       view.viewer.renderer.domElement.setAttribute("aria-label", `3D model. Drag to turn. Click a part to select or deselect.${transport.caps.composerReferences ? " Double-click to add it to your message." : ""}`);
-      selection = installPartSelection(view.viewer as never, { onSelection: stageSelection, onReference: referencePart });
+      selection = installPartSelection(view.viewer as never, { onSelection: stageSelection, onReference: referencePart, onHover: showHoveredPart });
     }
     unsubscribe = view.viewer.state.subscribeAll(syncControls);
     applyRequest(env); requestKey = nextKey;
