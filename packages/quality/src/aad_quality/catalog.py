@@ -183,7 +183,12 @@ def library(action: str, *, kind: str | None = None, query: str | None = None,
     wants_screw = re.search(r"\bm\d+(?:\.\d+)?x\d", (query or "").casefold()) is not None
     for entry in entries:
         # Every component shares this boilerplate, so it must not make a query match.
-        haystack = json.dumps({k: v for k, v in entry.items() if k not in ("limitations", "evidence")}, ensure_ascii=False).casefold()
+        searchable = {k: v for k, v in entry.items() if k not in ("limitations", "evidence")}
+        if entry["kind"] == "material":
+            # Keep source URLs, density prose, and provenance out of alias search:
+            # digits in URLs must not make (for example) 316 match a 304 grade.
+            searchable = {k: entry[k] for k in ("id", "title", "summary", "tags") if k in entry}
+        haystack = json.dumps(searchable, ensure_ascii=False).casefold()
         # The index mentions every family, so it should only answer queries about itself.
         if entry["id"] == "component.index" and terms and _rank(terms, entry) <= 0:
             continue

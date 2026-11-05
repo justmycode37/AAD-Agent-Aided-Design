@@ -114,7 +114,7 @@ def test_material_mass_uses_new_catalog_density_through_spec_path():
         {"requirements": [{"id": "mass", "mass_g": {"min": 1.269, "max": 1.271}}]},
         Box(10, 10, 10), material="petg",
     ))[0]
-    assert check.passed
+    assert check.status == "pass"
     assert _actual_mass_g(check) == pytest.approx(1.27)
 
 
