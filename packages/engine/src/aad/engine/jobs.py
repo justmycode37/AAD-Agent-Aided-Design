@@ -194,7 +194,8 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
 
     try:
         result = _result_from_wire(response, job_dir=job_dir, elapsed_ms=elapsed_ms, process_stderr=_decode(stderr_bytes))
-        result = _constrain_worker_evidence(result, job_dir, project_dir, kind=request.kind)
+        result = _constrain_worker_evidence(result, job_dir, project_dir, kind=request.kind,
+                                            spec=request.spec, process=request.process)
     except (KeyError, TypeError, ValueError, AttributeError) as exc:
         return _failed(
             Failure(
@@ -346,11 +347,9 @@ def _detail_counts(checks: list[Check]) -> dict[str, int]:
             for status in ("pass", "fail", "warn", "skip")}
 
 
-def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: Path, *, kind: str = "part") -> BuildResult:
+def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: Path, *, kind: str = "part",
+                               spec: Mapping[str, Any] | None = None, process: str | None = None) -> BuildResult:
     # A model's pipe result is not a trusted validation receipt.
-    original_counts = _detail_counts(result.checks)
-    totals = {status: max(result.checks_summary.get(status, 0), count)
-              for status, count in original_counts.items()}
     # A sheet has no B-rep body: its source record is the artifact that must exist.
     required = "sheet.json" if kind == "2d" else "part.brep"
     part = _canonical_artifact(job_dir / required, job_dir)
@@ -413,15 +412,17 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
             from .validation import inspect_brep
             project = json.loads((project_dir / "project.json").read_text())
             spec_path = project_dir / "spec.yaml"
-            spec = yaml.safe_load(spec_path.read_text()) if spec_path.is_file() else {}
-            if not isinstance(spec, dict):
-                spec = {}
+            saved_spec = yaml.safe_load(spec_path.read_text()) if spec_path.is_file() else {}
+            trusted_spec = dict(spec) if isinstance(spec, Mapping) else saved_spec
+            if not isinstance(trusted_spec, dict):
+                trusted_spec = {}
+            trusted_process = process if process is not None else project.get("process")
             evidence = inspect_brep(part, candidate_dir=job_dir, kind=kind,
-                                    units=project.get("units", "mm"), spec=spec,
-                                    process=project.get("process"))
+                                    units=project.get("units", "mm"), spec=trusted_spec,
+                                    process=trusted_process)
             result.checks = [c for c in result.checks if c.id != "worker_verification_unattested"]
             result.checks.extend(evidence.checks)
-            requirements = spec.get("requirements") or []
+            requirements = trusted_spec.get("requirements") or []
             required_checks = [c for c in evidence.checks if c.suite in {"spec", "process"} and c.level == "error"]
             if (evidence.ok and requirements and required_checks
                     and all(c.status == "pass" for c in required_checks)
@@ -439,11 +440,9 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
             result.status = "draft"
             result.checks.append(Check(id="trusted_validation_unavailable", suite="hard", level="error", status="skip",
                 message="Independent validation could not be completed."))
-    changed_counts = _detail_counts(result.checks)
-    result.checks_summary = {status: totals[status] + changed_counts[status] - original_counts[status]
-                             for status in totals}
+    result.checks_summary = _detail_counts(result.checks)
     if result.scene is not None:
-        result.scene.status = "draft"
+        result.scene.status = result.status
         result.scene.compare = None
         result.scene.checks_summary = dict(result.checks_summary)
     return result
