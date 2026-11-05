@@ -57,6 +57,9 @@ Agents supply independent recipes in `aad_show.views`:
 ]}
 ```
 
+See-through uses translucent surfaces with edge lines hidden, so overlapping
+components stay readable. It keeps all original parts present.
+
 Use actual `scene.parts` names. At most 24 recipes and 64 KiB of normalized
 metadata are accepted. A recipe may include description, camera, presentation,
 and analysis. The Views button is disabled when no additional recipes exist.

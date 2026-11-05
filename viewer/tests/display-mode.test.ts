@@ -7,7 +7,7 @@ describe("display style and component visibility", () => {
     const original = structuredClone(states);
     const next = displayStates(states, mode);
     expect(next.housing).toEqual([0, 0]);
-    expect(next.gear).toEqual(mode === "wireframe" ? [0, 1] : mode === "shaded" ? [1, 0] : [1, 1]);
+    expect(next.gear).toEqual(mode === "wireframe" ? [0, 1] : (mode === "shaded" || mode === "transparent") ? [1, 0] : [1, 1]);
     expect(states).toEqual(original);
   });
   it("preserves absent surfaces and edges", () => {

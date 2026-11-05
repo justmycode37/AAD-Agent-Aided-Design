@@ -436,7 +436,7 @@ Thickness is a sampled search, not a certified minimum. Heatmaps do not prove ma
 |---|---|
 | `isolate` | Show only these parts, by name, leaf path or group path |
 | `hide` | Hide these parts |
-| `style` | `shaded-edges`, `shaded`, `wireframe`, `transparent` |
+| `style` | `shaded-edges`, `shaded`, `wireframe`, `transparent` (translucent surfaces without edge lines) |
 | `projection` | `orthographic`, `perspective` |
 | `section` | `{planes: [...], intersection}` with 1 to 3 planes, each `{plane: XY, XZ or YZ}` or `{normal: [x, y, z]}`, with `offset` from the model center and `flipped` |
 | `explode` | Pull the parts apart |

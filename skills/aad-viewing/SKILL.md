@@ -52,7 +52,8 @@ Give chat users choices with `aad_show.views`, not a dedicated Inside button:
 
 Resolve part names/paths from the returned `scene.parts`; examples are not
 universal names. Provide useful views for the actual model: interior only when
-there is an interior, isolated subassemblies, selected sections, transparent or
+there is an interior, isolated subassemblies, selected sections, See-through
+(`style: "transparent"`, translucent surfaces without edge lines), or
 wireframe inspection, and camera directions. The menu adds **Original**. Each
 recipe is independent of the base presentation and other recipes; include all
 settings it needs, except the grid. Updating recipes for the same scene does not

@@ -87,6 +87,9 @@ Pass `views` to `aad_show`, alongside the reviewed revision and optional base
 }
 ```
 
+See-through uses `style: "transparent"`: translucent surfaces with edge lines
+hidden. It retains every part unless the recipe also supplies visibility filters.
+
 Use actual part names from `scene.parts`, not the example names. Each recipe is
 complete and independent: absent visibility/style/section fields use the normal
 whole-model display. Recipes do not inherit base filters. Original restores the
