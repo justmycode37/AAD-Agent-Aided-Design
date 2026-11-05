@@ -418,7 +418,7 @@ A sliver edge is usually a coincidence between two surfaces; moving one by a sma
 |---|---|
 | `views` | `sheet` (labelled front, right, top and iso panes), `iso`, `front`, `back`, `left`, `right`, `top`, `bottom`, `custom` |
 | `style` | `shaded`, `lines` (lighter hidden edges), `xray` |
-| `section` | `{plane, offset}`, plane `XY`, `XZ` or `YZ`. Cut faces are capped and hatched |
+| `section` | `{plane, offset}`, plane `XY`, `XZ` or `YZ`. Cut faces are capped and hatched. Without an explicit `camera`, an ISO view may move to the nearest cut-facing isometric octant; named orthographic views keep their true directions, even when that direction cannot show the cut face |
 | `labels` | `none`, `features`, `faces`, `edges`. Returns a legend mapping numbers to selectors |
 | `heatmap` | `thickness` (sampled walls), `overhang` (angle from `direction`), `draft` (signed angle), `curvature` (smallest local radius) |
 | `heatmap_range` | Fixed `[low, high]`: model units, or degrees for overhang and draft |
