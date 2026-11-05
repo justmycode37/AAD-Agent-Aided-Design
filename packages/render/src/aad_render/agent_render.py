@@ -808,8 +808,181 @@ def _validate_overlay(raw: Any) -> dict[str, Any]:
         cap = _limits.MAX_RENDER_FACES if name == "round_faces" else _limits.MAX_RENDER_ANNOTATIONS
         if len(items) > cap:
             raise ValueError(f"render overlay has more than {cap} {name}")
-        result[name] = items
+        validator = {
+            "round_faces": _validate_round_face,
+            "probes": _validate_probe_overlay,
+            "measures": _validate_measure_overlay,
+            "marks": _validate_mark,
+        }[name]
+        result[name] = [validator(item) for item in items]
     return result
+
+
+def _overlay_fields(
+    item: dict[str, Any], required: set[str], optional: set[str], name: str
+) -> None:
+    fields = set(item)
+    if not required <= fields or fields - required - optional:
+        raise ValueError(f"render overlay {name} has missing or unexpected fields")
+
+
+def _validate_round_face(raw: Any) -> dict[str, Any]:
+    item = _require_dict(raw, "render overlay round face")
+    fields = {"scene_index", "axis", "center", "radius", "length", "text", "arc_toward"}
+    if set(item) != fields:
+        raise ValueError("render overlay round face has missing or unexpected fields")
+    radius = _finite_number(item["radius"], "render overlay round-face radius")
+    length = _finite_number(item["length"], "render overlay round-face length")
+    if radius <= 0.0 or length < 0.0:
+        raise ValueError("render overlay round-face dimensions must be non-negative, with a positive radius")
+    arc_toward = item["arc_toward"]
+    return {
+        "scene_index": _nonnegative_int(
+            item["scene_index"], "render overlay round-face scene index", maximum=_limits.MAX_RENDER_FACES - 1
+        ),
+        "axis": _vec3(item["axis"], "render overlay round-face axis"),
+        "center": _vec3(item["center"], "render overlay round-face center"),
+        "radius": radius,
+        "length": length,
+        "text": _bounded_text(item["text"], "render overlay round-face text"),
+        "arc_toward": None if arc_toward is None else _vec3(arc_toward, "render overlay round-face arc point"),
+    }
+
+
+def _validate_probe_overlay(raw: Any) -> dict[str, Any]:
+    item = _require_dict(raw, "render overlay probe")
+    _overlay_fields(item, {"result"}, {"pixel"}, "probe")
+    result = _require_dict(item["result"], "render overlay probe result")
+    result_fields = {
+        "id", "ray", "hit", "point", "surface", "normal", "min_radius", "selector", "section_cap",
+        "distance_from_origin", "wall_thickness", "wall_exit", "pixel",
+    }
+    _overlay_fields(result, {"id", "ray", "hit"}, result_fields - {"id", "ray", "hit"}, "probe result")
+    identifier = _nonnegative_int(result["id"], "render overlay probe id", maximum=_limits.MAX_RENDER_ANNOTATIONS)
+    if identifier == 0:
+        raise ValueError("render overlay probe id must be positive")
+    ray = _require_dict(result["ray"], "render overlay probe ray")
+    if set(ray) != {"origin", "direction"}:
+        raise ValueError("render overlay probe ray has missing or unexpected fields")
+    if not isinstance(result["hit"], bool):
+        raise ValueError("render overlay probe hit flag must be boolean")
+
+    hit_fields = {"point", "surface", "selector", "section_cap", "distance_from_origin"}
+    present_hit_fields = set(result) & hit_fields
+    if result["hit"] and present_hit_fields != hit_fields:
+        raise ValueError("render overlay hit probe has missing fields")
+    if not result["hit"] and present_hit_fields:
+        raise ValueError("render overlay miss probe has hit-only fields")
+
+    validated_result: dict[str, Any] = {
+        "id": identifier,
+        "ray": {
+            "origin": _vec3(ray["origin"], "render overlay probe ray origin"),
+            "direction": _vec3(ray["direction"], "render overlay probe ray direction"),
+        },
+        "hit": result["hit"],
+    }
+    if "point" in result:
+        validated_result["point"] = _vec3(result["point"], "render overlay probe point")
+    if "surface" in result:
+        validated_result["surface"] = _bounded_text(result["surface"], "render overlay probe surface", maximum=128)
+    if "normal" in result:
+        validated_result["normal"] = _vec3(result["normal"], "render overlay probe normal")
+    if "min_radius" in result:
+        minimum_radius = result["min_radius"]
+        if minimum_radius is not None:
+            minimum_radius = _finite_number(minimum_radius, "render overlay probe minimum radius")
+            if minimum_radius <= 0.0:
+                raise ValueError("render overlay probe minimum radius must be positive")
+        validated_result["min_radius"] = minimum_radius
+    if "selector" in result:
+        selector = result["selector"]
+        validated_result["selector"] = None if selector is None else _bounded_text(selector, "render overlay probe selector")
+    if "section_cap" in result:
+        if not isinstance(result["section_cap"], bool):
+            raise ValueError("render overlay probe section-cap flag must be boolean")
+        validated_result["section_cap"] = result["section_cap"]
+    if "distance_from_origin" in result:
+        distance = _finite_number(result["distance_from_origin"], "render overlay probe distance")
+        if distance < 0.0:
+            raise ValueError("render overlay probe distance must be non-negative")
+        validated_result["distance_from_origin"] = distance
+    if "wall_thickness" in result:
+        thickness = _finite_number(result["wall_thickness"], "render overlay probe wall thickness")
+        if thickness <= 0.0:
+            raise ValueError("render overlay probe wall thickness must be positive")
+        validated_result["wall_thickness"] = thickness
+    if "wall_exit" in result:
+        wall_exit = _require_dict(result["wall_exit"], "render overlay probe wall exit")
+        if set(wall_exit) != {"selector", "point"}:
+            raise ValueError("render overlay probe wall exit has missing or unexpected fields")
+        selector = wall_exit["selector"]
+        validated_result["wall_exit"] = {
+            "selector": None if selector is None else _bounded_text(selector, "render overlay wall-exit selector"),
+            "point": _vec3(wall_exit["point"], "render overlay probe wall-exit point"),
+        }
+    if "pixel" in result:
+        validated_result["pixel"] = _validate_probe_pixel_report(result["pixel"])
+
+    validated = {"result": validated_result}
+    if "pixel" in item:
+        pixel = _require_list(item["pixel"], "render overlay probe pixel")
+        if len(pixel) != 3:
+            raise ValueError("render overlay probe pixel must contain a view and two coordinates")
+        view = _bounded_text(pixel[0], "render overlay probe view", maximum=128)
+        if view not in _VIEWS | {"custom"}:
+            raise ValueError("render overlay probe pixel has an unsupported view")
+        x = _finite_number(pixel[1], "render overlay probe pixel x")
+        y = _finite_number(pixel[2], "render overlay probe pixel y")
+        if not 0.0 <= x < _limits.MAX_RENDER_SIZE or not 0.0 <= y < _limits.MAX_RENDER_SIZE:
+            raise ValueError("render overlay probe pixel coordinates are outside the image limit")
+        validated["pixel"] = [view, x, y]
+    return validated
+
+
+def _validate_probe_pixel_report(raw: Any) -> dict[str, Any]:
+    pixel = _require_dict(raw, "render overlay probe pixel report")
+    if set(pixel) != {"image", "x", "y", "view"}:
+        raise ValueError("render overlay probe pixel report has missing or unexpected fields")
+    return {
+        "image": _bounded_text(pixel["image"], "render overlay probe image", maximum=128),
+        "x": _finite_number(pixel["x"], "render overlay probe image x"),
+        "y": _finite_number(pixel["y"], "render overlay probe image y"),
+        "view": _bounded_text(pixel["view"], "render overlay probe image view", maximum=128),
+    }
+
+
+def _validate_measure_overlay(raw: Any) -> dict[str, Any]:
+    item = _require_dict(raw, "render overlay measure")
+    required = {"a", "b", "distance", "point_a", "point_b", "delta"}
+    _overlay_fields(item, required, {"angle_deg"}, "measure")
+    distance = _finite_number(item["distance"], "render overlay measure distance")
+    if distance < 0.0:
+        raise ValueError("render overlay measure distance must be non-negative")
+    validated = {
+        "a": _bounded_text(item["a"], "render overlay measure selector a"),
+        "b": _bounded_text(item["b"], "render overlay measure selector b"),
+        "distance": distance,
+        "point_a": _vec3(item["point_a"], "render overlay measure point a"),
+        "point_b": _vec3(item["point_b"], "render overlay measure point b"),
+        "delta": _vec3(item["delta"], "render overlay measure delta"),
+    }
+    if "angle_deg" in item:
+        angle = _finite_number(item["angle_deg"], "render overlay measure angle")
+        if not 0.0 <= angle <= 180.0:
+            raise ValueError("render overlay measure angle must be between 0 and 180 degrees")
+        validated["angle_deg"] = angle
+    return validated
+
+
+def _validate_mark(raw: Any) -> dict[str, Any]:
+    item = _require_dict(raw, "render overlay mark")
+    if set(item) != {"point", "text"}:
+        raise ValueError("render overlay mark has missing or unexpected fields")
+    return {
+        "point": _vec3(item["point"], "render overlay mark point"),
+        "text": _bounded_text(item["text"], "render overlay mark text"),
+    }
 
 
 def _validate_clip_box(raw: Any) -> tuple[Vec3, Vec3] | None:
@@ -1026,8 +1199,8 @@ def _read_request(req: Any) -> dict[str, Any]:
         "camera": camera,
         "focus": _field(req, "focus", None),
         "dimensions": dimensions,
-        "probes": list(_field(req, "probes", ()) or ()),
-        "measure": list(_field(req, "measure", ()) or ()),
+        "probes": _bounded_request_items(req, "probes"),
+        "measure": _bounded_request_items(req, "measure"),
         "heatmap_range": heat_range,
         "min_wall": limit,
         "direction": _unit_vector(direction, "direction") if direction is not None else (0.0, 0.0, 1.0),
@@ -1040,6 +1213,32 @@ def _read_request(req: Any) -> dict[str, Any]:
         "size": size,
         "backend": str(_field(req, "backend", "vtk") or "vtk"),
     }
+
+
+def _bounded_request_items(req: Any, name: str) -> list[Any]:
+    """Bound exact probe/measurement work before touching the B-rep."""
+    raw = _field(req, name, ())
+    if raw is None:
+        return []
+    if isinstance(raw, str | bytes | Mapping):
+        raise ValueError(f"render {name} must be an array")
+    maximum = _limits.MAX_RENDER_ANNOTATIONS
+    try:
+        count = len(raw)
+    except TypeError:
+        count = None
+    if count is not None and count > maximum:
+        raise ValueError(f"render has more than {maximum} {name}")
+    try:
+        iterator = iter(raw)
+    except TypeError:
+        raise ValueError(f"render {name} must be an array") from None
+    items = []
+    for item in iterator:
+        if len(items) >= maximum:
+            raise ValueError(f"render has more than {maximum} {name}")
+        items.append(item)
+    return items
 
 
 def _unit_vector(value: Any, name: str) -> Vec3:

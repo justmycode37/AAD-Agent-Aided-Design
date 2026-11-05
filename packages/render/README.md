@@ -52,9 +52,10 @@ Requests accept the fields below and size (1–2048 pixels for Python, 64–2048
 and isometric panes. Below 64 pixels it uses a single isometric view because annotations and a
 four-pane layout do not fit.
 
-3D renders are bounded to a 384 MiB mesh payload, 8 million vertices, 12 million triangles and
-50,000 labels. A request that exceeds a render limit fails in the render phase; it does not modify
-the saved revision or its B-rep.
+3D renders are bounded to a 384 MiB mesh payload, 8 million vertices, 12 million triangles,
+50,000 labels, 50,000 probes, 50,000 measurements and 32 MiB per PNG. Overlay text is limited to
+4,096 characters. A request that exceeds a render limit fails in the render phase; it does not
+modify the saved revision or its B-rep.
 
 Representative output from `examples/agent_renders.py`: [dimensioned housing sheet](examples/images/housing-sheet.png),
 [capped section](examples/images/housing-section.png), and [sampled wall thickness](examples/images/housing-thickness.png).

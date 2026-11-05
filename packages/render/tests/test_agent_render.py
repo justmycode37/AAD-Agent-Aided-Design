@@ -414,6 +414,45 @@ def _prepared_mesh_payload(labels="faces"):
     return json.loads(json.dumps(prepared))["render"]
 
 
+@pytest.mark.parametrize("request_field", ["probes", "measure"])
+def test_probe_and_measure_limits_are_checked_before_shape_work(request_field):
+    from types import SimpleNamespace
+
+    from aad_render import prepare_render
+
+    class UntouchedShape:
+        def faces(self):
+            pytest.fail("the shape must not be inspected before the annotation limit")
+
+    with pytest.raises(ValueError, match="more than 50000"):
+        prepare_render(
+            SimpleNamespace(shape=UntouchedShape()),
+            {"views": ["iso"], request_field: [None] * 50_001},
+        )
+
+
+@pytest.mark.parametrize(
+    ("mark", "message"),
+    [
+        ({"point": [0, 0, 0], "text": "x" * 4097}, "4096"),
+        ({"point": [0, 0], "text": "mark"}, "exactly three"),
+        ({"point": [0, 0, 0], "text": "mark", "extra": True}, "unexpected fields"),
+    ],
+)
+def test_overlay_mark_fields_and_text_are_validated_before_backend(tmp_path, monkeypatch, mark, message):
+    import aad_render.agent_render as agent_render
+
+    payload = _prepared_mesh_payload("none")
+    payload["overlay"]["marks"] = [mark]
+    output = tmp_path / "output"
+    monkeypatch.setattr(agent_render, "get_backend", lambda _name: pytest.fail("invalid overlay reaches no backend"))
+
+    with pytest.raises(ValueError, match=message):
+        agent_render.render_mesh(payload, output)
+
+    assert not output.exists()
+
+
 def test_forged_picture_path_is_rejected_before_output_or_backend(tmp_path, monkeypatch):
     import aad_render.agent_render as agent_render
 
