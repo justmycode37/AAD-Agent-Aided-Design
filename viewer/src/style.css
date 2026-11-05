@@ -2,7 +2,7 @@ html, body { background:transparent !important; overflow:visible; }
 .aad-frame { --aad-text:#e8edf4; --aad-muted:#a4adba; --aad-control:#272c35; --aad-border:#424955; --aad-stage:color-mix(in srgb,var(--background,#171717) 90%,var(--foreground,#e8e8e8) 10%); width:100%; min-width:0; color:var(--foreground,var(--aad-text)); font:14px/1.4 var(--font-sans,system-ui,sans-serif); }
 .aad-frame[data-theme=light] { --aad-text:#27313e; --aad-muted:#647080; --aad-control:#f1f3f6; --aad-border:#d9dee6; --aad-stage:color-mix(in srgb,var(--background,#fff) 92%,var(--foreground,#202020) 8%); }
 .aad-frame *, .aad-frame *::before, .aad-frame *::after { box-sizing:border-box; }
-.aad-stage { position:relative; width:100%; height:480px; overflow:hidden; border-radius:var(--radius,12px); background:var(--aad-stage); }
+.aad-stage { position:relative; width:100%; height:480px; overflow:hidden; border-radius:28px; clip-path:inset(0 round 28px); background:var(--aad-stage); }
 .aad-cad { position:absolute; inset:0; }
 .aad-cad .tcv_cad_viewer { margin:0; background:transparent; }
 /* The CAD engine still supports agent-directed inspection, without showing
@@ -33,5 +33,16 @@ html, body { background:transparent !important; overflow:visible; }
 .aad-progress { position:absolute; top:45%; left:15%; width:70%; text-align:center; pointer-events:none; }
 .aad-progress progress { display:block; width:100%; margin-top:12px; }
 .aad-hint { margin:10px 0 2px; text-align:center; color:var(--muted-foreground,var(--aad-muted)); font-size:12px; }
+.aad-hint span { display:block; }
+.aad-draft { margin-top:10px; padding:16px; border:1px solid var(--border,var(--aad-border)); border-radius:20px; background:var(--card,var(--aad-control)); }
+.aad-draft-heading,.aad-draft-actions { display:flex; align-items:center; gap:10px; justify-content:space-between; }
+.aad-draft-reference { min-width:0; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.aad-draft button { flex-shrink:0; padding:6px 10px; border:1px solid var(--border,var(--aad-border)); border-radius:8px; background:var(--secondary,var(--aad-control)); color:inherit; font:inherit; cursor:pointer; }
+.aad-draft [data-control=close-draft] { display:flex; align-items:center; justify-content:center; width:28px; height:28px; padding:5px; }
+.aad-draft [data-control=close-draft] svg { width:16px; height:16px; }
+.aad-draft button:disabled { opacity:.5; cursor:default; }
+.aad-draft textarea { display:block; width:100%; margin:10px 0; padding:10px; min-height:64px; max-height:180px; resize:vertical; border:1px solid var(--border,var(--aad-border)); border-radius:10px; background:var(--background,var(--aad-stage)); color:inherit; font:inherit; }
+.aad-draft-status { font-size:12px; color:var(--muted-foreground,var(--aad-muted)); }
+.aad-draft :is(button,textarea):focus-visible { outline:2px solid var(--foreground,var(--aad-text)); outline-offset:2px; }
 .aad-error { color:var(--destructive,#ff8a80); padding:8px 0; white-space:pre-wrap; }
 .aad-frame [hidden] { display:none !important; }

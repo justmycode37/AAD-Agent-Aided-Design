@@ -17,6 +17,27 @@ Views menu, and fullscreen. Small white-outlined icons sit beside the title.
 Advanced CAD panels and action shortcuts are hidden. Local windows retain the
 native CAD engine's full toolset; standalone exports can opt into CAD controls.
 
+Chat highlights an entire part on hover and keeps it selected on click.
+Shift-click toggles additional parts; blank click and Escape clear selection.
+Camera drags do not select. Double-click opens an unsent viewer-local draft
+with an `@part` label and Copy. The user pastes it into chat. T3 Code currently
+has no viewer-to-composer draft insertion API; double-click never sends a message.
+
+Copied prompts include an exact identity URI:
+`aad://part/<project>/<rev>/<scene_id>?path=<percent-encoded-leaf-path>`.
+Use its project, revision, hash and path to resolve `scene.parts` before editing.
+The mention label is not a filesystem path or a globally unique identifier;
+duplicate names receive distinct display labels. The URI is not an engine query
+selector. Reconcile an older reference with the current revision before changing
+the model. A new revision marks an open draft stale and preserves its text until
+the user double-clicks a current part.
+
+MCP Apps stage selected parts through advertised `updateModelContext` modalities
+and clear that context on deselection or scene/revision changes. HTML-only hosts
+carry identity in copied text. Context may report `selectedCount` and
+`omittedCount` to stay within host limits; obtain omitted references before
+acting on those parts. Drafts never call model-editing tools.
+
 Opening a scene, selecting a view, Reset, and resizing fit visible component
 bounds to the current canvas, leaving room for the title controls and edges.
 

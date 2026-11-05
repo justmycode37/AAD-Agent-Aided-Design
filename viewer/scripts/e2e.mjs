@@ -10,6 +10,7 @@ import { fakeMcp, loadFixture } from "./fake-mcp.mjs";
 import { checkNavigation } from "./navigation-checks.mjs";
 import { concentricFixture, checkExplode, checkExplodedCamera } from "./explode-checks.mjs";
 import { checkFraming } from "./framing-checks.mjs";
+import { checkPartDraft } from "./part-draft-checks.mjs";
 
 const OUT = "test-output";
 mkdirSync(OUT, { recursive: true });
@@ -98,6 +99,9 @@ function assemblyFixture() {
 }
 
 const assembly = assemblyFixture();
+await scenario("whole-part-draft", { scene: assembly, strictCsp: true }, async ({ host, mcp }) => {
+  await checkPartDraft({ host, mcp, check });
+});
 for (const width of [320, 728]) await scenario(`initial-exploded-framing-${width}`, { scene: assembly, width,
   viewer: { presentation: { explode: true }, views: [
     { id: "plain", label: "Plain" },

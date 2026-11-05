@@ -12,6 +12,15 @@ The corner button makes the view bigger. The CAD toolbars, part tree, menus,
 measurement panels, and their keyboard shortcuts are hidden in chat.
 A model with one visible piece disables Pull apart.
 
+Hover highlights the whole part. Click selects it, Shift-click toggles additional
+parts, and blank click or Escape clears selection. Dragging still rotates.
+Double-click opens an unsent part draft below the viewer. Type the request and
+choose Copy draft, then paste it into chat. The copied text carries the exact
+project, revision, scene and part path alongside its `@part` label. It is never
+automatically sent. Direct insertion into T3 Code's composer requires a host API
+that is not currently available. A model revision change marks the reference
+stale while preserving the unsent text.
+
 Opening a model, choosing a view, Reset, and resizing fit the visible component
 bounds to the current canvas, with room around the edges and title controls.
 

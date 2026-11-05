@@ -1,8 +1,11 @@
 import { gunzipToText, readScene } from "./loader";
-import type { Envelope, Transport, NamedView } from "./transport/types";
+import type { Envelope, Transport, NamedView, PartReference, SceneManifest } from "./transport/types";
 import { mountCad3d, type Cad3dView } from "./viewer3d";
 import { applyPresentation } from "./presentation";
 import { navigationHint } from "./navigation";
+import { installPartSelection, type PartSelection } from "./part-selection";
+import { partReference, partDraft } from "./part-reference";
+import { copyDraft } from "./copy-draft";
 import "./style.css";
 
 const STAGE_HEIGHT = 480;
@@ -50,7 +53,13 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
         <div class="aad-progress" role="status">Opening your model…<progress max="100" value="0"></progress></div>
         <div class="aad-analysis" hidden><div class="aad-analysis-title"></div><div class="aad-analysis-ramp"></div><div class="aad-analysis-range"></div><div class="aad-analysis-source"></div></div>
       </div>
-      <p class="aad-hint">${navigationHint()}</p>
+      <p class="aad-hint">${navigationHint()}${transport.controls === "cad" ? "" : "<span>Click a part to select · Double-click to write a request</span>"}</p>
+      <section class="aad-draft" aria-label="Part draft" hidden>
+        <div class="aad-draft-heading"><span class="aad-draft-reference"></span><button type="button" data-control="close-draft" aria-label="Close draft" title="Close draft">${icon('<path d="m6 6 12 12M6 18 18 6"/>')}</button></div>
+        <textarea class="aad-draft-note" rows="2" aria-label="Part request" placeholder="What would you like to change?"></textarea>
+        <div class="aad-draft-actions"><span class="aad-draft-status" role="status">Copy this draft, then paste it into chat.</span><button type="button" data-control="copy-draft">Copy draft</button></div>
+        <textarea class="aad-draft-manual" rows="3" aria-label="Draft to copy" readonly hidden></textarea>
+      </section>
       <p class="aad-error" role="alert" hidden></p>
     </section>`;
   const q = <T extends HTMLElement>(s: string) => root.querySelector(s) as T;
@@ -64,6 +73,34 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
     console.error(error);
   };
   let view: Cad3dView | undefined;
+  let selection: PartSelection | undefined;
+  let manifest: SceneManifest | undefined;
+  let draftReference: PartReference | undefined;
+  const sameRevision = (ref: PartReference, scene: SceneManifest) => ref.project === scene.project && ref.rev === scene.rev && ref.scene_id === scene.scene_id;
+  const stageSelection = (paths: string[]) => {
+    if (!manifest || !transport.stageSelection) return;
+    const refs = paths.map(path => partReference(manifest!, path));
+    void transport.stageSelection(refs).catch(() => console.warn("AAD selection context could not be shared"));
+  };
+  const openDraft = (path: string) => {
+    if (!manifest) return;
+    draftReference = partReference(manifest, path);
+    q(".aad-draft").hidden = false;
+    q(".aad-draft-reference").textContent = draftReference.mention;
+    q(".aad-draft-reference").title = draftReference.name;
+    control<HTMLButtonElement>("copy-draft").disabled = false;
+    q(".aad-draft-manual").hidden = true;
+    q(".aad-draft-status").textContent = "Copy this draft, then paste it into chat.";
+    q<HTMLTextAreaElement>(".aad-draft-note").focus({ preventScroll: true });
+  };
+  const updateManifest = (next: SceneManifest) => {
+    manifest = structuredClone(next);
+    if (draftReference && !sameRevision(draftReference, next)) {
+      control<HTMLButtonElement>("copy-draft").disabled = true;
+      q(".aad-draft-manual").hidden = true;
+      q(".aad-draft-status").textContent = "The model changed. Double-click a part again to update this draft.";
+    }
+  };
   let requested: Partial<NonNullable<Envelope["viewer"]>> = {};
   let requestKey = "";
   let unsubscribe = () => {};
@@ -91,6 +128,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
   };
   const applySelected = () => {
     if (!view) return;
+    selection?.clear();
     const selected = presets.find(p => p.id === selectedId);
     // A scene's first recipe sets its grid. After that, grid and axes belong to
     // the user, so Views, Reset, and same-scene updates must not change them.
@@ -106,6 +144,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
         applyPresentation(view!, { grid: false, explode: false, ...(selected ? selected.presentation : requested.presentation) });
         view!.setAnalysis(selected?.analysis);
         view!.fit();
+        selection?.refresh();
       } finally {
         if (keepGrid) { view!.viewer.setGrids([xy, xz, yz]); view!.viewer.setAxes(axes); }
       }
@@ -214,6 +253,26 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
     if (!q(".aad-view-menu").contains(event.target as Node) && !control("views").contains(event.target as Node)) closeMenu();
   });
   control("reset").addEventListener("click", applySelected);
+  control("close-draft").addEventListener("click", () => {
+    q(".aad-draft").hidden = true;
+    q<HTMLTextAreaElement>(".aad-draft-note").value = "";
+    draftReference = undefined;
+    view?.viewer.renderer.domElement.focus({ preventScroll: true });
+  });
+  control("copy-draft").addEventListener("click", () => {
+    if (!draftReference || !manifest || !sameRevision(draftReference, manifest)) return;
+    const reference = draftReference;
+    const text = partDraft(reference, q<HTMLTextAreaElement>(".aad-draft-note").value);
+    void copyDraft(text).then(copied => {
+      if (draftReference !== reference || !manifest || !sameRevision(reference, manifest)) return;
+      if (copied) q(".aad-draft-status").textContent = "Copied. Paste it into chat when you’re ready.";
+      else {
+        const field = q<HTMLTextAreaElement>(".aad-draft-manual");
+        field.hidden = false; field.value = text; field.focus({ preventScroll: true }); field.select();
+        q(".aad-draft-status").textContent = "Press ⌘C or Ctrl+C to copy, then paste into chat.";
+      }
+    });
+  });
   control("fullscreen").hidden = !transport.caps.fullscreen;
   control("fullscreen").addEventListener("click", () => void transport.requestFullscreen().then(size).catch(fail));
 
@@ -221,30 +280,43 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
     if (!env.scene) throw new Error(env.summary || "The result has no model.");
     const nextKey = JSON.stringify({ presentation: env.viewer?.presentation ?? {}, view: env.viewer?.view, title: env.viewer?.title, views: env.viewer?.views ?? [] });
     if (env.scene.scene_id === diagnostics.shownScene) {
+      const changedRevision = !manifest || manifest.project !== env.scene.project || manifest.rev !== env.scene.rev;
+      if (changedRevision) selection?.clear();
+      updateManifest(env.scene);
+      if (changedRevision) {
+        stageSelection([]);
+        q(".aad-caption").textContent = env.viewer?.title || env.project;
+      }
       if (requestKey !== nextKey) { applyRequest(env); requestKey = nextKey; }
       return;
     }
     diagnostics.state = "loading";
-    const manifest = env.scene;
-    if (manifest.format !== "tcv-5") throw new Error(`Unsupported scene format ${manifest.format}`);
+    const nextScene = env.scene;
+    if (nextScene.format !== "tcv-5") throw new Error(`Unsupported scene format ${nextScene.format}`);
     q<HTMLFieldSetElement>(".aad-toolbar").disabled = true;
     q(".aad-progress").hidden = false; q(".aad-error").hidden = true;
     const started = performance.now();
-    const { bytes, stats } = await readScene(manifest.scene_id, manifest.total_bytes, transport.readChunk.bind(transport), (done, total) => {
+    const { bytes, stats } = await readScene(nextScene.scene_id, nextScene.total_bytes, transport.readChunk.bind(transport), (done, total) => {
       q<HTMLProgressElement>("progress").value = 100 * done / total;
     });
     const readAt = performance.now(); const text = await gunzipToText(bytes); const shapes = JSON.parse(text);
     const triangles = triangleCount(shapes);
-    if (manifest.triangles !== undefined && triangles !== manifest.triangles) throw new Error(`Expected ${manifest.triangles} triangles, got ${triangles}`);
-    const parsedAt = performance.now(); unsubscribe(); view?.dispose(); q(".aad-cad").replaceChildren();
+    if (nextScene.triangles !== undefined && triangles !== nextScene.triangles) throw new Error(`Expected ${nextScene.triangles} triangles, got ${triangles}`);
+    const parsedAt = performance.now(); unsubscribe(); selection?.dispose(); selection = undefined; view?.dispose(); q(".aad-cad").replaceChildren();
+    updateManifest(nextScene); stageSelection([]);
     selectedId = "original";
     scenePresented = false;
     const bounds = q(".aad-cad").getBoundingClientRect();
     view = mountCad3d(q(".aad-cad"), shapes, { width: bounds.width, height: bounds.height, theme: resolvedTheme(transport), view: env.viewer?.view, controls: transport.controls });
     (globalThis as { __viewer?: unknown }).__viewer = view.viewer;
+    if (!view.fullControls) {
+      view.viewer.renderer.domElement.tabIndex = 0;
+      view.viewer.renderer.domElement.setAttribute("aria-label", "3D model. Drag to turn, click a part to select, or double-click to write a request.");
+      selection = installPartSelection(view.viewer as never, { onSelection: stageSelection, onReference: openDraft });
+    }
     unsubscribe = view.viewer.state.subscribeAll(syncControls);
     applyRequest(env); requestKey = nextKey;
-    diagnostics.shownScene = manifest.scene_id; diagnostics.triangles = triangles; diagnostics.verified = true;
+    diagnostics.shownScene = nextScene.scene_id; diagnostics.triangles = triangles; diagnostics.verified = true;
     diagnostics.load = stats; diagnostics.rawBytes = text.length;
     diagnostics.ms = { read: readAt - started, parse: parsedAt - readAt, mount: performance.now() - parsedAt, sinceToolResult: performance.now() - started };
     diagnostics.loads++; diagnostics.state = "ready";
