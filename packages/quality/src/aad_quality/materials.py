@@ -371,7 +371,7 @@ _CATALOG: dict[str, dict[str, Any]] = {
         },
     },
     'pom_c': {
-        "id": 'pom_c', "aliases": ['pom', 'pom-c', 'acetal', 'delrin'], "name": 'Ensinger TECAFORM AH natural POM-C acetal',
+        "id": 'pom_c', "aliases": ['pom', 'pom-c', 'acetal'], "name": 'Ensinger TECAFORM AH natural POM-C acetal',
         "definition": 'Unfilled Ensinger TECAFORM AH natural POM-C copolymer stock',
         "density_g_cm3": 1.41, "density_unit": "g/cm^3",
         "density_basis": 'Ensinger lists density as 1.41 g/cm3.', "source_title": 'POM-C unfilled - TECAFORM AH natural | Ensinger', "source_url": 'https://www.ensingerplastics.com/en-us/shapes/acetal-tecaform-ah-natural',
@@ -389,7 +389,7 @@ _CATALOG: dict[str, dict[str, Any]] = {
         "id": 'stainless_316_14401', "aliases": ['stainless 316', '316', '316 stainless', '1.4401', 's31600'], "name": 'Outokumpu Supra 316/4401 stainless steel',
         "definition": 'Outokumpu Supra 316/4401, EN 1.4401, UNS S31600',
         "density_g_cm3": 8.0, "density_unit": "g/cm^3",
-        "density_basis": 'Outokumpu Table 7 lists 8.0 kg/dm3 for Supra 316/4401, equivalent to 8.0 g/cm3.', "source_title": 'Outokumpu Supra range datasheet', "source_url": 'https://otke-cdn.outokumpu.com/-/media/files/products/supra/outokumpu-supra-range-datasheet.pdf?modified=20221122121441&revision=34cf75de-9c70-4dd1-acb8-a6addfa75ffe',
+        "density_basis": 'Outokumpu Table 7 lists 8.0 kg/dm3 for Supra 316/4401, equivalent to 8.0 g/cm3.', "source_title": 'Outokumpu Supra range datasheet, current official PDF', "source_url": 'https://www.outokumpu.com/-/media/files/products/supra/outokumpu-supra-range-datasheet.pdf?hash=8720C1FF12682806AF1BBC27E00209E0&modified=20251117111951&revision=7a909396-d1f3-4d36-9c1c-99606be41fd2',
         "retrieved": "2026-11-05", "provenance": 'Outokumpu Table 7 lists 8.0 kg/dm3 for Supra 316/4401, equivalent to 8.0 g/cm3.',
         "assumptions": {
             "bulk_vs_printed": "Bulk source grade or laminate reference; not a printed-part or composite layup correction.",
@@ -541,7 +541,7 @@ _CATALOG: dict[str, dict[str, Any]] = {
         "density_basis": 'Density is printed as 1.21 g/cm3 for both listed post-cure conditions (ASTM D792).', "source_title": 'Clear Resin V5 technical data sheet | Formlabs', "source_url": 'https://formlabs-media.formlabs.com/filer_public/dd/7f/dd7f3de9-55ae-4c82-ac52-408a4b5df64d/clear_resin_v5_tds___formlabs.pdf',
         "retrieved": "2026-11-05", "provenance": 'Density is printed as 1.21 g/cm3 for both listed post-cure conditions (ASTM D792).',
         "assumptions": {
-            "bulk_vs_printed": "Named bulk resin, tool steel, or composite plate reference; not a generic process result.",
+            "bulk_vs_printed": "The Formlabs datasheet measures printed specimens after washing and post-curing, so this is a cured printed-resin density, not uncured liquid resin density.",
             "porosity": "Treats the modeled volume as fully dense; print voids and manufacturing defects are excluded.",
             "moisture": "No moisture adjustment or surface contamination is modeled.",
             "composition": "Scoped to the exact named product or grade; formulations and product lines may differ.",

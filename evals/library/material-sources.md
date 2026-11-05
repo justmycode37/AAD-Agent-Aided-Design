@@ -76,7 +76,7 @@ The Teal Sheets figures are numerically g/cm³ when expressed as listed ×10³ k
 | `tpu` | Covestro Desmopan 9380A GMP | 1110 kg/m3 (ISO 1183-1), represented as 1.11 g/cm3 | [Covestro product data](https://solutions.covestro.com/en/products/desmopan/desmopan-9380a-gmp_000000000084876844) |
 | `polycarbonate` | Ensinger TECANAT natural, unfilled PC | 1.19 g/cm3 | [Ensinger product page](https://www.ensingerplastics.com/en-gb/shapes/polycarbonate-tecanat-natural) |
 | `pom_c` | Ensinger TECAFORM AH natural, unfilled POM-C | 1.41 g/cm3 | [Ensinger product page](https://www.ensingerplastics.com/en-us/shapes/acetal-tecaform-ah-natural) |
-| `stainless_316_14401` | Outokumpu Supra 316/4401, EN 1.4401 / UNS S31600 | 8.0 kg/dm3 | [Outokumpu Supra datasheet](https://otke-cdn.outokumpu.com/-/media/files/products/supra/outokumpu-supra-range-datasheet.pdf?modified=20221122121441&revision=34cf75de-9c70-4dd1-acb8-a6addfa75ffe) |
+| `stainless_316_14401` | Outokumpu Supra 316/4401, EN 1.4401 / UNS S31600 | 8.0 kg/dm3 | [Current Outokumpu Supra datasheet](https://www.outokumpu.com/-/media/files/products/supra/outokumpu-supra-range-datasheet.pdf?hash=8720C1FF12682806AF1BBC27E00209E0&modified=20251117111951&revision=7a909396-d1f3-4d36-9c1c-99606be41fd2) |
 | `steel_s235` | S235JR / EN 1.0038 structural steel | 7.85 g/cm3 | [Xometry S235JR datasheet](https://xometry.eu/wp-content/uploads/2021/02/Steel-1.0038.pdf) |
 | `steel_4140` | AISI/SAE 4140 Cr-Mo alloy steel | 7.85 g/cm3 | [NORAMARK 4140 reference](https://www.noramark.com/resources/materials/4140-steel/) |
 | `brass_c360` | bedra UNS C36000 free-cutting brass | 8.5 g/cm3 at 20°C | [bedra C36000 product data](https://www.bedra.com/asia/products/bedra-rod-bar-new/high-speed-free-cutting-alloys/c36000/) |
@@ -98,3 +98,5 @@ The values are limited to the listed product or grade, not all members of each p
 | `carbon_fiber_exel_extens` | Exel EXTENS pultruded unidirectional carbon fibre strengthening plate; 68 vol-% fibre | 1.6 g/cm3 | [Exel EXTENS technical datasheet](https://exelcomposites.com/wp-content/uploads/2020/06/EN_Exel-Extens-Technical-Datasheet.pdf) |
 
 For O1, the catalog uses the sheet's specific gravity as the nominal g/cm³ equivalent and retains the printed imperial density in this evidence note. The Exel value is specific to the named pultruded plate, not a generic density for all carbon-fibre laminates.
+
+The Formlabs Clear Resin V5 datasheet reports 1.21 g/cm³ for printed specimens at two post-cure conditions. It states that test coupons were printed on a Form 4, washed for five minutes in at least 99% IPA, and post-cured as indicated. The catalog therefore scopes this value to the datasheet's washed, post-cured printed material, not uncured liquid resin. The model's fully dense B-rep calculation does not account for print settings or part-specific porosity.

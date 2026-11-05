@@ -206,10 +206,20 @@ def library(action: str, *, kind: str | None = None, query: str | None = None,
     matches.sort(key=lambda pair: (-pair[0], pair[1]["kind"] == "component", pair[1]["kind"], pair[1]["id"]))
     start = offset or 0
     summaries = []
+    material_matches = [entry for _, entry in matches if entry["kind"] == "material"]
+    broad_material_terms = {
+        "nylon", "rubber", "resin", "aluminium", "aluminum", "stainless",
+        "steel", "acetal", "plastic", "metal",
+    }
+    material_query_is_broad = len(terms) == 1 and terms[0] in broad_material_terms
     for _, entry in matches[start:start + _SEARCH_LIMIT]:
         summary = {"id": entry["id"], "kind": entry["kind"],
                    "title": entry.get("title", entry.get("name", entry["id"])),
                    "summary": entry.get("summary", "")[:180]}
+        if entry["kind"] == "material" and terms:
+            summary["ambiguous"] = (
+                material_query_is_broad or len(material_matches) > 1
+            )
         if entry["kind"] == "component" and "evidence" in entry:
             summary["evidence"] = entry["evidence"]["status"]
         summaries.append(summary)

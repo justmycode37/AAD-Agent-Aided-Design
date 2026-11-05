@@ -111,6 +111,23 @@ def test_new_materials_are_exact_lookups_with_checked_density_sources():
         assert item["retrieved"] == "2026-11-05"
 
 
+def test_pom_c_alias_does_not_claim_delrin_homopolymer():
+    item = get_material("pom_c")
+    assert item is not None
+    assert "delrin" not in item["aliases"]
+    assert "POM-C" in item["definition"]
+
+
+def test_clear_resin_density_is_scoped_to_post_cured_printed_specimens():
+    item = get_material("sla_clear_v5")
+    assert item is not None
+    assumption = item["assumptions"]["bulk_vs_printed"]
+    assert "printed specimens" in assumption
+    assert "washing and post-curing" in assumption
+    assert "not uncured liquid resin" in assumption
+    assert "20251117111951" in get_material("stainless_316_14401")["source_url"]
+
+
 def test_material_mass_uses_new_catalog_density_through_spec_path():
     from build123d import Box
 

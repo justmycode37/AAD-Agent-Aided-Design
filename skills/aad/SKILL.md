@@ -603,7 +603,7 @@ Revisions never change. A failed build leaves the head alone. Use `checkout` to 
 | `tpu` | 1.11 | Covestro Desmopan 9380A GMP |
 | `tool_steel_o1` | 7.83 | O1 oil-hardening tool steel |
 
-Search supports common names, grade abbreviations, and aluminium/aluminum spellings. These are nominal source-grade bulk densities used for fully dense solid estimates; they do not represent print infill, laminate layups beyond the named composite reference, or finished-part mass. See `evals/library/material-sources.md` for source URLs, retrieval dates, printed values, and limits.
+Search supports common names, grade abbreviations, and aluminium/aluminum spellings. Material search summaries include `ambiguous`: broad family terms such as `aluminium`, `rubber`, `resin`, and `nylon`, or any query matching multiple material records, are marked `true`; a grade-specific single match is marked `false`. Check the selected record's source scope before using it. Densities are scoped to each listed source material and used for fully dense solid estimates; they do not account for print infill, laminate layups beyond the named composite reference, or finished-part mass. The Clear Resin V5 value is for washed and post-cured printed coupons, not uncured resin. See `evals/library/material-sources.md` for source URLs, retrieval dates, printed values, and limits.
 **Standard parts:**
 
 | ID | Parameters |
