@@ -84,7 +84,7 @@ not add one. See [sandbox.md](sandbox.md) for the boundary and its tests.
 - Scene and render hook records use the existing `Check` shape with IDs such as
   `scene_generation_unavailable` and `render_not_requested`; they describe
   pipeline availability, not additional geometry checks.
-- `kind="2d"` is not implemented in this bootstrap. `kind="part"` and
+- `kind="2d"` builds a `Sheet2D` and saves `sheet.json` instead of `part.brep`. `kind="part"` and
   `kind="assembly"` use a single build123d shape.
 - Jobs use one sandboxed subprocess each, with a bounded timeout and
   process-group/pipe cleanup, including pipes held after the leader exits.

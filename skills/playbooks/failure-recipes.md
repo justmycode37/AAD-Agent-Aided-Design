@@ -17,6 +17,6 @@ Unmeasured candidate guidance. Use the returned code, message, source line, expe
 | Requirement fail | Compare expected and measured values. Change geometry only if it misses the original request; never weaken the spec simply to make the model pass. |
 | Requirement skip or unavailable suite | Treat it as unknown, find the missing geometry/provider, or tell the user what remains unchecked. A skip is not a pass. |
 | Visual mismatch or blocked interface | Inspect orthographic views and a section; compare directly with the original user wording and adjust. |
-| Empty/ambiguous semantic query | The planned AAD selector backend is absent here. Do not substitute a raw face index and call it stable. |
+| Empty/ambiguous semantic query | Read the returned candidates and refine the selector. Do not substitute a raw face index and call it stable. |
 
-A valid B-rep or passing subset does not establish all requested behavior. Current hard-gate incompleteness keeps verification withheld.
+A valid B-rep or passing subset does not establish all requested behavior. The worker cannot attest its own result, so verification stays withheld.

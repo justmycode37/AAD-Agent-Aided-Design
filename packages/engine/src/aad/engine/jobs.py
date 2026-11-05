@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
+import shutil
 import signal
 import stat
 import subprocess
@@ -28,6 +30,7 @@ from .types import (
     SceneManifest,
 )
 
+_MAX_ASSET_BYTES = 256 * 1024 * 1024
 _RESULT_MARKER = b"AAD_ENGINE_RESULT:"
 _STARTED_MARKER = b"AAD_ENGINE_STARTED\n"
 _SOURCE_ROOT = Path(__file__).resolve().parents[2]
@@ -81,6 +84,8 @@ def run_build(req: BuildRequest) -> BuildResult:
             "preview": False,
         }
         input_bytes = (json.dumps(payload, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
+        if re.search(r"\basset\b", request.source):
+            _stage_assets(project_dir, job_dir)
     except (TypeError, ValueError, OSError, OverflowError) as exc:
         return _failed(
             Failure(
@@ -156,7 +161,7 @@ def run_build(req: BuildRequest) -> BuildResult:
 
     try:
         result = _result_from_wire(response, job_dir=job_dir, elapsed_ms=elapsed_ms, process_stderr=_decode(stderr_bytes))
-        result = _constrain_worker_evidence(result, job_dir, project_dir)
+        result = _constrain_worker_evidence(result, job_dir, project_dir, kind=request.kind)
     except (KeyError, TypeError, ValueError, AttributeError) as exc:
         return _failed(
             Failure(
@@ -187,6 +192,20 @@ def _coerce_request(req: BuildRequest | Mapping[str, Any]) -> BuildRequest:
     if isinstance(req, Mapping):
         return BuildRequest(**dict(req))
     raise TypeError("req must be a BuildRequest or a mapping of its fields")
+
+
+def _stage_assets(project_dir: Path, job_dir: Path) -> None:
+    """Copy regular files from the project's imports into the job, the sandbox's only readable project data."""
+    imports = project_dir / "imports"
+    if imports.is_symlink() or not imports.is_dir():
+        return
+    target = job_dir / "assets"
+    target.mkdir(exist_ok=True)
+    for entry in imports.iterdir():
+        if entry.name.startswith(".") or entry.is_symlink() or not entry.is_file():
+            continue
+        if entry.stat().st_size <= _MAX_ASSET_BYTES:
+            shutil.copyfile(entry, target / entry.name, follow_symlinks=False)
 
 
 def _reference_read_paths(project_dir: Path, spec: Mapping[str, Any]) -> tuple[Path, ...]:
@@ -264,21 +283,23 @@ def _detail_counts(checks: list[Check]) -> dict[str, int]:
             for status in ("pass", "fail", "warn", "skip")}
 
 
-def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: Path) -> BuildResult:
+def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: Path, *, kind: str = "part") -> BuildResult:
     # A model's pipe result is not a trusted validation receipt.
     original_counts = _detail_counts(result.checks)
     totals = {status: max(result.checks_summary.get(status, 0), count)
               for status, count in original_counts.items()}
-    part = _canonical_artifact(job_dir / "part.brep", job_dir)
+    # A sheet has no B-rep body: its source record is the artifact that must exist.
+    required = "sheet.json" if kind == "2d" else "part.brep"
+    part = _canonical_artifact(job_dir / required, job_dir)
     if result.ok and part is None:
         result.ok, result.status = False, "failed"
         result.failure = Failure(
-            code="WORKER_CRASH", phase="crash", feature="unknown", file="part.brep",
-            message="The worker reported success without a private, non-empty part.brep artifact; the build was not accepted.",
+            code="WORKER_CRASH", phase="crash", feature="unknown", file=required,
+            message=f"The worker reported success without a private, non-empty {required} artifact; the build was not accepted.",
         )
         result.summary = result.failure.message
         result.checks.append(Check(id="worker_artifact_required", suite="hard", level="error", status="fail",
-                                   message="The required private BREP artifact was not available."))
+                                   message=f"The required private {required} artifact was not available."))
     failed_check = next((c for c in result.checks if c.level == "error" and c.status == "fail"), None)
     if result.ok and failed_check is not None:
         result.ok, result.status = False, "failed"
@@ -300,7 +321,7 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
         else:
             rejected += 1
     if part is not None:
-        artifacts["part.brep"] = str(part)
+        artifacts[required] = str(part)
     result.artifacts = artifacts
     result.requirements_proven = False
     if result.context is not None:
@@ -334,8 +355,6 @@ def _validate_request(req: BuildRequest) -> None:
         raise TypeError("source must be text")
     if req.kind not in {"part", "assembly", "2d"}:
         raise ValueError("kind must be 'part', 'assembly', or '2d'")
-    if req.kind == "2d":
-        raise ValueError("the M0 worker currently builds 3D B-rep models only")
     if req.units not in {"mm", "in"}:
         raise ValueError("units must be 'mm' or 'in'")
     if isinstance(req.rev, bool) or not isinstance(req.rev, int) or req.rev < 0:

@@ -41,6 +41,23 @@ _GEAR_EXPORTS = {
     "helix_angle_for_center_distance",
     "tapered_bevel_standin",
 }
+_CAD_EXPORTS = {
+    "Assembly",
+    "CadOperationError",
+    "SheetMetalPart",
+    "assembly",
+    "asset",
+    "delete_faces",
+    "exploded",
+    "motion_clearance",
+    "overlap_volume",
+    "pattern_along",
+    "press_pull",
+    "sew_solid",
+    "sheet_metal",
+    "variable_fillet",
+}
+_HELPER_EXPORTS |= _CAD_EXPORTS
 _BUILD123D_MODULE: ModuleType | None = None
 
 
@@ -59,6 +76,10 @@ def __getattr__(name: str) -> Any:
     if name in _HELPER_EXPORTS:
         if name in _GEAR_EXPORTS:
             value = getattr(import_module(".gears", __name__), name)
+            globals()[name] = value
+            return value
+        if name in _CAD_EXPORTS:
+            value = getattr(import_module(".cad", __name__), name)
             globals()[name] = value
             return value
         return globals()[name]

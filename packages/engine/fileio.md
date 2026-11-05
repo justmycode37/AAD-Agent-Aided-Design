@@ -17,8 +17,8 @@ assert imported.context.shape is not None
 print(imported.history_notice)
 ```
 
-`export(ctx, fmt, out, **options) -> Path` accepts `step`, `brep`, `stl`,
-`3mf`, and `glb` (case-insensitive), and returns the canonical output path.
+`export(ctx, fmt, out, **options) -> Path` accepts `step`, `iges`, `brep`, `stl`,
+`obj`, `ply`, `3mf`, and `glb` (case-insensitive), and returns the canonical output path.
 The job directory and destination's parent must already exist. A relative
 `out` is relative to `ctx.job_dir`. Paths must be lexically and canonically
 inside that directory; a destination symlink, including a dangling symlink, is
@@ -35,8 +35,8 @@ to a set of exports. Unknown options are errors.
 | --- | --- | --- |
 | `schema` or `step_schema` | `AP214` | STEP schema: `AP214` or `AP242`. Supply only one of the two names. |
 | `step_volume_tolerance` | `1e-6` | Maximum relative physical volume drift after STEP re-import; finite and nonnegative. |
-| `tolerance` | `0.001` | Positive linear tessellation deflection in `ctx.units`, for STL, 3MF and GLB. |
-| `angular_tolerance` | `0.1` | Positive angular tessellation deflection in radians, for STL, 3MF and GLB. |
+| `tolerance` | `0.001` | Positive linear tessellation deflection in `ctx.units`, for STL, OBJ, PLY, 3MF and GLB. |
+| `angular_tolerance` | `0.1` | Positive angular tessellation deflection in radians, for STL, OBJ, PLY, 3MF and GLB. |
 
 These are numerical settings, not manufacturing limits.
 Mesh exports use fresh absolute OCCT deflection in the context's coordinate
@@ -47,6 +47,12 @@ build123d 0.13's `export_step` was observed to emit an AP214 header even when
 OCCT's AP242 setting was selected. The native STEP settings are restored after
 each call; a module lock serializes this module's STEP operations, but cannot
 serialize unrelated code that changes OCCT's process-global settings.
+
+IGES export declares the shape's unit and is checked by reading it back: IGES
+carries surfaces, so the check compares total face area, not solid volume. OBJ
+and PLY are ASCII meshes with no feature data; each records the unit in a
+comment, because neither format has a unit field. `import_file` also reads IGES,
+in millimetres like STEP, usually as faces rather than a solid.
 
 ## Units
 

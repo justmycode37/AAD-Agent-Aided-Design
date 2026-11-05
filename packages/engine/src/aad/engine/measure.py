@@ -9,7 +9,10 @@ from typing import Any
 
 from .types import Entity, Failure, ModelContext
 
-_KINDS = {"distance", "clearance", "angle", "radius", "area", "volume", "inertia", "mass", "thickness"}
+_KINDS = {
+    "distance", "clearance", "angle", "radius", "area", "volume", "inertia", "mass", "thickness",
+    "length", "bbox", "center_of_mass", "principal_inertia",
+}
 
 
 class MeasurementError(ValueError):
@@ -44,7 +47,11 @@ def measure(ctx: ModelContext, kind: str, a: str | None = None, b: str | None = 
             raise _error("radius requires an a selector.")
         if kind in {"radius", "area"} and b is not None:
             raise _error(f"{kind} does not accept a b selector.")
-        if kind in {"volume", "inertia", "mass", "thickness"} and (a is not None or b is not None):
+        if kind == "length" and a is None:
+            raise _error("length requires an a selector for an edge.")
+        if kind in {"length", "bbox"} and b is not None:
+            raise _error(f"{kind} does not accept a b selector.")
+        if kind in {"volume", "inertia", "mass", "thickness", "center_of_mass", "principal_inertia"} and (a is not None or b is not None):
             raise _error(f"{kind} does not support selected-entity arguments in this implementation.")
         root = _native_root(ctx)
         if kind == "mass":
@@ -81,6 +88,16 @@ def measure(ctx: ModelContext, kind: str, a: str | None = None, b: str | None = 
         elif kind == "angle":
             value, definition = _angle(entities, selected, a)
             result.update(value=value, unit="deg", definition=definition)
+        elif kind == "length":
+            if entities[0].kind != "edge":
+                raise _error("length requires an edge, not a face or vertex.", selector=a)
+            result.update(value=_number(selected[0].length, nonnegative=True), unit=ctx.units, definition="edge_arc_length")
+        elif kind == "bbox":
+            box = (selected[0] if selected else root).bounding_box()
+            result.update(
+                value=[_number(box.size.X), _number(box.size.Y), _number(box.size.Z)],
+                min=_point_xyz(box.min), max=_point_xyz(box.max), unit=ctx.units, definition="axis_aligned_bounds",
+            )
         elif kind == "radius":
             result.update(value=_radius(entities[0], selected[0], a), unit=ctx.units, definition="constant_analytic_radius")
         elif kind == "area":
@@ -100,6 +117,18 @@ def measure(ctx: ModelContext, kind: str, a: str | None = None, b: str | None = 
             result.update(aggregation="sum_of_native_solids", solid_count=count)
             if kind == "volume":
                 result.update(value=_number(props.Mass(), positive=True), unit=f"{ctx.units}^3", definition="sum_of_solid_volumes")
+            elif kind == "center_of_mass":
+                result.update(value=_point(props.CentreOfMass()), unit=ctx.units, definition="uniform_density_centroid_of_solids")
+            elif kind == "principal_inertia":
+                principal = props.PrincipalProperties()
+                moments = principal.Moments()
+                axes = [principal.FirstAxisOfInertia(), principal.SecondAxisOfInertia(), principal.ThirdAxisOfInertia()]
+                result.update(
+                    value=[_number(moments[0]), _number(moments[1]), _number(moments[2])],
+                    axes=[[_number(v.X()), _number(v.Y()), _number(v.Z())] for v in axes],
+                    unit=f"{ctx.units}^5", definition="principal_volume_moments_about_centroid",
+                    reference_point=_point(props.CentreOfMass()),
+                )
             else:
                 matrix = props.MatrixOfInertia()
                 result.update(value=[[_number(matrix.Value(i, j)) for j in range(1, 4)] for i in range(1, 4)],
@@ -220,6 +249,10 @@ def _body_properties(root: Any) -> tuple[Any, int]:
         aggregate.Add(props)
     _number(aggregate.Mass(), positive=True)
     return aggregate, len(solids)
+
+
+def _point_xyz(value: Any) -> list[float]:
+    return [_number(value.X), _number(value.Y), _number(value.Z)]
 
 
 def _point(value: Any) -> list[float]:

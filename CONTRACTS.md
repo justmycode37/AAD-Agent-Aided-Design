@@ -94,7 +94,7 @@ normal module. Geometry assumptions and limits are documented in
 - `params()` declares every adjustable number; overrides come from tools. A param may be a `Param(value, min, max, unit)` so that sliders get ranges.
 - `feature(name)` must be unique. It records created and modified faces and edges, source lines and dependencies.
 - `face()`, `edge()`, `vertex()` resolve semantically. `expect=n` turns a count mismatch into a `SELECTOR_AMBIGUOUS` or `SELECTOR_EMPTY` failure with candidates.
-- A script produces one `part`, one `assembly`, or (for `kind: "2d"`) one `sheet2d`.
+- A script produces one `part`, one `assembly` (assign `assembly()` to `result`), or (for `kind: "2d"`) one `sheet2d`.
 - The script must not do I/O. Files come in through `asset("name")`, which reads from the project's imports.
 - Plain build123d is valid, and everything lands in an implicit `main` feature. Named features are what make edits reliable.
 
@@ -165,12 +165,12 @@ aad_build({ project, base_rev?: number,
             timeout_s?: number })                  // worker kill limit, default 60, max 600
 
 aad_inspect({ project, rev?: number,
-              what?: "summary"|"features"|"params"|"topology"|"diff", against?: number })
+              what?: "summary"|"features"|"params"|"topology"|"bom"|"diff", against?: number })
 
 aad_query({ project, rev?: number, selector: string, expect?: number, limit?: number })
 
 aad_measure({ project, rev?: number,
-              kind: "distance"|"angle"|"radius"|"area"|"volume"|"mass"|"inertia"|"thickness"|"clearance",
+              kind: "distance"|"angle"|"radius"|"length"|"area"|"volume"|"bbox"|"center_of_mass"|"mass"|"inertia"|"principal_inertia"|"thickness"|"clearance",
               a?: string, b?: string })             // selectors
 
 aad_check({ project, rev?: number,
@@ -199,7 +199,8 @@ aad_show({ project, rev?: number, compare_to?: number, title?: string,
 
 aad_drawing({ project, rev?: number, sheet?: "A4"|"A3"|"A2"|"A1"|"letter"|"tabloid",
               views?: DrawingView[], dimensions?: "auto"|"none"|DimensionSpec[],
-              style?: "iso"|"asme", title_block?: Record<string,string>, formats?: ("svg"|"dxf"|"pdf")[] })
+              style?: "iso"|"asme", title_block?: Record<string,string>, formats?: ("svg"|"dxf"|"pdf")[],
+              notes?: string[], revisions?: Record<string,string>[], bom?: boolean })
 
 aad_history({ project, action?: "list"|"diff"|"checkout"|"branch"|"job",
               rev?: number, against?: number, name?: string, job?: string })
@@ -207,7 +208,7 @@ aad_history({ project, action?: "list"|"diff"|"checkout"|"branch"|"job",
 aad_import({ project?: string, path: string, name?: string, as?: "base"|"reference" })
 
 aad_export({ project, rev?: number,
-             formats: ("step"|"stl"|"3mf"|"glb"|"brep"|"dxf"|"svg"|"pdf"|"viewer_html")[],
+             formats: ("step"|"iges"|"stl"|"obj"|"ply"|"3mf"|"glb"|"brep"|"dxf"|"svg"|"pdf"|"viewer_html")[],
              options?: Record<string, unknown>,     // e.g. tolerance
              allow_unverified?: boolean })          // otherwise only verified revisions export
 
@@ -512,6 +513,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 - 2026-11-05: S2/S3 added optional agent-controlled viewer presentations to `aad_show` and its result, following the user’s request for simple user controls and detailed views prepared through chat.
 - 2026-11-05: S2/S3 added optional `presentation.inside` to describe a real interior view and conditionally expose an inside/outside button, at the user's request.
 - 2026-11-05: S2/S3 added `aad_show.views`, sourced component analysis display, and full native CAD controls outside chat; replaced the separate Inside button with curated Views, at the user's request.
+- 2026-11-05: S1/S2/S4/S5 added CAD capabilities, additively: `aad.cad` helpers including `assembly()` and `asset()`; `kind: "2d"` builds; `aad_inspect what: "bom"`; `aad_measure` kinds `length`, `bbox`, `center_of_mass`, `principal_inertia`, with `mass` and `thickness` now implemented; `aad_export` formats `iges`, `obj`, `ply`; IGES and DXF/SVG import; `aad_drawing` `notes`, `revisions`, `bom`. `aad-design` now depends on `aad-quality[parts]`. See `docs/cad-parity.md`.
 - 2026-11-04: Marked the viewer as display-only in section 8, following the user's direction in issue #35. No interface was removed.
 - 2026-11-04: S2 added optional tool-specific fields to the envelope in section 6, so that results of query, measure, inspect, history, import and library have named places.
 - 2026-11-04: S2 specified the window transport's routes in section 8, because S3's transport and S2's server need the same paths and shapes.

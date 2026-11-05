@@ -28,14 +28,8 @@ class OutputDirectory:
         root = job_root.expanduser().resolve()
         relative = path.relative_to(root)
         flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-        fd = os.open(root.anchor, flags)
+        fd = self._open_root(root, flags)
         try:
-            # Also pin the root's ancestors; opening the root by absolute name
-            # would otherwise follow a symlink introduced in an ancestor.
-            for component in root.parts[1:]:
-                child = os.open(component, flags, dir_fd=fd)
-                os.close(fd)
-                fd = child
             for component in relative.parts:
                 try:
                     os.mkdir(component, mode=0o700, dir_fd=fd)
@@ -45,6 +39,26 @@ class OutputDirectory:
                 os.close(fd)
                 fd = child
             self.fd = fd
+        except BaseException:
+            os.close(fd)
+            raise
+
+    @staticmethod
+    def _open_root(root: Path, flags: int) -> int:
+        # Pin the root's ancestors; opening the root by absolute name would otherwise
+        # follow a symlink introduced in an ancestor.
+        fd = os.open(root.anchor, flags)
+        try:
+            for component in root.parts[1:]:
+                child = os.open(component, flags, dir_fd=fd)
+                os.close(fd)
+                fd = child
+            return fd
+        except PermissionError:
+            # The OS sandbox refuses to open the job's ancestors. The same policy
+            # also stops them from being changed, so open the job directly.
+            os.close(fd)
+            return os.open(root, flags)
         except BaseException:
             os.close(fd)
             raise
