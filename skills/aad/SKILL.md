@@ -576,10 +576,17 @@ Revisions never change. A failed build leaves the head alone. Use `checkout` to 
 
 | ID | Density |
 |---|---:|
-| `aluminum_6061` | 2.7 |
-| `pla` | 1.24 |
-| `stainless_304_4301` | 7.9 |
-| `steel_1018` | 7.9 |
+| `abs` | 1.04 | Ensinger TECARAN ABS grey |
+| `aluminum_5052` | 2.68 | Wrought alloy, temper unspecified |
+| `aluminum_6061` | 2.7 | Wrought alloy, temper unspecified |
+| `aluminum_7075` | 2.81 | Wrought alloy, temper unspecified |
+| `pa12` | 1.02 | Ensinger TECAMID 12 natural |
+| `petg` | 1.27 | Supplier PET G datasheet |
+| `pla` | 1.24 | NatureWorks Ingeo 3D700 base resin |
+| `stainless_304_4301` | 7.9 | Outokumpu Core 304/4301 |
+| `steel_1018` | 7.9 | AISI 1018 reference |
+
+Material densities are nominal fully dense bulk values, not finished printed-part densities. Search accepts common grade names, abbreviations, and aluminium/aluminum spellings. See `evals/library/material-sources.md` for the source values, retrieval dates, and limits. Other requested polymers, metals, composites, and elastomers remain absent until their density sources are checked.
 
 **Standard parts:**
 

@@ -99,7 +99,8 @@ def _entries(kind: str) -> list[dict[str, Any]]:
     if kind == "material":
         from .materials import list_materials
         return [{**item, "title": item["name"], "summary": item["definition"],
-                 "tags": ["density", "nominal", item["id"]]} for item in list_materials()]
+                 "tags": ["density", "nominal", item["id"], *item.get("aliases", [])]}
+                for item in list_materials()]
     if kind == "part":
         from .standard_parts import list_parts
         return list_parts()

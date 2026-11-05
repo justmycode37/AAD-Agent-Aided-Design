@@ -54,3 +54,18 @@ Catalog IDs are exact lookups. The PLA ID is scoped to one named resin grade; th
 - [Outokumpu Core Range Datasheet: Stainless Steels for Corrosive Environments](https://www.outokumpu.com/sv-se/products/product-ranges/-/media/files/products/core/outokumpu-core-range-datasheet.pdf?modified=20251117111909&revision=025e9931-a1d5-4c8f-8ff5-f881d38916da)
 
 **Assumptions and limits:** This is bulk density for the named wrought stainless grade, treated as a fully dense solid. Voids, porosity, scale, coatings, plating, corrosion, surface water, and other contamination are not modeled. The ID does not alias 304L/4307, 304LN/4311, 316, or another stainless grade. The datasheet gives a grade-level density and separate temperature-dependent physical properties; this catalog applies no temperature correction. Actual part mass is not guaranteed.
+
+
+## Additional source-checked entries (retrieved 2026-11-05)
+
+| Catalog ID | Scoped material | Density as printed | Source |
+|---|---|---:|---|
+| `abs` | Ensinger TECARAN ABS grey stock | 1.04 g/cm3 | [Ensinger product page](https://www.ensingerplastics.com/en-gb/shapes/tecaran-abs-grey) |
+| `pa12` | Ensinger TECAMID 12 natural, unfilled | 1.02 g/cm³ | [Ensinger product page](https://www.ensingerplastics.com/en/shapes/pa12-tecamid-12-natural) |
+| `petg` | PET G, Amsler & Frey supplier datasheet | 1.27 g/cm3 | [Technical datasheet](https://www.shop.amsler-frey.ch/en?category=24&cmd=generate_datasheet) |
+| `aluminum_5052` | Wrought alloy 5052, temper unspecified | 2.68 (kg/m³ × 10³) | [Aluminum Association Teal Sheets, December 2025](https://www.aluminum.org/sites/default/files/2026-01/Teal%20Sheets%20December%202025.pdf) |
+| `aluminum_7075` | Wrought alloy 7075, temper unspecified | 2.81 (kg/m³ × 10³) | [Aluminum Association Teal Sheets, December 2025](https://www.aluminum.org/sites/default/files/2026-01/Teal%20Sheets%20December%202025.pdf) |
+
+The Teal Sheets figures are numerically g/cm³ when expressed as listed ×10³ kg/m³. PETG is grade/supplier-specific rather than a universal polymer density. ABS and PA12 likewise identify the named Ensinger stock grades. For all entries, mass calculation treats the B-rep as fully dense; printing infill, porosity, conditioning, additives, and finished-part variation are not represented. No density temperature correction is made where the source gives no reference temperature.
+
+Not added because density sources were not verified in this change: ASA, TPU, polycarbonate, POM/acetal, standard SLA resin, stainless 316, S235, 4140, tool steel, C360 brass, C110 copper, Ti-6Al-4V, FR-4, carbon-fiber plate, PMMA, silicone rubber, and EPDM.

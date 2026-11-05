@@ -50,6 +50,11 @@ def test_catalog_records_have_sources_definitions_and_finite_positive_density():
         "steel_1018",
         "aluminum_6061",
         "stainless_304_4301",
+        "petg",
+        "abs",
+        "pa12",
+        "aluminum_7075",
+        "aluminum_5052",
     }
 
     for record in records:
@@ -91,6 +96,26 @@ def test_unknown_and_lookalike_ids_are_not_aliases():
     assert get_material("pla_filled") is None
     assert get_material("steel_1045") is None
     assert get_material(None) is None
+
+
+def test_new_materials_are_exact_lookups_with_checked_density_sources():
+    expected = {"petg": 1.27, "abs": 1.04, "pa12": 1.02,
+                "aluminum_7075": 2.81, "aluminum_5052": 2.68}
+    for material_id, density in expected.items():
+        item = get_material(material_id)
+        assert item is not None and item["density_g_cm3"] == density
+        assert item["retrieved"] == "2026-11-05"
+
+
+def test_material_mass_uses_new_catalog_density_through_spec_path():
+    from build123d import Box
+
+    check = spec_checks(_context(
+        {"requirements": [{"id": "mass", "mass_g": {"min": 1.269, "max": 1.271}}]},
+        Box(10, 10, 10), material="petg",
+    ))[0]
+    assert check.passed
+    assert _actual_mass_g(check) == pytest.approx(1.27)
 
 
 def test_get_and_list_materials_return_deep_defensive_copies():

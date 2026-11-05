@@ -25,6 +25,7 @@ _REQUIRED_ASSUMPTIONS = (
 _CATALOG: dict[str, dict[str, Any]] = {
     "pla": {
         "id": "pla",
+        "aliases": ["pla", "polylactic acid"],
         "name": "NatureWorks Ingeo 3D700 PLA base resin",
         "definition": (
             "NatureWorks Ingeo biopolymer grade 3D700 for large-format additive "
@@ -90,6 +91,7 @@ _CATALOG: dict[str, dict[str, Any]] = {
     },
     "steel_1018": {
         "id": "steel_1018",
+        "aliases": ["steel", "mild steel", "1018"],
         "name": "AISI 1018 mild steel reference",
         "definition": (
             "AISI 1018 mild steel, scoped to the source table's associated "
@@ -148,6 +150,7 @@ _CATALOG: dict[str, dict[str, Any]] = {
     },
     "aluminum_6061": {
         "id": "aluminum_6061",
+        "aliases": ["aluminium", "aluminum", "6061", "alu 6061"],
         "name": "Wrought aluminum alloy 6061, temper unspecified",
         "definition": (
             "Wrought aluminum alloy designation 6061. The nominal-density "
@@ -200,6 +203,7 @@ _CATALOG: dict[str, dict[str, Any]] = {
     },
     "stainless_304_4301": {
         "id": "stainless_304_4301",
+        "aliases": ["stainless", "stainless steel", "304", "4301", "1.4301"],
         "name": "Outokumpu Core 304/4301 stainless steel",
         "definition": (
             "Outokumpu Core 304/4301, EN 1.4301, ASTM Type 304, UNS S30400. "
@@ -249,6 +253,76 @@ _CATALOG: dict[str, dict[str, Any]] = {
                 "This is a nominal-density estimate, not a guaranteed "
                 "finished-part mass."
             ),
+        },
+    },
+    'petg': {
+        "id": 'petg', "aliases": ["petg", "polyethylene terephthalate glycol"], "name": 'PETG', "definition": 'PETG copolyester from Amsler & Frey technical datasheet',
+        "density_g_cm3": 1.27, "density_unit": "g/cm^3",
+        "density_basis": 'PET G density is printed as 1.27 g/cm3 in the supplier datasheet.', "source_title": 'TECHNICAL DATASHEET — PETG', "source_url": 'https://www.shop.amsler-frey.ch/en?category=24&cmd=generate_datasheet',
+        "retrieved": "2026-11-05", "provenance": 'PET G density is printed as 1.27 g/cm3 in the supplier datasheet.',
+        "assumptions": {
+            "bulk_vs_printed": "Bulk solid resin or alloy reference; not an effective printed-part density.",
+            "porosity": "Treats B-rep as fully dense; infill, voids, and manufacturing porosity are excluded.",
+            "moisture": "No moisture adjustment; absorbed moisture and surface contamination are excluded.",
+            "composition": "Scoped to the named grade/alloy above; fillers and other grades are not represented.",
+            "temperature": "No temperature correction; source does not give a density reference temperature.",
+            "mass_guarantee": "Nominal density estimate only; finished-part mass is not guaranteed.",
+        },
+    },
+    'abs': {
+        "id": 'abs', "aliases": ["abs", "acrylonitrile butadiene styrene"], "name": 'Ensinger TECARAN ABS grey', "definition": 'Specific grey ABS stock grade TECARAN ABS grey by Ensinger',
+        "density_g_cm3": 1.04, "density_unit": "g/cm^3",
+        "density_basis": 'Ensinger lists density as 1.04 g/cm3.', "source_title": 'TECARAN ABS grey | Ensinger', "source_url": 'https://www.ensingerplastics.com/en-gb/shapes/tecaran-abs-grey',
+        "retrieved": "2026-11-05", "provenance": 'Ensinger lists density as 1.04 g/cm3.',
+        "assumptions": {
+            "bulk_vs_printed": "Bulk solid resin or alloy reference; not an effective printed-part density.",
+            "porosity": "Treats B-rep as fully dense; infill, voids, and manufacturing porosity are excluded.",
+            "moisture": "No moisture adjustment; absorbed moisture and surface contamination are excluded.",
+            "composition": "Scoped to the named grade/alloy above; fillers and other grades are not represented.",
+            "temperature": "No temperature correction; source does not give a density reference temperature.",
+            "mass_guarantee": "Nominal density estimate only; finished-part mass is not guaranteed.",
+        },
+    },
+    'pa12': {
+        "id": 'pa12', "aliases": ["pa12", "pa 12", "nylon 12", "nylon", "polyamide 12"], "name": 'Ensinger TECAMID 12 natural', "definition": 'Unfilled natural PA12 stock grade TECAMID 12 by Ensinger',
+        "density_g_cm3": 1.02, "density_unit": "g/cm^3",
+        "density_basis": 'Ensinger lists density as 1.02 g/cm3.', "source_title": 'PA 12 - TECAMID 12 natural | Ensinger', "source_url": 'https://www.ensingerplastics.com/en/shapes/pa12-tecamid-12-natural',
+        "retrieved": "2026-11-05", "provenance": 'Ensinger lists density as 1.02 g/cm3.',
+        "assumptions": {
+            "bulk_vs_printed": "Bulk solid resin or alloy reference; not an effective printed-part density.",
+            "porosity": "Treats B-rep as fully dense; infill, voids, and manufacturing porosity are excluded.",
+            "moisture": "No moisture adjustment; absorbed moisture and surface contamination are excluded.",
+            "composition": "Scoped to the named grade/alloy above; fillers and other grades are not represented.",
+            "temperature": "No temperature correction; source does not give a density reference temperature.",
+            "mass_guarantee": "Nominal density estimate only; finished-part mass is not guaranteed.",
+        },
+    },
+    'aluminum_7075': {
+        "id": 'aluminum_7075', "aliases": ["7075", "aluminium", "aluminum"], "name": 'Wrought aluminum alloy 7075', "definition": 'Wrought alloy 7075, temper unspecified',
+        "density_g_cm3": 2.81, "density_unit": "g/cm^3",
+        "density_basis": 'Aluminum Association table prints calculated nominal density 2.81 (kg/m3 x 10^3) for 7075.', "source_title": 'International Alloy Designations (Teal Sheets, December 2025)', "source_url": 'https://www.aluminum.org/sites/default/files/2026-01/Teal%20Sheets%20December%202025.pdf',
+        "retrieved": "2026-11-05", "provenance": 'Aluminum Association table prints calculated nominal density 2.81 (kg/m3 x 10^3) for 7075.',
+        "assumptions": {
+            "bulk_vs_printed": "Bulk solid resin or alloy reference; not an effective printed-part density.",
+            "porosity": "Treats B-rep as fully dense; infill, voids, and manufacturing porosity are excluded.",
+            "moisture": "No moisture adjustment; absorbed moisture and surface contamination are excluded.",
+            "composition": "Scoped to the named grade/alloy above; fillers and other grades are not represented.",
+            "temperature": "No temperature correction; source does not give a density reference temperature.",
+            "mass_guarantee": "Nominal density estimate only; finished-part mass is not guaranteed.",
+        },
+    },
+    'aluminum_5052': {
+        "id": 'aluminum_5052', "aliases": ["5052", "aluminium", "aluminum"], "name": 'Wrought aluminum alloy 5052', "definition": 'Wrought alloy 5052, temper unspecified',
+        "density_g_cm3": 2.68, "density_unit": "g/cm^3",
+        "density_basis": 'Aluminum Association table prints calculated nominal density 2.68 (kg/m3 x 10^3) for 5052.', "source_title": 'International Alloy Designations (Teal Sheets, December 2025)', "source_url": 'https://www.aluminum.org/sites/default/files/2026-01/Teal%20Sheets%20December%202025.pdf',
+        "retrieved": "2026-11-05", "provenance": 'Aluminum Association table prints calculated nominal density 2.68 (kg/m3 x 10^3) for 5052.',
+        "assumptions": {
+            "bulk_vs_printed": "Bulk solid resin or alloy reference; not an effective printed-part density.",
+            "porosity": "Treats B-rep as fully dense; infill, voids, and manufacturing porosity are excluded.",
+            "moisture": "No moisture adjustment; absorbed moisture and surface contamination are excluded.",
+            "composition": "Scoped to the named grade/alloy above; fillers and other grades are not represented.",
+            "temperature": "No temperature correction; source does not give a density reference temperature.",
+            "mass_guarantee": "Nominal density estimate only; finished-part mass is not guaranteed.",
         },
     },
 }

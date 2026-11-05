@@ -33,6 +33,21 @@ def test_material_lookup_is_exact_and_defensive():
     assert library("get", kind="material", id="PLA")["found"] is False
 
 
+@pytest.mark.parametrize(("query", "material_id"), [
+    ("ABS", "abs"), ("PETG", "petg"), ("nylon PA12", "pa12"),
+    ("6061 aluminium", "aluminum_6061"), ("aluminium 7075", "aluminum_7075"),
+    ("5052", "aluminum_5052"), ("stainless 316", "stainless_304_4301"),
+])
+def test_material_search_resolves_common_alias_terms(query, material_id):
+    # 316 is deliberately not aliased; this query should not silently return 304.
+    results = library("search", kind="material", query=query)
+    ids = {item["id"] for item in results["items"]}
+    if "316" in query:
+        assert "stainless_304_4301" not in ids
+    else:
+        assert material_id in ids
+
+
 def test_curved_modeling_recipes_are_discoverable_and_build_single_solids():
     import re
     from aad._runtime import configure_params
