@@ -27,6 +27,45 @@ def _enum(*values: str, **extra: Any) -> dict[str, Any]:
     return {"type": "string", "enum": list(values), **extra}
 
 
+_VIEW_PARTS = {"type": "array", "items": {"type": "string", "maxLength": 256}, "minItems": 1, "maxItems": 256}
+_VIEW_SECTION = _schema({
+    "planes": {"type": "array", "minItems": 1, "maxItems": 3, "items": {
+        **_schema({"plane": _enum("XY", "XZ", "YZ"), "normal": _VECTOR3,
+                   "offset": {"type": "number", "description": "Signed distance from the model center in model units. Default 0."},
+                   "flipped": {"type": "boolean"}}),
+        "oneOf": [{"required": ["plane"]}, {"required": ["normal"]}],
+    }},
+    "intersection": {"type": "boolean", "description": "Use the clipping engine's intersection mode. Default false."},
+}, ["planes"])
+_PRESENTATION = _schema({
+    "isolate": {**_VIEW_PARTS, "description": "Show only these exact names, leaf paths, or group paths."},
+    "hide": _VIEW_PARTS,
+    "style": _enum("shaded-edges", "shaded", "wireframe", "transparent"),
+    "projection": _enum("orthographic", "perspective"),
+    "section": _VIEW_SECTION,
+    "inside": {**_schema({"hide": _VIEW_PARTS, "section": _VIEW_SECTION}),
+               "anyOf": [{"required": ["hide"]}, {"required": ["section"]}],
+               "description": "Legacy interior recipe. Prefer a named Interior entry in views."},
+    "explode": {"type": "boolean"}, "grid": {"type": "boolean"},
+})
+_NAMED_VIEWS = {"type": "array", "maxItems": 24, "items": _schema({
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$", "description": "Unique ID; original is reserved."},
+    "label": {"type": "string", "minLength": 1, "maxLength": 48},
+    "description": {"type": "string", "maxLength": 240},
+    "view": _enum("iso", "front", "rear", "left", "right", "top", "bottom"),
+    "presentation": _schema({key: value for key, value in _PRESENTATION["properties"].items() if key != "inside"}),
+    "analysis": _schema({
+        "quantity": {"type": "string", "minLength": 1, "maxLength": 80},
+        "units": {"type": "string", "minLength": 1, "maxLength": 24},
+        "source": {"type": "string", "minLength": 1, "maxLength": 512, "description": "Actual analysis artifact or solver result; never invent values."},
+        "values": {"type": "array", "minItems": 1, "maxItems": 2048, "items": _schema({
+            "part": {"type": "string", "maxLength": 256}, "value": {"type": "number"},
+        }, ["part", "value"])},
+        "range": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+    }, ["quantity", "units", "source", "values"]),
+}, ["id", "label"]), "description": "Curated user-selectable views of this scene, at most 64 KiB total. Each recipe is independent; Original restores the base view. Analysis is sourced component-level data, not a solver."}
+
+
 TOOLS: list[dict[str, Any]] = [
     {
         "name": "aad_new",
@@ -197,15 +236,22 @@ TOOLS: list[dict[str, Any]] = [
         "name": "aad_show",
         "description": (
             "Show the user a revision inline, in an interactive 3D or 2D viewer. Call this only when the "
-            "user asks to see the part, never as a routine step. Hosts without inline support get a local URL to offer."
+            "user asks to see the part, never as a routine step. Use presentation to show only requested parts, "
+            "hide a housing, cut sections, or choose a display style; the user sees simple viewing controls. "
+            "Provide views for the user's wide Views menu: Interior, sections, isolated parts, or sourced analysis. "
+            "Chat shows only curated views and simple controls; the local CAD window retains full inspection tools. "
+            "Read playbook viewer.presentation.v1 for all viewing capabilities and the recipe format. "
+            "Part selectors are exact names or paths from scene.parts. Hosts without inline support get a local URL to offer."
         ),
         "inputSchema": _schema(
             {
                 "project": _PROJECT,
                 "rev": _REV,
                 "compare_to": {"type": "integer", "minimum": 1},
-                "title": {"type": "string"},
-                "view": _enum("iso", "front", "top", "right"),
+                "title": {"type": "string", "maxLength": 160},
+                "view": _enum("iso", "front", "rear", "left", "right", "top", "bottom"),
+                "presentation": _PRESENTATION,
+                "views": _NAMED_VIEWS,
             },
             ["project"],
         ),
@@ -368,5 +414,7 @@ INSTRUCTIONS = (
     "AAD is CAD for agents. Workflow: aad_new with a spec, write model.py, aad_build, read the "
     "numbers and failures, review with aad_render, and aad_export for files. Call aad_show only when "
     "the user asks to see the part. Report the status honestly: draft means built but not proven, verified means the hard gate "
-    "and every error-level requirement passed. Fetch playbooks with aad_library."
+    "and every error-level requirement passed. Chat users see orbit/zoom, explode, grid, reset, fullscreen and a Views menu; "
+    "agents supply named views with aad_show.views. Full CAD controls remain in the local window. "
+    "Fetch playbook viewer.presentation.v1 with aad_library for viewer capabilities, recipes and sourced analysis; never invent stress results."
 )

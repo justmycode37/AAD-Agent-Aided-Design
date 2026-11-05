@@ -11,10 +11,25 @@ import hashlib
 import json
 from pathlib import Path
 
-from . import STUB
+from . import viewer_path
+from ..presentation import VIEWS, normalize_presentation, normalize_views
 
 
-def export_bundle(scene_dir: Path, output_dir: Path) -> Path:
+def _asset(path: Path, payload: bytes, element_id: str, encoding: str = "base64+gzip") -> Path:
+    encoded = base64.b64encode(payload).decode("ascii")
+    path.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1">'
+        f'<metadata id="{element_id}" encoding="{encoding}">{encoded}</metadata></svg>',
+        encoding="utf-8",
+    )
+    return path.resolve()
+
+
+def _script_json(value: object) -> str:
+    return json.dumps(value, ensure_ascii=True).replace("<", r"\u003c").replace(">", r"\u003e").replace("&", r"\u0026")
+
+
+def export_bundle(scene_dir: Path, output_dir: Path, *, presentation: dict | None = None, view: str | None = None, title: str | None = None, views: list | None = None, controls: str = "simple") -> Path:
     """Write viewer.html and a lossless SVG metadata asset for one saved scene.
 
     Pass viewer.html's text to an HTML host with local image inlining support.
@@ -27,23 +42,69 @@ def export_bundle(scene_dir: Path, output_dir: Path) -> Path:
         raise ValueError("Scene size does not match the manifest")
     if hashlib.sha256(payload).hexdigest() != manifest["scene_id"]:
         raise ValueError("Scene hash does not match the manifest")
+    settings = {}
+    if controls not in ("simple", "cad"):
+        raise ValueError("controls must be simple or cad")
+    if views is not None:
+        settings["views"] = normalize_views(views, manifest.get("parts", []))
+    if presentation is not None:
+        settings["presentation"] = normalize_presentation(presentation, manifest.get("parts", []))
+    if view is not None:
+        if view not in VIEWS:
+            raise ValueError("Unknown camera view")
+        settings["view"] = view
+    if title is not None:
+        if not isinstance(title, str) or len(title) > 160:
+            raise ValueError("title must be a string of at most 160 characters")
+        settings["title"] = title
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    asset = (output_dir / f"scene-{manifest['scene_id']}.svg").resolve()
-    encoded = base64.b64encode(payload).decode("ascii")
-    asset.write_text(
-        '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1">'
-        f'<metadata id="aad-scene" encoding="base64+gzip">{encoded}</metadata></svg>',
-        encoding="utf-8",
-    )
+    asset = _asset(output_dir / f"scene-{manifest['scene_id']}.svg", payload, "aad-scene")
     # Keep the complete manifest, including part names and the original scene ID.
-    config = json.dumps({"manifest": manifest, "asset": str(asset)}, ensure_ascii=True)
-    config = config.replace("<", r"\u003c").replace(">", r"\u003e").replace("&", r"\u0026")
-    html = STUB.read_text(encoding="utf-8").replace(
-        "<head>", f"<head>\n<script>window.__AAD_EMBEDDED_SCENE__ = {config};</script>", 1
-    )
+    config = _script_json({"manifest": manifest, "asset": str(asset), **settings})
+    html = viewer_path().read_text(encoding="utf-8")
+    # Bundle the runtime separately too: the full CAD library is larger than
+    # HTML-only hosts' tool-argument limit. Its scripts remain ordinary inline
+    # scripts after unpacking; no eval, external URL, or dynamic code compiler.
+    runtime = html.encode("utf-8")
+    runtime_id = hashlib.sha256(runtime).hexdigest()
+    runtime_asset = _asset(output_dir / f"viewer-{runtime_id}.svg", runtime, "aad-runtime", "base64+utf8")
+    bootstrap = r'''<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script>window.__AAD_EMBEDDED_SCENE__ = CONFIG;</script>
+</head><body><main id="aad-boot" style="min-height:510px" role="status">Loading CAD viewer…</main>
+<script>
+try {
+  const asset = RUNTIME;
+  if (!asset.startsWith("data:image/svg+xml;base64,")) throw new Error("Bundle the viewer asset before displaying this HTML");
+  const decode = (text) => Uint8Array.from(atob(text), c => c.charCodeAt(0));
+  const xml = new DOMParser().parseFromString(new TextDecoder().decode(decode(asset.split(",")[1])), "image/svg+xml");
+  const payload = xml.getElementById("aad-runtime");
+  if (!payload) throw new Error("Viewer asset has no AAD runtime");
+  const html = new TextDecoder().decode(decode(payload.textContent.trim()));
+  const app = new DOMParser().parseFromString(html, "text/html");
+  for (const style of app.querySelectorAll("style")) document.head.append(style.cloneNode(true));
+  const scripts = [...app.querySelectorAll("script")];
+  for (const script of scripts) script.remove();
+  const root = document.getElementById("aad-boot");
+  root.removeAttribute("role");
+  root.replaceChildren(...app.body.childNodes);
+  for (const source of scripts) {
+    if (source.src) throw new Error("The AAD viewer must contain only inline scripts");
+    const script = document.createElement("script");
+    if (source.type) script.type = source.type;
+    script.textContent = source.textContent;
+    document.body.append(script);
+  }
+} catch (error) { document.body.textContent = "Could not load CAD viewer: " + error.message; }
+</script></body></html>'''
+    html_bundle = bootstrap.replace("CONFIG", config, 1).replace("RUNTIME", _script_json(str(runtime_asset)), 1)
+    # A separate, genuinely standalone file also opens with no chat host/server.
+    standalone_config = _script_json({"manifest": manifest, "asset": "data:image/svg+xml;base64," + base64.b64encode(asset.read_bytes()).decode("ascii"), "controls": controls, **settings})
+    standalone = html.replace("<head>", f"<head>\n<script>window.__AAD_EMBEDDED_SCENE__ = {standalone_config};</script>", 1)
+    (output_dir / "standalone.html").write_text(standalone, encoding="utf-8")
     target = output_dir / "viewer.html"
-    target.write_text(html, encoding="utf-8")
+    target.write_text(html_bundle, encoding="utf-8")
     return target
 
 
@@ -53,5 +114,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("scene_dir", type=Path)
     parser.add_argument("output_dir", type=Path)
+    parser.add_argument("--presentation", type=json.loads, help="Agent-controlled view settings as JSON")
+    parser.add_argument("--view", choices=VIEWS)
+    parser.add_argument("--title")
+    parser.add_argument("--views", type=json.loads, help="Named user-selectable view recipes as JSON")
+    parser.add_argument("--controls", choices=("simple", "cad"), default="simple", help="Standalone controls; chat exports always remain simple")
     args = parser.parse_args()
-    print(export_bundle(args.scene_dir, args.output_dir))
+    print(export_bundle(args.scene_dir, args.output_dir, presentation=args.presentation, view=args.view, title=args.title, views=args.views, controls=args.controls))

@@ -174,7 +174,8 @@ aad_render({ project, rev?: number,
              size?: number })                       // default 1024, max 2048
 
 aad_show({ project, rev?: number, compare_to?: number, title?: string,
-           view?: "iso"|"front"|"top"|"right" })    // the only tool with _meta.ui
+           view?: "iso"|"front"|"rear"|"left"|"right"|"top"|"bottom",
+           presentation?: ViewerPresentation, views?: NamedView[] }) // the only tool with _meta.ui
 
 aad_drawing({ project, rev?: number, sheet?: "A4"|"A3"|"A2"|"A1"|"letter"|"tabloid",
               views?: DrawingView[], dimensions?: "auto"|"none"|DimensionSpec[],
@@ -246,7 +247,8 @@ type Envelope = {
   failure?: Failure,
   artifacts?: Record<string, string>,  // aad://<project>/<rev>/<name>, plus file paths for exports
   scene?: SceneManifest,               // aad_show, aad_set_param
-  viewer?: { mode: "inline"|"window"|"none", url?: string },
+  viewer?: { mode: "inline"|"window"|"none", url?: string, view?: string,
+             title?: string, presentation?: ViewerPresentation, views?: NamedView[] },
   user_selection?: Selection[],        // picks from window mode since the last call
   next?: string[],                     // at most 3 short hints
   // Tool-specific payloads, each small and only on its own tool's result:
@@ -316,12 +318,65 @@ type SceneManifest = {
 
 ## 8. Viewer behavior
 
-The viewer only displays (`PLAN.md` D17). Picking, sliders, the Ask box and review tools are not built. `Selection`, `aad_set_param`, `aad_pick_info` and `POST /context` stay reserved so that their names and shapes don't change if the user later asks for them.
+The viewer only displays (`PLAN.md` D17). Native CAD picking and mesh measurement
+are local inspection features; model-editing sliders, Ask/review tools, and
+server selection integration are not built. `Selection`, `aad_set_param`,
+`aad_pick_info` and `POST /context` stay reserved.
+
+**User controls:** pull apart/put together, XYZ grid, reset to the agent-prepared
+view, fullscreen, and a wider Views menu beside the small title-row icons. In
+chat, CAD panels and action shortcuts stay hidden. The local CAD window retains
+the native engine's tree, visibility, clipping/caps, measurements/properties,
+selection, cameras, animation, zebra, materials, studio, and Z scale tools.
+Standalone exports can select `controls: "cad"`; HTML chat exports always use
+simple controls. No model-editing tools are called by these controls.
+
+```ts
+type ViewerPresentation = {
+  isolate?: string[]; hide?: string[]; // exact part names or leaf/group paths from scene.parts
+  style?: "shaded-edges"|"shaded"|"wireframe"|"transparent";
+  projection?: "orthographic"|"perspective";
+  section?: { planes: (({ plane: "XY"|"XZ"|"YZ" }|{ normal: [number,number,number] }) &
+                      { offset?: number, flipped?: boolean })[],
+              intersection?: boolean }; // 1–3 planes
+  explode?: boolean; grid?: boolean;
+  inside?: { hide?: string[], section?: ViewerPresentation["section"] };
+  // At least one of hide/section. Declare only for actual internal components or a cavity.
+};
+type NamedView = {
+  id: string; label: string; description?: string;
+  view?: "iso"|"front"|"rear"|"left"|"right"|"top"|"bottom";
+  presentation?: Omit<ViewerPresentation,"inside">;
+  analysis?: { quantity: string, units: string, source: string,
+               values: {part: string, value: number}[], range?: [number,number] };
+};
+```
+
+Plane offsets are signed distances from the model center in model units.
+Invalid/ambiguous part names, zero normals, and non-finite offsets return
+`BAD_INPUT`. Presentation changes keep the original scene ID and bytes. A viewer
+must apply new settings for the same scene without fetching its mesh again.
+Reset restores the selected recipe's part filter and section. Local windows receive
+presentation updates through the existing WebSocket result envelope.
+Each named recipe is independent of the base presentation and other recipes;
+missing fields use normal whole-model defaults. Original restores the base.
+Up to 24 recipes and 64 KiB of normalized metadata are accepted. IDs/labels are
+unique; `original`/Original are reserved. An empty list clears recipes. New
+results preserve the selected ID if it still exists. Legacy `inside` metadata
+becomes one Interior menu entry; the separate Inside button is removed.
+
+Analysis is supplied component-level scalar data, not a solver or pointwise
+field. Require quantity, units, actual source, finite unique part values, and a
+range containing all values (inferred when omitted). The viewer changes material
+colors and shows a legend; switching back restores materials without changing
+geometry. Agent skill/playbook and MCP instructions describe both interfaces,
+all native capabilities, and analysis provenance requirements.
 
 **Transport interface** (S3 defines it in TypeScript; there is one UI over three implementations):
 
 ```ts
 interface Transport {
+  readonly controls?: "simple"|"cad";
   getInitialResult(): Promise<Envelope>;
   readChunk(sceneId: string, offset: number, length: number): Promise<Chunk>;
   callTool(name: string, args: object): Promise<Envelope>;
@@ -425,6 +480,10 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 ---
 
 ## 11. Changelog
+
+- 2026-11-05: S2/S3 added optional agent-controlled viewer presentations to `aad_show` and its result, following the user’s request for simple user controls and detailed views prepared through chat.
+- 2026-11-05: S2/S3 added optional `presentation.inside` to describe a real interior view and conditionally expose an inside/outside button, at the user's request.
+- 2026-11-05: S2/S3 added `aad_show.views`, sourced component analysis display, and full native CAD controls outside chat; replaced the separate Inside button with curated Views, at the user's request.
 
 - 2026-11-04: Marked the viewer as display-only in section 8, following the user's direction in issue #35. No interface was removed.
 - 2026-11-04: S2 added optional tool-specific fields to the envelope in section 6, so that results of query, measure, inspect, history, import and library have named places.

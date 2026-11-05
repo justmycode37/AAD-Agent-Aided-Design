@@ -1,0 +1,37 @@
+html, body { background:transparent !important; overflow:visible; }
+.aad-frame { --aad-text:#e8edf4; --aad-muted:#a4adba; --aad-control:#272c35; --aad-border:#424955; --aad-stage:color-mix(in srgb,var(--background,#171717) 90%,var(--foreground,#e8e8e8) 10%); width:100%; min-width:0; color:var(--foreground,var(--aad-text)); font:14px/1.4 var(--font-sans,system-ui,sans-serif); }
+.aad-frame[data-theme=light] { --aad-text:#27313e; --aad-muted:#647080; --aad-control:#f1f3f6; --aad-border:#d9dee6; --aad-stage:color-mix(in srgb,var(--background,#fff) 92%,var(--foreground,#202020) 8%); }
+.aad-frame *, .aad-frame *::before, .aad-frame *::after { box-sizing:border-box; }
+.aad-stage { position:relative; width:100%; height:480px; overflow:hidden; border-radius:var(--radius,12px); background:var(--aad-stage); }
+.aad-cad { position:absolute; inset:0; }
+.aad-cad .tcv_cad_viewer { margin:0; background:transparent; }
+/* The CAD engine still supports agent-directed inspection, without showing
+   its toolbars, part tree, property panes, or keyboard-accessible panels. */
+.aad-frame[data-controls=simple] .aad-cad :is(.tcv_cad_toolbar,.tcv_cad_navigation,.tcv_cad_animation,.tcv_cad_tools,.tcv_status_line,.tcv_toggle_tools_wrapper,.tcv_cad_zscale,.tcv_cad_info,.tcv_cad_help,.tcv_filter_menu) { display:none !important; }
+.aad-frame[data-controls=cad] .aad-stage { height:640px; overflow:auto; }
+.aad-frame[data-controls=cad] .aad-cad { top:56px; }
+.aad-heading { position:absolute; top:12px; left:16px; z-index:200; display:flex; align-items:center; gap:10px; max-width:calc(100% - 72px); pointer-events:none; }
+.aad-toolbar { display:flex; flex-shrink:0; gap:4px; padding:0; margin:0; border:0; min-width:0; pointer-events:auto; }
+.aad-frame :is(.aad-toolbar > button,.aad-expand,.aad-view-menu button) { display:inline-flex; justify-content:center; align-items:center; flex-shrink:0; width:28px; height:28px; padding:5px; border:1px solid #fff; border-radius:7px; color:inherit; background:var(--secondary,var(--aad-control)); font:inherit; cursor:pointer; touch-action:manipulation; }
+.aad-toolbar button svg, .aad-expand svg { width:16px; height:16px; flex-shrink:0; }
+.aad-frame :is(.aad-toolbar > button,.aad-expand,.aad-view-menu button):hover { background:color-mix(in srgb,var(--secondary,var(--aad-control)) 85%,var(--foreground,var(--aad-text)) 15%); }
+.aad-toolbar button[aria-pressed=true] { background:color-mix(in srgb,var(--secondary,var(--aad-control)) 65%,var(--foreground,var(--aad-text)) 35%); }
+.aad-frame :is(.aad-toolbar > button,.aad-expand,.aad-view-menu button):focus-visible { outline:2px solid #fff; outline-offset:2px; }
+.aad-toolbar button:disabled { opacity:.45; cursor:default; }
+.aad-frame .aad-toolbar .aad-views-button { width:72px; gap:4px; font-size:11.5px; }
+.aad-view-menu { position:absolute; top:36px; left:0; width:260px; max-width:calc(100vw - 48px); max-height:320px; overflow:auto; padding:6px; border:1px solid var(--border,var(--aad-border)); border-radius:10px; background:var(--popover,var(--aad-control)); box-shadow:0 8px 24px #0004; pointer-events:auto; transform-origin:top left; }
+.aad-view-menu[inert] { pointer-events:none; }
+.aad-frame .aad-view-menu button { display:flex; flex-direction:column; align-items:flex-start; width:100%; height:auto; min-height:34px; padding:7px; border:0; background:transparent; text-align:left; }
+.aad-view-menu button[aria-checked=true] { box-shadow:inset 0 0 0 1px currentColor; }
+.aad-view-menu button small { font-size:11px; opacity:.7; }
+.aad-analysis { position:absolute; right:12px; bottom:12px; width:240px; max-width:calc(100% - 110px); padding:10px; border-radius:8px; background:var(--popover,var(--aad-control)); font-size:11px; }
+.aad-analysis-ramp { height:8px; margin:6px 0; background:linear-gradient(90deg,#315caa,#2aa89a,#e6cf53,#c84b4b); }
+.aad-analysis-range { text-align:center; }
+.aad-analysis-source { margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; opacity:.75; }
+.aad-frame .aad-expand { position:absolute; top:12px; right:12px; z-index:200; }
+.aad-caption { min-width:0; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.aad-progress { position:absolute; top:45%; left:15%; width:70%; text-align:center; pointer-events:none; }
+.aad-progress progress { display:block; width:100%; margin-top:12px; }
+.aad-hint { margin:10px 0 2px; text-align:center; color:var(--muted-foreground,var(--aad-muted)); font-size:12px; }
+.aad-error { color:var(--destructive,#ff8a80); padding:8px 0; white-space:pre-wrap; }
+.aad-frame [hidden] { display:none !important; }
