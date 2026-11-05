@@ -500,11 +500,15 @@ def op_export(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
 def op_import(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
     if Path(args["path"]).suffix.lower() in {".dxf", ".svg"}:
         drafting = importlib.import_module("aad_drafting")
-        parse = drafting.parse_dxf if args["path"].lower().endswith(".dxf") else drafting.parse_svg
-        sheet = parse(args["path"])
+        import_path = Path(args["path"])
+        parse = drafting.parse_dxf if import_path.suffix.lower() == ".dxf" else drafting.parse_svg
+        sheet = parse(import_path)
         return {"imported": {"format": Path(args["path"]).suffix[1:].lower(), "role": args.get("as", "base"),
                              "entities": len(sheet.entities), "layers": sorted(sheet.layers),
-                             "history_notice": "Imported as editable sheet entities. Load it in model.py with asset()."}}
+                             "history_notice": (
+                                 f"Imported as editable sheet entities. In a kind='2d' project, use "
+                                 f"result = asset({import_path.name!r}).to_sheet() in model.py."
+                             )}}
     importer = _required("aad.engine.fileio", "import_file", "Import")
     imported = importer(args["path"], out, name=args.get("name"), role=args.get("as", "base"))
     shape = imported.context.shape

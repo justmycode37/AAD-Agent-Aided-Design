@@ -48,6 +48,7 @@ def test_import_replaces_destination_symlink_without_following_it(project, tmp_p
     monkeypatch.setattr(handlers, "run_op", fake_op)
     result = asyncio.run(Handlers().aad_import({"project": "p", "path": str(source)}))
     assert result["structured"]["ok"]
+    assert result["structured"]["imported"]["project_kind"] == "part"
     assert outside.read_text() == "keep"
     assert not (imports / source.name).is_symlink()
     assert (imports / source.name).read_text() == "model"
