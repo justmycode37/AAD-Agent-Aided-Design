@@ -91,6 +91,27 @@ def test_description_candidates_cover_contract_without_claiming_improvement():
     assert "unmeasured" in server_instruction_candidate().casefold()
 
 
+def test_main_skill_is_served_as_the_guide_and_its_examples_build(tmp_path):
+    from aad.engine.jobs import run_build
+    from aad.engine.types import BuildRequest
+
+    entry = library("get", kind="playbook", id="aad.guide.v1")["item"]
+    assert entry["text"].startswith("# AAD guide")
+    assert "aad.guide.v1" in [item["id"] for item in library("search", kind="playbook", query="guide")["items"]]
+    blocks = [block.split("```", 1)[0] for block in entry["text"].split("```python\n")[1:]]
+    model, _selectors, assembly, gears = blocks
+
+    built = run_build(BuildRequest(source=model, job_dir=tmp_path / "job", material="steel_1018"))
+    assert built.ok, built.failure
+    assert built.metrics["solids"] == 1
+
+    namespace = {}
+    exec("from aad import *\n" + assembly, namespace)
+    assert len(namespace["result"].solids()) == 2 and namespace["result"].is_valid
+    exec("from aad import *\n" + gears, namespace)
+    assert namespace["pinion"].is_valid and not (namespace["pinion"] & namespace["wheel"])
+
+
 def test_published_core_example_builds_the_requested_geometry():
     from aad_quality.catalog import _guidance_root
     text = _guidance_root().joinpath('playbooks/core-workflow.md').read_text(encoding='utf-8')

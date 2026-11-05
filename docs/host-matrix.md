@@ -8,7 +8,7 @@ Last run 2026-11-04, macOS arm64, with the M0 stub viewer and stub tessellator. 
 |---|---|---|---|---|
 | MCPJam 2.0.9 | Pass (`aad_show`) | true | **Inline renders.** WebGL, chunked load and sha256 check all ran | [screenshot](host-matrix/mcpjam-2.0.9-inline-stub.png) |
 | T3 + Codex | Pass | true (`codex-mcp-client/0.166.0`) | Inline scene transfer and interaction confirmed; host screenshot still missing | Real scene-chunk reads arrived after `aad_show`. The user reported the model's horizontal drag behavior and requested the correction merged in #38 |
-| T3 + Claude | Pass | false (`claude-code/2.1.318`) | Not inline, as expected from `PLAN.md`. `aad_show` returns a window URL | Daemon log |
+| T3 + Claude | Pass | false (`claude-code/2.1.318`) | Not inline, as expected. `aad_show` returns a window URL | Daemon log |
 | Codex CLI (`codex exec`) | Pass, with the approval setting below | false (`codex-mcp-client/0.166.0-alpha.5.1`) | Not inline. `aad_show` returns a window URL | Daemon log and `--json` output |
 | Claude Code CLI 2.1.318 | Pass | false (`claude-code/2.1.318`) | Not inline. `aad_show` returns a window URL | Daemon log, using `--mcp-config` so no config file changed |
 | Claude Desktop | Not run | | | |

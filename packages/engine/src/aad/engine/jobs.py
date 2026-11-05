@@ -95,6 +95,7 @@ def run_build(req: BuildRequest) -> BuildResult:
         process = sandbox.popen(
             [sys.executable, "-I", "-B", "-c", _WORKER_BOOTSTRAP, str(_SOURCE_ROOT)],
             job_dir,
+            read_paths=_reference_read_paths(project_dir, request.spec),
         )
     except (sandbox.SandboxUnavailable, OSError) as exc:
         return _failed(
@@ -186,6 +187,60 @@ def _coerce_request(req: BuildRequest | Mapping[str, Any]) -> BuildRequest:
     if isinstance(req, Mapping):
         return BuildRequest(**dict(req))
     raise TypeError("req must be a BuildRequest or a mapping of its fields")
+
+
+def _reference_read_paths(project_dir: Path, spec: Mapping[str, Any]) -> tuple[Path, ...]:
+    """Grant the checker read access to only safe project-contained reference files."""
+    requirements = spec.get("requirements") if isinstance(spec, Mapping) else None
+    if not isinstance(requirements, list):
+        return ()
+    try:
+        root = Path(project_dir).resolve(strict=True)
+    except (OSError, RuntimeError, ValueError):
+        return ()
+    allowed_extensions = {".step", ".stp", ".stl", ".ply", ".obj"}
+    max_bytes = 256 * 1024 * 1024
+    read_paths: set[Path] = set()
+    for requirement in requirements:
+        if not isinstance(requirement, Mapping):
+            continue
+        body = requirement.get("matches_reference")
+        if not isinstance(body, Mapping):
+            continue
+        raw_path = body.get("path")
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            continue
+        relative = Path(raw_path)
+        if relative.is_absolute() or ".." in relative.parts:
+            continue
+        candidate = root
+        unsafe = False
+        for component in relative.parts:
+            if component in {"", "."}:
+                continue
+            candidate = candidate / component
+            try:
+                if candidate.is_symlink():
+                    unsafe = True
+                    break
+            except OSError:
+                unsafe = True
+                break
+        if unsafe:
+            continue
+        try:
+            resolved = candidate.resolve(strict=True)
+            resolved.relative_to(root)
+            info = resolved.stat()
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if (
+            resolved.is_file()
+            and resolved.suffix.lower() in allowed_extensions
+            and 0 < info.st_size <= max_bytes
+        ):
+            read_paths.add(resolved)
+    return tuple(sorted(read_paths, key=str))
 
 
 def _canonical_artifact(path: Path, job_dir: Path) -> Path | None:

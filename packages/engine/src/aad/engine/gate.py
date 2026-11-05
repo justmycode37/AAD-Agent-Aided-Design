@@ -5,10 +5,13 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass, fields
+from heapq import heappush, heapreplace
+import json
 from math import dist, floor, fsum, hypot, isfinite
 from operator import index as integer_index
 from pathlib import Path
 import tempfile
+from time import monotonic
 from typing import Any
 
 from .types import Check, ModelContext
@@ -39,6 +42,10 @@ _GEOMETRY_CHECK_IDS = (
     "mesh_watertight",
 )
 _LENGTH_TO_MM = {"mm": 1.0, "in": 25.4}
+INTERFERENCE_VOLUME_THRESHOLD_MM3 = 1e-6
+INTERFERENCE_TIME_BUDGET_S = 60.0
+INTERFERENCE_MAX_TIME_BUDGET_S = 120.0
+INTERFERENCE_MAX_REPORTED_PAIRS = 20
 
 
 def hard_checks(
@@ -113,7 +120,7 @@ def hard_checks(
     checks.append(_edge_quality_check(ctx.shape, config, unit_scale))
     checks.append(_face_quality_check(ctx.shape, config, unit_scale))
     checks.append(_step_volume_check(ctx, config, unit_scale))
-    checks.append(_mesh_watertight_check(ctx.shape, config, unit_scale))
+    checks.append(_mesh_watertight_check(ctx.shape, config, unit_scale, ctx.kind))
     return checks
 
 
@@ -267,11 +274,21 @@ def _solid_count_checks(shape: Any, kind: str) -> tuple[Check, Check | None]:
 
     count = len(solids)
     passed = count == 1 if kind == "part" else count >= 1
+    if passed:
+        message = f"The {kind} contains {count} solid(s); the body-count policy is satisfied."
+    elif kind == "part" and count > 1:
+        message = (
+            f"The part contains {count} solids, but a part project must contain exactly one solid. "
+            "Use an assembly project for a multi-solid model."
+        )
+    elif kind == "part":
+        message = "The part contains no solids; a part project must contain exactly one solid."
+    else:
+        message = f"The {kind} contains {count} solid(s); the body-count policy is not satisfied."
     count_check = _check(
         "solid_count",
         "pass" if passed else "fail",
-        f"The {kind} contains {count} solid(s); "
-        + ("the body-count policy is satisfied." if passed else "the body-count policy is not satisfied."),
+        message,
         expected=expected,
         actual=f"{count} solid(s)",
     )
@@ -289,6 +306,423 @@ def _solid_count_checks(shape: Any, kind: str) -> tuple[Check, Check | None]:
         assumptions="Multiple solids can be intentional in an assembly; count alone does not establish intent or clearance.",
     )
     return count_check, warning
+
+
+def interference_checks(
+    ctx: ModelContext,
+    *,
+    volume_threshold_mm3: float = INTERFERENCE_VOLUME_THRESHOLD_MM3,
+    time_budget_s: float = INTERFERENCE_TIME_BUDGET_S,
+) -> list[Check]:
+    """Check each potentially intersecting solid pair with an OCCT common.
+
+    Bounding boxes only discard pairs that are provably disjoint. Pairwise
+    common-volume checks use a finite wall-clock budget; pairs not reached when
+    it expires remain explicitly unchecked. A pair already being checked finishes
+    and counts, because it was fully checked. The result contains at most
+    ``INTERFERENCE_MAX_REPORTED_PAIRS`` overlap and unknown-pair details.
+    """
+    if isinstance(volume_threshold_mm3, bool) or not isinstance(volume_threshold_mm3, (int, float)):
+        return [_interference_skip(
+            "volume_threshold_mm3 must be a finite non-negative number",
+            expected="finite non-negative mm³ threshold",
+        )]
+    try:
+        threshold = float(volume_threshold_mm3)
+    except (OverflowError, ValueError):
+        return [_interference_skip(
+            "volume_threshold_mm3 must be a finite non-negative number",
+            expected="finite non-negative mm³ threshold",
+        )]
+    if not isfinite(threshold) or threshold < 0:
+        return [_interference_skip(
+            "volume_threshold_mm3 must be finite and non-negative",
+            expected="finite non-negative mm³ threshold",
+        )]
+
+    if isinstance(time_budget_s, bool) or not isinstance(time_budget_s, (int, float)):
+        return [_interference_skip(
+            "time_budget_s must be a finite non-negative number",
+            expected=f"0 to {INTERFERENCE_MAX_TIME_BUDGET_S:g} seconds",
+        )]
+    try:
+        budget = float(time_budget_s)
+    except (OverflowError, ValueError):
+        return [_interference_skip(
+            "time_budget_s must be a finite non-negative number",
+            expected=f"0 to {INTERFERENCE_MAX_TIME_BUDGET_S:g} seconds",
+        )]
+    if not isfinite(budget) or budget < 0 or budget > INTERFERENCE_MAX_TIME_BUDGET_S:
+        return [_interference_skip(
+            f"time_budget_s must be finite and between 0 and {INTERFERENCE_MAX_TIME_BUDGET_S:g}",
+            expected=f"0 to {INTERFERENCE_MAX_TIME_BUDGET_S:g} seconds",
+        )]
+
+    started = monotonic()
+    unit_scale = _LENGTH_TO_MM.get(ctx.units) if isinstance(ctx.units, str) else None
+    if unit_scale is None:
+        return [_interference_skip(
+            f"ctx.units={ctx.units!r} is unsupported; interference volumes are reported in mm³",
+            expected=f"a common volume at or below {threshold:g} mm³",
+        )]
+    if ctx.shape is None:
+        return [_interference_skip("ctx.shape is None", expected=f"a common volume at or below {threshold:g} mm³")]
+
+    try:
+        solids = list(ctx.shape.solids())
+    except Exception as exc:
+        return [_interference_skip(
+            f"solid enumeration raised {_exception_text(exc)}",
+            expected=f"a common volume at or below {threshold:g} mm³",
+        )]
+    if not solids:
+        return [_interference_skip(
+            "the shape contains no solids to compare",
+            expected=f"a common volume at or below {threshold:g} mm³",
+            actual=_interference_actual(
+                threshold=threshold,
+                budget=budget,
+                solid_count=0,
+                total_pairs=0,
+                screened_pairs=0,
+                disjoint_pairs=0,
+                candidate_pairs=0,
+                boolean_attempts=0,
+                boolean_completions=0,
+                overlap_count=0,
+                unknown_count=0,
+                unchecked_pairs=0,
+                bbox_failures=0,
+                elapsed_s=monotonic() - started,
+                budget_exhausted=False,
+                overlap_count_complete=True,
+                overlaps=[],
+                unknown_pairs=[],
+            ),
+        )]
+
+    count = len(solids)
+    total_pairs = count * (count - 1) // 2
+    labels = _solid_labels(ctx.shape, solids)
+    boxes: list[tuple[tuple[float, float, float], tuple[float, float, float]] | None] = []
+    bbox_failures = 0
+    for solid in solids:
+        try:
+            boxes.append(_solid_box(solid))
+        except Exception:
+            boxes.append(None)
+            bbox_failures += 1
+
+    screened_pairs = 0
+    disjoint_pairs = 0
+    candidate_pairs = 0
+    boolean_attempts = 0
+    boolean_completions = 0
+    overlap_count = 0
+    unknown_count = 0
+    overlaps: list[tuple[float, int, int, dict[str, Any]]] = []
+    unknown_pairs: list[dict[str, Any]] = []
+    budget_exhausted = False
+    for first_index, first in enumerate(solids):
+        for second_index in range(first_index + 1, count):
+            if monotonic() - started >= budget:
+                budget_exhausted = True
+                break
+            screened_pairs += 1
+            if _boxes_disjoint(boxes[first_index], boxes[second_index]):
+                disjoint_pairs += 1
+                continue
+            candidate_pairs += 1
+            boolean_attempts += 1
+            try:
+                overlap_mm3, location_mm = _solid_intersection_mm(
+                    first, solids[second_index], unit_scale, threshold
+                )
+            except Exception as exc:
+                unknown_count += 1
+                if len(unknown_pairs) < INTERFERENCE_MAX_REPORTED_PAIRS:
+                    unknown_pairs.append({
+                        "parts": [_solid_reference(first_index, labels), _solid_reference(second_index, labels)],
+                        "status": "unknown",
+                        "reason": _exception_text(exc)[:240],
+                    })
+                continue
+            boolean_completions += 1
+            if overlap_mm3 <= threshold:
+                continue
+            overlap_count += 1
+            pair = {
+                "parts": [_solid_reference(first_index, labels), _solid_reference(second_index, labels)],
+                "overlap_volume_mm3": overlap_mm3,
+                "location_mm": list(location_mm) if location_mm is not None else None,
+            }
+            entry = (overlap_mm3, -first_index, -second_index, pair)
+            if len(overlaps) < INTERFERENCE_MAX_REPORTED_PAIRS:
+                heappush(overlaps, entry)
+            elif entry[:3] > overlaps[0][:3]:
+                heapreplace(overlaps, entry)
+        if budget_exhausted:
+            break
+
+    unchecked_pairs = total_pairs - screened_pairs
+    overlap_count_complete = not budget_exhausted and unknown_count == 0
+    if overlap_count:
+        status = "fail"
+        count_text = str(overlap_count) if overlap_count_complete else f"at least {overlap_count}"
+        message = (
+            f"Found {count_text} solid pair(s) with common volume above {threshold:g} mm³."
+        )
+        if unknown_count or unchecked_pairs:
+            message += (
+                f" {unknown_count} pair(s) have unknown boolean results; "
+                f"{unchecked_pairs} pair(s) were unchecked."
+            )
+    elif overlap_count_complete:
+        status = "pass"
+        message = f"No solid pair overlaps above {threshold:g} mm³; all {total_pairs} pair(s) were resolved."
+    else:
+        status = "skip"
+        message = (
+            f"Interference checking is incomplete: no overlap has been confirmed, but {unknown_count} pair(s) "
+            f"have unknown boolean results and {unchecked_pairs} pair(s) were unchecked. No pass is reported."
+        )
+
+    ordered_overlaps = [entry[3] for entry in sorted(overlaps, key=lambda item: (-item[0], -item[1], -item[2]))]
+    actual = _interference_actual(
+        threshold=threshold,
+        budget=budget,
+        solid_count=count,
+        total_pairs=total_pairs,
+        screened_pairs=screened_pairs,
+        disjoint_pairs=disjoint_pairs,
+        candidate_pairs=candidate_pairs,
+        boolean_attempts=boolean_attempts,
+        boolean_completions=boolean_completions,
+        overlap_count=overlap_count,
+        unknown_count=unknown_count,
+        unchecked_pairs=unchecked_pairs,
+        bbox_failures=bbox_failures,
+        elapsed_s=monotonic() - started,
+        budget_exhausted=budget_exhausted,
+        overlap_count_complete=overlap_count_complete,
+        overlaps=ordered_overlaps,
+        unknown_pairs=unknown_pairs,
+    )
+    return [Check(
+        id="interference_pairs",
+        suite="interference",
+        level="error",
+        status=status,  # type: ignore[arg-type]
+        message=message,
+        expected=f"No solid pair has common volume above {threshold:g} mm³",
+        actual=actual,
+        assumptions=(
+            "Pairs whose axis-aligned bounding boxes are disjoint are skipped; "
+            "every remaining pair uses an OCCT common. "
+            f"Volumes at or below {threshold:g} mm³ are treated as zero-volume contact."
+        ),
+    )]
+
+
+def _interference_skip(reason: str, *, expected: str, actual: str | None = None) -> Check:
+    return Check(
+        id="interference_pairs",
+        suite="interference",
+        level="error",
+        status="skip",
+        message=f"The interference check could not prove pair clearance: {reason}.",
+        expected=expected,
+        actual=actual or reason,
+        assumptions="An unavailable or failed pair check is unknown, not a clearance pass.",
+    )
+
+
+def _interference_actual(
+    *,
+    threshold: float,
+    budget: float,
+    solid_count: int,
+    total_pairs: int,
+    screened_pairs: int,
+    disjoint_pairs: int,
+    candidate_pairs: int,
+    boolean_attempts: int,
+    boolean_completions: int,
+    overlap_count: int,
+    unknown_count: int,
+    unchecked_pairs: int,
+    bbox_failures: int,
+    elapsed_s: float,
+    budget_exhausted: bool,
+    overlap_count_complete: bool,
+    overlaps: list[dict[str, Any]],
+    unknown_pairs: list[dict[str, Any]],
+) -> str:
+    details = {
+        "volume_threshold_mm3": threshold,
+        "time_budget_s": budget,
+        "elapsed_s": round(elapsed_s, 3),
+        "solid_count": solid_count,
+        "total_solid_pairs": total_pairs,
+        "screened_pairs": screened_pairs,
+        "bbox_disjoint_pairs": disjoint_pairs,
+        "candidate_pairs": candidate_pairs,
+        "boolean_attempts": boolean_attempts,
+        "boolean_completions": boolean_completions,
+        "confirmed_overlapping_pairs": overlap_count,
+        "total_overlapping_pairs": overlap_count if overlap_count_complete else None,
+        "overlap_count_complete": overlap_count_complete,
+        "unknown_boolean_pairs": unknown_count,
+        "unchecked_pairs": unchecked_pairs,
+        "bbox_failures": bbox_failures,
+        "budget_exhausted": budget_exhausted,
+        "reported_overlaps": overlaps,
+        "reported_unknown_pairs": unknown_pairs,
+        "reported_overlaps_truncated": overlap_count > len(overlaps),
+        "reported_unknown_pairs_truncated": unknown_count > len(unknown_pairs),
+    }
+    return json.dumps(details, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
+
+
+def _shape_children(shape: Any) -> list[Any]:
+    children = getattr(shape, "children", None)
+    if callable(children):
+        children = children()
+    try:
+        return list(children) if children is not None else []
+    except TypeError:
+        return []
+
+
+def _shape_label(shape: Any) -> str | None:
+    for attribute in ("label", "name", "part_name"):
+        try:
+            value = getattr(shape, attribute, None)
+        except Exception:
+            continue
+        if isinstance(value, str) and value.strip():
+            label = value.strip()
+            return label if len(label) <= 120 else label[:117] + "..."
+    return None
+
+
+def _solid_labels(shape: Any, solids: list[Any]) -> list[str | None]:
+    direct = [_shape_label(solid) for solid in solids]
+    discovered: list[str | None] = []
+
+    def visit(item: Any) -> None:
+        children = _shape_children(item)
+        if children:
+            for child in children:
+                visit(child)
+            return
+        try:
+            nested_solids = list(item.solids())
+        except Exception:
+            return
+        if len(nested_solids) == 1:
+            discovered.append(_shape_label(item) or _shape_label(nested_solids[0]))
+        elif nested_solids:
+            discovered.extend(_shape_label(solid) for solid in nested_solids)
+
+    visit(shape)
+    if len(discovered) == len(solids):
+        return [label or discovered[index] for index, label in enumerate(direct)]
+    return direct
+
+
+def _solid_reference(index: int, labels: list[str | None]) -> dict[str, Any]:
+    reference: dict[str, Any] = {"index": index}
+    if index < len(labels) and labels[index]:
+        reference["label"] = labels[index]
+    return reference
+
+
+def _coordinates(value: Any) -> tuple[float, float, float]:
+    result = []
+    for upper, lower in (("X", "x"), ("Y", "y"), ("Z", "z")):
+        component = getattr(value, upper, None)
+        if component is None:
+            component = getattr(value, lower)
+        if callable(component):
+            component = component()
+        number = float(component)
+        if not isfinite(number):
+            raise ValueError("non-finite coordinate")
+        result.append(number)
+    return tuple(result)  # type: ignore[return-value]
+
+
+def _solid_box(solid: Any) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+    bounds = solid.bounding_box()
+    return _coordinates(bounds.min), _coordinates(bounds.max)
+
+
+def _boxes_disjoint(
+    first: tuple[tuple[float, float, float], tuple[float, float, float]] | None,
+    second: tuple[tuple[float, float, float], tuple[float, float, float]] | None,
+) -> bool:
+    if first is None or second is None:
+        return False
+    first_min, first_max = first
+    second_min, second_max = second
+    return any(
+        first_max[axis] <= second_min[axis] or second_max[axis] <= first_min[axis]
+        for axis in range(3)
+    )
+
+
+def _solid_intersection_mm(
+    first: Any,
+    second: Any,
+    unit_scale: float,
+    volume_threshold_mm3: float,
+) -> tuple[float, tuple[float, float, float] | None]:
+    from OCP.BRepAlgoAPI import BRepAlgoAPI_Common
+    from OCP.collections import List_TopoDS_Shape
+    from build123d import Shape
+
+    operation = BRepAlgoAPI_Common()
+    arguments = List_TopoDS_Shape()
+    arguments.Append(first.wrapped)
+    tools = List_TopoDS_Shape()
+    tools.Append(second.wrapped)
+    operation.SetArguments(arguments)
+    operation.SetTools(tools)
+    operation.SetRunParallel(True)
+    operation.Build()
+    if not operation.IsDone():
+        raise RuntimeError("OCCT common did not complete")
+    raw_common = operation.Shape()
+    if raw_common.IsNull():
+        raise RuntimeError("OCCT common returned a null shape")
+    common = Shape.cast(raw_common)
+    if common is None or common.is_null:
+        raise RuntimeError("OCCT common returned no shape")
+    try:
+        valid = common.is_valid
+    except Exception as exc:
+        raise RuntimeError(f"OCCT common validity check raised {_exception_text(exc)}") from exc
+    if not valid:
+        raise RuntimeError("OCCT common returned an invalid shape")
+    volume_native = float(common.volume)
+    if not isfinite(volume_native) or volume_native < 0:
+        raise ValueError("OCCT common returned a non-finite or negative volume")
+    volume_mm3 = volume_native * unit_scale**3
+    if not isfinite(volume_mm3):
+        raise ValueError("OCCT common returned a non-finite volume in mm³")
+    if volume_mm3 <= volume_threshold_mm3:
+        return volume_mm3, None
+    try:
+        center = _coordinates(common.center())
+    except Exception:
+        try:
+            minimum, maximum = _solid_box(common)
+            center = tuple((minimum[axis] + maximum[axis]) * 0.5 for axis in range(3))
+        except Exception:
+            return volume_mm3, None
+    location = tuple(value * unit_scale + 0.0 for value in center)
+    return volume_mm3, location  # type: ignore[return-value]
 
 
 def _closed_shell_check(shape: Any) -> Check:
@@ -563,7 +997,35 @@ def _import_step_shape(path: Path) -> Any:
     return import_step(path)
 
 
-def _mesh_watertight_check(shape: Any, tolerance: GateTolerances, unit_scale: float) -> Check:
+def _assembly_bodies(shape: Any) -> list[Any] | None:
+    """The solids to mesh one at a time, or None when loose topology needs the whole-shape check."""
+    solids = list(shape.solids())
+    if len(solids) < 2 or sum(len(solid.faces()) for solid in solids) != len(shape.faces()):
+        return None
+    return solids
+
+
+def _mesh_watertight_check(shape: Any, tolerance: GateTolerances, unit_scale: float, kind: str = "part") -> Check:
+    """Each assembly body must close by itself. Bodies may touch, so welding across them proves nothing."""
+    try:
+        bodies = _assembly_bodies(shape) if kind == "assembly" else None
+    except Exception as exc:
+        return _skip("mesh_watertight", f"solid enumeration raised {_exception_text(exc)}")
+    if bodies is None:
+        return _shape_watertight_check(shape, tolerance, unit_scale)
+    results = [_shape_watertight_check(body, tolerance, unit_scale) for body in bodies]
+    worst = next(
+        (result for status in ("fail", "skip") for result in results if result.status == status),
+        results[0],
+    )
+    failed = [index for index, result in enumerate(results) if result.status != "pass"]
+    worst.actual = f"bodies_checked={len(bodies)}; bodies_not_passed={len(failed)}; first_not_passed={failed[:8]}; {worst.actual}"
+    if worst.status == "pass":
+        worst.message = f"All {len(bodies)} assembly bodies mesh to closed, consistently wound surfaces."
+    return worst
+
+
+def _shape_watertight_check(shape: Any, tolerance: GateTolerances, unit_scale: float) -> Check:
     try:
         vertices, triangles = _fresh_mesh_arrays(
             shape,

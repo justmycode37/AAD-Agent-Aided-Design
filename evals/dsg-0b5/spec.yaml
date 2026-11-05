@@ -1,0 +1,10 @@
+units: mm
+requirements:
+  - {id: all_parts_present, solids: 247}
+  - {id: overall_length, bbox: {z: {min: 1050, max: 1070}}}
+  - {id: input_shaft_1, material_at_point: {point: [0, 0, 600], expected: solid}}
+  - {id: output_shaft, material_at_point: {point: [0, -89, 420], expected: solid}}
+  - {id: gear_chamber_is_open, material_at_point: {point: [40, 40, 300], expected: void}}
+  - {id: gear_case_top_wall, material_at_point: {point: [0, 98.5, 395], expected: solid}}
+  - {id: gear_case_rear_wall, material_at_point: {point: [0, 69.5, 650], expected: solid}}
+  - {id: gear_1_input_teeth_at_root, material_at_point: {point: [0, 0, 545], expected: solid}}

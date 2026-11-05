@@ -85,6 +85,37 @@ def test_edge_classes_tell_creases_from_fillet_tangents_and_seams(tmp_path):
     assert all(edge["normal_angle_deg"] == pytest.approx(90.0, abs=1e-6) for edge in by_class["sharp"])
 
 
+def test_large_edge_report_skips_classes_but_keeps_curve_facts(monkeypatch, tmp_path):
+    import aad_render.agent_render as agent_render
+
+    class ImageBackend:
+        name = "test"
+
+        def render(self, _scene, _camera, *, width, height, style):
+            assert style == "shaded"
+            return Image.new("RGB", (width, height), (255, 255, 255))
+
+    monkeypatch.setattr(agent_render, "_MAX_EXACT_EDGE_CLASSIFICATIONS", 0)
+    monkeypatch.setattr(agent_render, "get_backend", lambda _name: ImageBackend())
+    report, _ = _inspect(
+        _ctx(Box(4, 5, 6)),
+        {"views": ["top"], "size": 128, "dimensions": "none"},
+        tmp_path,
+    )
+
+    assert report["edge_classification"] == {
+        "status": "skipped",
+        "classified_edges": 0,
+        "skipped_edges": 12,
+        "total_edges": 12,
+        "limit": 0,
+        "reason": "Exact sharp, tangent, and seam classification is omitted above the configured edge limit.",
+    }
+    assert len(report["edges"]) == 12
+    assert all({"type", "length", "start", "end"} <= edge.keys() for edge in report["edges"])
+    assert all("class" not in edge and "faces" not in edge for edge in report["edges"])
+
+
 def test_section_outline_is_exact(tmp_path):
     report, _ = _inspect(
         _ctx(_plate_with_hole()),

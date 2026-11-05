@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from aad.engine import sandbox
-from aad.engine.jobs import run_build
+from aad.engine.jobs import _reference_read_paths, run_build
 from aad.engine.types import BuildRequest
 
 
@@ -106,6 +106,43 @@ class SandboxPolicyTests(unittest.TestCase):
 
 
 class PublicBuildSandboxFailureTests(unittest.TestCase):
+    def test_build_grants_only_safe_declared_reference_asset(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            assets = root / "assets"
+            assets.mkdir()
+            reference = assets / "reference.step"
+            reference.write_text("mesh data")
+            outside = root / "outside-reference.step"
+            outside.write_text("mesh data")
+            (assets / "escape.step").symlink_to(outside)
+            spec = {
+                "requirements": [
+                    {"id": "safe", "matches_reference": {"path": "assets/reference.step", "f_score": {"min": 0.99}}},
+                    {"id": "traversal", "matches_reference": {"path": "../outside-reference.step", "f_score": {"min": 0.99}}},
+                    {"id": "symlink", "matches_reference": {"path": "assets/escape.step", "f_score": {"min": 0.99}}},
+                ]
+            }
+            self.assertEqual(_reference_read_paths(root, spec), (reference,))
+
+    def test_public_build_passes_only_valid_reference_to_sandbox(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            reference = root / "reference.obj"
+            reference.write_text("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n")
+            job = root / "job"
+            job.mkdir()
+            request = BuildRequest(
+                source="result = Box(1, 1, 1)",
+                project_dir=root,
+                job_dir=job,
+                spec={"requirements": [{"id": "ref", "matches_reference": {"path": "reference.obj", "f_score": {"min": 0.99}}}]},
+            )
+            with patch.object(sandbox, "popen", side_effect=sandbox.SandboxUnavailable("test boundary")) as launch:
+                result = run_build(request)
+            self.assertEqual(result.failure.code, "SANDBOX_DENIED")
+            self.assertEqual(launch.call_args.kwargs["read_paths"], (reference,))
+
     def test_missing_or_unsupported_boundary_returns_failure_without_popen(self) -> None:
         cases = [
             ("darwin", "macOS sandbox-exec is unavailable"),

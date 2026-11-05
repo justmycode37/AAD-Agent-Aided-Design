@@ -47,6 +47,7 @@ _FRAME_MARGIN = 1.22  # Room around the part for rulers, dimensions, triad and p
 _ISO_MARGIN = 1.12  # Isometric views carry no rulers or dimension lines.
 _ANGULAR_DEFLECTION = 0.08  # Radians between facets on curved faces.
 _PIXEL_DEFLECTION = 0.25  # Largest chord error, in pixels of a view at full image size.
+_MAX_EXACT_EDGE_CLASSIFICATIONS = 2048
 _INK = (28, 34, 41)
 _INK_SOFT = (82, 90, 99)
 _DIMENSION_INK = (22, 74, 146)
@@ -135,6 +136,7 @@ def render(ctx: Any, req: Any, out: Path) -> list[Path]:
     original_edges = list(shape.edges())
     if not original_faces:
         raise ValueError("aad_render needs a non-empty 3D shape with renderable faces")
+    classify_edges = len(original_edges) <= _MAX_EXACT_EDGE_CLASSIFICATIONS
     bounds = _shape_bounds(shape)
     diagonal = _bounds_diagonal(bounds)
     units = str(_field(ctx, "units", "model units") or "model units")
@@ -181,6 +183,7 @@ def render(ctx: Any, req: Any, out: Path) -> list[Path]:
         fine=fine,
         topology=render_topology,
         hatch_span=span,
+        classify_edges=classify_edges,
     )
     if section and not shape_faces:
         scene.section_label = section.label + " | EMPTY: no geometry on retained side"
@@ -196,7 +199,26 @@ def render(ctx: Any, req: Any, out: Path) -> list[Path]:
         report["focus"] = {"min": list(focus["box"][0]), "max": list(focus["box"][1]), "clip": focus["clip"]}
     overlay = _Overlay(dimensions=request["dimensions"])
     if topology is not None:
-        report.update(_shape_report(ctx, shape, topology, feature_face_map, feature_edge_map))
+        report.update(
+            _shape_report(
+                ctx,
+                shape,
+                topology,
+                feature_face_map,
+                feature_edge_map,
+                include_edge_classes=classify_edges,
+            )
+        )
+        report["edge_classification"] = {
+            "status": "complete" if classify_edges else "skipped",
+            "classified_edges": len(original_edges) if classify_edges else 0,
+            "skipped_edges": 0 if classify_edges else len(original_edges),
+            "total_edges": len(original_edges),
+            **({} if classify_edges else {
+                "limit": _MAX_EXACT_EDGE_CLASSIFICATIONS,
+                "reason": "Exact sharp, tangent, and seam classification is omitted above the configured edge limit.",
+            }),
+        }
         overlay.round_faces = _round_faces(report["faces"], scene)
     if section:
         report["section"] = _section_report(section, scene, shape_faces, source_face_indexes)
@@ -738,6 +760,7 @@ def _make_scene(
     fine: tuple[tuple[Vec3, Vec3], float] | None = None,
     topology: exact.Topology | None = None,
     hatch_span: float | None = None,
+    classify_edges: bool = True,
 ) -> RenderScene:
     diagonal = _bounds_diagonal(bounds)
     if tolerance is None:
@@ -807,7 +830,7 @@ def _make_scene(
         except Exception:
             anchor = points[len(points) // 2]
         role = "edge"
-        if topology is not None:
+        if topology is not None and classify_edges:
             name = exact.edge_class(wrapped, topology)[0]
             role = name if name in ("tangent", "seam") else "edge"
         scene.lines.append(
@@ -2184,6 +2207,8 @@ def _shape_report(
     topology: exact.Topology,
     feature_faces: dict[int, str],
     feature_edges: dict[int, str],
+    *,
+    include_edge_classes: bool = True,
 ) -> dict[str, Any]:
     faces = []
     for index, face in enumerate(topology.faces):
@@ -2194,7 +2219,7 @@ def _shape_report(
         faces.append(facts)
     edges = []
     for index, edge in enumerate(topology.edges):
-        facts = exact.edge_facts(edge, topology)
+        facts = exact.edge_facts(edge, topology if include_edge_classes else None)
         facts["selector"] = f"edge:{index}"
         if index in feature_edges:
             facts["feature"] = feature_edges[index]

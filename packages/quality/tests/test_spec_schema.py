@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
+from build123d import Box
 import pytest
 
 from aad_quality.schema import SpecValidationError, load_spec
@@ -25,6 +27,10 @@ def _ctx(spec):
     "requirements:\n  - id: x\n    bbox: {x: .inf}\n",
     "requirements:\n  - id: x\n    level: critical\n    solids: 1\n",
     "requirements:\n  - id: x\n    holes: {count: 2, diameter: 3, unknown: true}\n",
+    "requirements:\n  - id: x\n    interference: {volume_threshold_mm3: -1}\n",
+    "requirements:\n  - id: x\n    interference: {unknown: true}\n",
+    "requirements:\n  - id: ref\n    matches_reference: {path: assets/ref.step, f_score: {min: true}}\n",
+    "requirements:\n  - id: ref\n    matches_reference: {path: assets/ref.step, f_score: {min: 1.2}}\n",
 ])
 def test_load_spec_rejects_unsafe_or_invalid_documents(source):
     with pytest.raises(SpecValidationError):
@@ -78,6 +84,24 @@ def test_mixed_known_and_unknown_keys_cannot_pass():
     assert "unsupported field" in checks[0].actual
 
 
+def test_interference_requirement_uses_the_optional_volume_threshold():
+    ctx = _ctx({
+        "requirements": [{
+            "id": "clearance",
+            "interference": {"volume_threshold_mm3": 0.025},
+        }]
+    })
+    ctx.shape = Box(2, 2, 2)
+
+    parsed = load_spec(ctx.spec)
+    checks = spec_checks(SimpleNamespace(spec=parsed, shape=ctx.shape, units="mm"))
+
+    assert len(checks) == 1
+    assert checks[0].id == "clearance"
+    assert checks[0].status == "pass"
+    assert json.loads(checks[0].actual)["volume_threshold_mm3"] == 0.025
+
+
 def test_nonfinite_and_boolean_values_are_invalid_at_requirement_level():
     for bad_value in (True, float("nan"), float("inf")):
         checks = spec_checks(_ctx({"requirements": [{"id": "bad", "bbox": {"x": bad_value}}]}))
@@ -110,3 +134,14 @@ def test_min_max_ranges_and_exact_counts_are_accepted():
 def test_load_spec_accepts_bytes_and_dict():
     assert load_spec(b"requirements: []\n")["units"] == "mm"
     assert load_spec({"requirements": []})["units"] == "mm"
+
+
+def test_matches_reference_spec_has_finite_unitless_threshold():
+    parsed = load_spec(
+        "requirements:\n"
+        "  - id: reference_shape\n"
+        "    matches_reference:\n"
+        "      path: assets/ref.ply\n"
+        "      f_score: {min: 0.99, tau_pct_of_diagonal: 0.1}\n"
+    )
+    assert parsed["requirements"][0]["matches_reference"]["f_score"]["min"] == 0.99

@@ -22,10 +22,24 @@ _HELPER_EXPORTS = {
     "entity_shape",
     "feature",
     "face",
+    "gear_center_distance",
+    "gear_mesh_phase",
+    "gear_profile",
+    "gear_solid",
+    "helix_angle_for_center_distance",
     "meta",
     "params",
     "part",
+    "tapered_bevel_standin",
     "vertex",
+}
+_GEAR_EXPORTS = {
+    "gear_center_distance",
+    "gear_mesh_phase",
+    "gear_profile",
+    "gear_solid",
+    "helix_angle_for_center_distance",
+    "tapered_bevel_standin",
 }
 _BUILD123D_MODULE: ModuleType | None = None
 
@@ -43,6 +57,10 @@ def __getattr__(name: str) -> Any:
         # deferring the expensive import until a model actually asks for it.
         return sorted({*_HELPER_EXPORTS, *(n for n in dir(_build123d()) if not n.startswith("_"))})
     if name in _HELPER_EXPORTS:
+        if name in _GEAR_EXPORTS:
+            value = getattr(import_module(".gears", __name__), name)
+            globals()[name] = value
+            return value
         return globals()[name]
     try:
         return getattr(_build123d(), name)

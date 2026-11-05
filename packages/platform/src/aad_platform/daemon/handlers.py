@@ -30,7 +30,19 @@ if TYPE_CHECKING:
 log = logging.getLogger("aadd.handlers")
 DEFAULT_WAIT_S = 30.0
 BUILD_TIMEOUT_S = 60.0
+MAX_BUILD_TIMEOUT_S = 600.0
 NOT_BUILT_YET = "aad_build has not produced a revision yet."
+
+
+def _build_timeout(value: Any) -> float:
+    """The worker's kill limit. Large assemblies may ask for more, up to a hard ceiling."""
+    if value is None:
+        return BUILD_TIMEOUT_S
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not value > 0:
+        raise ValueError("timeout_s must be a positive number of seconds.")
+    if value > MAX_BUILD_TIMEOUT_S:
+        raise ValueError(f"timeout_s is over the {MAX_BUILD_TIMEOUT_S:g} second limit.")
+    return float(value)
 
 
 def reply(envelope: dict[str, Any], images: list[dict[str, str]] | None = None) -> dict[str, Any]:
@@ -247,6 +259,11 @@ class Handlers:
                     head_rev=head,
                 )
             )
+        try:
+            timeout_s = _build_timeout(params.get("timeout_s"))
+        except ValueError as exc:
+            project.discard_job(job_dir)
+            return reply(failure_envelope(project.name, "BAD_INPUT", "input", str(exc), head_rev=head))
         rev = project.next_rev()
         overrides = dict(params.get("params") or {})
         if params.get("source") is None and head is not None:
@@ -265,7 +282,7 @@ class Handlers:
             material=meta.get("material"),
             process=meta.get("process"),
             preview=bool(params.get("preview")),
-            timeout_s=BUILD_TIMEOUT_S,
+            timeout_s=timeout_s,
         )
         if not result.get("ok"):
             envelope = failure_envelope(
@@ -871,7 +888,10 @@ class Handlers:
                 message = f"Not implemented in this install. {message}"
             return reply(failure_envelope("", "BAD_INPUT" if failure.get("code") == "NOT_READY" else failure.get("code", "RUNTIME_ERROR"), failure.get("phase", "runtime"), message))
         data = result["library"]
-        return {"structured": {"ok": True, "project": "", "status": "draft", "summary": "Library result.", "library": data}, "text": json.dumps(data, default=str)[:6000]}
+        item = data.get("item") if isinstance(data, dict) else None
+        # A fetched guide must reach the model whole, including hosts that only pass on the text.
+        text = item["text"] if isinstance(item, dict) and isinstance(item.get("text"), str) else json.dumps(data, default=str)[:6000]
+        return {"structured": {"ok": True, "project": "", "status": "draft", "summary": "Library result.", "library": data}, "text": text}
 
     async def aad_set_param(self, params: dict[str, Any]) -> dict[str, Any]:
         build = await self.aad_build(

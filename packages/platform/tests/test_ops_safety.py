@@ -137,3 +137,33 @@ def test_duplicate_yaml_cannot_create_or_advance_project(project):
     result = asyncio.run(handler.aad_build({"project": "p", "source": "result = None", "spec": duplicate}))
     assert result["structured"]["failure"]["code"] == "BAD_INPUT"
     assert project.head_rev is None
+
+
+def test_build_timeout_defaults_and_accepts_a_bounded_value():
+    assert handlers._build_timeout(None) == handlers.BUILD_TIMEOUT_S
+    assert handlers._build_timeout(240) == 240.0
+    assert handlers._build_timeout(handlers.MAX_BUILD_TIMEOUT_S) == handlers.MAX_BUILD_TIMEOUT_S
+
+
+@pytest.mark.parametrize("value", [0, -1, True, "90", float("nan"), float("inf"), handlers.MAX_BUILD_TIMEOUT_S + 1, 10**1000])
+def test_build_timeout_refuses_values_outside_its_limit(value):
+    with pytest.raises(ValueError, match="timeout_s"):
+        handlers._build_timeout(value)
+
+
+def test_empty_suites_still_allow_the_spec_reference(tmp_path):
+    from types import SimpleNamespace
+
+    from aad_platform.daemon import ops_client
+
+    (tmp_path / "imports").mkdir()
+    reference = tmp_path / "imports" / "ref.step"
+    reference.write_text("data")
+    rev_dir = tmp_path / ".aad" / "revs" / "000001"
+    rev_dir.mkdir(parents=True)
+    (rev_dir / "spec.yaml").write_text(
+        "requirements:\n  - {id: r, matches_reference: {path: imports/ref.step, f_score: {min: 0.5}}}\n"
+    )
+    project = SimpleNamespace(path=tmp_path)
+    assert ops_client._spec_reference_reads(project, 1, {"suites": []}) == [str(reference.resolve())]
+    assert ops_client._spec_reference_reads(project, 1, {"suites": ["hard"]}) == []

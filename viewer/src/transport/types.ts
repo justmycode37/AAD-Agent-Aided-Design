@@ -1,4 +1,4 @@
-// Types from CONTRACTS sections 6-8, limited to what a display-only viewer uses (PLAN D17).
+// Types from CONTRACTS sections 6-8, limited to what a display-only viewer uses.
 
 export type Units = "mm" | "in";
 export type Status = "failed" | "draft" | "verified" | "running";

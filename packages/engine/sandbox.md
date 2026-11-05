@@ -23,9 +23,15 @@ required. This integration does not add a warm pool or memory budgets.
 
 Model source must not do I/O (`CONTRACTS.md` section 3). Runtime reads and
 job-local worker output are allowed by the OS policy, but `project_dir` does
-not grant project-file access. A staged `asset(...)` API remains required and
-is not implemented here. S2's trusted post-build operations must also adopt
-this launcher under [issue #21](https://github.com/justmycode37/AAD-Agent-Aided-Design/issues/21);
+not grant general project-file access. For a `matches_reference` requirement,
+the trusted parent resolves only the declared supported-format file, rejects
+parent traversal and symlinks, and adds that exact file to the read-only
+allowlist. The model and checker still share one process, so this grant does
+not hide the reference from model code; the geometric-only honesty rule still
+requires that the reference was not traced into the model. A staged `asset(...)`
+API remains required for general project assets and is not implemented here.
+S2's trusted post-build operations must also adopt this launcher under
+[issue #21](https://github.com/justmycode37/AAD-Agent-Aided-Design/issues/21);
 the public model runner does not protect those separate processes.
 
 ## macOS protection exercised here

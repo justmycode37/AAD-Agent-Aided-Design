@@ -328,13 +328,13 @@ def _eval_clearance(req_id: str, level: str, req: dict[str, Any], unit: str, fac
         path=("requirements", req_id, "clearance"),
     )
     try:
-        actual_mm = geometry.step_asset_distance_mm(_shape_or_skip(ctx),getattr(ctx,'project_dir',None),body['with'],factor)
+        actual_mm = geometry.step_asset_distance_mm(_shape_or_skip(ctx), getattr(ctx, "project_dir", None), body["with"], factor)
     except geometry.GeometryOverlap as exc:
-        return _check(req_id,level=level,status=_comparison_status(False,level),
-            message='Overlapping solids do not satisfy a clearance requirement.',
+        return _check(req_id, level=level, status=_comparison_status(False, level),
+            message="Overlapping solids do not satisfy a clearance requirement.",
             expected=f"against {body['with']}: {_range_text(expected_range)} with no solid overlap",
-            actual=f'solid intersection volume {_text_number(exc.volume_mm3)} mm³',
-            fix_hint='Remove the solid overlap and rerun the clearance measurement.',
+            actual=f"solid intersection volume {_text_number(exc.volume_mm3)} mm³",
+            fix_hint="Remove the solid overlap and rerun the clearance measurement.",
             selector=f"model versus project asset {body['with']}")
     matches = _within(actual_mm, expected_range)
     return _check(
@@ -346,6 +346,79 @@ def _eval_clearance(req_id: str, level: str, req: dict[str, Any], unit: str, fac
         actual=f"minimum B-rep distance {_actual_value(actual_mm, power=1, unit=unit)}",
         fix_hint="Move the model or STEP asset to provide the specified clearance, and keep the reference asset inside the project.",
         selector=f"model versus project asset {body['with']}",
+    )
+
+
+def _eval_matches_reference(req_id: str, level: str, req: dict[str, Any], unit: str, ctx: Any) -> Any:
+    from .compare import ComparisonError, compare_shape_to_reference, resolve_project_reference
+
+    body = req["matches_reference"]
+    score_request = body["f_score"]
+    minimum = float(score_request["min"])
+    tau_pct = float(score_request.get("tau_pct_of_diagonal", 0.1))
+    expected = f"F@{_text_number(tau_pct)}% of reference bbox diagonal ≥ {_text_number(minimum)}"
+    path = body["path"]
+    try:
+        reference_path = resolve_project_reference(getattr(ctx, "project_dir", None), path)
+        result = compare_shape_to_reference(
+            _shape_or_skip(ctx),
+            reference_path,
+            model_units=getattr(ctx, "units", None),
+            reference_units=unit,
+            tau_pct=tau_pct,
+            seed=7,
+            time_budget_s=45.0,
+            compute_iou=False,
+        )
+    except ComparisonError as exc:
+        return _check(
+            req_id,
+            level=level,
+            status="skip",
+            message=f"Reference comparison {req_id!r} could not be completed: {exc}.",
+            expected=expected,
+            actual=f"unknown (reference comparison unavailable: {exc})",
+            fix_hint="Use a readable project-contained STEP, STL, PLY, or OBJ reference and rerun the check within its time budget.",
+            selector=f"model surface versus project reference {path}",
+            assumptions="Proper rigid registration only (determinant +1); no scaling or mirroring. A high score measures geometric closeness only.",
+        )
+
+    key = f"F@{tau_pct:g}%D"
+    selected = result.get(key)
+    if not isinstance(selected, dict) or not all(
+        isinstance(selected.get(name), (int, float)) and math.isfinite(float(selected[name]))
+        for name in ("F", "precision", "recall")
+    ):
+        return _check(
+            req_id,
+            level=level,
+            status="skip",
+            message=f"Reference comparison {req_id!r} did not return finite F-score evidence.",
+            expected=expected,
+            actual="unknown (the comparison result was incomplete)",
+            fix_hint="Correct the reference input or rerun the bounded comparison.",
+            selector=f"model surface versus project reference {path}",
+        )
+    score = float(selected["F"])
+    matches = score >= minimum
+    actual = (
+        f"F@{_text_number(tau_pct)}%D {_text_number(score)}; "
+        f"precision {_text_number(float(selected['precision']))}; "
+        f"recall {_text_number(float(selected['recall']))}; "
+        f"reference diagonal {result['D_mm']} mm; "
+        f"det(R)={result['det_R']}; rotation={result['rotation']}; "
+        f"translation_mm={result['translation_mm']}"
+    )
+    return _check(
+        req_id,
+        level=level,
+        status=_comparison_status(matches, level),
+        message=f"Reference-closeness requirement {req_id!r} {'is satisfied' if matches else 'does not meet the requested F-score'}.",
+        expected=expected,
+        actual=actual,
+        fix_hint="Review the measured surface differences and confirm the reference captures the intended object.",
+        selector=f"model surface versus project reference {path}",
+        assumptions="Area-weighted samples and exact point-to-triangle distances. Proper rigid registration only (determinant +1); no scaling or mirroring. A high score measures geometric closeness only, not function.",
     )
 
 
@@ -492,6 +565,36 @@ def _eval_custom_measure(req_id: str, level: str, req: dict[str, Any], unit: str
     )
 
 
+def _eval_interference(req_id: str, level: str, req: dict[str, Any], ctx: Any) -> Any:
+    from aad.engine.gate import INTERFERENCE_VOLUME_THRESHOLD_MM3, interference_checks
+
+    settings = req["interference"]
+    threshold = settings.get("volume_threshold_mm3", INTERFERENCE_VOLUME_THRESHOLD_MM3)
+    result = interference_checks(ctx, volume_threshold_mm3=threshold)[0]
+    if result.status == "pass":
+        status = "pass"
+        message = f"Interference requirement {req_id!r} is satisfied."
+    elif result.status == "skip":
+        status = "skip"
+        message = f"Interference requirement {req_id!r} is unknown or incomplete."
+    else:
+        status = "fail" if level == "error" else "warn"
+        message = f"Interference requirement {req_id!r} found overlapping solid pairs."
+    return _check(
+        req_id,
+        level=level,
+        status=status,
+        message=message,
+        expected=result.expected or f"No solid pair has common volume above {threshold:g} mm³",
+        actual=result.actual or "unknown (the interference result was not provided)",
+        fix_hint=(
+            "Move or reshape the reported components to remove their common volume, or correct the explicit "
+            "volume_threshold_mm3 if a smaller overlap is acceptable."
+        ),
+        assumptions=result.assumptions,
+    )
+
+
 def _evaluate_one(req: dict[str, Any], index: int, doc: dict[str, Any], ctx: Any, native_factor: float | None) -> Any:
     req_id = _requirement_id(req, index)
     level = _level(req)
@@ -506,6 +609,8 @@ def _evaluate_one(req: dict[str, Any], index: int, doc: dict[str, Any], ctx: Any
         "symmetric",
         "measure",
         "material_at_point",
+        "interference",
+        "matches_reference",
     }
     known = [key for key in types if key in supported]
     if len(known) != 1:
@@ -563,6 +668,10 @@ def _evaluate_one(req: dict[str, Any], index: int, doc: dict[str, Any], ctx: Any
     if field == "material_at_point":
         spec_factor = mm_per_unit(unit)
         return _eval_material_point(req_id, level, req, unit, spec_factor, native_factor, ctx)
+    if field == "interference":
+        return _eval_interference(req_id, level, req, ctx)
+    if field == "matches_reference":
+        return _eval_matches_reference(req_id, level, req, unit, ctx)
     raise AssertionError(f"unhandled requirement type {field}")
 
 

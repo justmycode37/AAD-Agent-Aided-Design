@@ -7,9 +7,15 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from build123d import Box, Compound, Cylinder, Face, Shell, Solid, Sphere
+from build123d import Box, Compound, Cylinder, Face, Pos, Shell, Solid, Sphere
 
-from aad.engine.gate import GateTolerances, _check_mesh_arrays, _fresh_mesh_arrays, hard_checks
+from aad.engine.gate import (
+    GateTolerances,
+    _check_mesh_arrays,
+    _fresh_mesh_arrays,
+    hard_checks,
+    interference_checks,
+)
 from aad.engine.jobs import run_build
 from aad.engine.types import BuildRequest, ModelContext
 
@@ -59,6 +65,24 @@ class GeometricGateTests(unittest.TestCase):
                 self.assertIn("configured_deflection=0.1 mm", mesh.actual)
                 self.assertIn("configured_angular_deflection=0.35 rad", mesh.actual)
                 self.assertFalse(list(job_dir.glob("aad-gate-*")))
+
+    def test_touching_assembly_bodies_are_checked_one_at_a_time(self) -> None:
+        touching = Compound(children=[Box(10, 10, 10), Pos(10, 0, 0) * Box(10, 10, 10)])
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
+            assembly = check_map(hard_checks(context(touching, Path(tmp), kind="assembly")))["mesh_watertight"]
+            part = check_map(hard_checks(context(touching, Path(tmp), kind="part")))["mesh_watertight"]
+        self.assertEqual(assembly.status, "pass", assembly.actual)
+        self.assertIn("bodies_checked=2", assembly.actual)
+        self.assertEqual(part.status, "fail", part.actual)
+
+    def test_assembly_with_loose_faces_keeps_the_whole_shape_mesh_check(self) -> None:
+        loose = Shell([Pos(40, 0, 0) * Box(4, 4, 4).faces()[0]])
+        shape = Compound(children=[Box(10, 10, 10), Pos(20, 0, 0) * Box(10, 10, 10), loose])
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
+            mesh = check_map(hard_checks(context(shape, Path(tmp), kind="assembly")))["mesh_watertight"]
+        self.assertEqual(mesh.status, "fail", mesh.actual)
+        self.assertIn("boundary_edges=", mesh.actual)
+        self.assertNotIn("bodies_checked", mesh.actual)
 
     def test_open_shell_without_a_solid_is_reported_and_mesh_is_open(self) -> None:
         shape = Shell([Box(4, 4, 4).faces()[0]])
@@ -194,6 +218,8 @@ class GeometricGateTests(unittest.TestCase):
 
         self.assertEqual(part["solid_count"].status, "fail")
         self.assertEqual(part["solid_count"].expected, "exactly 1 solid for a part")
+        self.assertIn("must contain exactly one solid", part["solid_count"].message)
+        self.assertIn("Use an assembly project", part["solid_count"].message)
         self.assertEqual(assembly["solid_count"].status, "pass")
         self.assertEqual(assembly["solid_count"].actual, "2 solid(s)")
         self.assertEqual(assembly["solid_count"].expected, "at least 1 solid for an assembly")
@@ -203,6 +229,78 @@ class GeometricGateTests(unittest.TestCase):
         self.assertTrue(assembly["multiple_solids"].heuristic)
         self.assertEqual(unknown["solid_count"].status, "skip")
         self.assertEqual(unknown["solid_count"].level, "error")
+
+    def test_interference_treats_touching_boxes_as_clear(self) -> None:
+        shape = Compound(children=[Box(2, 2, 2), Box(2, 2, 2).translate((2, 0, 0))])
+        check = interference_checks(context(shape, Path("."), kind="assembly"))[0]
+
+        actual = json.loads(check.actual)
+        self.assertEqual(check.status, "pass")
+        self.assertEqual(actual["volume_threshold_mm3"], 1e-6)
+        self.assertEqual(actual["total_overlapping_pairs"], 0)
+        self.assertEqual(actual["total_solid_pairs"], 1)
+        self.assertEqual(actual["boolean_attempts"], 0)
+
+    def test_interference_reports_labeled_overlaps_volume_and_location(self) -> None:
+        left = Box(2, 2, 2)
+        left.label = "left"
+        right = Box(2, 2, 2).translate((1, 0, 0))
+        right.label = "right"
+        shape = Compound(children=[left, right])
+        check = interference_checks(context(shape, Path("."), kind="assembly"))[0]
+
+        actual = json.loads(check.actual)
+        self.assertEqual(check.status, "fail")
+        self.assertEqual(actual["total_overlapping_pairs"], 1)
+        overlap = actual["reported_overlaps"][0]
+        self.assertEqual([part["label"] for part in overlap["parts"]], ["left", "right"])
+        self.assertAlmostEqual(overlap["overlap_volume_mm3"], 4.0)
+        for actual_coordinate, expected_coordinate in zip(overlap["location_mm"], (0.5, 0.0, 0.0)):
+            self.assertAlmostEqual(actual_coordinate, expected_coordinate, places=9)
+
+    def test_interference_recognizes_clear_nested_parts(self) -> None:
+        outer = Box(10, 10, 10) - Box(8, 8, 8)
+        inner = Box(6, 6, 6)
+        shape = Compound(children=[outer, inner])
+        check = interference_checks(context(shape, Path("."), kind="assembly"))[0]
+
+        actual = json.loads(check.actual)
+        self.assertEqual(check.status, "pass")
+        self.assertEqual(actual["candidate_pairs"], 1)
+        self.assertEqual(actual["boolean_completions"], 1)
+        self.assertEqual(actual["total_overlapping_pairs"], 0)
+
+    def test_interference_caps_details_but_reports_the_total(self) -> None:
+        shape = Compound(children=[Box(2, 2, 2) for _ in range(7)])
+        check = interference_checks(context(shape, Path("."), kind="assembly"))[0]
+
+        actual = json.loads(check.actual)
+        self.assertEqual(check.status, "fail")
+        self.assertEqual(actual["total_overlapping_pairs"], 21)
+        self.assertEqual(actual["confirmed_overlapping_pairs"], 21)
+        self.assertEqual(len(actual["reported_overlaps"]), 20)
+        self.assertTrue(actual["reported_overlaps_truncated"])
+
+    def test_interference_boolean_failure_is_unknown_not_a_pass(self) -> None:
+        shape = Compound(children=[Box(2, 2, 2), Box(2, 2, 2).translate((1, 0, 0))])
+        with patch("aad.engine.gate._solid_intersection_mm", side_effect=RuntimeError("forced common failure")):
+            check = interference_checks(context(shape, Path("."), kind="assembly"))[0]
+
+        actual = json.loads(check.actual)
+        self.assertEqual(check.status, "skip")
+        self.assertEqual(actual["unknown_boolean_pairs"], 1)
+        self.assertEqual(actual["reported_unknown_pairs"][0]["status"], "unknown")
+        self.assertIn("forced common failure", actual["reported_unknown_pairs"][0]["reason"])
+
+    def test_interference_exhausted_budget_is_not_a_pass(self) -> None:
+        shape = Compound(children=[Box(2, 2, 2), Box(2, 2, 2).translate((1, 0, 0))])
+        check = interference_checks(context(shape, Path("."), kind="assembly"), time_budget_s=0)[0]
+
+        actual = json.loads(check.actual)
+        self.assertEqual(check.status, "skip")
+        self.assertTrue(actual["budget_exhausted"])
+        self.assertEqual(actual["unchecked_pairs"], 1)
+        self.assertIsNone(actual["total_overlapping_pairs"])
 
     def test_nested_assemblies_use_native_solid_volumes_in_gate_and_metrics(self) -> None:
         source = 'result = Compound(children=[Compound(children=[Box(2,3,4).translate((3,5,7))])])'

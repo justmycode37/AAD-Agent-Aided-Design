@@ -47,7 +47,7 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(result["viewer"], str(viewer).lower())
 
     def test_docs_and_empty_diff_keep_smoke(self):
-        for changed in ([], ["README.md", "docs/host-matrix.md", "PLAN.md", "CONTRACTS.md"]):
+        for changed in ([], ["README.md", "docs/host-matrix.md", "ARCHITECTURE.md", "CONTRACTS.md"]):
             with self.subTest(changed=changed):
                 self.assert_selection(changed, [])
 

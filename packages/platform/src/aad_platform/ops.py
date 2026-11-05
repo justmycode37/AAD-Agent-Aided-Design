@@ -189,6 +189,33 @@ def op_measure(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
     return {"measurement": _plain(measure(ctx, args["kind"], args.get("a"), args.get("b")))}
 
 
+def op_compare(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
+    if ctx.shape is None:
+        raise OpFailure("BAD_INPUT", "input", "This revision has no 3D model shape to compare.")
+    try:
+        from aad_quality.compare import ComparisonTimeout, compare_shape_to_reference
+
+        metrics = compare_shape_to_reference(
+            ctx.shape,
+            args["reference_path"],
+            model_units=ctx.units,
+            reference_units=ctx.units,
+            tau_pct=args.get("tau_pct", 0.1),
+            seed=7,
+            time_budget_s=100.0,
+            compute_iou=True,
+        )
+    except ComparisonTimeout as exc:
+        raise OpFailure("TIMEOUT", "timeout", str(exc)) from exc
+    except Exception as exc:
+        from aad_quality.compare import ComparisonError
+
+        if isinstance(exc, ComparisonError):
+            raise OpFailure("BAD_INPUT", "validate", str(exc)) from exc
+        raise
+    return {"comparison": metrics}
+
+
 def op_pick_info(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
     pick_info = _required("aad.engine.select", "pick_info", "Pick resolution")
     return {"pick": _plain(pick_info(ctx, args["part"], args["kind"], args["id"]))}
@@ -284,6 +311,7 @@ OPS: dict[str, Callable[[Any, dict[str, Any], Path], dict[str, Any]]] = {
     "check": op_check,
     "query": op_query,
     "measure": op_measure,
+    "compare": op_compare,
     "pick_info": op_pick_info,
     "topology": op_topology,
     "export": op_export,

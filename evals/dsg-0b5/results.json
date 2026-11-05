@@ -1,0 +1,72 @@
+{
+ "v1 blind": {
+  "tuning_IoU": 0.828,
+  "holdout_IoU": 0.8473,
+  "tuning_contour_F": 0.129,
+  "holdout_contour_F": 0.221,
+  "per_image_IoU": {
+   "user_photo": 0.8171,
+   "p12": 0.8143,
+   "p27": 0.8464,
+   "p20": 0.8341,
+   "atm_transmission": 0.8545,
+   "tvs_dl501": 0.8401
+  }
+ },
+ "v2": {
+  "tuning_IoU": 0.899,
+  "holdout_IoU": 0.8756,
+  "tuning_contour_F": 0.22,
+  "holdout_contour_F": 0.205,
+  "per_image_IoU": {
+   "user_photo": 0.8927,
+   "p12": 0.9051,
+   "p27": 0.9,
+   "p20": 0.8983,
+   "atm_transmission": 0.8732,
+   "tvs_dl501": 0.8779
+  }
+ },
+ "v3": {
+  "tuning_IoU": 0.9102,
+  "holdout_IoU": 0.8737,
+  "tuning_contour_F": 0.277,
+  "holdout_contour_F": 0.162,
+  "per_image_IoU": {
+   "user_photo": 0.9112,
+   "p12": 0.9259,
+   "p27": 0.9084,
+   "p20": 0.8952,
+   "atm_transmission": 0.8623,
+   "tvs_dl501": 0.885
+  }
+ },
+ "v4": {
+  "tuning_IoU": 0.9129,
+  "holdout_IoU": 0.8724,
+  "tuning_contour_F": 0.268,
+  "holdout_contour_F": 0.183,
+  "per_image_IoU": {
+   "user_photo": 0.9078,
+   "p12": 0.92,
+   "p27": 0.9113,
+   "p20": 0.9124,
+   "atm_transmission": 0.8604,
+   "tvs_dl501": 0.8845
+  }
+ },
+ "v5 final": {
+  "tuning_IoU": 0.9095,
+  "holdout_IoU": 0.8681,
+  "tuning_contour_F": 0.283,
+  "holdout_contour_F": 0.185,
+  "per_image_IoU": {
+   "user_photo": 0.8967,
+   "p12": 0.9187,
+   "p27": 0.9114,
+   "p20": 0.9114,
+   "atm_transmission": 0.8623,
+   "tvs_dl501": 0.874
+  }
+ }
+}

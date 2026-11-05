@@ -9,7 +9,7 @@ These interfaces let five threads work in parallel without talking to each other
 ## 1. Repository and ownership
 
 ```
-PLAN.md, CONTRACTS.md                shared; edit only per the rule above
+ARCHITECTURE.md, CONTRACTS.md        shared; edit only per the rule above
 pyproject.toml, README.md, .github/  S2 (uv workspace root, CI)
 uv.lock                              generated; any sector may regenerate it
 docs/                                each sector's own named files
@@ -85,6 +85,12 @@ with part("bracket") as bp:
         fillet(edge(feature="plate", where="parallel_z", expect=4), radius=2.0)
 ```
 
+The wildcard modeling API also exports `gear_profile`, `gear_solid`,
+`gear_center_distance`, `helix_angle_for_center_distance`, `gear_mesh_phase`,
+and `tapered_bevel_standin`. Their angles are in degrees; gear module is the
+normal module. Geometry assumptions and limits are documented in
+`packages/engine/modeling.md`.
+
 - `params()` declares every adjustable number; overrides come from tools. A param may be a `Param(value, min, max, unit)` so that sliders get ranges.
 - `feature(name)` must be unique. It records created and modified faces and edges, source lines and dependencies.
 - `face()`, `edge()`, `vertex()` resolve semantically. `expect=n` turns a count mismatch into a `SELECTOR_AMBIGUOUS` or `SELECTOR_EMPTY` failure with candidates.
@@ -111,6 +117,8 @@ requirements:
     min_wall: 2.0
   - id: motor_clearance
     clearance: {with: assets/motor.step, min: 0.3}
+  - id: matches_reference
+    matches_reference: {path: assets/ref.step, f_score: {min: 0.99, tau_pct_of_diagonal: 0.1}}
   - id: mass_limit
     mass_g: {max: 120}
   - id: mirror_x
@@ -119,9 +127,20 @@ requirements:
     level: warn               # error (default) or warn
     measure: {kind: distance, a: "face(feature='a', where='max_z')", b: "face(feature='b', where='min_z')"}
     equals: 12 ± 0.05
+  - id: no_interference
+    interference: {volume_threshold_mm3: 1e-6}
 ```
 
+`matches_reference` compares the built model to a project-contained STEP, STL, PLY, or OBJ surface. It uses area-weighted fixed-seed samples and exact point-to-triangle distances after proper rigid registration (determinant +1; no scaling or mirroring). The default threshold is F@0.1% of the reference bbox diagonal; `f_score.min` is required and `tau_pct_of_diagonal` defaults to `0.1`. `aad compare <project> <reference> [--rev N] [--tau-pct 0.1] [--json]` is a CLI operation through the sandboxed worker, not a model-visible MCP tool.
+
 S5 owns the evaluator and may add requirement types. Unknown types return a `skip` check, never a silent pass.
+The optional `interference` requirement runs the same exact solid-pair check as
+`aad_check(suites=["interference"])`. It accepts an optional
+`volume_threshold_mm3` (default `1e-6`); a common volume must be strictly above
+that threshold to count as interference. The provider uses a 60-second default
+pair-check budget, reports at most the 20 largest overlaps plus bounded unknown
+pair details, and identifies any unchecked pairs. A boolean failure or an
+exhausted budget cannot produce a pass.
 
 ---
 
@@ -142,7 +161,8 @@ aad_build({ project, base_rev?: number,
             spec?: string,
             preview?: boolean,                     // adds a 4-up sheet image, default false
             dry_run?: boolean,                     // full build and checks, no new head
-            wait_s?: number })                     // default 30; returns status "running" with job id
+            wait_s?: number,                       // default 30; returns status "running" with job id
+            timeout_s?: number })                  // worker kill limit, default 60, max 600
 
 aad_inspect({ project, rev?: number,
               what?: "summary"|"features"|"params"|"topology"|"diff", against?: number })
@@ -223,7 +243,7 @@ aad_file_read({ project, path: string, offset: number, length?: number })
 { "uri": "ui://aad/viewer", "mimeType": "text/html;profile=mcp-app", "text": "<single-file html>" }
 ```
 
-Always register these. Do not gate on the host's capability advert (PLAN D9). Omit `_meta.ui.csp` so that the strict default applies.
+Always register these. Do not gate on the host's capability advert. Omit `_meta.ui.csp` so that the strict default applies.
 
 ---
 
@@ -284,7 +304,7 @@ type Failure = {
 
 **Failure codes:** `SYNTAX_ERROR`, `RUNTIME_ERROR`, `SANDBOX_DENIED`, `SELECTOR_EMPTY`, `SELECTOR_AMBIGUOUS`, `KERNEL_BOOLEAN_FAILED`, `KERNEL_FILLET_FAILED`, `KERNEL_CHAMFER_FAILED`, `KERNEL_SHELL_FAILED`, `KERNEL_SWEEP_FAILED`, `KERNEL_OTHER`, `INVALID_SOLID`, `TIMEOUT`, `OUT_OF_MEMORY`, `WORKER_CRASH`, `BASE_REV_CONFLICT`, `NOT_VERIFIED`, `BAD_INPUT`, `IMPORT_FAILED`, `EXPORT_FAILED`.
 
-**Honesty rules:** unknown stays `unknown` or is omitted. Never invent a limit, an edge name or a cause. `probes` holds only values actually tested.
+**Honesty rules:** unknown stays `unknown` or is omitted. Never invent a limit, an edge name or a cause. `probes` holds only values actually tested. A high reference F-score measures geometric closeness to that reference only; it proves nothing about function and is meaningless if the reference was traced into the model. Two scans of one object scored F@0.1%D = 0.958 with volumetric IoU = 0.925, showing that scan noise can keep the score below 0.99. Scores also depend on which surfaces each side contains, including internal parts, cast detail, and scan coverage. Closed-solid-only metrics such as IoU are reported as unavailable when closure is not established.
 
 **`verified`** means the hard gate passes, at least one requirement exists, and no `error`-level check fails. Every `error`-level requirement must also have been evaluated: an `error`-level `skip` or `warn`, a missing result, a duplicate requirement ID, a malformed spec, a non-finite measurement or an evaluator exception leaves the revision `draft`.
 
@@ -318,7 +338,7 @@ type SceneManifest = {
 
 ## 8. Viewer behavior
 
-The viewer only displays (`PLAN.md` D17). Native CAD picking and mesh measurement
+The viewer only displays. Native CAD picking and mesh measurement
 are local inspection features; model-editing sliders, Ask/review tools, and
 server selection integration are not built. `Selection`, `aad_set_param`,
 `aad_pick_info` and `POST /context` stay reserved.
@@ -464,6 +484,9 @@ only PNGs as image blocks; it includes the JSON data in structured `inspection` 
 fields, with all file paths in `artifacts`. Inspection version 1 includes B-rep face/edge facts,
 mass properties, exact section loops, image pane scales, world-to-pixel matrices, visible
 selectors, probe results and measurements. Face/edge indexes belong to the current revision.
+Exact sharp/tangent/seam edge classification and adjacent-face lists are included up to 2,048
+edges. Above that explicit limit, curve facts remain available, edge classes are omitted, and
+`inspection.edge_classification` says so; rendered edges use the general edge style.
 Camera direction points toward the viewer; probe direction points into the scene. Pixel probes
 use whole-image coordinates and view names without `.png`. Thickness is a sampled mesh search
 with B-rep refinement of its smallest candidates, not proof of a global minimum. See
@@ -481,10 +504,14 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 
 ## 11. Changelog
 
+- 2026-11-05: Replaced `PLAN.md` with `ARCHITECTURE.md` at the user's request. Scope, sector and milestone text remains in git history.
+- 2026-11-05: S5 added rigid reference-model comparison as a spec requirement and sandboxed CLI operation, with explicit geometric-only evidence limits.
+- 2026-11-05: S1/S3/S5 added an opt-in interference spec requirement with a reported mm³ threshold, bounded pair details and explicit unknowns, and documented the render edge-classification cap so large assemblies can render without dropping B-rep curve facts.
+- 2026-11-05: S1 added the first-party gear helpers to the `from aad import *` modeling API, with degree-based angles and normal module.
+- 2026-11-05: Added optional `timeout_s` to `aad_build` in section 5, because the fixed 60 second kill limit stopped a full gearbox assembly that needed about 80 seconds.
 - 2026-11-05: S2/S3 added optional agent-controlled viewer presentations to `aad_show` and its result, following the user’s request for simple user controls and detailed views prepared through chat.
 - 2026-11-05: S2/S3 added optional `presentation.inside` to describe a real interior view and conditionally expose an inside/outside button, at the user's request.
 - 2026-11-05: S2/S3 added `aad_show.views`, sourced component analysis display, and full native CAD controls outside chat; replaced the separate Inside button with curated Views, at the user's request.
-
 - 2026-11-04: Marked the viewer as display-only in section 8, following the user's direction in issue #35. No interface was removed.
 - 2026-11-04: S2 added optional tool-specific fields to the envelope in section 6, so that results of query, measure, inspect, history, import and library have named places.
 - 2026-11-04: S2 specified the window transport's routes in section 8, because S3's transport and S2's server need the same paths and shapes.
