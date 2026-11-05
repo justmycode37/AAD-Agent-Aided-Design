@@ -74,7 +74,11 @@ def make_preflight() -> IsolationPreflight:
 class MockBackend:
     origin = "live"
 
+    def __init__(self) -> None:
+        self.list_calls = 0
+
     async def list_tools(self) -> Sequence[ToolSpec]:
+        self.list_calls += 1
         return (ToolSpec(
             "aad_build",
             "Mock build tool",
@@ -200,3 +204,29 @@ def test_task_route_cannot_create_a_live_adapter_without_consent(tmp_path) -> No
             MockBackend(),
             make_preflight(),
         ))
+
+
+def test_task_route_rejects_injected_live_provider_without_consent_marker(tmp_path) -> None:
+    stages = tuple(
+        PublicStageProjection.from_task_projection(PUBLIC_TASK, stage["id"])
+        for stage in PUBLIC_TASK["stages"]
+    )
+    provider = ContinuingFakeProvider()
+    provider.origin = "live"
+    assert not hasattr(provider, "requires_spend_consent")
+    backend = MockBackend()
+
+    result = asyncio.run(run_agent_task_loop(
+        make_config(tmp_path),
+        stages,
+        backend,
+        make_preflight(),
+        provider=provider,
+    ))
+
+    assert result.completed is False
+    assert len(result.stage_results) == 1
+    assert result.stop_reason == "explicit_spend_consent_required"
+    assert result.stage_results[0].stop_reason == "explicit_spend_consent_required"
+    assert provider.complete_calls == 0
+    assert backend.list_calls == 0

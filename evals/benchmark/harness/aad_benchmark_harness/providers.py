@@ -266,7 +266,6 @@ def _require_spend_consent(spend_consent: SpendConsent | None) -> None:
 class OpenAIResponsesAdapter:
     family = "openai"
     origin = "custom"
-    requires_spend_consent = True
 
     def __init__(self, client: Any, model: str, *, spend_consent: SpendConsent):
         _require_spend_consent(spend_consent)
@@ -439,7 +438,6 @@ class OpenAIResponsesAdapter:
 class AnthropicMessagesAdapter:
     family = "anthropic"
     origin = "custom"
-    requires_spend_consent = True
 
     def __init__(self, client: Any, model: str, *, spend_consent: SpendConsent):
         _require_spend_consent(spend_consent)

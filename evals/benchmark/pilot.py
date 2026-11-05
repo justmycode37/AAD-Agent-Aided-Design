@@ -757,21 +757,14 @@ def _existing_file(path: Path | None) -> str | None:
     return None
 
 
-def _revision_for_project(home: Path, project: str, calls: Sequence[Mapping[str, Any]]) -> int | None:
+def _revision_for_project(project: str, calls: Sequence[Mapping[str, Any]]) -> int | None:
     for call in reversed(calls):
         if _project_name(call.get("project")) != project:
             continue
         revision = call.get("rev")
         if type(revision) is int:
             return revision
-    project_root = (home / "AAD" / project).resolve(strict=False)
-    try:
-        project_root.relative_to((home / "AAD").resolve(strict=False))
-        metadata = json.loads((project_root / "project.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError, TypeError):
-        return None
-    revision = metadata.get("head_rev") if isinstance(metadata, Mapping) else None
-    return revision if type(revision) is int else None
+    return None
 
 
 def _artifact_evidence(
@@ -825,11 +818,9 @@ def _artifact_evidence(
 
         relevant = [call for call in stage_calls if call.get("tool") in {"aad_new", "aad_build", "aad_history", "aad_drawing"}]
         project_candidates = [_project_name(call.get("project")) for call in relevant]
-        if not project_candidates:
-            project_candidates = [_project_name(call.get("project")) for call in calls]
         project_candidates = [value for value in project_candidates if value is not None]
         project = project_candidates[-1] if project_candidates else None
-        revision = _revision_for_project(home, project, relevant) if project else None
+        revision = _revision_for_project(project, relevant) if project else None
         revision_dir = _revision_dir(home, project, revision) if project and revision else None
 
         row: dict[str, Any] = {
@@ -1399,6 +1390,10 @@ def _public_map(value: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
     return {str(task["id"]): task for task in value["tasks"]}
 
 
+def _report_provider_name(provider_family: str, *, scripted: bool) -> str:
+    return "scripted" if scripted else provider_family
+
+
 async def run_pilot(
     args: argparse.Namespace,
     *,
@@ -1459,6 +1454,7 @@ async def run_pilot(
 
     backend_environment = preflight.backend_environment
     provider_family = "openai" if scripted else str(args.provider)
+    report_provider = _report_provider_name(provider_family, scripted=scripted)
     model = "scripted-offline-control" if scripted else str(args.model)
     arm_id = f"{provider_family}/{model}/aad-default-v1"
     if scripted:
@@ -1590,7 +1586,7 @@ async def run_pilot(
             for name, row in selection["strata"].items()
         },
         "origin": "scripted_control" if scripted else "real_agent",
-        "provider": provider_family,
+        "provider": report_provider,
         "model": model,
         "backend": "AAD MCP over stdio with real AAD daemon",
         "backend_revision": backend_revision,
@@ -1672,7 +1668,7 @@ async def run_pilot(
         "mcp_tool_catalog_sha256": catalog_sha256,
         "task_order_seed": task_order_seed,
         "origin": "scripted_control" if scripted else "real_agent",
-        "provider": provider_family,
+        "provider": report_provider,
         "model": model,
         "arm_id": arm_id,
         "expected_task_repetitions": [[task_id, 1] for task_id in selected_ids],
@@ -1742,7 +1738,7 @@ def main(argv: list[str] | None = None) -> int:
             if not args.confirm_spend:
                 print("No provider request was sent. Re-run with --confirm-spend only if this estimate and its unbounded-input limitation are acceptable.")
                 return 0
-            spend_consent = SpendConsent.from_cli_flag(args.confirm_spend)
+            spend_consent = SpendConsent._from_cli_flag(args.confirm_spend)
 
         output = _prepare_output_dir(args.output_dir)
         report = asyncio.run(run_pilot(

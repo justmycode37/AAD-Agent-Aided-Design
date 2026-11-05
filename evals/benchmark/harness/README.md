@@ -18,7 +18,7 @@ uv run --project evals/benchmark/harness python -m evals.benchmark.harness \
 
 Copy `run-config.example.json` to a host-owned config and replace every `REPLACE_...` value. The model is mandatory and is not defaulted or checked against an assumed availability list. Credentials come from the provider SDK's normal environment configuration and are never copied into the run config, trace, or CLI output.
 
-The single-stage CLI requires `--confirm-spend`. It does not print the pilot's price estimate or produce a pilot report. The shared provider factory and both provider adapter constructors reject construction without a `SpendConsent` object, so another caller cannot rely only on this CLI's argument parsing.
+The single-stage CLI requires `--confirm-spend`. It does not print the pilot's price estimate or produce a pilot report. The shared provider factory and both provider adapter constructors reject construction without a `SpendConsent` object. The loop also requires consent for injected providers unless their declared origin is explicitly `fake`, `mock`, `scripted`, or `scripted_fake`; a missing or unknown origin requires consent. `SpendConsent` uses a private factory to prevent ordinary direct construction. This is an accidental-spend guard, not authentication or a security boundary: Python callers can deliberately invoke the private factory.
 
 The parent-owned launcher should return `TrialLaunch(backend, isolation_preflight, close=...)`. The optional sync or async `close` callback is invoked by the CLI after the trial, including an ineligible preflight result. The preflight must describe the same backend revision/environment in the run config, attest successful private-read-sentinel, network-denial, outside-write, and solver-credential-absence probes, and carry a SHA-256 evidence digest. The loop performs no provider token-count or generation request until these checks pass. The launcher owns backend startup, teardown, staging only declared public assets, and production of this preflight report.
 
@@ -54,7 +54,7 @@ from evals.benchmark.harness.aad_benchmark_harness import (
 stage = PublicStageProjection.from_task_projection(public_projection, "stage-1")
 config = RunConfig.from_mapping(run_config_json)
 # confirm_spend must come from an explicit caller confirmation.
-spend_consent = SpendConsent.from_cli_flag(confirm_spend)
+spend_consent = SpendConsent._from_cli_flag(confirm_spend)
 result = await run_agent_loop(
     config,
     stage,

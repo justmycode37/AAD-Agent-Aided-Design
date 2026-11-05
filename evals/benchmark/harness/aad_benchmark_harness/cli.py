@@ -107,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
                 public_projection_path=args.public_projection,
                 stage_id=args.stage,
                 launcher_spec=args.launcher,
-                spend_consent=SpendConsent.from_cli_flag(args.confirm_spend),
+                spend_consent=SpendConsent._from_cli_flag(args.confirm_spend),
             )
         )
     except Exception as error:

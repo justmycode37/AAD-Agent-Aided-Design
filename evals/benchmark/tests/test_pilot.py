@@ -7,7 +7,15 @@ from pathlib import Path
 import pytest
 
 from evals.benchmark.audit_process import unevaluated_task_audit
-from evals.benchmark.pilot import _cost_estimate, _false_verified_task_observation, _metric_rows, main, run_pilot
+from evals.benchmark.pilot import (
+    _artifact_evidence,
+    _cost_estimate,
+    _false_verified_task_observation,
+    _metric_rows,
+    _report_provider_name,
+    main,
+    run_pilot,
+)
 from evals.benchmark.corpus.loader import load_corpus
 from evals.benchmark.oracles import CheckObservation, StageAudit, TaskAudit, evaluate_stage, evaluate_task, request_pass_counts
 from evals.benchmark.selection import load_selection
@@ -58,6 +66,11 @@ def test_cost_estimate_labels_configured_budget_and_caller_supplied_prices() -> 
         "aad_build_timeout_seconds": 120,
         "repetitions": 1,
     }
+
+
+def test_scripted_report_names_the_provider_as_scripted() -> None:
+    assert _report_provider_name("openai", scripted=True) == "scripted"
+    assert _report_provider_name("anthropic", scripted=False) == "anthropic"
 
 
 def test_daemon_temp_path_stays_short_for_long_task_homes(tmp_path) -> None:
@@ -327,6 +340,50 @@ def test_enclosure_cavity_probe_rejects_a_center_pinhole(tmp_path) -> None:
     assert cavity_reference.status == "pass"
 
 
+def test_artifact_evidence_never_borrows_a_later_stage_revision(tmp_path) -> None:
+    pytest.importorskip("build123d")
+    from build123d import export_brep
+
+    from evals.benchmark.corpus.references import build_reference
+
+    corpus, _ = load_selection()
+    task = next(task for task in corpus["tasks"] if task["id"] == "edit_enclosure_add_mounts_011")
+    home = tmp_path / "task-home"
+    project_root = home / "AAD" / "edit-project"
+    revision_dir = project_root / ".aad" / "revs" / "000002"
+    revision_dir.mkdir(parents=True)
+    brep_path = revision_dir / "part.brep"
+    assert export_brep(build_reference(task, "edit_1"), str(brep_path))
+    (project_root / "project.json").write_text(json.dumps({"head_rev": 2}), encoding="utf-8")
+
+    later_build = {
+        "stage_id": "edit_1",
+        "tool": "aad_build",
+        "project": "edit-project",
+        "rev": 2,
+        "status": "verified",
+        "ok": True,
+    }
+    initial_create_without_revision = {
+        "stage_id": "initial",
+        "tool": "aad_new",
+        "project": "edit-project",
+        "status": "ok",
+        "ok": True,
+    }
+
+    for calls in ([later_build], [initial_create_without_revision, later_build]):
+        evidence, first_builds = _artifact_evidence(task, home, calls, trial=None)
+        audit = evaluate_task(task, evidence)
+
+        assert evidence["initial"]["brep_path"] is None
+        assert evidence["edit_1"]["brep_path"] == str(brep_path.resolve())
+        assert first_builds[0]["attempted"] is False
+        assert first_builds[1]["attempted"] is True
+        assert audit.stages[0].verdict == "bad"
+        assert audit.stages[1].verdict == "indeterminate"
+
+
 @pytest.mark.parametrize(("task_id", "rotation_degrees"), [
     ("part_spoked_wheel_001", 45),
     ("part_lobe_wheel_001", 22.5),
@@ -345,6 +402,29 @@ def test_rotational_pattern_accepts_unspecified_phase(tmp_path, task_id, rotatio
     assert export_brep(rotated_shape, str(rotated_path))
 
     audit = evaluate_stage(task_id, stage, brep_path=rotated_path)
+    assert audit.verdict == "indeterminate"
+    assert all(check.status == "pass" for check in audit.checks), [
+        (check.check_id, check.status, check.reason, check.actual)
+        for check in audit.checks
+    ]
+
+
+def test_spoked_wheel_oracles_accept_unspecified_xy_translation(tmp_path) -> None:
+    pytest.importorskip("build123d")
+    from build123d import Pos, export_brep
+
+    from evals.benchmark.corpus.references import build_reference
+
+    corpus, _ = load_selection()
+    task = next(task for task in corpus["tasks"] if task["id"] == "part_spoked_wheel_001")
+    stage = task["stages"][0]
+    assert "origin" not in stage["request"].lower()
+    translated_path = tmp_path / "spoked-wheel-at-8-7.brep"
+    translated_shape = Pos(8, 7, 0) * build_reference(task, stage["id"])
+    assert export_brep(translated_shape, str(translated_path))
+
+    audit = evaluate_stage(task["id"], stage, brep_path=translated_path)
+
     assert audit.verdict == "indeterminate"
     assert all(check.status == "pass" for check in audit.checks), [
         (check.check_id, check.status, check.reason, check.actual)

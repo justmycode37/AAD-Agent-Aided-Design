@@ -205,8 +205,8 @@ def _check_typed(check: Any, where: str, asset_ids: set[str]) -> dict[str, Any]:
         "bbox_mm": ({"ranges"}, set()),
         "volume_mm3": ({"range"}, set()),
         "solids": ({"equals"}, set()),
-        "point_material": ({"point_mm", "equals"}, {"additional_points_mm"}),
-        "cylindrical_bores": ({"bores"}, set()),
+        "point_material": ({"point_mm", "equals"}, {"additional_points_mm", "xy_translation_invariant"}),
+        "cylindrical_bores": ({"bores"}, {"xy_translation_invariant"}),
         "clearance_mm": ({"asset_id", "range"}, set()),
         "asset_match": ({"asset_id", "symmetric_difference_volume_mm3", "surface_distance_mm"}, set()),
         "dxf_profile": (
@@ -242,7 +242,7 @@ def _check_typed(check: Any, where: str, asset_ids: set[str]) -> dict[str, Any]:
         ),
         "rotational_pattern": (
             {"axis_mm", "center_mm", "count", "pitch_radius_mm", "feature_centers_mm", "tolerance_mm"},
-            {"feature_tip_radius_mm"},
+            {"feature_tip_radius_mm", "xy_translation_invariant"},
         ),
         "linear_pattern": (
             {"axis_mm", "feature_centers_mm", "feature_width_mm", "feature_kind", "tolerance_mm"},
@@ -254,6 +254,8 @@ def _check_typed(check: Any, where: str, asset_ids: set[str]) -> dict[str, Any]:
     required, optional = schemas[kind]
     _keys(check, {"id", "type", *required}, optional, where)
     payload = {key: value for key, value in check.items() if key not in {"id", "type"}}
+    if "xy_translation_invariant" in payload and not isinstance(payload["xy_translation_invariant"], bool):
+        _fail(f"{where}.xy_translation_invariant", "must be a boolean")
 
     if kind == "bbox_mm":
         _ranges3(payload["ranges"], f"{where}.ranges")

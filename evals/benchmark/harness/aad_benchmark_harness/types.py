@@ -11,24 +11,28 @@ ProviderFamily = Literal["openai", "anthropic"]
 TrialOrigin = Literal["live", "mock", "custom"]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class SpendConsent:
-    """Explicit caller authorization required before a live provider adapter is created."""
+    """Accidental-spend guard passed to live provider adapters after CLI confirmation.
+
+    This is not an authentication token or a security boundary. Its private
+    factory keeps ordinary callers from constructing consent by accident.
+    """
 
     confirmed: bool
     source: str
 
-    def __post_init__(self) -> None:
-        if type(self.confirmed) is not bool or self.confirmed is not True:
-            raise ValueError("SpendConsent can only represent explicit positive confirmation")
-        if self.source != "cli:--confirm-spend":
-            raise ValueError("SpendConsent must originate from the explicit --confirm-spend flag")
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        raise TypeError("SpendConsent must be created by the private confirmation factory")
 
     @classmethod
-    def from_cli_flag(cls, confirmed: bool) -> "SpendConsent":
+    def _from_cli_flag(cls, confirmed: bool) -> "SpendConsent":
         if type(confirmed) is not bool or not confirmed:
             raise PermissionError("explicit --confirm-spend consent is required before provider use")
-        return cls(confirmed=True, source="cli:--confirm-spend")
+        consent = object.__new__(cls)
+        object.__setattr__(consent, "confirmed", True)
+        object.__setattr__(consent, "source", "cli:--confirm-spend")
+        return consent
 
 PRIVATE_PROJECTION_KEYS = {
     "oracle",

@@ -47,7 +47,7 @@ def test_official_sdk_serializes_multiturn_tool_image_and_usage(family):
         })
 
     async def exercise():
-        test_consent = SpendConsent.from_cli_flag(True)
+        test_consent = SpendConsent._from_cli_flag(True)
         transport = httpx2.MockTransport(respond)
         http_client = httpx2.AsyncClient(transport=transport)
         if family == "openai":

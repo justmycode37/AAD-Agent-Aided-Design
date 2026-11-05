@@ -3,7 +3,7 @@
   "selection_id": "s5-benchmark-pilot-20-v1",
   "seed": "aad-benchmark-pilot-v1",
   "rule": "Within each predeclared task-category stratum, rank every task by SHA-256(seed + NUL + category + NUL + task_id), ascending, and take the first fixed quota. Order the chosen tasks by SHA-256(seed + NUL + 'order' + NUL + task_id), ascending. No difficulty, oracle support, reference availability, or observed outcome is used to select tasks.",
-  "corpus_sha256": "7ef1ccdcf7cb9356705314203ad913a617c7acbfb68f0f1fae9eea621f0d5907",
+  "corpus_sha256": "cb8c452ad9eda73bfa078a62e7d7e6c0f947b13bf1e12a87c3aaf02736458f6f",
   "quotas": {
     "part": 5,
     "edit_chain": 4,

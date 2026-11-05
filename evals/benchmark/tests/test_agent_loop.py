@@ -475,7 +475,7 @@ def test_single_stage_route_cannot_create_a_live_adapter_without_consent() -> No
 def test_single_stage_route_rejects_injected_live_adapter_without_consent() -> None:
     provider = FakeProvider(())
     provider.origin = "live"
-    provider.requires_spend_consent = True
+    assert not hasattr(provider, "requires_spend_consent")
     backend = FakeBackend([safe_tool()])
     result = asyncio.run(run_agent_loop(
         make_config(),
@@ -490,6 +490,13 @@ def test_single_stage_route_rejects_injected_live_adapter_without_consent() -> N
     assert provider.count_calls == 0
     assert provider.complete_calls == 0
     assert backend.list_calls == 0
+
+
+def test_spend_consent_cannot_be_directly_constructed() -> None:
+    with pytest.raises(TypeError, match="private confirmation factory"):
+        SpendConsent(True, "cli:--confirm-spend")
+    with pytest.raises(PermissionError, match="explicit --confirm-spend"):
+        SpendConsent._from_cli_flag(False)
 
 
 def test_single_stage_cli_requires_flag_and_passes_consent_object(monkeypatch, capsys) -> None:
@@ -701,7 +708,7 @@ def test_openai_responses_adapter_uses_offline_sdk_surface_and_image_outputs() -
 
     client = Client()
     adapter = OpenAIResponsesAdapter(
-        client, "offline-mock-model", spend_consent=SpendConsent.from_cli_flag(True)
+        client, "offline-mock-model", spend_consent=SpendConsent._from_cli_flag(True)
     )
     adapter.origin = "mock"
     adapter.initialize(make_stage(), "mock instructions", [safe_tool("aad_render")])
@@ -761,7 +768,7 @@ def test_anthropic_messages_adapter_preserves_tool_result_order_and_images() -> 
 
     client = Client()
     adapter = AnthropicMessagesAdapter(
-        client, "offline-mock-model", spend_consent=SpendConsent.from_cli_flag(True)
+        client, "offline-mock-model", spend_consent=SpendConsent._from_cli_flag(True)
     )
     adapter.origin = "mock"
     adapter.initialize(make_stage(), "mock instructions", [safe_tool("aad_render")])
@@ -920,11 +927,14 @@ def test_live_labels_alone_never_authenticate_an_agent_sample():
     }), usage=make_usage())])
     backend, trace = FakeBackend([safe_tool()]), InMemoryTraceWriter()
     provider.origin = backend.origin = trace.origin = "live"
-    result = asyncio.run(run_agent_loop(make_config(), make_stage(), backend, make_preflight(), provider=provider, trace_sink=trace))
+    result = asyncio.run(run_agent_loop(
+        make_config(), make_stage(), backend, make_preflight(), provider=provider,
+        spend_consent=SpendConsent._from_cli_flag(True), trace_sink=trace,
+    ))
     assert result.provisional_eligible is True
     assert result.sample_eligible is False
     assert "host_manifest_validation_required" in result.eligibility_reasons
-    test_consent = SpendConsent.from_cli_flag(True)
+    test_consent = SpendConsent._from_cli_flag(True)
     assert OpenAIResponsesAdapter(
         object(), "mock", spend_consent=test_consent
     ).origin == "custom"

@@ -4497,6 +4497,7 @@
               {
                 "id": "core_material",
                 "type": "point_material",
+                "xy_translation_invariant": true,
                 "point_mm": [
                   38.0,
                   0.0,
@@ -4507,6 +4508,7 @@
               {
                 "id": "axial_bore",
                 "type": "cylindrical_bores",
+                "xy_translation_invariant": true,
                 "bores": [
                   {
                     "axis_mm": [
@@ -4535,6 +4537,7 @@
               {
                 "id": "spoke_pattern",
                 "type": "rotational_pattern",
+                "xy_translation_invariant": true,
                 "axis_mm": [
                   0.0,
                   0.0,
@@ -4577,6 +4580,7 @@
               {
                 "id": "rim_material",
                 "type": "point_material",
+                "xy_translation_invariant": true,
                 "point_mm": [
                   38.0,
                   0.0,

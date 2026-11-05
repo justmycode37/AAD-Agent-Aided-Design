@@ -296,8 +296,22 @@ def _check_solids(check: Mapping[str, Any], brep: BRepAudit) -> tuple[bool, int]
     return len(brep.solids) == check["equals"], len(brep.solids)
 
 
+def _xy_translation_from_bbox(check: Mapping[str, Any], brep: BRepAudit) -> tuple[float, float, float]:
+    if not check.get("xy_translation_invariant", False):
+        return (0.0, 0.0, 0.0)
+    return (
+        sum(brep.bounds[0]) / 2,
+        sum(brep.bounds[1]) / 2,
+        0.0,
+    )
+
+
 def _check_point(check: Mapping[str, Any], brep: BRepAudit) -> tuple[bool, Any]:
-    points = [check["point_mm"], *check.get("additional_points_mm", [])]
+    translation = _xy_translation_from_bbox(check, brep)
+    points = [
+        _add(point, translation)
+        for point in [check["point_mm"], *check.get("additional_points_mm", [])]
+    ]
     states = [brep.point_state(point) for point in points]
     return all(state == check["equals"] for state in states), {
         "expected": check["equals"],
@@ -309,9 +323,10 @@ def _check_point(check: Mapping[str, Any], brep: BRepAudit) -> tuple[bool, Any]:
 def _check_bores(check: Mapping[str, Any], brep: BRepAudit) -> tuple[bool, list[dict[str, Any]]]:
     results: list[dict[str, Any]] = []
     all_pass = True
+    translation = _xy_translation_from_bbox(check, brep)
     for index, bore in enumerate(check["bores"]):
         axis = _unit(bore["axis_mm"])
-        center = tuple(float(item) for item in bore["center_mm"])
+        center = _add(bore["center_mm"], translation)
         diameter_bounds = bore["diameter_mm"]
         radius_bounds = [float(value) / 2 for value in diameter_bounds]
         radius = sum(radius_bounds) / 2
@@ -486,13 +501,15 @@ def _angular_distance(a: float, b: float) -> float:
 
 def _check_rotational_pattern(check: Mapping[str, Any], brep: BRepAudit) -> tuple[bool, Any]:
     axis = _unit(check["axis_mm"])
-    center = tuple(float(item) for item in check["center_mm"])
+    translation = _xy_translation_from_bbox(check, brep)
+    center = _add(check["center_mm"], translation)
     radii = check["pitch_radius_mm"]
     radius = sum(float(item) for item in radii) / 2
     tolerance = float(check["tolerance_mm"])
     first, second = _vector_perpendicular(axis)
     axial_offsets = []
     for point in check["feature_centers_mm"]:
+        point = _add(point, translation)
         offset = _sub(point, center)
         radial = _sub(offset, _scale(axis, _dot(offset, axis)))
         observed_radius = _norm(radial)

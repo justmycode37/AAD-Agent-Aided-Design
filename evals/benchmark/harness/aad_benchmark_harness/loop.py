@@ -158,6 +158,7 @@ _FORBIDDEN_DESCRIPTION_PHRASES = (
     "local filesystem",
     "local file system",
 )
+_SPEND_CONSENT_EXEMPT_PROVIDER_ORIGINS = frozenset({"fake", "mock", "scripted", "scripted_fake"})
 _CAD_PREFIXES = (
     "aad_",
     "cad_",
@@ -577,7 +578,7 @@ async def run_agent_loop(
             return result()
         if (
             provider_adapter is not None
-            and getattr(provider_adapter, "requires_spend_consent", False)
+            and getattr(provider_adapter, "origin", None) not in _SPEND_CONSENT_EXEMPT_PROVIDER_ORIGINS
             and not isinstance(spend_consent, SpendConsent)
         ):
             state = "ineligible"
