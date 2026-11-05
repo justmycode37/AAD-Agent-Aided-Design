@@ -204,7 +204,7 @@ def _finish_phase_timings(result: BuildResult, elapsed_ms: float, *, preview_ms:
     if preview_ms > 0:
         normalized["render"] = normalized.get("render", 0.0) + preview_ms
     accounted_ms = sum(normalized.values())
-    normalized["worker_startup_and_transport"] = max(0.0, elapsed_ms - accounted_ms)
+    normalized["other"] = max(0.0, elapsed_ms - accounted_ms)
     normalized = {name: round(milliseconds, 3) for name, milliseconds in normalized.items()}
     result.metrics["build_ms"] = elapsed_ms
     result.metrics["phase_timings_ms"] = normalized

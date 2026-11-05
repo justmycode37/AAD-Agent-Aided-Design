@@ -370,10 +370,11 @@ type Failure = {
 
 Build results may include `metrics.phase_timings_ms`, with elapsed milliseconds
 for `model`, `write`, every `gate.<check-id>`, `spec`, `process`, `scene`, and
-`render`. `gate.2d` is used for 2D checks. The parent adds
-`worker_startup_and_transport` for elapsed time outside the worker phases,
-including worker launch, protocol exchange, and parent-side validation. Phases
-that do not run may be absent; skipped hard-gate checks have a zero duration.
+`render`. `gate.2d` is used for 2D checks. The parent adds `other` as the
+residual for elapsed time not accounted for by those phases. It can include
+worker launch, protocol exchange, parent-side validation, and other
+uninstrumented work; it does not attribute that time to one cause. Phases that
+do not run may be absent; skipped hard-gate checks have a zero duration.
 When total `build_ms` exceeds 20,000, the summary names the longest phase.
 `metrics.build_ms` is total wall time from worker launch through parent-side
 validation, including preview generation when requested; `phase_timings_ms`

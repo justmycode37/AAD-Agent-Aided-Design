@@ -55,7 +55,7 @@ class EngineBootstrapTests(unittest.TestCase):
                 "model", "write", "gate.brep_valid", "gate.solid_count", "gate.closed_shells",
                 "gate.edge_quality", "gate.face_quality", "gate.step_volume_drift",
                 "gate.mesh_watertight", "spec", "process", "scene", "render",
-                "worker_startup_and_transport",
+                "other",
             ):
                 self.assertIn(phase, phase_timings)
                 self.assertGreaterEqual(phase_timings[phase], 0)
@@ -80,7 +80,7 @@ class EngineBootstrapTests(unittest.TestCase):
         )
         _finish_phase_timings(result, 25_000.0)
         self.assertIn("Slowest phase: gate.mesh_watertight (22.5 s)", result.summary)
-        self.assertIn("worker_startup_and_transport", result.metrics["phase_timings_ms"])
+        self.assertIn("other", result.metrics["phase_timings_ms"])
         self.assertEqual(result.metrics["build_ms"], 25_000.0)
 
 
