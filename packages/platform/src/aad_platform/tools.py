@@ -37,6 +37,13 @@ _VIEW_SECTION = _schema({
     }},
     "intersection": {"type": "boolean", "description": "Use the clipping engine's intersection mode. Default false."},
 }, ["planes"])
+_PRESENTATION_MATERIAL = _schema({
+    "parts": _VIEW_PARTS,
+    "color": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"},
+    "metalness": {"type": "number", "minimum": 0, "maximum": 1},
+    "roughness": {"type": "number", "minimum": 0, "maximum": 1},
+    "opacity": {"type": "number", "minimum": 0, "maximum": 1},
+}, ["parts"])
 _PRESENTATION = _schema({
     "isolate": {**_VIEW_PARTS, "description": "Show only these exact names, leaf paths, or group paths."},
     "hide": _VIEW_PARTS,
@@ -47,6 +54,8 @@ _PRESENTATION = _schema({
                "anyOf": [{"required": ["hide"]}, {"required": ["section"]}],
                "description": "Legacy interior recipe. Prefer a named Interior entry in views."},
     "explode": {"type": "boolean"}, "grid": {"type": "boolean"},
+    "materials": {"type": "array", "items": _PRESENTATION_MATERIAL, "minItems": 1, "maxItems": 256},
+    "environment": _enum("studio"),
 })
 _NAMED_VIEWS = {"type": "array", "maxItems": 24, "items": _schema({
     "id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$", "description": "Unique ID; original is reserved."},

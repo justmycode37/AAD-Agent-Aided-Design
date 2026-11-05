@@ -367,6 +367,8 @@ type ViewerPresentation = {
                       { offset?: number, flipped?: boolean })[],
               intersection?: boolean }; // 1–3 planes
   explode?: boolean; grid?: boolean;
+  materials?: { parts: string[], color?: string, metalness?: number, roughness?: number, opacity?: number }[];
+  environment?: "studio";
   inside?: { hide?: string[], section?: ViewerPresentation["section"] };
   // At least one of hide/section. Declare only for actual internal components or a cavity.
 };
