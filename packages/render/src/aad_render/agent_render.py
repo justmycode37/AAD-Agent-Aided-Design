@@ -243,6 +243,8 @@ def render(ctx: Any, req: Any, out: Path) -> list[Path]:
     for view in request["views"]:
         pictures[view] = _layout(view, box, request["size"], request["camera"])
         for pane in pictures[view][1]:
+            if section and request["camera"] is None:
+                pane.camera = _face_section_camera(pane.camera, section, box, pane.width, pane.height)
             pane.camera = _outside_camera(pane.camera, scene.bounds)
 
     probes_needed = request["probes"] or request["measure"]
@@ -1166,6 +1168,27 @@ def _outside_camera(camera: CameraSpec, bounds: tuple[Vec3, Vec3]) -> CameraSpec
     distance = max(camera.distance, front + max(_bounds_diagonal(bounds) * 0.1, 1.0))
     position = tuple(camera.focal_point[i] + toward[i] * distance for i in range(3))
     return replace(camera, distance=distance, position=position)
+
+
+def _face_section_camera(
+    camera: CameraSpec,
+    section: _Section,
+    bounds: tuple[Vec3, Vec3],
+    width: int,
+    height: int,
+) -> CameraSpec:
+    """Turn a pane toward the retained side when its default view hides the cut cap."""
+    toward = _normalize(_subtract(camera.position, camera.focal_point))
+    if _dot(toward, section.normal) > 1.0e-6:
+        return camera
+    up = (0.0, 0.0, 1.0) if abs(section.normal[2]) < 0.99 else (0.0, 1.0, 0.0)
+    return _camera(
+        "section",
+        bounds,
+        width,
+        height,
+        settings={"direction": section.normal, "up": up, "target": camera.focal_point, "span": None},
+    )
 
 
 def _frames_for(backend: Any, scene: RenderScene, panes: list[_Pane], style: str, clip_box: Any) -> None:

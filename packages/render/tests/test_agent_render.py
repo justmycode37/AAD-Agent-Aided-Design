@@ -130,6 +130,25 @@ def test_section_is_capped_and_annotated_with_the_plane(tmp_path):
     assert paths[0].stat().st_size > 2_000
 
 
+def test_default_section_camera_faces_and_shows_cut_cap():
+    from aad_render.agent_render import _camera, _face_section_camera, _make_scene, _parse_section, _section_shape, _shape_bounds
+
+    shape = _bracket()
+    bounds = _shape_bounds(shape)
+    section = _parse_section({"plane": "XZ", "offset": 0}, "mm")
+    cut = _section_shape(shape, section, 100.0)
+    faces, edges = cut.faces(), cut.edges()
+    scene = _make_scene(cut, faces, edges, [None] * len(faces), [None] * len(edges), {}, {}, set(), set(), set(),
+                        bounds=_shape_bounds(cut), units="mm", section=section, tolerance=0.01, fine=None,
+                        topology=None, hatch_span=100.0, classify_edges=False)
+    assert any(face.section_cap for face in scene.faces)
+
+    default = _camera("iso", bounds, 256, 256)
+    aimed = _face_section_camera(default, section, bounds, 256, 256)
+    toward = tuple(aimed.position[i] - aimed.focal_point[i] for i in range(3))
+    assert sum(toward[i] * section.normal[i] for i in range(3)) > 0
+
+
 @pytest.mark.parametrize("style", ["shaded", "lines", "xray"])
 def test_all_orthographic_cameras_and_styles_render(tmp_path, style):
     paths = _render_or_skip(
