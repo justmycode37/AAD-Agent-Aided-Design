@@ -520,6 +520,7 @@ Camera direction points toward the viewer; probe direction points into the scene
 use whole-image coordinates and view names without `.png`. Thickness is a sampled mesh search
 with B-rep refinement of its smallest candidates, not proof of a global minimum. See
 `packages/render/README.md` for field semantics and limitations.
+By default the structured `inspection` omits `faces`, `edges` and per-image `visible_selectors`, and `labels` above 64 entries becomes a count; `inspection="full"` returns them. The artifacts always hold everything.
 
 ---
 
@@ -533,6 +534,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 
 ## 11. Changelog
 
+- 2026-11-05: S2 made the structured `aad_render` report compact by default, with `inspection="full"` for the rest, because it reached 2.6 MB on a 492-part assembly.
 - 2026-11-05: S1 added `REQUIREMENT_FAILED`, because a failed spec or process check reached agents as `RUNTIME_ERROR`, and began emitting the documented `KERNEL_*` codes from model builds.
 - 2026-11-05: S3 specified whole-part toggle selection, subtle highlighting, exact scene-scoped references, negotiated selection context and capability-gated unsent composer insertion; unsupported hosts keep local selection without a clipboard workflow, and server editing routes remain reserved.
 - 2026-11-05: Replaced `PLAN.md` with `ARCHITECTURE.md` at the user's request. Scope, sector and milestone text remains in git history.
