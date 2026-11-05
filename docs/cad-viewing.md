@@ -66,6 +66,8 @@ and analysis. The Views button is disabled when no additional recipes exist.
 The former `presentation.inside` field remains a compatibility alias for one
 Interior recipe; the dedicated Inside button is removed.
 
+`presentation.materials` supports up to 256 per-part display overrides with `parts`, `color` (`#RRGGBB`), `metalness`, `roughness`, and `opacity` (numeric values 0–1). `presentation.environment: "studio"` enables an offline reflection environment. Display settings preserve original scene bytes.
+
 Analysis colors whole components from sourced scalar values, with quantity,
 units, range, and source in the legend. It does not run a solver or display a
 pointwise finite-element field. Supply real results before offering Stress.

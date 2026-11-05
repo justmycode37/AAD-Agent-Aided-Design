@@ -156,6 +156,8 @@ stacks. Original geometry and part orientation do not change. Auto-spacing is a
 view layout inferred from bounding boxes. It is not a physical disassembly
 sequence or collision proof, and parts can still overlap in a projection.
 
+`presentation.materials` accepts up to 256 per-part `{parts, color, metalness, roughness, opacity}` overrides. Selectors resolve to exact scene paths; colors use `#RRGGBB`, scalar values range from 0 to 1. `presentation.environment: "studio"` applies a generated offline reflection environment. These settings affect display only.
+
 ## Analysis views: evidence before color
 
 Add `analysis` only when actual result data exists:

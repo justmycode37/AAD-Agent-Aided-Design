@@ -29,7 +29,7 @@ def _number(value: Any, name: str) -> float:
 
 def normalize_presentation(value: Any, parts: list[dict[str, Any]]) -> dict[str, Any]:
     """Resolve unique part names/group paths to existing leaf paths; never guess."""
-    value = _object(value, {"isolate", "hide", "style", "projection", "section", "explode", "grid", "inside", "materials"}, "presentation")
+    value = _object(value, {"isolate", "hide", "style", "projection", "section", "explode", "grid", "inside", "materials", "environment"}, "presentation")
     result: dict[str, Any] = {}
     for key in ("isolate", "hide"):
         if key not in value:
@@ -91,6 +91,10 @@ def normalize_presentation(value: Any, parts: list[dict[str, Any]]) -> dict[str,
                 raise ValueError("Each material needs at least one display property")
             normalized.append(item)
         result["materials"] = normalized
+    if "environment" in value:
+        if value["environment"] != "studio":
+            raise ValueError('environment must be "studio"')
+        result["environment"] = "studio"
     if "section" in value:
         section = _object(value["section"], {"planes", "intersection"}, "section")
         planes = section.get("planes")

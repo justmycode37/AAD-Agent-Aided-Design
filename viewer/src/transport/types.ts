@@ -31,6 +31,7 @@ export interface Presentation {
   explode?: boolean;
   grid?: boolean;
   materials?: { parts: string[]; color?: string; metalness?: number; roughness?: number; opacity?: number }[];
+  environment?: "studio";
 }
 
 export interface Analysis {
