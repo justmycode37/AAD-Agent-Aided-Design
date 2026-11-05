@@ -55,6 +55,10 @@ def test_catalog_records_have_sources_definitions_and_finite_positive_density():
         "pa12",
         "aluminum_7075",
         "aluminum_5052",
+        "asa", "tpu", "polycarbonate", "pom_c", "stainless_316_14401",
+        "steel_s235", "steel_4140", "brass_c360", "copper_c110",
+        "titanium_ti64", "fr4", "pmma", "silicone_rubber", "epdm",
+        "sla_clear_v5", "tool_steel_o1", "carbon_fiber_exel_extens",
     }
 
     for record in records:

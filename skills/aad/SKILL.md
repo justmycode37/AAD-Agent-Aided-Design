@@ -572,22 +572,38 @@ Revisions never change. A failed build leaves the head alone. Use `checkout` to 
 - **Process playbooks:** `process.fdm_pla.v1`, `process.sla.v1`, `process.cnc_3axis.v1`, `process.sheet_metal.v1`, `process.laser.v1`, `process.injection.v1`.
 - **API notes:** `api.build123d`, `api.quality.spec`, `api.quality.process`.
 
-**Materials, with sourced density in g/cm³:**
+**Materials, with source-scoped nominal density in g/cm³:**
 
-| ID | Density |
-|---|---:|
+| ID | Density | Source scope |
+|---|---:|---|
 | `abs` | 1.04 | Ensinger TECARAN ABS grey |
-| `aluminum_5052` | 2.68 | Wrought alloy, temper unspecified |
-| `aluminum_6061` | 2.7 | Wrought alloy, temper unspecified |
-| `aluminum_7075` | 2.81 | Wrought alloy, temper unspecified |
+| `aluminum_5052` | 2.68 | Wrought 5052, temper unspecified |
+| `aluminum_6061` | 2.7 | Wrought 6061, temper unspecified |
+| `aluminum_7075` | 2.81 | Wrought 7075, temper unspecified |
+| `asa` | 1.07 | Spectrum THE FILAMENT ASA |
+| `brass_c360` | 8.5 | UNS C36000 leaded free-cutting brass |
+| `carbon_fiber_exel_extens` | 1.6 | Exel EXTENS pultruded carbon fibre plate |
+| `copper_c110` | 8.89 | Kanthal C11000 ETP copper |
+| `epdm` | 1.23 | MacLellan C653 EPDM, peroxide-cured, 70 Shore A |
+| `fr4` | 1.85 | Eagle FR-4 glass epoxy laminate |
 | `pa12` | 1.02 | Ensinger TECAMID 12 natural |
-| `petg` | 1.27 | Supplier PET G datasheet |
+| `petg` | 1.27 | Amsler & Frey PET G datasheet |
 | `pla` | 1.24 | NatureWorks Ingeo 3D700 base resin |
+| `pmma` | 1.2 | Ensinger cast acrylic sheet |
+| `polycarbonate` | 1.19 | Ensinger TECANAT natural, unfilled PC |
+| `pom_c` | 1.41 | Ensinger TECAFORM AH natural, unfilled POM-C |
+| `silicone_rubber` | 1.16 | Dow SILASTIC DY 32-5107 U, as cured |
+| `sla_clear_v5` | 1.21 | Formlabs Clear Resin V5, post-cured per datasheet |
 | `stainless_304_4301` | 7.9 | Outokumpu Core 304/4301 |
+| `stainless_316_14401` | 8.0 | Outokumpu Supra 316/4401, EN 1.4401 |
 | `steel_1018` | 7.9 | AISI 1018 reference |
+| `steel_4140` | 7.85 | AISI 4140 Cr-Mo alloy steel |
+| `steel_s235` | 7.85 | S235JR / EN 1.0038 structural steel |
+| `titanium_ti64` | 4.43 | Ti-6Al-4V Grade 5 / UNS R56400 |
+| `tpu` | 1.11 | Covestro Desmopan 9380A GMP |
+| `tool_steel_o1` | 7.83 | O1 oil-hardening tool steel |
 
-Material densities are nominal fully dense bulk values, not finished printed-part densities. Search accepts common grade names, abbreviations, and aluminium/aluminum spellings. See `evals/library/material-sources.md` for the source values, retrieval dates, and limits. Other requested polymers, metals, composites, and elastomers remain absent until their density sources are checked.
-
+Search supports common names, grade abbreviations, and aluminium/aluminum spellings. These are nominal source-grade bulk densities used for fully dense solid estimates; they do not represent print infill, laminate layups beyond the named composite reference, or finished-part mass. See `evals/library/material-sources.md` for source URLs, retrieval dates, printed values, and limits.
 **Standard parts:**
 
 | ID | Parameters |
