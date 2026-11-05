@@ -234,6 +234,13 @@ def _kernel_check() -> dict[str, Any]:
     return _check("kernel", "fail", "Kernel imports in subprocesses: " + "; ".join(details) + ".", "Install the pinned build123d/OCP runtime with `uv tool upgrade aad-design`.")
 
 
+def _project_build_repair_hint(message: str) -> str:
+    lowered = message.casefold()
+    if "bubblewrap" in lowered or "bwrap" in lowered:
+        return "Install the `bubblewrap` package (it provides `bwrap`) for your Linux distribution, then retry `aad doctor`."
+    return "Install the AAD engine and kernel runtime, then retry `aad doctor`."
+
+
 def _viewer_check() -> dict[str, Any]:
     try:
         html_path = viewer.viewer_path()
@@ -403,7 +410,8 @@ async def _project_checks(root: Path) -> list[dict[str, Any]]:
                 timeout_s=130.0,
             )
         except Exception as exc:
-            checks.append(_check("project_build", "fail", f"aad_build failed: {type(exc).__name__}: {exc}", "Install the AAD engine and kernel runtime, then retry `aad doctor`."))
+            message = f"aad_build failed: {type(exc).__name__}: {exc}"
+            checks.append(_check("project_build", "fail", message, _project_build_repair_hint(message)))
             checks.extend(_skip(check_id, "project_build") for check_id in ("project_show", "scene_integrity", "render", "export"))
             return checks
         structured = _reply_structured(build_reply)
@@ -414,7 +422,15 @@ async def _project_checks(root: Path) -> list[dict[str, Any]]:
         if structured.get("status") == "running":
             build_message += " Build did not finish within wait_s=120."
             build_ok = False
-        checks.append(_check("project_build", "pass" if build_ok else "fail", build_message, None if build_ok else "Install the AAD engine and kernel runtime, then retry `aad doctor`."))
+        failure = structured.get("failure")
+        failure_message = failure.get("message", "") if isinstance(failure, dict) else ""
+        diagnostics = " ".join((build_message, str(structured.get("summary", "")), str(failure_message)))
+        checks.append(_check(
+            "project_build",
+            "pass" if build_ok else "fail",
+            build_message,
+            None if build_ok else _project_build_repair_hint(diagnostics),
+        ))
         if not build_ok:
             for dependent in ("project_show", "scene_integrity", "render", "export"):
                 checks.append(_skip(dependent, "project_build"))

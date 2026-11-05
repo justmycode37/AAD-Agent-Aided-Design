@@ -102,6 +102,7 @@ Projects live in the host's MCP root, otherwise `~/AAD/<name>`.
 | `timeout_s` | Seconds before the build is killed. Default 60, maximum 600 |
 
 A successful build makes a new revision. A failure never moves the head.
+For the first build in an empty project, omit `base_rev`; there is no head revision to edit. After it succeeds, use the returned `rev` as `base_rev` for later edits. If you pass a `base_rev` to an empty project, the error tells you to build once without it.
 
 ### aad_inspect: read a revision
 
@@ -424,7 +425,7 @@ A sliver edge is usually a coincidence between two surfaces; moving one by a sma
 | `INVALID_SOLID` | The result is not a usable solid | Check the profile |
 | `TIMEOUT`, `OUT_OF_MEMORY`, `WORKER_CRASH` | The process ended early. The head revision is safe | Raise `timeout_s`, or simplify |
 | `SANDBOX_DENIED` | The OS sandbox is unavailable or refused an action | Run `aad doctor`. There is no way to bypass it |
-| `BASE_REV_CONFLICT` | You edited an old revision | Rebase on the head |
+| `BASE_REV_CONFLICT` | `base_rev` is not the current head, or the project has no head yet | Rebase on the head; for the first build, omit `base_rev` |
 | `BAD_INPUT` | An argument is invalid, or a feature is not implemented | Read the message |
 | `NOT_VERIFIED` | Export of a draft | Pass `allow_unverified` and tell the user |
 | `IMPORT_FAILED`, `EXPORT_FAILED` | File problem | Read the message |
@@ -655,7 +656,7 @@ Every command takes `--json` for machine-readable output.
 |---|---|
 | `aad install` | Set up AAD and MCP clients. Flags: `--client ID`, `--dry-run`, `--no-prewarm`, `--no-doctor` |
 | `aad uninstall` | Remove it. Flags: `--client ID`, `--dry-run`, `--purge` (also delete AAD's home folder) |
-| `aad doctor` | Check the install and report what is wrong |
+| `aad doctor` | Check the install and report what is wrong. If a Linux build check says `bwrap` is missing, install the `bubblewrap` package |
 | `aad build <project> [file]` | Build. Flags: `--create`, `--kind`, `--param K=V`, `--preview`, `--timeout S` |
 | `aad show <project>` | Show. Flag: `--rev` |
 | `aad export <project>` | Export. Flags: `--format F`, `--rev`, `--allow-unverified` |
@@ -696,6 +697,10 @@ plate.circle("hole", (10, 10), 2.5)
 ```
 
 Sheets offer `point`, `line`, `circle`, `arc`, `polyline`, `rectangle`, `bezier`, `ellipse` and `text`, layers `cut`, `score` and `engrave`, booleans, offsets, patterns, and named constraints. See `packages/drafting/docs/`. An open cut contour fails the build. 2D specs measure `bbox` x/y, closed circular cut-contour hole counts and diameters (including expanded pattern copies), filled cut `area` and whole-sheet `measure: {kind: area}`, plus component catalog requirements. `holes.through: false` skips because a sheet has no depth evidence; nested circular contours skip because their void/island topology is ambiguous. A z bbox, selector-based measurement, and requirement types without a 2D meaning are also skipped with an explicit explanation. The default `aad_check` runs this sheet-aware suite. For laser sheets, `kerf_mm` screens contour clearance and `minimum_feature_mm` screens measured interior opening widths; the minimum width uses `max(2 × kerf_mm, minimum_feature_mm)` when both are supplied. Exact circles, rectangles and obrounds are measured; unsupported contours stay unknown. These millimeter settings are converted to the sheet's native units. Successful 2D builds remain `draft` while verification is unavailable.
+
+`aad_render` draws model text as part of the sheet. Text must be at least 2.5 mm high at the generated sheet scale; `labels="none"` and a larger PNG pixel size do not change its physical height. Increase the model text height or remove it. `aad_render` has no sheet-scale control; use a larger sheet with `aad_drawing` when making a drawing.
+
+A 2D sheet has no thickness, so `aad_export` cannot write STEP or STL from it. To export a 3D companion, create a separate `part` or `assembly` project, model each panel from its outline with an explicit material thickness (use `Box` for rectangular panels or sketch and extrude the actual outline), and place the resulting solids in an assembly when needed. Export STEP or STL from that 3D project. It is supplemental volume geometry, not an automatic conversion of the flat 2D layout.
 
 ## Python-only features
 
