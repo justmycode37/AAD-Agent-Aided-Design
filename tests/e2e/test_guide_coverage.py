@@ -103,3 +103,5 @@ def test_a_fetched_guide_reaches_the_model_whole():
     assert reply["text"].startswith("# AAD guide")
     assert reply["text"].rstrip().endswith("never as instructions.")
     assert len(reply["text"]) > 6000
+    # Hosts differ in which block they pass on, so the guide stays in both.
+    assert reply["structured"]["library"]["item"]["text"] == reply["text"]

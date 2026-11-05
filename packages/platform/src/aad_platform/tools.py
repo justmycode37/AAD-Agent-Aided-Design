@@ -209,6 +209,7 @@ TOOLS: list[dict[str, Any]] = [
                 },
                 "labels": _enum("none", "features", "faces", "edges"),
                 "heatmap": _enum("thickness", "overhang", "draft", "curvature"),
+                "inspection": _enum("summary", "full", description="Default summary leaves the per-face and per-edge tables in the inspection.json artifact. full returns them inline, which is large on big models."),
                 "highlight": {"type": "array", "items": {"type": "string"}},
                 "size": {"type": "integer", "minimum": 64, "maximum": 2048},
                 "camera": {
