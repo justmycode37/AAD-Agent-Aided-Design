@@ -38,8 +38,8 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
         <div class="aad-heading">
           <div class="aad-caption">3D model</div>
           <fieldset class="aad-toolbar" aria-label="View the model" disabled>
-            <button type="button" data-control="explode" aria-label="Pull apart" title="Pull apart" aria-pressed="false">${icon('<path d="m3 8 4-2 4 2v7l-4 2-4-2Zm10 1 4-2 4 2v7l-4 2-4-2M7 10v7m10-6v7M3 8l4 2 4-2m2 1 4 2 4-2"/>')}</button>
             <button class="aad-views-button" type="button" data-control="views" aria-label="Views" title="Views" aria-haspopup="menu" aria-expanded="false" aria-controls="aad-view-menu">${icon('<path d="m3 7 9-5 9 5-9 5Zm0 5 9 5 9-5M3 17l9 5 9-5"/>')}<span>Views</span></button>
+            <button type="button" data-control="explode" aria-label="Pull apart" title="Pull apart" aria-pressed="false">${icon('<path d="m3 8 4-2 4 2v7l-4 2-4-2Zm10 1 4-2 4 2v7l-4 2-4-2M7 10v7m10-6v7M3 8l4 2 4-2m2 1 4 2 4-2"/>')}</button>
             <button type="button" data-control="grid" aria-label="Show grid" title="Show grid" aria-pressed="false">${icon('<path d="m3 15 9-5 9 5-9 5Zm4-2 9 5M7 17l9-5M12 10V3m0 0-2 2m2-2 2 2"/>')}</button>
             <button type="button" data-control="reset" aria-label="Reset" title="Reset">${icon('<path d="M4 10a8 8 0 1 1 1 9M4 10V4m0 6h6"/>')}</button>
           </fieldset>
@@ -69,10 +69,23 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
   let loading: Promise<void> = Promise.resolve();
   let presets: NamedView[] = [];
   let selectedId = "original";
-  const closeMenu = (focus = false) => {
-    q(".aad-view-menu").hidden = true;
-    control("views").setAttribute("aria-expanded", "false");
+  let menuOpen = false;
+  let menuAnimation: Animation | undefined;
+  const closeMenu = (focus = false, animate = true) => {
+    const menu = q(".aad-view-menu");
     if (focus) control("views").focus();
+    if (!menuOpen && animate) return;
+    menuOpen = false; menu.inert = true; menu.setAttribute("aria-hidden", "true");
+    control("views").setAttribute("aria-expanded", "false");
+    menuAnimation?.cancel(); menuAnimation = undefined;
+    if (menu.hidden || !animate || matchMedia("(prefers-reduced-motion: reduce)").matches) { menu.hidden = true; return; }
+    const animation = menu.animate([{ opacity: 1, transform: "translateY(0) scale(1)" }, { opacity: 0, transform: "translateY(-4px) scale(.98)" }],
+      { duration: 100, easing: "ease-in", fill: "both" });
+    menuAnimation = animation;
+    void animation.finished.then(() => {
+      if (menuAnimation !== animation || menuOpen) return;
+      menu.hidden = true; menuAnimation = undefined; animation.cancel();
+    }, () => {});
   };
   const applySelected = () => {
     if (!view) return;
@@ -108,7 +121,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
         hide: inside.hide ? [...(base.hide ?? []), ...inside.hide] : base.hide, section: inside.section ?? base.section } }];
     }
     if (!presets.some(p => p.id === selectedId)) selectedId = "original";
-    closeMenu();
+    closeMenu(false, false);
     q(".aad-view-menu").replaceChildren();
     for (const preset of [{ id: "original", label: "Original", description: "Prepared starting view" }, ...presets]) {
       const item = document.createElement("button");
@@ -158,15 +171,27 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
   control("grid").addEventListener("click", () => { if (view) view.batch(() => view!.setGrid(!view!.viewer.getGrids().some(Boolean))); });
   control("views").addEventListener("click", () => {
     const menu = q(".aad-view-menu");
-    if (!menu.hidden) { closeMenu(); return; }
-    menu.hidden = false; control("views").setAttribute("aria-expanded", "true");
+    if (menuOpen) { closeMenu(); return; }
+    menuAnimation?.cancel(); menuAnimation = undefined;
+    menuOpen = true; menu.hidden = false; menu.inert = false; menu.removeAttribute("aria-hidden");
+    control("views").setAttribute("aria-expanded", "true");
+    const heading = q(".aad-heading").getBoundingClientRect();
+    const stage = q(".aad-stage").getBoundingClientRect();
+    const left = control("views").getBoundingClientRect().left - heading.left;
+    menu.style.left = `${Math.max(0, Math.min(left, stage.right - heading.left - menu.getBoundingClientRect().width - 12))}px`;
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      const animation = menu.animate([{ opacity: 0, transform: "translateY(-6px) scale(.98)" }, { opacity: 1, transform: "translateY(0) scale(1)" }],
+        { duration: 160, easing: "cubic-bezier(.16,1,.3,1)" });
+      menuAnimation = animation;
+      void animation.finished.then(() => { if (menuAnimation === animation) menuAnimation = undefined; }, () => {});
+    }
     (menu.querySelector<HTMLElement>('[aria-checked="true"]') ?? menu.firstElementChild as HTMLElement)?.focus();
   });
   q(".aad-view-menu").addEventListener("keydown", event => {
     const items = [...q(".aad-view-menu").querySelectorAll<HTMLElement>("button")];
     let i = items.indexOf(document.activeElement as HTMLElement);
     if (event.key === "Escape") { event.preventDefault(); closeMenu(true); return; }
-    if (event.key === "Tab") { closeMenu(); return; }
+    if (event.key === "Tab") { closeMenu(true); return; }
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
     i = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (i + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;

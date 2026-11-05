@@ -153,7 +153,13 @@ await scenario("simple-controls-and-agent-views", { scene: assembly, strictCsp: 
   await frame.getByRole("menuitemradio", { name: "Interior", exact: true }).press("Enter");
   check((await button("Views").getAttribute("title")).includes("Interior"), "view recipes support keyboard navigation and selection");
   await button("Views").click(); await frame.locator(".aad-view-menu").press("Escape");
+  await frame.locator(".aad-view-menu").waitFor({ state: "hidden" });
   check(await frame.locator(".aad-view-menu").isHidden(), "Escape dismisses Views without exposing CAD controls");
+  await button("Views").click(); await button("Views").click(); await button("Views").click();
+  await frame.getByRole("menuitemradio", { name: "Original", exact: true }).click();
+  check((await button("Views").getAttribute("title")).includes("Original"), "rapid close and reopen keeps Views usable");
+  await button("Views").press("Enter"); await frame.locator(".aad-view-menu").press("Tab");
+  check(await button("Pull apart").evaluate(e => e === document.activeElement), "Tab leaves the dropdown for the next control");
   await update({ presentation: { isolate: ["/Group/second"] }, title: "One piece" });
   await frame.waitForFunction(() => globalThis.__viewer.getState("/Group/main").every(v => v === 0));
   check(await frame.evaluate(() => globalThis.__viewer.getState("/Group/second")[0] === 1), "agent isolates a requested piece on the existing mesh");
@@ -189,11 +195,11 @@ for (const width of [320, 390]) await scenario(`mobile-layout-${width}`, { width
     const stage = document.querySelector(".aad-stage").getBoundingClientRect();
     const caption = document.querySelector('.aad-caption').getBoundingClientRect();
     const buttons = [...document.querySelectorAll('.aad-toolbar button')].filter(b => !b.hidden);
-    const iconsFit = buttons.length === 4 && buttons.every(button => {
+    const iconsFit = buttons.length === 4 && buttons[0].dataset.control === 'views' && buttons.every(button => {
       const icon = button.querySelector('svg').getBoundingClientRect(), bounds = button.getBoundingClientRect();
       return (button.dataset.control === 'views' || !button.textContent.trim()) && !!button.getAttribute('aria-label') && !!button.title && bounds.left >= caption.right
         && Math.abs((bounds.top + bounds.bottom) / 2 - (caption.top + caption.bottom) / 2) < 1
-        && bounds.width === (button.dataset.control === 'views' ? 80 : 32) && bounds.height === 32 && bounds.right <= stage.right - 44
+        && bounds.width === (button.dataset.control === 'views' ? 72 : 28) && bounds.height === 28 && bounds.right <= stage.right - 40
         && icon.left >= bounds.left && icon.right <= bounds.right && icon.bottom <= bounds.bottom;
     });
     return { height: document.documentElement.getBoundingClientRect().height, frame: frame.bottom, footer: footer.bottom, iconsFit,
