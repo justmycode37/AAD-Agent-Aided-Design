@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from build123d import Box, Compound, Cylinder, Face, Shell, Solid, Sphere
+from build123d import Box, Compound, Cylinder, Face, Pos, Shell, Solid, Sphere
 
 from aad.engine.gate import GateTolerances, _check_mesh_arrays, _fresh_mesh_arrays, hard_checks
 from aad.engine.jobs import run_build
@@ -59,6 +59,24 @@ class GeometricGateTests(unittest.TestCase):
                 self.assertIn("configured_deflection=0.1 mm", mesh.actual)
                 self.assertIn("configured_angular_deflection=0.35 rad", mesh.actual)
                 self.assertFalse(list(job_dir.glob("aad-gate-*")))
+
+    def test_touching_assembly_bodies_are_checked_one_at_a_time(self) -> None:
+        touching = Compound(children=[Box(10, 10, 10), Pos(10, 0, 0) * Box(10, 10, 10)])
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
+            assembly = check_map(hard_checks(context(touching, Path(tmp), kind="assembly")))["mesh_watertight"]
+            part = check_map(hard_checks(context(touching, Path(tmp), kind="part")))["mesh_watertight"]
+        self.assertEqual(assembly.status, "pass", assembly.actual)
+        self.assertIn("bodies_checked=2", assembly.actual)
+        self.assertEqual(part.status, "fail", part.actual)
+
+    def test_assembly_with_loose_faces_keeps_the_whole_shape_mesh_check(self) -> None:
+        loose = Shell([Pos(40, 0, 0) * Box(4, 4, 4).faces()[0]])
+        shape = Compound(children=[Box(10, 10, 10), Pos(20, 0, 0) * Box(10, 10, 10), loose])
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
+            mesh = check_map(hard_checks(context(shape, Path(tmp), kind="assembly")))["mesh_watertight"]
+        self.assertEqual(mesh.status, "fail", mesh.actual)
+        self.assertIn("boundary_edges=", mesh.actual)
+        self.assertNotIn("bodies_checked", mesh.actual)
 
     def test_open_shell_without_a_solid_is_reported_and_mesh_is_open(self) -> None:
         shape = Shell([Box(4, 4, 4).faces()[0]])

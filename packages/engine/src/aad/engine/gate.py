@@ -113,7 +113,7 @@ def hard_checks(
     checks.append(_edge_quality_check(ctx.shape, config, unit_scale))
     checks.append(_face_quality_check(ctx.shape, config, unit_scale))
     checks.append(_step_volume_check(ctx, config, unit_scale))
-    checks.append(_mesh_watertight_check(ctx.shape, config, unit_scale))
+    checks.append(_mesh_watertight_check(ctx.shape, config, unit_scale, ctx.kind))
     return checks
 
 
@@ -563,7 +563,35 @@ def _import_step_shape(path: Path) -> Any:
     return import_step(path)
 
 
-def _mesh_watertight_check(shape: Any, tolerance: GateTolerances, unit_scale: float) -> Check:
+def _assembly_bodies(shape: Any) -> list[Any] | None:
+    """The solids to mesh one at a time, or None when loose topology needs the whole-shape check."""
+    solids = list(shape.solids())
+    if len(solids) < 2 or sum(len(solid.faces()) for solid in solids) != len(shape.faces()):
+        return None
+    return solids
+
+
+def _mesh_watertight_check(shape: Any, tolerance: GateTolerances, unit_scale: float, kind: str = "part") -> Check:
+    """Each assembly body must close by itself. Bodies may touch, so welding across them proves nothing."""
+    try:
+        bodies = _assembly_bodies(shape) if kind == "assembly" else None
+    except Exception as exc:
+        return _skip("mesh_watertight", f"solid enumeration raised {_exception_text(exc)}")
+    if bodies is None:
+        return _shape_watertight_check(shape, tolerance, unit_scale)
+    results = [_shape_watertight_check(body, tolerance, unit_scale) for body in bodies]
+    worst = next(
+        (result for status in ("fail", "skip") for result in results if result.status == status),
+        results[0],
+    )
+    failed = [index for index, result in enumerate(results) if result.status != "pass"]
+    worst.actual = f"bodies_checked={len(bodies)}; bodies_not_passed={len(failed)}; first_not_passed={failed[:8]}; {worst.actual}"
+    if worst.status == "pass":
+        worst.message = f"All {len(bodies)} assembly bodies mesh to closed, consistently wound surfaces."
+    return worst
+
+
+def _shape_watertight_check(shape: Any, tolerance: GateTolerances, unit_scale: float) -> Check:
     try:
         vertices, triangles = _fresh_mesh_arrays(
             shape,

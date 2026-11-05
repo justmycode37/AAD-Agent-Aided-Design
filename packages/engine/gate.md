@@ -44,6 +44,9 @@ The gate checks:
   non-degenerate and unique, each undirected edge must occur twice with
   opposite directions, and each used vertex must have one connected cyclic
   link. Counts and thresholds appear in the check result.
+  An `assembly` with several solids runs this check on each solid, because
+  bodies may legitimately touch. Faces outside any solid fall back to the
+  whole-shape check.
 
 The STEP file is created in a unique temporary directory under `ctx.job_dir`
 and cleaned up on success or failure. Existing files in the job directory are
