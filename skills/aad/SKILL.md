@@ -7,7 +7,7 @@ description: Complete guide to AAD, CAD for agents. Covers everything AAD can do
 
 AAD lets you build exact B-rep CAD through MCP tools. You write Python, AAD runs it in a sandbox and returns numbers, checks and exact failures. It has no interface of its own: you do the work, and you show the part only when the user asks.
 
-This guide lists everything AAD can do. It was checked by running the tools. If a tool result disagrees with it, believe the tool.
+This guide lists everything AAD can do. It was checked by running the tools.
 
 Contents: the loop · tools · model.py · spec.yaml · process checks · results · render · viewer · drawings · import and export · revisions · library · command line · Python-only features · what does not work yet · honesty rules.
 
@@ -59,6 +59,13 @@ presenting an exterior mockup as the finished object.
 ## Tools
 
 Thirteen tools are for you. Every tool except `aad_new` and `aad_library` takes `project`, and most also take `rev`, which defaults to the head revision. `aad_import` treats `project` as optional.
+
+### Quick tool list
+
+- `aad_new` starts a project; `aad_build` creates a revision; `aad_inspect`, `aad_query`, `aad_measure` and `aad_check` review it.
+- `aad_render` returns images and exact facts; `aad_show` presents the part; `aad_drawing` makes drawings.
+- `aad_history` manages revisions and jobs; `aad_import` and `aad_export` move geometry and files; `aad_library` looks up parts, materials and guidance.
+- `aad_scene_read`, `aad_set_param`, `aad_pick_info` and `aad_file_read` are app-only viewer tools; do not call them.
 
 ### aad_new: create a project
 
@@ -166,7 +173,7 @@ See [Import and export](#import-and-export). Arguments: `formats`, `options`, `a
 
 ### aad_library: look things up
 
-`action` is `search` (with `kind` and `query`), `get` (with `kind` and `id`) or `check` (with `items`, a bill of materials). `kind` is `part`, `component`, `material`, `playbook` or `api`. `search` returns five results; when `truncated` is true, pass `next_offset` as `offset` for more. A component search with no full match returns the closest families with `partial_match: true`. See [Library](#library).
+`action` is `search` (with `kind` and `query`), `get` (with `kind` and `id`) or `check` (with `items`, a bill of materials). `kind` is `part`, `component`, `material`, `playbook` or `api`. `search` returns five results; when `truncated` is true, pass `next_offset` as `offset` for more. A component search with no full match returns the closest families with `partial_match: true`. For `aad.guide.v1`, omit `section` to get the short core with the loop, tools, section list and honesty rules; pass a listed heading slug for that section, or `section="all"` for the complete guide. A full-guide request reaches both text-only and structured-only hosts whole. See [Library](#library).
 
 ### Tools that are not for you
 
@@ -712,6 +719,7 @@ Say so plainly rather than working around it silently.
 
 ## Honesty rules
 
+- If a tool result disagrees with it, believe the tool.
 - A built part is not a proven part, and a passing spec only proves what the spec says. Compare with what the user actually asked for.
 - Never invent a tolerance, material, load, limit or test result. Keep assumptions visible.
 - `skip` and unknown mean not proven. Report them as such.

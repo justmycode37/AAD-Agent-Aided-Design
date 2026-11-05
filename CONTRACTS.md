@@ -257,8 +257,8 @@ aad_export({ project, rev?: number,
              options?: Record<string, unknown>,     // e.g. tolerance
              allow_unverified?: boolean })          // otherwise only verified revisions export
 
-aad_library({ action: "search"|"get", kind?: "part"|"material"|"playbook"|"api",
-              query?: string, id?: string })        // no project
+aad_library({ action: "search"|"get"|"check", kind?: "part"|"component"|"material"|"playbook"|"api",
+              query?: string, id?: string, section?: string, items?: object[] }) // no project
 ```
 
 Build responses and `aad_inspect(what="summary")` report requirement IDs without
@@ -266,6 +266,9 @@ Build responses and `aad_inspect(what="summary")` report requirement IDs without
 The inspect summary also returns the captured request. A missing request yields
 a short non-failure hint. These links are not a semantic judgment; AAD never
 computes a request-coverage percentage.
+
+For playbook `aad.guide.v1`, `section` omitted returns the short core, a heading slug returns
+that section, and `section: "all"` returns the complete guide. Other playbooks remain whole.
 
 ### App-only
 
@@ -602,6 +605,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 - 2026-11-05: S3 added validated per-part viewer material overrides and an offline studio environment to `aad_show` and HTML bundle presentations; these settings change display only and preserve scene bytes.
 - 2026-11-05: S2/S5 added additive request capture in git-friendly `request.json`, per-revision request snapshots and checkout, `covers` trace links with honest request review (no semantic coverage percentage), and spec angle/position/fit evidence. Requirement-structure errors that survive YAML parsing remain error-level skips; successful builds may commit them as draft revisions. Symmetry passes only with exact planar face/edge mirror equality plus zero measured difference; a zero-volume boolean alone is inconclusive. Sampled wall thickness still cannot prove a global minimum and remains `skip` without a violation.
 - 2026-11-05: S3 specified chunked lossless HTML scene assets with chunk/total byte-count and scene-hash verification and explicit missing-chunk errors.
+- 2026-11-05: S2/S5 added heading-based `aad.guide.v1` retrieval: the library returns a short core by default and the complete single-source guide on `section: "all"`.
 - 2026-11-05: S3 specified whole-part toggle selection, subtle highlighting, exact scene-scoped references, negotiated selection context and capability-gated unsent composer insertion; unsupported hosts keep local selection without a clipboard workflow, and server editing routes remain reserved.
 - 2026-11-05: Replaced `PLAN.md` with `ARCHITECTURE.md` at the user's request. Scope, sector and milestone text remains in git history.
 - 2026-11-05: S5 added rigid reference-model comparison as a spec requirement and sandboxed CLI operation, with explicit geometric-only evidence limits.

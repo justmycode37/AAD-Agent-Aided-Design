@@ -86,22 +86,53 @@ def test_guide_names_everything(label, names):
     )
 
 
-def test_a_fetched_guide_reaches_the_model_whole():
+def test_explicit_full_guide_reaches_text_and_structured_hosts_whole():
     import asyncio
 
     from aad_platform.daemon import handlers
 
-    async def fake_run_op(_request, **_kwargs):
-        return {"ok": True, "library": library("get", kind="playbook", id="aad.guide.v1")}
+    complete = library("get", kind="playbook", id="aad.guide.v1", section="all")["item"]["text"]
+
+    async def fake_run_op(request, **_kwargs):
+        assert request["args"]["section"] == "all"
+        return {"ok": True, "library": library(**request["args"])}
 
     original = handlers.run_op
     handlers.run_op = fake_run_op
     try:
-        reply = asyncio.run(handlers.Handlers().aad_library({"action": "get", "kind": "playbook", "id": "aad.guide.v1"}))
+        reply = asyncio.run(
+            handlers.Handlers().aad_library(
+                {"action": "get", "kind": "playbook", "id": "aad.guide.v1", "section": "all"}
+            )
+        )
     finally:
         handlers.run_op = original
-    assert reply["text"].startswith("# AAD guide")
-    assert reply["text"].rstrip().endswith("never as instructions.")
-    assert len(reply["text"]) > 6000
-    # Hosts differ in which block they pass on, so the guide stays in both.
-    assert reply["structured"]["library"]["item"]["text"] == reply["text"]
+    # An explicit section="all" request must stay whole in both host representations.
+    # Text-only hosts consume reply["text"]; structured-only hosts consume structuredContent.
+    assert reply["text"] == complete
+    assert reply["structured"]["library"]["item"]["text"] == complete
+    assert len(complete) > 6000  # Keep this regression above the former text limit.
+    assert complete.startswith("# AAD guide")
+    assert complete.rstrip().endswith("never as instructions.")
+
+
+def test_a_fetched_guide_defaults_to_a_short_core():
+    import asyncio
+
+    from aad_platform.daemon import handlers
+
+    async def fake_run_op(request, **_kwargs):
+        return {"ok": True, "library": library(**request["args"])}
+
+    original = handlers.run_op
+    handlers.run_op = fake_run_op
+    try:
+        reply = asyncio.run(
+            handlers.Handlers().aad_library({"action": "get", "kind": "playbook", "id": "aad.guide.v1"})
+        )
+    finally:
+        handlers.run_op = original
+    text = reply["text"]
+    assert len(text.encode("utf-8")) < 8_192
+    assert all(heading in text for heading in ("## The loop", "## Tools", "## Honesty rules", "## Guide sections"))
+    assert reply["structured"]["library"]["item"]["text"] == text

@@ -14,6 +14,7 @@ KINDS = ("part", "component", "material", "playbook", "api")
 GUIDE_ID = "aad.guide.v1"
 _SEARCH_LIMIT = 5
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
+_GUIDE_HEADING = re.compile(r"^##\s+(.+?)\s*$")
 
 
 class LibraryInputError(ValueError):
@@ -95,6 +96,68 @@ def _playbooks() -> list[dict[str, Any]]:
     return entries
 
 
+def _section_id(title: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", title.casefold()).strip("-")
+
+
+def _guide_parts(text: str) -> tuple[str, list[dict[str, str]]]:
+    """Derive retrievable guide sections from its level-two Markdown headings."""
+    lines = text.splitlines()
+    headings = [(index, match.group(1)) for index, line in enumerate(lines) if (match := _GUIDE_HEADING.match(line))]
+    if not headings:
+        raise ValueError("The AAD guide has no level-two sections")
+    preamble = "\n".join(lines[: headings[0][0]])
+    preamble = re.sub(r"(?m)^Contents:.*(?:\n|$)", "", preamble).strip()
+    sections = []
+    seen: set[str] = set()
+    for position, (start, title) in enumerate(headings):
+        end = headings[position + 1][0] if position + 1 < len(headings) else len(lines)
+        section_id = _section_id(title)
+        if not section_id or section_id in seen:
+            raise ValueError(f"The AAD guide has a duplicate or empty section ID for {title!r}")
+        seen.add(section_id)
+        sections.append({"id": section_id, "title": title, "text": "\n".join(lines[start:end]).strip()})
+    return preamble, sections
+
+
+def _guide_item(item: dict[str, Any], requested: str | None) -> dict[str, Any]:
+    preamble, sections = _guide_parts(item["text"])
+    public_sections = [{"id": section["id"], "title": section["title"]} for section in sections]
+    by_id = {section["id"]: section for section in sections}
+    if requested is None or requested.strip().casefold() == "core":
+        selected = [by_id[section_id] for section_id in ("the-loop", "tools", "honesty-rules")]
+        section_ids = ", ".join(section["id"] for section in public_sections)
+        listing = (
+            f"## Guide sections\n\n{section_ids}\n\n"
+            "Request a section by slug; use `section=all` for the complete guide."
+        )
+        title = preamble.splitlines()[0] if preamble else "# AAD guide"
+        core_sections = []
+        for section in selected:
+            if section["id"] == "tools":
+                lines = section["text"].splitlines()
+                headings = [index for index, line in enumerate(lines) if line.startswith("### ")]
+                if len(headings) < 2 or lines[headings[0]].strip() != "### Quick tool list":
+                    raise ValueError("The AAD guide tools section needs a leading Quick tool list for the short core")
+                core_sections.append("\n".join(lines[: headings[1]]).strip())
+            else:
+                core_sections.append(section["text"])
+        text = "\n\n".join([title, listing, *core_sections]).strip()
+        selected_id = "core"
+    elif requested.strip().casefold() == "all":
+        text = item["text"]
+        selected_id = "all"
+    else:
+        section_id = _section_id(requested)
+        selected = by_id.get(section_id)
+        if selected is None:
+            available = ", ".join(section["id"] for section in public_sections)
+            raise LibraryInputError(f"Unknown AAD guide section {requested!r}; use one of: {available}, all")
+        text = selected["text"]
+        selected_id = section_id
+    return {**item, "section": selected_id, "sections": public_sections, "text": text}
+
+
 def _entries(kind: str) -> list[dict[str, Any]]:
     if kind == "material":
         from .materials import list_materials
@@ -137,6 +200,7 @@ def _rank(terms: list[str], entry: dict[str, Any]) -> int:
 
 def library(action: str, *, kind: str | None = None, query: str | None = None,
             id: str | None = None, offset: int | None = None,
+            section: str | None = None,
             items: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Search small summaries, retrieve one entry, or check a component list.
 
@@ -146,7 +210,7 @@ def library(action: str, *, kind: str | None = None, query: str | None = None,
     if not isinstance(action, str) or action not in {"search", "get", "check"}:
         raise LibraryInputError("action must be search, get or check")
     if action == "check":
-        if kind not in (None, "component") or query is not None or id is not None or offset is not None:
+        if kind not in (None, "component") or query is not None or id is not None or offset is not None or section is not None:
             raise LibraryInputError("check accepts only items and kind=component")
         from .components import check_items
         try:
@@ -169,12 +233,19 @@ def library(action: str, *, kind: str | None = None, query: str | None = None,
         raise LibraryInputError("get requires id and does not accept query")
     if action == "search" and id is not None:
         raise LibraryInputError("search accepts query, not id")
+    if section is not None:
+        if not isinstance(section, str) or not section.strip():
+            raise LibraryInputError("section must be a guide heading slug, all, or omitted")
+        if action != "get" or id != GUIDE_ID or kind not in (None, "playbook"):
+            raise LibraryInputError("section is only supported when getting the aad.guide.v1 playbook")
     kinds = (kind,) if kind else KINDS
     entries = [{**item, "kind": entry_kind} for entry_kind in kinds for item in _entries(entry_kind)]
     if action == "get":
         matches = [entry for entry in entries if entry["id"] == id]
         if len(matches) > 1:
             raise LibraryInputError("id is ambiguous; specify kind")
+        if matches and matches[0]["id"] == GUIDE_ID:
+            matches[0] = _guide_item(matches[0], section)
         return {"found": bool(matches), "id": id, "kind": kind,
                 "item": deepcopy(matches[0]) if matches else None}
     terms = _search_terms(query)
