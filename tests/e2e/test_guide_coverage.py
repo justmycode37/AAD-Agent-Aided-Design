@@ -103,3 +103,6 @@ def test_a_fetched_guide_reaches_the_model_whole():
     assert reply["text"].startswith("# AAD guide")
     assert reply["text"].rstrip().endswith("never as instructions.")
     assert len(reply["text"]) > 6000
+    # The body travels once, in the text block.
+    item = reply["structured"]["library"]["item"]
+    assert item["text"] is None and item["text_chars"] == len(reply["text"])

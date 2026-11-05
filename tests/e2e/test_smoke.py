@@ -130,7 +130,7 @@ def test_render_returns_real_images_and_precise_inspection_over_mcp(mcp_process:
         focus={"min": [-30, -20, -3], "max": [30, 20, 3]},
         heatmap="thickness", heatmap_range=[1, 10], min_wall=7, direction=[0, 0, 1],
         probes=[{"point": [-10, 0, 10000], "direction": [0, 0, -1]}],
-        measure=[{"a": "point:(0,0,0)", "b": "point:(3,4,0)"}],
+        measure=[{"a": "point:(0,0,0)", "b": "point:(3,4,0)"}], inspection="full",
     )
     assert not rendered.get("isError"), rendered
     result = rendered["structuredContent"]
@@ -156,6 +156,12 @@ def test_render_returns_real_images_and_precise_inspection_over_mcp(mcp_process:
                  probes=[{"image": "top", "x": 128, "y": 128}])
     assert not close.get("isError"), close
     detail = close["structuredContent"]["inspection"]
+    # By default the whole-model tables stay in the artifact, and requested answers stay inline.
+    assert "faces" not in detail and "edges" not in detail and "omitted" in detail
+    assert "visible_selectors" not in detail["images"]["top.png"]
+    assert detail["counts"]["faces"] == 7
+    saved = json.loads(open(close["structuredContent"]["artifacts"]["inspection.json"]).read())
+    assert saved["faces"] and saved["edges"]
     assert detail["probes"][0]["hit"] is False  # Center of the through hole.
     assert detail["images"]["top.png"]["panes"][0]["pixels_per_unit"] > 256 / 50 * 2
 

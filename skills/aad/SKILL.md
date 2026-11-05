@@ -128,7 +128,7 @@ On a 2D sheet, only whole-sheet `area` and `bbox` work, and they return the shee
 
 ### aad_render: images and exact facts for you
 
-See [Render](#render) for what each option does. Arguments: `views`, `style`, `section`, `labels`, `heatmap`, `heatmap_range`, `min_wall`, `direction`, `highlight`, `size`, `camera`, `focus`, `dimensions`, `probes`, `measure`.
+See [Render](#render) for what each option does. Arguments: `views`, `style`, `section`, `labels`, `heatmap`, `heatmap_range`, `min_wall`, `direction`, `highlight`, `size`, `camera`, `focus`, `dimensions`, `probes`, `measure`, `inspection`.
 
 ### aad_show: show the user
 
@@ -431,8 +431,9 @@ A sliver edge is usually a coincidence between two surfaces; moving one by a sma
 | `dimensions` | `auto` (default: overall sizes and round features), `overall`, `none` |
 | `probes` | `{image, x, y}` for a pixel (`image` is a view name, no `.png`), or `{point, direction}` for a ray. Returns the exact point, normal, selector, bend radius and wall thickness |
 | `measure` | `{a, b}` pairs. Returns minimum distance, closest points, and angle when both have a direction |
+| `inspection` | `summary` (default) or `full`. Summary leaves the per-face, per-edge and visible-selector tables, and legends over 64 entries, in the `inspection.json` and `labels.json` artifacts. `full` returns them inline, which is large on big models |
 
-The `inspection` report holds exact B-rep facts: mass properties, bounding box, face types and dimensions, edge types and adjacency, section loops, per-image scale, visible selectors, and a `world_to_pixel` matrix for mapping 3D points to pixels. Cylinders distinguish holes from bosses. Edge classes and adjacency are omitted above 2,048 edges, and `edge_classification` says so.
+The `inspection` report holds exact B-rep facts: mass properties, bounding box, section loops, per-image scale, a `world_to_pixel` matrix for mapping 3D points to pixels, and your `probes` and `measure` answers. With `inspection="full"` or in the artifact, it also has face types and dimensions, edge types and adjacency, and visible selectors. Cylinders distinguish holes from bosses. Edge classes and adjacency are omitted above 2,048 edges, and `edge_classification` says so.
 
 Thickness is a sampled search, not a certified minimum. Heatmaps do not prove manufacturability. Playbook `review.render.v1` is a review checklist.
 

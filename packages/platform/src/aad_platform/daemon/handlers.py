@@ -763,8 +763,8 @@ class Handlers:
                 "status": _rev_meta(project, rev).get("status", "draft"),
                 "summary": f"Rendered {len(images)} image(s) of {project.name} rev {rev}.",
                 "artifacts": result.get("artifacts") or {Path(i["path"]).name: i["path"] for i in images},
-                "inspection": result.get("inspection"),
-                "labels": result.get("labels"),
+                "inspection": _inspection_reply(result.get("inspection"), params.get("inspection")),
+                "labels": _labels_reply(result.get("labels"), params.get("inspection")),
             },
             images,
         )
@@ -907,6 +907,9 @@ class Handlers:
         # The component index and a bill-of-materials check are useless when cut off.
         limit = 100_000 if params.get("kind") == "component" or params.get("action") == "check" else 6000
         text = item["text"] if isinstance(item, dict) and isinstance(item.get("text"), str) else json.dumps(data, default=str)[:limit]
+        if isinstance(item, dict) and isinstance(item.get("text"), str):
+            # The text block carries the body. Repeating it here doubles what hosts send the model.
+            data = {**data, "item": {**item, "text": None, "text_chars": len(item["text"]), "text_in": "content"}}
         return {"structured": {"ok": True, "project": "", "status": "draft", "summary": "Library result.", "library": data}, "text": text}
 
     async def aad_set_param(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -1055,6 +1058,36 @@ def _scene_payload(rev_dir: Path) -> Path | None:
         if candidate.exists():
             return candidate
     return None
+
+
+# Face and edge tables grow with the model: 2.7 MB on a 492-part assembly. They stay in inspection.json.
+_INSPECTION_TABLES = ("faces", "edges")
+_LABELS_INLINE = 64
+
+
+def _inspection_reply(report: Any, detail: Any) -> Any:
+    """The compact report keeps exact facts and answers to requested probes, not whole-model tables."""
+    if detail == "full" or not isinstance(report, dict):
+        return report
+    compact_report = {key: value for key, value in report.items() if key not in _INSPECTION_TABLES}
+    images = compact_report.get("images")
+    if isinstance(images, dict):
+        compact_report["images"] = {
+            name: {key: value for key, value in image.items() if key != "visible_selectors"}
+            if isinstance(image, dict) else image
+            for name, image in images.items()
+        }
+    compact_report["omitted"] = (
+        "Per-face, per-edge and visible-selector tables are in the inspection.json artifact. "
+        "Pass inspection='full' to get them here, or use aad_query for specific geometry."
+    )
+    return compact_report
+
+
+def _labels_reply(labels: Any, detail: Any) -> Any:
+    if detail == "full" or not isinstance(labels, list) or len(labels) <= _LABELS_INLINE:
+        return labels
+    return {"count": len(labels), "omitted": "The legend is in the labels.json artifact. Pass inspection='full' to get it here."}
 
 
 def _next_hints(status: str, checks: list[dict[str, Any]]) -> list[str]:
