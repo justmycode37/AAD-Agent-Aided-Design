@@ -584,7 +584,7 @@ Revisions never change. A failed build leaves the head alone. Use `checkout` to 
 | ID | Parameters |
 |---|---|
 | `bearing.deep_groove_ball.skt` | `size`: M3-10-4, M4-12-4, M5-16-5, M6-15-5, M8-22-7, M10-30-9 |
-| `fastener.iso4762.socket_head_cap_screw` | `size`: M3-0.5 to M10-1.5; `length` |
+| `fastener.iso4762.socket_head_cap_screw` | `size`: M3-0.5 to M10-1.5; `length`; `thread`: `envelope` (default, a plain cylinder at the major diameter) or `helical` (a real thread, whose slivers fail the hard gate, so do not build with it) |
 | `thread.iso_metric_external` | `size`: M3-0.5 to M10-1.5; `length` |
 
 Also, using upstream defaults and simple threads: `fastener.iso4017.hex_head_screw`, `fastener.iso10642.countersunk_screw`, `fastener.iso7380.button_head_screw`, `fastener.iso4026.set_screw`, `nut.iso4032.hex_nut`, `washer.iso7089.plain`, `bearing.angular_contact.skt`, `bearing.cylindrical_roller.skt`, `seal.iso3601.o_ring`, `ring.external_snap`, `ring.internal_snap`, `key.parallel`, `gear.spur`, `gear.helical`, `gear.rack`, `gear.worm`, `sprocket.roller_chain`, `flange.weld_neck`, `flange.blind`.
