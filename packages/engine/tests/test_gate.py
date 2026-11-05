@@ -269,9 +269,70 @@ class GeometricGateTests(unittest.TestCase):
         self.assertEqual(actual["total_overlapping_pairs"], 1)
         overlap = actual["reported_overlaps"][0]
         self.assertEqual([part["label"] for part in overlap["parts"]], ["left", "right"])
+        self.assertTrue(all(part["path"] for part in overlap["parts"]))
         self.assertAlmostEqual(overlap["overlap_volume_mm3"], 4.0)
         for actual_coordinate, expected_coordinate in zip(overlap["location_mm"], (0.5, 0.0, 0.0)):
             self.assertAlmostEqual(actual_coordinate, expected_coordinate, places=9)
+
+    def test_interference_reports_paths_and_separates_declared_contact(self) -> None:
+        from aad import assembly
+
+        asm = assembly("stack")
+        asm.add("left", Box(2, 2, 2))
+        asm.add("right", Box(2, 2, 2), at=Pos(1, 0, 0))
+        asm.allow_overlap("left", "right", reason="press fit", max_volume_mm3=5)
+        ctx = context(asm.compound(), Path("."), kind="assembly")
+        ctx.meta = {"assembly": asm.record()}
+        actual = json.loads(interference_checks(ctx)[0].actual)
+        self.assertEqual(actual["confirmed_overlapping_pairs"], 1)
+        self.assertEqual(actual["undeclared_overlapping_pairs"], 0)
+        self.assertEqual(actual["allowed_overlap_pairs"], 1)
+        allowed = actual["reported_allowed_overlaps"][0]
+        self.assertEqual(allowed["reason"], "press fit")
+        self.assertEqual([part["label"] for part in allowed["parts"]], ["left", "right"])
+        self.assertTrue(all(part["path"] for part in allowed["parts"]))
+        self.assertAlmostEqual(allowed["overlap_volume_mm3"], 4)
+
+    def test_declared_contact_volume_limit_does_not_hide_excess_overlap(self) -> None:
+        from aad import assembly
+
+        asm = assembly("stack")
+        asm.add("left", Box(2, 2, 2))
+        asm.add("right", Box(2, 2, 2), at=Pos(1, 0, 0))
+        asm.allow_overlap("left", "right", reason="small press fit", max_volume_mm3=2)
+        ctx = context(asm.compound(), Path("."), kind="assembly")
+        ctx.meta = {"assembly": asm.record()}
+        actual = json.loads(interference_checks(ctx)[0].actual)
+        self.assertEqual(actual["confirmed_overlapping_pairs"], 1)
+        self.assertEqual(actual["allowed_overlap_pairs"], 0)
+
+    def test_library_bearing_rolling_contacts_are_reported_as_intended(self) -> None:
+        from aad import assembly
+        from aad_quality.standard_parts import make_part
+
+        asm = assembly("bearing_test")
+        asm.add("bearing", make_part("bearing.deep_groove_ball.skt", size="M8-22-7"))
+        ctx = context(asm.compound(), Path("."), kind="assembly")
+        ctx.meta = {"assembly": asm.record()}
+        actual = json.loads(interference_checks(ctx)[0].actual)
+        self.assertGreater(actual["allowed_overlap_pairs"], 0)
+        self.assertEqual(actual["confirmed_overlapping_pairs"], actual["allowed_overlap_pairs"])
+        self.assertEqual(actual["undeclared_overlapping_pairs"], 0)
+        self.assertTrue(all("Library bearing" in pair["reason"] for pair in actual["reported_allowed_overlaps"]))
+
+    def test_interference_budget_overrun_is_unknown_not_pass(self) -> None:
+        shape = Compound(children=[Box(2, 2, 2), Box(2, 2, 2).translate((1, 0, 0))])
+        with patch("aad.engine.gate.monotonic", side_effect=[0.0, 2.0, 2.0]):
+            check = interference_checks(context(shape, Path("."), kind="assembly"), time_budget_s=1)[0]
+        self.assertEqual(check.status, "skip")
+        self.assertIn("No pass is reported", check.message)
+
+    def test_plain_multisolid_build_surfaces_interference_in_summary(self) -> None:
+        source = "result = Compound(children=[Box(2,2,2), Pos(1,0,0) * Box(2,2,2)])"
+        with tempfile.TemporaryDirectory(prefix="aad-interference-build-") as temporary:
+            result = run_build(BuildRequest(source=source, project_dir=Path(temporary), kind="assembly"))
+        self.assertTrue(any(check.id == "interference_pairs" and check.status == "warn" for check in result.checks))
+        self.assertIn("BUILD INTERFERENCE REVIEW REQUIRED", result.summary)
 
     def test_interference_recognizes_clear_nested_parts(self) -> None:
         outer = Box(10, 10, 10) - Box(8, 8, 8)

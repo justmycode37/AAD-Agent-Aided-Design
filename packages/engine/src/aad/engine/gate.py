@@ -397,13 +397,16 @@ def interference_checks(
                 budget_exhausted=False,
                 overlap_count_complete=True,
                 overlaps=[],
+                allowed_overlaps=[],
+                allowed_overlap_count=0,
+                allowed_overlap_volume_mm3=0.0,
                 unknown_pairs=[],
             ),
         )]
 
     count = len(solids)
     total_pairs = count * (count - 1) // 2
-    labels = _solid_labels(ctx.shape, solids)
+    references = _solid_references(ctx.shape, solids)
     boxes: list[tuple[tuple[float, float, float], tuple[float, float, float]] | None] = []
     bbox_failures = 0
     for solid in solids:
@@ -421,6 +424,12 @@ def interference_checks(
     overlap_count = 0
     unknown_count = 0
     overlaps: list[tuple[float, int, int, dict[str, Any]]] = []
+    allowed_overlaps: list[tuple[float, int, int, dict[str, Any]]] = []
+    declarations = ctx.meta.get("assembly", {}).get("allowed_overlaps", []) if isinstance(ctx.meta, dict) else []
+    allowed_by_pair = {frozenset((item["a"], item["b"])): item for item in declarations if isinstance(item, dict) and item.get("a") and item.get("b") and item.get("reason")}
+    library_contacts = ctx.meta.get("assembly", {}).get("library_contacts", []) if isinstance(ctx.meta, dict) else []
+    allowed_overlap_count = 0
+    allowed_overlap_volume_mm3 = 0.0
     unknown_pairs: list[dict[str, Any]] = []
     budget_exhausted = False
     for first_index, first in enumerate(solids):
@@ -442,7 +451,7 @@ def interference_checks(
                 unknown_count += 1
                 if len(unknown_pairs) < INTERFERENCE_MAX_REPORTED_PAIRS:
                     unknown_pairs.append({
-                        "parts": [_solid_reference(first_index, labels), _solid_reference(second_index, labels)],
+                        "parts": [references[first_index], references[second_index]],
                         "status": "unknown",
                         "reason": _exception_text(exc)[:240],
                     })
@@ -450,12 +459,33 @@ def interference_checks(
             boolean_completions += 1
             if overlap_mm3 <= threshold:
                 continue
-            overlap_count += 1
             pair = {
-                "parts": [_solid_reference(first_index, labels), _solid_reference(second_index, labels)],
+                "parts": [references[first_index], references[second_index]],
                 "overlap_volume_mm3": overlap_mm3,
                 "location_mm": list(location_mm) if location_mm is not None else None,
             }
+            declaration = allowed_by_pair.get(frozenset((references[first_index].get("label"), references[second_index].get("label"))))
+            if declaration is None:
+                for contact in library_contacts:
+                    component_name = contact["component"]
+                    first_path = references[first_index].get("path", "").split("/")
+                    second_path = references[second_index].get("path", "").split("/")
+                    if component_name in first_path and component_name in second_path:
+                        declaration = contact
+                        break
+            if declaration is not None and overlap_mm3 > declaration.get("max_volume_mm3", float("inf")):
+                declaration = None
+            if declaration is not None:
+                allowed_overlap_count += 1
+                allowed_overlap_volume_mm3 += overlap_mm3
+                allowed_pair = {**pair, "reason": declaration["reason"]}
+                entry = (overlap_mm3, -first_index, -second_index, allowed_pair)
+                if len(allowed_overlaps) < INTERFERENCE_MAX_REPORTED_PAIRS:
+                    heappush(allowed_overlaps, entry)
+                elif entry[:3] > allowed_overlaps[0][:3]:
+                    heapreplace(allowed_overlaps, entry)
+                continue
+            overlap_count += 1
             entry = (overlap_mm3, -first_index, -second_index, pair)
             if len(overlaps) < INTERFERENCE_MAX_REPORTED_PAIRS:
                 heappush(overlaps, entry)
@@ -479,7 +509,7 @@ def interference_checks(
             )
     elif overlap_count_complete:
         status = "pass"
-        message = f"No solid pair overlaps above {threshold:g} mm³; all {total_pairs} pair(s) were resolved."
+        message = f"No undeclared solid pair overlaps above {threshold:g} mm³; all {total_pairs} pair(s) were resolved, including {allowed_overlap_count} reported intended-contact pair(s)."
     else:
         status = "skip"
         message = (
@@ -488,6 +518,7 @@ def interference_checks(
         )
 
     ordered_overlaps = [entry[3] for entry in sorted(overlaps, key=lambda item: (-item[0], -item[1], -item[2]))]
+    ordered_allowed = [entry[3] for entry in sorted(allowed_overlaps, key=lambda item: (-item[0], -item[1], -item[2]))]
     actual = _interference_actual(
         threshold=threshold,
         budget=budget,
@@ -506,6 +537,9 @@ def interference_checks(
         budget_exhausted=budget_exhausted,
         overlap_count_complete=overlap_count_complete,
         overlaps=ordered_overlaps,
+        allowed_overlaps=ordered_allowed,
+        allowed_overlap_count=allowed_overlap_count,
+        allowed_overlap_volume_mm3=allowed_overlap_volume_mm3,
         unknown_pairs=unknown_pairs,
     )
     return [Check(
@@ -556,6 +590,9 @@ def _interference_actual(
     budget_exhausted: bool,
     overlap_count_complete: bool,
     overlaps: list[dict[str, Any]],
+    allowed_overlaps: list[dict[str, Any]],
+    allowed_overlap_count: int,
+    allowed_overlap_volume_mm3: float,
     unknown_pairs: list[dict[str, Any]],
 ) -> str:
     details = {
@@ -569,14 +606,19 @@ def _interference_actual(
         "candidate_pairs": candidate_pairs,
         "boolean_attempts": boolean_attempts,
         "boolean_completions": boolean_completions,
-        "confirmed_overlapping_pairs": overlap_count,
-        "total_overlapping_pairs": overlap_count if overlap_count_complete else None,
+        "confirmed_overlapping_pairs": overlap_count + allowed_overlap_count,
+        "undeclared_overlapping_pairs": overlap_count,
+        "total_overlapping_pairs": overlap_count + allowed_overlap_count if overlap_count_complete else None,
         "overlap_count_complete": overlap_count_complete,
         "unknown_boolean_pairs": unknown_count,
         "unchecked_pairs": unchecked_pairs,
         "bbox_failures": bbox_failures,
         "budget_exhausted": budget_exhausted,
         "reported_overlaps": overlaps,
+        "allowed_overlap_pairs": allowed_overlap_count,
+        "allowed_overlap_volume_mm3": allowed_overlap_volume_mm3,
+        "reported_allowed_overlaps": allowed_overlaps,
+        "reported_allowed_overlaps_truncated": allowed_overlap_count > len(allowed_overlaps),
         "reported_unknown_pairs": unknown_pairs,
         "reported_overlaps_truncated": overlap_count > len(overlaps),
         "reported_unknown_pairs_truncated": unknown_count > len(unknown_pairs),
@@ -606,36 +648,35 @@ def _shape_label(shape: Any) -> str | None:
     return None
 
 
-def _solid_labels(shape: Any, solids: list[Any]) -> list[str | None]:
-    direct = [_shape_label(solid) for solid in solids]
-    discovered: list[str | None] = []
+def _solid_references(shape: Any, solids: list[Any]) -> list[dict[str, Any]]:
+    discovered: list[dict[str, Any]] = []
 
-    def visit(item: Any) -> None:
+    def visit(item: Any, parent_path: str = "") -> None:
+        label = _shape_label(item)
+        path = "/".join(part for part in (parent_path, label) if part)
         children = _shape_children(item)
         if children:
-            for child in children:
-                visit(child)
+            for index, child in enumerate(children):
+                visit(child, path or f"child{index}")
             return
         try:
             nested_solids = list(item.solids())
         except Exception:
             return
-        if len(nested_solids) == 1:
-            discovered.append(_shape_label(item) or _shape_label(nested_solids[0]))
-        elif nested_solids:
-            discovered.extend(_shape_label(solid) for solid in nested_solids)
+        for index, solid in enumerate(nested_solids):
+            solid_label = _shape_label(solid) or label
+            solid_path = path or solid_label or f"solid{index}"
+            discovered.append({"label": solid_label, "path": solid_path})
 
     visit(shape)
-    if len(discovered) == len(solids):
-        return [label or discovered[index] for index, label in enumerate(direct)]
-    return direct
-
-
-def _solid_reference(index: int, labels: list[str | None]) -> dict[str, Any]:
-    reference: dict[str, Any] = {"index": index}
-    if index < len(labels) and labels[index]:
-        reference["label"] = labels[index]
-    return reference
+    if len(discovered) != len(solids):
+        discovered = [{"label": _shape_label(solid), "path": _shape_label(solid)} for solid in solids]
+    result = []
+    for index, item in enumerate(discovered):
+        reference: dict[str, Any] = {"index": index}
+        reference.update({key: value for key, value in item.items() if value and key != "library_bearing_path"})
+        result.append(reference)
+    return result
 
 
 def _coordinates(value: Any) -> tuple[float, float, float]:

@@ -225,6 +225,7 @@ class Component:
     part_number: str | None = None
     material: str | None = None
     description: str | None = None
+    library_contact_reason: str | None = None
 
 
 class Assembly:
@@ -242,14 +243,19 @@ class Assembly:
         self.components: list[Component] = []
         self.allowed_overlaps: list[dict[str, str]] = []
 
-    def allow_overlap(self, first: str, second: str, *, reason: str) -> None:
+    def allow_overlap(self, first: str, second: str, *, reason: str, max_volume_mm3: float | None = None) -> None:
         """Declare a named pair's intended contact; this records a claim, not proof."""
         if not isinstance(reason, str) or not reason.strip():
             raise CadOperationError("An intended overlap requires a non-empty reason.")
         names = {item.name for item in self.components}
         if first not in names or second not in names or first == second:
             raise CadOperationError("Intended overlap names must identify two different assembly components.")
-        self.allowed_overlaps.append({"a": first, "b": second, "reason": reason.strip()[:240]})
+        declaration = {"a": first, "b": second, "reason": reason.strip()[:240]}
+        if max_volume_mm3 is not None:
+            if isinstance(max_volume_mm3, bool) or not isinstance(max_volume_mm3, (int, float)) or not math.isfinite(max_volume_mm3) or max_volume_mm3 < 0:
+                raise CadOperationError("max_volume_mm3 must be a finite non-negative number.")
+            declaration["max_volume_mm3"] = float(max_volume_mm3)
+        self.allowed_overlaps.append(declaration)
 
     def add(
         self,
@@ -272,9 +278,11 @@ class Assembly:
         if not hasattr(shape, "moved"):
             raise CadOperationError(f"Component {name!r} is {type(shape).__name__}, not a build123d shape.")
         # moved() copies, so the same source shape can be added more than once under different names.
+        bearing_source = type(shape).__name__ == "SingleRowDeepGrooveBallBearing"
         placed = shape.moved(at if at is not None else Location())
         placed.label = name
-        self.components.append(Component(name, placed, part_number, material, description))
+        contact_reason = "Library bearing rolling elements are represented with nominal contact overlap." if bearing_source else None
+        self.components.append(Component(name, placed, part_number, material, description, contact_reason))
         return placed
 
     def __getitem__(self, name: str) -> Any:
@@ -335,7 +343,16 @@ class Assembly:
         return found
 
     def record(self) -> dict[str, Any]:
-        return {"name": self.name, "components": [item.name for item in self.components], "bom": self.bom(), "allowed_overlaps": self.allowed_overlaps}
+        return {
+            "name": self.name,
+            "components": [item.name for item in self.components],
+            "bom": self.bom(),
+            "allowed_overlaps": self.allowed_overlaps,
+            "library_contacts": [
+                {"component": item.name, "reason": item.library_contact_reason, "max_volume_mm3": 0.75}
+                for item in self.components if item.library_contact_reason
+            ],
+        }
 
 
 def assembly(name: str = "assembly") -> Assembly:

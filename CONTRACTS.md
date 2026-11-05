@@ -95,6 +95,7 @@ normal module. Geometry assumptions and limits are documented in
 - `feature(name)` must be unique. It records created and modified faces and edges, source lines and dependencies.
 - `face()`, `edge()`, `vertex()` resolve semantically. `expect=n` turns a count mismatch into a `SELECTOR_AMBIGUOUS` or `SELECTOR_EMPTY` failure with candidates.
 - A script produces one `part`, one `assembly` (assign `assembly()` to `result`), or (for `kind: "2d"`) one `sheet2d`.
+- Named assemblies support `allow_overlap(first, second, reason=..., max_volume_mm3=...)`; reasons and optional volume caps are stored in assembly metadata, and matching pairs are listed separately by the interference check.
 - The script must not do I/O. Files come in through `asset("name")`, which reads from the project's imports.
 - Plain build123d is valid, and everything lands in an implicit `main` feature. Named features are what make edits reliable.
 

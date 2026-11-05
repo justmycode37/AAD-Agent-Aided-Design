@@ -148,7 +148,7 @@ result = bracket.folded
 
 ## Assemblies
 
-Create the project with `kind: "assembly"`, add components, and assign the assembly to `result`. `aad_inspect what: "bom"` then returns the BOM, `aad_drawing bom: true` adds it to a sheet, `aad_measure kind: "mass"` adds up per-component materials, and the `interference` check suite finds overlaps. For an exploded view, build `asm.exploded(1.5)` behind a parameter.
+Create the project with `kind: "assembly"`, add components, and assign the assembly to `result`. `aad_inspect what: "bom"` then returns the BOM, `aad_drawing bom: true` adds it to a sheet, `aad_measure kind: "mass"` adds up per-component materials, and every multi-solid build runs the bounded exact `interference` check. It reports counts and up to 20 largest unintended and intended-contact pairs separately, with part labels/paths, overlap volume and location. Declare a known interface with `asm.allow_overlap("shaft", "bearing", reason="press fit", max_volume_mm3=0.2)`. The reason is required, and the optional cap limits what can be classified as intended. This declaration is a model claim, not proof of fit. Standard ball-bearing geometry from `aad_quality.standard_parts.make_part` marks its nominal rolling contacts separately. Default build findings warn; an `interference` spec requirement makes them errors. For an exploded view, build `asm.exploded(1.5)` behind a parameter.
 
 Place parts with `at=`, or with build123d joints (`RigidJoint`, `RevoluteJoint`, `LinearJoint`, `CylindricalJoint`, `BallJoint` and `connect_to`). There is no global 3D constraint solver, so state the placement rather than expecting mates to solve it. `motion_clearance` tests a moving part at poses you choose. It samples only those poses and does not simulate dynamics.
 
