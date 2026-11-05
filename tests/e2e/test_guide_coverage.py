@@ -86,7 +86,7 @@ def test_guide_names_everything(label, names):
     )
 
 
-def test_a_fetched_guide_reaches_the_model_whole():
+def test_explicit_full_guide_reaches_text_and_structured_hosts_whole():
     import asyncio
 
     from aad_platform.daemon import handlers
@@ -107,6 +107,7 @@ def test_a_fetched_guide_reaches_the_model_whole():
         )
     finally:
         handlers.run_op = original
+    # An explicit section="all" request must stay whole in both host representations.
     # Text-only hosts consume reply["text"]; structured-only hosts consume structuredContent.
     assert reply["text"] == complete
     assert reply["structured"]["library"]["item"]["text"] == complete

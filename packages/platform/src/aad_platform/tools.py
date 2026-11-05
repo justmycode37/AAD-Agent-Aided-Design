@@ -408,7 +408,10 @@ TOOLS: list[dict[str, Any]] = [
                 "id": {"type": "string"},
                 "section": {
                     "type": "string",
-                    "description": "For playbook aad.guide.v1, a heading slug or all; omit for the short core.",
+                    "description": (
+                        "For playbook aad.guide.v1, use a heading slug, core, or all; "
+                        "omit section or pass core for the short core."
+                    ),
                 },
                 "offset": {"type": "integer", "minimum": 0},
                 "items": {"type": "array", "items": {"type": "object"}},

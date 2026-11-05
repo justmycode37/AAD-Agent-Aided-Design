@@ -44,6 +44,13 @@ def test_builds_are_not_marked_read_only():
     assert annotations["aad_scene_read"]["readOnlyHint"] is True
 
 
+def test_library_schema_documents_the_guide_core_alias():
+    tool = next(tool for tool in TOOLS if tool["name"] == "aad_library")
+    description = tool["inputSchema"]["properties"]["section"]["description"]
+    assert "core" in description
+    assert "all" in description
+
+
 @pytest.mark.parametrize("resource_delay_s", [0.0, 0.05])
 def test_stray_stdout_cannot_corrupt_the_mcp_stream(tmp_path, resource_delay_s):
     """Issue #11: native code writing to fd 1 must not land in the protocol stream."""

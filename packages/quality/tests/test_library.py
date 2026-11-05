@@ -182,7 +182,9 @@ def test_aad_guide_core_is_small_and_sections_follow_source_headings():
     assert default["section"] == "core"
     assert len(default["text"].encode("utf-8")) < 8_192
     assert all(heading in default["text"] for heading in ("## The loop", "## Tools", "## Honesty rules"))
+    assert "If a tool result disagrees with it, believe the tool." in default["text"]
     assert all(section["id"] in default["text"] for section in default["sections"])
+    assert library("get", kind="playbook", id="aad.guide.v1", section="core")["item"]["text"] == default["text"]
     assert complete["section"] == "all"
     assert complete["text"] == full_text
 
@@ -214,6 +216,7 @@ def test_guide_section_arguments_are_scoped_and_validated(args):
 def test_published_core_example_builds_the_requested_geometry():
     from aad_quality.catalog import _guidance_root
     text = _guidance_root().joinpath('playbooks/core-workflow.md').read_text(encoding='utf-8')
+    assert 'section="all"' in text
     source = '\n'.join(line[4:] for line in text.splitlines() if line.startswith('    '))
     assert 'result = bracket.part' in source
     from aad._runtime import configure_params

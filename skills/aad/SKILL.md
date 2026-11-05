@@ -7,7 +7,7 @@ description: Complete guide to AAD, CAD for agents. Covers everything AAD can do
 
 AAD lets you build exact B-rep CAD through MCP tools. You write Python, AAD runs it in a sandbox and returns numbers, checks and exact failures. It has no interface of its own: you do the work, and you show the part only when the user asks.
 
-This guide lists everything AAD can do. It was checked by running the tools. If a tool result disagrees with it, believe the tool.
+This guide lists everything AAD can do. It was checked by running the tools.
 
 Contents: the loop · tools · model.py · spec.yaml · process checks · results · render · viewer · drawings · import and export · revisions · library · command line · Python-only features · what does not work yet · honesty rules.
 
@@ -712,6 +712,7 @@ Say so plainly rather than working around it silently.
 
 ## Honesty rules
 
+- If a tool result disagrees with it, believe the tool.
 - A built part is not a proven part, and a passing spec only proves what the spec says. Compare with what the user actually asked for.
 - Never invent a tolerance, material, load, limit or test result. Keep assumptions visible.
 - `skip` and unknown mean not proven. Report them as such.
