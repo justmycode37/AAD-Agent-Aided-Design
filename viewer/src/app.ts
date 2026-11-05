@@ -34,15 +34,18 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
   root.innerHTML = `
     <section class="aad-frame" aria-label="3D model">
       <div class="aad-stage">
-        <div class="aad-cad"></div><div class="aad-caption" hidden></div>
+        <div class="aad-cad"></div>
+        <div class="aad-heading">
+          <div class="aad-caption">3D model</div>
+          <fieldset class="aad-toolbar" aria-label="View the model" disabled>
+            <button type="button" data-control="explode" aria-label="Pull apart" title="Pull apart" aria-pressed="false">${icon('<path d="m3 8 4-2 4 2v7l-4 2-4-2Zm10 1 4-2 4 2v7l-4 2-4-2M7 10v7m10-6v7M3 8l4 2 4-2m2 1 4 2 4-2"/>')}</button>
+            <button type="button" data-control="grid" aria-label="Show grid" title="Show grid" aria-pressed="false">${icon('<path d="m3 15 9-5 9 5-9 5Zm4-2 9 5M7 17l9-5M12 10V3m0 0-2 2m2-2 2 2"/>')}</button>
+            <button type="button" data-control="reset" aria-label="Reset" title="Reset">${icon('<path d="M4 10a8 8 0 1 1 1 9M4 10V4m0 6h6"/>')}</button>
+          </fieldset>
+        </div>
         <button class="aad-expand" type="button" data-control="fullscreen" aria-label="Make bigger" title="Make bigger" hidden>${icon('<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>')}</button>
         <div class="aad-progress" role="status">Opening your model…<progress max="100" value="0"></progress></div>
       </div>
-      <fieldset class="aad-toolbar" aria-label="View the model" disabled>
-        <button type="button" data-control="explode" aria-pressed="false">${icon('<path d="m3 8 4-2 4 2v7l-4 2-4-2Zm10 1 4-2 4 2v7l-4 2-4-2M7 10v7m10-6v7M3 8l4 2 4-2m2 1 4 2 4-2"/>')}<span>Pull apart</span></button>
-        <button type="button" data-control="grid" aria-pressed="false">${icon('<path d="m3 15 9-5 9 5-9 5Zm4-2 9 5M7 17l9-5M12 10V3m0 0-2 2m2-2 2 2"/>')}<span>Show grid</span></button>
-        <button type="button" data-control="reset">${icon('<path d="M4 10a8 8 0 1 1 1 9M4 10V4m0 6h6"/>')}<span>Reset</span></button>
-      </fieldset>
       <p class="aad-hint">Drag to turn · Scroll or pinch to zoom</p>
       <p class="aad-error" role="alert" hidden></p>
     </section>`;
@@ -66,12 +69,13 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
     const grid = view.viewer.getGrids().some(Boolean);
     control("explode").setAttribute("aria-pressed", String(exploded));
     control("grid").setAttribute("aria-pressed", String(grid));
-    const explodeLabel = control("explode").querySelector("span")!;
-    const gridLabel = control("grid").querySelector("span")!;
-    if (explodeLabel.textContent !== (exploded ? "Put together" : "Pull apart")) explodeLabel.textContent = exploded ? "Put together" : "Pull apart";
-    if (gridLabel.textContent !== (grid ? "Hide grid" : "Show grid")) gridLabel.textContent = grid ? "Hide grid" : "Show grid";
+    const explodeLabel = exploded ? "Put together" : "Pull apart";
+    const gridLabel = grid ? "Hide grid" : "Show grid";
+    control("explode").setAttribute("aria-label", explodeLabel);
+    control("grid").setAttribute("aria-label", gridLabel);
     control<HTMLButtonElement>("explode").disabled = !view.canExplode();
-    control("explode").title = view.canExplode() ? "Separate the pieces" : "This model has one visible piece";
+    control("explode").title = view.canExplode() ? explodeLabel : "This model has one visible piece";
+    control("grid").title = gridLabel;
     const label = transport.displayMode?.() === "fullscreen" ? "Make smaller" : "Make bigger";
     control("fullscreen").setAttribute("aria-label", label); control("fullscreen").title = label;
   };
@@ -90,8 +94,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
       applyPresentation(view!, requested.presentation);
       if (requested.view) view!.viewer.presetCamera(requested.view);
     });
-    q(".aad-caption").textContent = requested.title ?? "";
-    q(".aad-caption").hidden = !requested.title;
+    q(".aad-caption").textContent = requested.title || env.project;
     syncControls();
   };
   control("explode").addEventListener("click", () => {

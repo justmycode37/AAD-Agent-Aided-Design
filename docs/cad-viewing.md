@@ -1,8 +1,9 @@
 # Simple viewing, agent-controlled inspection
 
-The user sees three main controls:
+The user sees three icon buttons below the model title. Hover hints and
+accessible labels name each action:
 
-- **Pull apart / Put together** separates an assembly and brings it back together.
+- **Pull apart / Put together** separates an assembly and brings it back together, preserving the current zoom and camera in both directions.
 - **Show grid / Hide grid** toggles the XYZ grids and axes.
 - **Reset** returns to the view prepared by the agent.
 

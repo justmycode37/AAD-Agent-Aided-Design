@@ -68,7 +68,7 @@ def export_bundle(scene_dir: Path, output_dir: Path, *, presentation: dict | Non
     bootstrap = r'''<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <script>window.__AAD_EMBEDDED_SCENE__ = CONFIG;</script>
-</head><body><main id="aad-boot" style="min-height:560px" role="status">Loading CAD viewer…</main>
+</head><body><main id="aad-boot" style="min-height:510px" role="status">Loading CAD viewer…</main>
 <script>
 try {
   const asset = RUNTIME;

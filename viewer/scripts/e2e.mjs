@@ -51,7 +51,7 @@ function gunzip(b) { return gunzipSync(b).toString(); }
 
 await scenario("small-part-t3-limits", {}, async ({ host, mcp, diag }) => {
   const state = await host.hostState();
-  check(state.sized >= 540 && state.sized < 900, "requests its complete inline height", String(state.sized));
+  check(state.sized >= 500 && state.sized < 600, "requests its complete inline height", String(state.sized));
   check(state.tooLarge === 0, "no app message over 256 KiB");
   check(mcp.stats.chunks === 1, "one chunk for a small scene", String(mcp.stats.chunks));
   const marker = await host.frame().evaluate(() => {
@@ -94,6 +94,11 @@ const assembly = assemblyFixture();
 await scenario("simple-controls-and-agent-views", { scene: assembly, strictCsp: true }, async ({ host, mcp, diag }) => {
   const frame = host.frame();
   const button = name => frame.getByRole("button", { name, exact: true });
+  const camera = () => frame.evaluate(() => {
+    const v = globalThis.__viewer;
+    return [v.getCameraZoom(), ...v.getCameraPosition(), ...v.getCameraTarget(), ...v.getCameraQuaternion()];
+  });
+  const sameCamera = (before, after) => before.every((n, i) => Math.abs(n - after[i]) < 1e-8);
   const update = async (viewer) => {
     await host.page.evaluate(result => document.getElementById("f").contentWindow.postMessage({ jsonrpc: "2.0", method: "ui/notifications/tool-result", params: result }, "*"), {
       ...mcp.toolResult, structuredContent: { ...mcp.toolResult.structuredContent, viewer: { mode: "inline", ...viewer } },
@@ -101,10 +106,16 @@ await scenario("simple-controls-and-agent-views", { scene: assembly, strictCsp: 
   };
   check(diag.triangles === assembly.manifest.triangles && diag.verified, "all original assembly triangles verified");
   check(await frame.getByRole("button").count() === 4 && await frame.getByRole("combobox").count() === 0, "only three simple actions and a bigger-view button are visible");
+  await frame.evaluate(() => globalThis.__viewer.setCameraZoom(globalThis.__viewer.getCameraZoom() * 1.25));
+  const beforeExplode = await camera();
   await button("Pull apart").click();
   check(await frame.evaluate(() => globalThis.__viewer.state.get("animationMode") === "explode" && globalThis.__viewer.getRelativeTime() > 0.99), "pull apart separates the pieces immediately");
+  check(sameCamera(beforeExplode, await camera()), "pull apart preserves the user's zoom and camera");
+  await frame.evaluate(() => globalThis.__viewer.setCameraZoom(globalThis.__viewer.getCameraZoom() * 0.8));
+  const beforeAssemble = await camera();
   await button("Put together").click();
   check(await frame.evaluate(() => globalThis.__viewer.state.get("animationMode") !== "explode"), "put together restores assembly");
+  check(sameCamera(beforeAssemble, await camera()), "put together preserves zoom changes made while exploded");
   await button("Show grid").click();
   check(await frame.evaluate(() => globalThis.__viewer.getGrids().every(Boolean) && globalThis.__viewer.getAxes()), "one button shows all XYZ grids and axes");
   await button("Hide grid").click();
@@ -138,18 +149,37 @@ for (const width of [320, 390]) await scenario(`mobile-layout-${width}`, { width
     const footer = document.querySelector(".aad-hint").getBoundingClientRect();
     const canvas = document.querySelector(".tcv_cad_viewer").getBoundingClientRect();
     const stage = document.querySelector(".aad-stage").getBoundingClientRect();
-    const labelsFit = [...document.querySelectorAll('.aad-toolbar button')].every(button => {
-      const label = button.querySelector('span').getBoundingClientRect(), bounds = button.getBoundingClientRect();
-      return label.left >= bounds.left && label.right <= bounds.right && label.bottom <= bounds.bottom;
+    const caption = document.querySelector('.aad-caption').getBoundingClientRect();
+    const iconsFit = [...document.querySelectorAll('.aad-toolbar button')].every(button => {
+      const icon = button.querySelector('svg').getBoundingClientRect(), bounds = button.getBoundingClientRect();
+      return !button.textContent.trim() && !!button.getAttribute('aria-label') && !!button.title && bounds.top > caption.bottom
+        && bounds.width >= 44 && bounds.height >= 44 && bounds.right <= stage.right
+        && icon.left >= bounds.left && icon.right <= bounds.right && icon.bottom <= bounds.bottom;
     });
-    return { height: document.documentElement.getBoundingClientRect().height, frame: frame.bottom, footer: footer.bottom, labelsFit,
+    return { height: document.documentElement.getBoundingClientRect().height, frame: frame.bottom, footer: footer.bottom, iconsFit,
       overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth, canvasRight: canvas.right, stageRight: stage.right };
   });
   check(layout.height >= layout.footer && layout.frame >= layout.footer, "mobile frame includes the complete bottom edge", JSON.stringify(layout));
   check(layout.overflow <= 1 && layout.canvasRight <= layout.stageRight + 1, "mobile CAD viewport has no horizontal clipping");
-  check(layout.labelsFit, "all three button labels fit at phone width");
+  check(layout.iconsFit, "three accessible icon buttons fit below the title at phone width");
   await host.frame().getByRole("button", { name: "Pull apart", exact: true }).click();
   check(await host.frame().getByRole("button", { name: "Put together", exact: true }).count() === 1, "phone control responds to a real tap target click");
+});
+
+await scenario("theme-backgrounds", {}, async ({ host }) => {
+  const background = () => host.frame().evaluate(() => {
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = getComputedStyle(document.querySelector('.aad-stage')).backgroundColor;
+    ctx.fillRect(0, 0, 1, 1);
+    return [...ctx.getImageData(0, 0, 1, 1).data];
+  });
+  const dark = await background();
+  await host.page.evaluate(() => window.__setTheme('light'));
+  await host.frame().waitForFunction(() => document.querySelector('.aad-frame').dataset.theme === 'light');
+  const light = await background();
+  check(dark[0] > 30 && dark[0] < 65 && dark[0] === dark[1] && dark[1] === dark[2], "dark viewport uses a slightly lighter neutral gray", JSON.stringify(dark));
+  check(light[0] > 220 && light[0] < 250 && light[0] === light[1] && light[1] === light[2], "light viewport uses a slightly darker neutral gray", JSON.stringify(light));
 });
 
 const big = bigScene(5 * 1024 * 1024);

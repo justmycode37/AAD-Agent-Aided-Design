@@ -94,8 +94,6 @@ export function mountCad3d(
       try { action(); } finally { batchDepth--; viewer.renderer.render = render; viewer.update(true, false); }
     };
     const initialStates = structuredClone(viewer.getStates());
-    let assembledZoom = FIT_ZOOM;
-    let assembledTarget = viewer.getCameraTarget();
     const fit = () => {
       const bounds = (viewer.bbox! as any).clone().makeEmpty();
       for (const [id, state] of Object.entries(viewer.getStates())) {
@@ -109,12 +107,9 @@ export function mountCad3d(
     const setExploded = (flag: boolean) => {
       if (flag === (viewer.state.get("animationMode") === "explode")) return;
       if (flag) {
-        assembledZoom = viewer.getCameraZoom(); assembledTarget = viewer.getCameraTarget();
         viewer.setExplode(true); viewer.setRelativeTime(1);
-        // Fit the transformed parts without changing their saved mesh or camera direction.
-        fit();
       } else {
-        viewer.setExplode(false); viewer.setCameraTarget(assembledTarget); viewer.setCameraZoom(assembledZoom);
+        viewer.setExplode(false);
       }
     };
     const isolateParts = (ids: string[]) => {
