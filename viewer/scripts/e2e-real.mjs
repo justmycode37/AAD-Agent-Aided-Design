@@ -99,6 +99,7 @@ try {
   check(resource.contents[0].mimeType === "text/html;profile=mcp-app", "ui://aad/viewer has the MCP Apps mime type");
   check(html.includes("three-cad-viewer") || html.length > 1_000_000, "ui://aad/viewer serves the real bundle", `${(html.length / 1048576).toFixed(2)} MiB`);
   let reads = 0;
+  const presentation = { section: { planes: [{ plane: "YZ", offset: -1 }] }, style: "transparent", projection: "orthographic" };
   const onRequest = async (method, params) => {
     if (method !== "tools/call") return {};
     if (params.name === "aad_scene_read") reads++;
@@ -114,6 +115,14 @@ try {
       check(reads > 0, `${name}: chunks came through aad_scene_read`, String(reads));
       const colors = await colorCount(host.page, host.frame());
       check(colors > 50, `${name}: the canvas shows a shaded part, not an empty frame`, `${colors} colors`);
+      const before = reads;
+      const prepared = await mcp.tool("aad_show", { project: "bracket", presentation, view: "front", title: "Look inside" });
+      check(prepared.structuredContent?.scene?.scene_id === manifest.scene_id, `${name}: agent view keeps the original scene`);
+      await host.page.evaluate(result => document.getElementById("f").contentWindow.postMessage({ jsonrpc: "2.0", method: "ui/notifications/tool-result", params: result }, "*"), prepared);
+      await host.frame().waitForFunction(() => globalThis.__viewer.getClipSlider(0) === -1 && globalThis.__viewer.getOrtho());
+      check(reads === before && await host.frame().evaluate(() => globalThis.__aad.loads === 1 && globalThis.__viewer.getTransparent()), `${name}: real agent section updates without another mesh load`);
+      await host.frame().getByRole("button", { name: "Reset", exact: true }).click();
+      check(await host.frame().evaluate(() => globalThis.__viewer.getClipSlider(0) === -1), `${name}: reset keeps the requested section`);
       check(host.requests.length === 0, `${name}: no network requests`, host.requests.join(" "));
       const bad = host.logs.filter((l) => /\[(error|pageerror|requestfailed)\]/.test(l));
       check(bad.length === 0, `${name}: no console errors`, bad.join(" | "));
@@ -127,7 +136,7 @@ try {
   // The standalone export opens from disk, with nothing running behind it.
   const output = join(home, "viewer-export");
   const sceneDir = join(home, "AAD", "bracket", ".aad", "revs", String(manifest.rev).padStart(6, "0"), "scene");
-  const exported = spawnSync(PYTHON, ["-m", "aad_platform.viewer.bundle", sceneDir, output], { encoding: "utf8" });
+  const exported = spawnSync(PYTHON, ["-m", "aad_platform.viewer.bundle", sceneDir, output, "--presentation", JSON.stringify(presentation), "--view", "front", "--title", "Look inside"], { encoding: "utf8" });
   const file = join(output, "standalone.html");
   check(exported.status === 0, "bundle export writes the standalone viewer", exported.stderr);
   mcp.close();
@@ -139,8 +148,9 @@ try {
   await page.waitForFunction(() => ["ready", "error"].includes(globalThis.__aad?.state), null, { timeout: 60_000 });
   const state = await page.evaluate(() => globalThis.__aad);
   check(state.state === "ready", "standalone page reaches ready", state.error ?? "");
+  check(await page.evaluate(() => globalThis.__viewer.getClipSlider(0) === -1 && globalThis.__viewer.getOrtho() && globalThis.__viewer.getTransparent()), "standalone page keeps the prepared inspection view");
   const colors = await colorCount(page);
-  check(colors > 50, "standalone page shows a shaded part", `${colors} colors`);
+  check(colors > 20, "standalone page shows the prepared translucent section", `${colors} colors`);
   check(offline.length === 0, "standalone page makes no requests", offline.join(" "));
   await page.screenshot({ path: `${OUT}/real-part-standalone.png` });
   await browser.close();

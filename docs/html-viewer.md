@@ -26,7 +26,23 @@ It reports a missing asset instead of substituting a different mesh.
 
 The same export also writes `standalone.html`, which opens directly from disk
 with the viewer and original scene embedded. No daemon or internet connection
-is needed. Both exports use the same CAD controls as the MCP App.
+is needed. Both exports use the same simple controls as the MCP App: pull
+apart, show the XYZ grid, reset, and a bigger view. Detailed inspection is
+prepared by the agent rather than exposed as CAD toolbars.
+
+Prepare an inside view without editing the model:
+
+```sh
+uv run python -m aad_platform.viewer.bundle \
+  ~/AAD/mechanik-getriebe/.aad/revs/000003/scene \
+  ~/AAD/mechanik-getriebe/exports/inside \
+  --presentation '{"hide":["housing_upper","housing_lower"]}' \
+  --title 'Inside the gearbox'
+```
+
+`--presentation` accepts the same settings as `aad_show`; see
+[CAD viewing](cad-viewing.md). `--view` selects a standard camera direction.
+Reset preserves the prepared part selection and section.
 
 Allow content to determine the frame height. Do not set `height: 100%` on the
 document roots: a host may add padding around the viewer. Pass the measured

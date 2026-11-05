@@ -1,7 +1,7 @@
 import { gunzipToText, readScene } from "./loader";
-import type { CameraView, Envelope, SceneManifest, Transport } from "./transport/types";
+import type { Envelope, Transport } from "./transport/types";
 import { mountCad3d, type Cad3dView } from "./viewer3d";
-import type { DisplayMode } from "./display-mode";
+import { applyPresentation } from "./presentation";
 import "./style.css";
 
 const STAGE_HEIGHT = 480;
@@ -17,7 +17,7 @@ function resolvedTheme(transport: Transport): "light" | "dark" {
   return transport.theme() ?? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 }
 
-/** Count original triangles without decoding or rewriting geometry buffers. */
+/** Count the original triangles without rewriting any geometry buffers. */
 export function triangleCount(scene: any): number {
   const visit = (node: any): number => {
     const shape = node.shape?.ref !== undefined ? scene.instances[node.shape.ref] : node.shape;
@@ -28,165 +28,123 @@ export function triangleCount(scene: any): number {
   return visit(scene.shapes ?? scene);
 }
 
+const icon = (paths: string) => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+
 export async function runApp(transport: Transport, root: HTMLElement): Promise<void> {
   root.innerHTML = `
-    <section class="aad-frame" aria-label="AAD CAD viewer">
-      <fieldset class="aad-toolbar" aria-label="CAD viewing controls" disabled>
-        <label>View <select aria-label="Standard view" data-control="view"><option value="iso">Isometric</option><option value="front">Front</option><option value="rear">Rear</option><option value="left">Left</option><option value="right">Right</option><option value="top">Top</option><option value="bottom">Bottom</option></select></label>
-        <label>Display <select aria-label="Display style" data-control="style"><option value="shaded-edges">Shaded + edges</option><option value="shaded">Shaded</option><option value="wireframe">Wireframe</option><option value="transparent">Transparent</option></select></label>
-        <button type="button" data-control="ortho" aria-pressed="false">Orthographic</button>
-        <button type="button" data-control="section" aria-pressed="false">Section</button>
-        <button type="button" data-control="explode" aria-pressed="false">Explode</button>
-        <button type="button" data-control="measure" aria-pressed="false">Measure</button>
-        <button type="button" data-control="parts" aria-expanded="false">Parts</button>
-        <button type="button" data-control="reset">Reset view</button>
-        <button type="button" data-control="fullscreen" hidden>Fullscreen</button>
-      </fieldset>
-      <div class="aad-part-controls" hidden>
-        <label>Part <select aria-label="Part" data-control="part"></select></label>
-        <button type="button" data-control="hide">Hide part</button><button type="button" data-control="isolate">Isolate part</button><button type="button" data-control="show-all">Show all</button>
+    <section class="aad-frame" aria-label="3D model">
+      <div class="aad-stage">
+        <div class="aad-cad"></div><div class="aad-caption" hidden></div>
+        <button class="aad-expand" type="button" data-control="fullscreen" aria-label="Make bigger" title="Make bigger" hidden>${icon('<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>')}</button>
+        <div class="aad-progress" role="status">Opening your model…<progress max="100" value="0"></progress></div>
       </div>
-      <div class="aad-stage"><div class="aad-cad"></div><div class="aad-progress" role="status">Loading model… <progress max="100" value="0"></progress></div></div>
-      <footer class="aad-footer"><span class="aad-title"></span><span class="aad-hint">Drag: rotate · Shift-drag / right-drag: pan · Scroll: zoom</span></footer>
-      <div class="aad-notice" role="status" hidden></div>
-      <div class="aad-error" role="alert" hidden></div>
+      <fieldset class="aad-toolbar" aria-label="View the model" disabled>
+        <button type="button" data-control="explode" aria-pressed="false">${icon('<path d="m3 8 4-2 4 2v7l-4 2-4-2Zm10 1 4-2 4 2v7l-4 2-4-2M7 10v7m10-6v7M3 8l4 2 4-2m2 1 4 2 4-2"/>')}<span>Pull apart</span></button>
+        <button type="button" data-control="grid" aria-pressed="false">${icon('<path d="m3 15 9-5 9 5-9 5Zm4-2 9 5M7 17l9-5M12 10V3m0 0-2 2m2-2 2 2"/>')}<span>Show grid</span></button>
+        <button type="button" data-control="reset">${icon('<path d="M4 10a8 8 0 1 1 1 9M4 10V4m0 6h6"/>')}<span>Reset</span></button>
+      </fieldset>
+      <p class="aad-hint">Drag to turn · Scroll or pinch to zoom</p>
+      <p class="aad-error" role="alert" hidden></p>
     </section>`;
   const q = <T extends HTMLElement>(s: string) => root.querySelector(s) as T;
   const control = <T extends HTMLElement>(name: string) => q<T>(`[data-control="${name}"]`);
   q(".aad-frame").dataset.theme = resolvedTheme(transport);
   const fail = (error: unknown) => {
-    diagnostics.state = "error";
-    diagnostics.error = String((error as Error)?.stack ?? error);
-    q(".aad-progress").hidden = true;
-    q(".aad-error").hidden = false;
-    q(".aad-error").textContent = `Could not show this model: ${(error as Error)?.message ?? error}`;
+    diagnostics.state = "error"; diagnostics.error = String((error as Error)?.stack ?? error);
+    q(".aad-progress").hidden = true; q(".aad-error").hidden = false;
+    q(".aad-error").textContent = `Could not open this model: ${(error as Error)?.message ?? error}`;
     console.error(error);
   };
   let view: Cad3dView | undefined;
+  let requested: Partial<NonNullable<Envelope["viewer"]>> = {};
+  let requestKey = "";
   let unsubscribe = () => {};
   let loading: Promise<void> = Promise.resolve();
+  const syncControls = () => {
+    if (!view) return;
+    const exploded = view.viewer.state.get("animationMode") === "explode";
+    const grid = view.viewer.getGrids().some(Boolean);
+    control("explode").setAttribute("aria-pressed", String(exploded));
+    control("grid").setAttribute("aria-pressed", String(grid));
+    const explodeLabel = control("explode").querySelector("span")!;
+    const gridLabel = control("grid").querySelector("span")!;
+    if (explodeLabel.textContent !== (exploded ? "Put together" : "Pull apart")) explodeLabel.textContent = exploded ? "Put together" : "Pull apart";
+    if (gridLabel.textContent !== (grid ? "Hide grid" : "Show grid")) gridLabel.textContent = grid ? "Hide grid" : "Show grid";
+    control<HTMLButtonElement>("explode").disabled = !view.canExplode();
+    control("explode").title = view.canExplode() ? "Separate the pieces" : "This model has one visible piece";
+    const label = transport.displayMode?.() === "fullscreen" ? "Make smaller" : "Make bigger";
+    control("fullscreen").setAttribute("aria-label", label); control("fullscreen").title = label;
+  };
   const size = () => {
     const fullscreen = transport.displayMode?.() === "fullscreen";
-    const frame = q(".aad-frame");
-    const other = frame.offsetHeight - q(".aad-stage").offsetHeight;
-    q(".aad-stage").style.height = `${fullscreen ? Math.max(240, window.innerHeight - other - 16) : STAGE_HEIGHT}px`;
-    const bounds = q(".aad-stage").getBoundingClientRect();
-    view?.resize(bounds.width, bounds.height);
+    const other = q(".aad-frame").offsetHeight - q(".aad-stage").offsetHeight;
+    q(".aad-stage").style.height = `${fullscreen ? Math.max(240, innerHeight - other - 16) : STAGE_HEIGHT}px`;
+    const bounds = q(".aad-stage").getBoundingClientRect(); view?.resize(bounds.width, bounds.height);
     if (!fullscreen) transport.requestSize(Math.ceil(document.documentElement.getBoundingClientRect().height));
+    syncControls();
   };
-  const notice = (text: string) => { q(".aad-notice").hidden = !text; q(".aad-notice").textContent = text; };
-  const pressed = (name: string, flag: boolean) => control(name).setAttribute("aria-pressed", String(flag));
-  const toggle = (name: string) => {
-    const flag = control(name).getAttribute("aria-pressed") !== "true";
-    pressed(name, flag);
-    return flag;
-  };
-  control<HTMLSelectElement>("view").addEventListener("change", () => view?.viewer.presetCamera(control<HTMLSelectElement>("view").value as CameraView));
-  control<HTMLSelectElement>("style").addEventListener("change", () => {
-    const next = control<HTMLSelectElement>("style").value as DisplayMode;
-    view?.setDisplayMode(next);
-    control<HTMLSelectElement>("style").value = next;
-  });
-  control("ortho").addEventListener("click", () => view?.viewer.setOrtho(toggle("ortho")));
-  control("section").addEventListener("click", () => {
+  const applyRequest = (env: Envelope) => {
     if (!view) return;
-    if (toggle("section")) {
-      view.viewer.setActiveTab("clip");
-      view.viewer.setClipNormal(0, [-1, 0, 0], 0);
-      notice("Section view: adjust the three clipping planes in the section panel. The original geometry is unchanged.");
-    } else { view.viewer.resetClip(); view.viewer.setActiveTab("tree"); notice(""); }
-  });
+    requested = structuredClone(env.viewer ?? {});
+    view.batch(() => {
+      applyPresentation(view!, requested.presentation);
+      if (requested.view) view!.viewer.presetCamera(requested.view);
+    });
+    q(".aad-caption").textContent = requested.title ?? "";
+    q(".aad-caption").hidden = !requested.title;
+    syncControls();
+  };
   control("explode").addEventListener("click", () => {
-    if (!view) return;
-    const enabled = toggle("explode");
-    view.viewer.setExplode(enabled);
-    if (enabled) { view.viewer.setRelativeTime(1); pressed("measure", false); notice(""); }
+    if (view) view.batch(() => view!.setExploded(view!.viewer.state.get("animationMode") !== "explode"));
   });
-  control("measure").addEventListener("click", () => {
-    if (!view) return;
-    const enabled = toggle("measure");
-    if (enabled) { view.viewer.setExplode(false); pressed("explode", false); }
-    view.viewer.activateTool("distance", enabled);
-    notice(enabled ? "Mesh measurement: click two faces, edges, or vertices. Distances use the model’s units; this measures the tessellated display geometry." : "");
-  });
-  control("parts").addEventListener("click", () => {
-    q(".aad-part-controls").hidden = !q(".aad-part-controls").hidden;
-    control("parts").setAttribute("aria-expanded", String(!q(".aad-part-controls").hidden));
-    size();
-  });
-  control("hide").addEventListener("click", () => view?.hidePart(control<HTMLSelectElement>("part").value));
-  control("isolate").addEventListener("click", () => view?.isolatePart(control<HTMLSelectElement>("part").value));
-  control("show-all").addEventListener("click", () => view?.showAll());
+  control("grid").addEventListener("click", () => { if (view) view.batch(() => view!.setGrid(!view!.viewer.getGrids().some(Boolean))); });
   control("reset").addEventListener("click", () => {
-    view?.reset();
-    for (const name of ["ortho", "section", "explode", "measure"]) pressed(name, false);
-    control<HTMLSelectElement>("style").value = "shaded-edges";
-    control<HTMLSelectElement>("view").value = "iso";
-    notice("");
+    if (!view) return;
+    view.batch(() => {
+      view!.reset();
+      applyPresentation(view!, { ...requested?.presentation, explode: requested?.presentation?.explode ?? false, grid: requested?.presentation?.grid ?? false });
+      view!.viewer.presetCamera(requested?.view ?? "iso");
+    });
+    syncControls();
   });
   control("fullscreen").hidden = !transport.caps.fullscreen;
-  control("fullscreen").addEventListener("click", () => void transport.requestFullscreen().catch(fail));
+  control("fullscreen").addEventListener("click", () => void transport.requestFullscreen().then(size).catch(fail));
 
   const present = async (env: Envelope) => {
-    if (!env.scene) throw new Error(env.summary || "The tool result has no scene.");
-    if (env.scene.scene_id === diagnostics.shownScene) return;
+    if (!env.scene) throw new Error(env.summary || "The result has no model.");
+    const nextKey = JSON.stringify({ presentation: env.viewer?.presentation ?? {}, view: env.viewer?.view, title: env.viewer?.title });
+    if (env.scene.scene_id === diagnostics.shownScene) {
+      if (requestKey !== nextKey) { applyRequest(env); requestKey = nextKey; }
+      return;
+    }
     diagnostics.state = "loading";
-    const manifest = env.scene as SceneManifest;
-    if (manifest.format !== "tcv-5") throw new Error(`Scene format ${manifest.format} is not supported yet.`);
+    const manifest = env.scene;
+    if (manifest.format !== "tcv-5") throw new Error(`Unsupported scene format ${manifest.format}`);
     q<HTMLFieldSetElement>(".aad-toolbar").disabled = true;
-    q(".aad-progress").hidden = false;
-    q(".aad-error").hidden = true;
+    q(".aad-progress").hidden = false; q(".aad-error").hidden = true;
     const started = performance.now();
     const { bytes, stats } = await readScene(manifest.scene_id, manifest.total_bytes, transport.readChunk.bind(transport), (done, total) => {
       q<HTMLProgressElement>("progress").value = 100 * done / total;
     });
-    const readAt = performance.now();
-    const text = await gunzipToText(bytes);
-    const shapes = JSON.parse(text);
+    const readAt = performance.now(); const text = await gunzipToText(bytes); const shapes = JSON.parse(text);
     const triangles = triangleCount(shapes);
     if (manifest.triangles !== undefined && triangles !== manifest.triangles) throw new Error(`Expected ${manifest.triangles} triangles, got ${triangles}`);
-    const parsedAt = performance.now();
-    unsubscribe();
-    view?.dispose();
-    q(".aad-cad").replaceChildren();
+    const parsedAt = performance.now(); unsubscribe(); view?.dispose(); q(".aad-cad").replaceChildren();
     const bounds = q(".aad-stage").getBoundingClientRect();
     view = mountCad3d(q(".aad-cad"), shapes, { width: bounds.width, height: bounds.height, theme: resolvedTheme(transport), view: env.viewer?.view });
     (globalThis as { __viewer?: unknown }).__viewer = view.viewer;
-    unsubscribe = view.viewer.state.subscribeAll(() => {
-      if (!view) return;
-      const state = view.viewer.state;
-      pressed("ortho", view.viewer.getOrtho());
-      pressed("section", state.get("activeTab") === "clip");
-      pressed("explode", state.get("animationMode") === "explode");
-      pressed("measure", state.get("activeTool") === "distance");
-      if (view.viewer.getTransparent()) control<HTMLSelectElement>("style").value = "transparent";
-      else if (control<HTMLSelectElement>("style").value === "transparent") control<HTMLSelectElement>("style").value = "shaded-edges";
-    });
-    const part = control<HTMLSelectElement>("part");
-    part.replaceChildren(...Object.keys(view.viewer.getStates()).map((path) => {
-      const option = document.createElement("option"); option.value = path;
-      option.textContent = manifest.parts.find((p) => p.path === path)?.name ?? path.split("/").at(-1) ?? path;
-      return option;
-    }));
-    q(".aad-title").textContent = `${manifest.project} · rev ${manifest.rev} · ${triangles.toLocaleString()} triangles · ${manifest.units}`;
-    q(".aad-title").title = `Original scene verified: ${manifest.scene_id}`;
+    unsubscribe = view.viewer.state.subscribeAll(syncControls);
+    applyRequest(env); requestKey = nextKey;
     diagnostics.shownScene = manifest.scene_id; diagnostics.triangles = triangles; diagnostics.verified = true;
     diagnostics.load = stats; diagnostics.rawBytes = text.length;
     diagnostics.ms = { read: readAt - started, parse: parsedAt - readAt, mount: performance.now() - parsedAt, sinceToolResult: performance.now() - started };
     diagnostics.loads++; diagnostics.state = "ready";
-    q(".aad-progress").hidden = true;
-    q<HTMLFieldSetElement>(".aad-toolbar").disabled = false;
+    q(".aad-progress").hidden = true; q<HTMLFieldSetElement>(".aad-toolbar").disabled = false;
     size();
   };
   const queue = (env: Envelope) => { loading = loading.then(() => present(env)).catch(fail); return loading; };
-  transport.onUpdate((env) => void queue(env));
-  new ResizeObserver(size).observe(q(".aad-frame"));
-  transport.onThemeChange(() => {
-    const theme = resolvedTheme(transport);
-    q(".aad-frame").dataset.theme = theme;
-    view?.setTheme(theme);
-    size();
-  });
-  window.addEventListener("resize", size);
+  transport.onUpdate(env => void queue(env)); new ResizeObserver(size).observe(q(".aad-frame"));
+  transport.onThemeChange(() => { const theme = resolvedTheme(transport); q(".aad-frame").dataset.theme = theme; view?.setTheme(theme); size(); });
+  addEventListener("resize", size);
   try { await queue(await transport.getInitialResult()); } catch (error) { fail(error); }
 }

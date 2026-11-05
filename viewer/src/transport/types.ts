@@ -21,6 +21,16 @@ export interface SceneManifest {
 
 export type CameraView = "iso" | "front" | "rear" | "top" | "bottom" | "left" | "right";
 
+export interface Presentation {
+  isolate?: string[];
+  hide?: string[];
+  style?: "shaded-edges" | "shaded" | "wireframe" | "transparent";
+  projection?: "orthographic" | "perspective";
+  section?: { planes: { plane?: "XY" | "XZ" | "YZ"; normal?: [number, number, number]; offset?: number; flipped?: boolean }[]; intersection?: boolean };
+  explode?: boolean;
+  grid?: boolean;
+}
+
 export interface Envelope {
   ok: boolean;
   project: string;
@@ -28,7 +38,7 @@ export interface Envelope {
   status: Status;
   summary: string;
   scene?: SceneManifest;
-  viewer?: { mode: "inline" | "window" | "none"; url?: string; view?: CameraView };
+  viewer?: { mode: "inline" | "window" | "none"; url?: string; view?: CameraView; title?: string; presentation?: Presentation };
   [key: string]: unknown;
 }
 

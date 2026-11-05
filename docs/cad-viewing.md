@@ -1,35 +1,52 @@
-# CAD viewing and inspection
+# Simple viewing, agent-controlled inspection
 
-AAD uses the pinned `three-cad-viewer` 5.1.3 renderer for the same local
-inspection UI in an MCP App, the opt-in local window, and HTML exports. It
-preserves the saved tessellation and verifies its compressed bytes against the
-scene ID before rendering. Viewing controls never rebuild or edit the CAD model.
+The user sees three main controls:
 
-The inspection workflow follows common mechanical CAD practice, with
-SolidWorks as the reference for sections, component visibility, display styles,
-camera views, and exploded assemblies. This does not claim feature-for-feature
-parity with every SolidWorks viewing or drawing feature.
+- **Pull apart / Put together** separates an assembly and brings it back together.
+- **Show grid / Hide grid** toggles the XYZ grids and axes.
+- **Reset** returns to the view prepared by the agent.
 
-| Control | Use |
+The corner button makes the view bigger. Drag to turn, scroll or pinch to zoom,
+and Shift-drag or right-drag to pan. The CAD toolbars, part tree, menus,
+measurement panels, and their keyboard shortcuts are not exposed to the user.
+A model with one visible piece disables Pull apart.
+
+Users ask the agent for detailed views in ordinary language:
+
+| Request | Agent command |
 | --- | --- |
-| Section | Cut through the model center immediately. The Clip panel controls three independent planes, normal directions, offsets, caps, and intersection mode. Toggle Section off to restore the whole model. |
-| Parts | Choose a named component and hide it, isolate it, or show all components. The navigation tree also controls faces and edges individually. For the gearbox, hide `housing_upper` and `housing_lower` to expose the gears. |
-| Display | Choose shaded, shaded with edges, wireframe, or transparent surfaces. Hidden components remain hidden when switching styles. |
-| View | Isometric, front, rear, left, right, top, or bottom. The orientation marker also changes the camera. |
-| Orthographic | Switch between orthographic and perspective projection. |
-| Explode | Separate assembly components immediately; the native animation controls adjust the exploded pose. Toggle off to reassemble. |
-| Measure | Select faces, edges, or vertices to inspect distance. Measurements use the mesh and model units; they are not exact B-rep metrology. Measuring exits exploded mode. |
-| Zebra / Material / Studio | Inspect surface reflections or change the presentation using local procedural lighting. Remote environment-map presets are excluded from the build. |
-| Reset view | Restore all components, the camera, surface display, clipping planes, and inspection tools. |
-| Fullscreen | Use the host's fullscreen API when available, only after a user click. |
+| “Show me the gears inside.” | `aad_show(project="gearbox", presentation={"hide":["housing_upper","housing_lower"]})` |
+| “Only show this gear.” | `aad_show(project="gearbox", presentation={"isolate":["/Group/gear_1"]})` |
+| “Cut through the middle.” | `aad_show(project="gearbox", presentation={"section":{"planes":[{"plane":"YZ","offset":0}]}})` |
+| “Show it as wireframe from the front.” | `aad_show(project="gearbox", view="front", presentation={"style":"wireframe"})` |
+| “Show the whole thing again.” | `aad_show(project="gearbox", presentation={})` |
 
-Drag to orbit, Shift-drag or right-drag to pan, and scroll to zoom. These controls
-are local to the viewer; they do not call modeling tools or send selections to
-the agent.
+Part selectors are exact names or full/group paths from `scene.parts`. Ambiguous
+names and unknown paths return BAD_INPUT. Measurements remain an agent task
+through `aad_measure`; the user does not need to operate a measurement toolbar.
 
-Develop the viewer with `npm ci`, `npm run build`, `npm test`, and
-`npm run test:e2e` in `viewer/`. The build copies its single-file output into the
-Python package, so users need no Node installation. Browser tests run in an
-opaque-origin sandbox using an in-memory reference MCP host, including strict
-CSP, component visibility, sections, projections, exploded views, measurement
-activation, mobile sizing, large scenes, and chunk retries.
+`aad_show.presentation` supports isolate/hide lists, shaded/edge/wireframe/
+transparent styles, orthographic/perspective projection, one to three section
+planes, and initial explode/grid states. A section uses either XY/XZ/YZ or a
+custom normal. Offsets are signed distances from the model center in model
+units. Normals are normalized, offsets must be finite, and flipped reverses a
+normal. The optional intersection flag selects the clipping engine's
+intersection mode. Use `title` for a short, plain-language caption.
+
+Presentation settings replace the previous agent-controlled settings. Manual
+explode/grid choices persist across agent updates unless explicitly set. Reset
+keeps the requested part filter and section, so it never exposes parts the
+agent was asked to hide. Identical results are deduplicated; a new presentation
+of the same scene updates immediately without another mesh transfer. Open
+local windows receive these changes and keep the requested view when reloaded.
+
+The same UI runs in MCP Apps, the opt-in local window, and HTML/offline exports.
+The original scene bytes are hash-verified and never simplified, rounded, or
+retessellated. Hiding, clipping, camera choices, and exploded poses only affect
+presentation.
+
+Run `npm ci`, `npm run build`, `npm test`, and `npm run test:e2e` in `viewer/`.
+The build packages the single-file runtime in Python, so users need no Node
+installation. Browser checks cover the simple controls and agent-driven views
+in an opaque-origin sandbox, including strict CSP, mobile bounds, unchanged
+scene transfers, large scenes, and retries.

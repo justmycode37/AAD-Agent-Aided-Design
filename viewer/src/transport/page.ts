@@ -77,6 +77,9 @@ export interface EmbeddedScene {
 export interface BundledScene {
   manifest: SceneManifest;
   asset: string;
+  presentation?: import("./types").Presentation;
+  view?: import("./types").CameraView;
+  title?: string;
 }
 
 /** Local-asset transport for HTML chat hosts; preserves the original gzip bytes. */
@@ -112,6 +115,7 @@ export class BundledTransport extends EmbeddedTransport {
     super({ scene_b64: "", envelope: {
       ok: true, project: bundle.manifest.project, rev: bundle.manifest.rev,
       status: bundle.manifest.status, summary: "Saved scene", scene: bundle.manifest,
+      viewer: { mode: "inline", presentation: bundle.presentation, view: bundle.view, title: bundle.title },
     } }, decodeSceneAsset(bundle.asset));
   }
 }

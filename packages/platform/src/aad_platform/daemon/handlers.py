@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 from .. import config, paths, viewer
 from ..rpc import INVALID_PARAMS, RpcError
+from ..presentation import VIEWS, normalize_presentation
 from . import backend, scenes
 from .envelope import compact, failure_envelope, sort_checks, text_for
 from .ops_client import job_request, run_op
@@ -70,6 +71,7 @@ class Handlers:
         self._on_window_start = on_window_start
         self._window: WindowServer | None = None
         self._window_lock = asyncio.Lock()
+        self._view_settings: dict[str, tuple[int, dict[str, Any]]] = {}
 
     @property
     def busy(self) -> bool:
@@ -364,6 +366,7 @@ class Handlers:
         self, project: Project, rev: int, envelope: dict[str, Any], scene: dict[str, Any] | None
     ) -> None:
         """An open window follows every new revision. A failure here must not fail the build."""
+        self._view_settings.pop(str(project.path), None)
         if self._window is None or not self._window.has_viewers(project.name) or not scene:
             return
         try:
@@ -378,7 +381,9 @@ class Handlers:
     async def aad_show(self, params: dict[str, Any]) -> dict[str, Any]:
         project = open_project(params.get("project", ""), params.get("client"))
         head = project.head_rev
-        rev = params.get("rev") or head
+        cached = self._view_settings.get(str(project.path))
+        from_window = params.get("client") is None and not any(k in params for k in ("view", "presentation", "title", "rev"))
+        rev = params.get("rev") or (cached[0] if from_window and cached else head)
         if rev is None:
             return reply(failure_envelope(project.name, "BAD_INPUT", "input", NOT_BUILT_YET))
         rev_dir = project.rev_dir(rev)
@@ -391,6 +396,21 @@ class Handlers:
             return reply(
                 failure_envelope(project.name, "BAD_INPUT", "input", f"Revision {rev} has no scene to show.", head_rev=head)
             )
+        try:
+            settings = dict(cached[1]) if from_window and cached and cached[0] == rev else {
+                "presentation": normalize_presentation(params.get("presentation", {}), scene.get("parts", []))
+            }
+            if "view" in params:
+                if params["view"] not in VIEWS:
+                    raise ValueError("Unknown camera view")
+                settings["view"] = params["view"]
+            if "title" in params:
+                if not isinstance(params["title"], str) or len(params["title"]) > 160:
+                    raise ValueError("title must be a string of at most 160 characters")
+                settings["title"] = params["title"]
+        except ValueError as exc:
+            return reply(failure_envelope(project.name, "BAD_INPUT", "input", str(exc), head_rev=head))
+        self._view_settings[str(project.path)] = (rev, settings)
         await asyncio.to_thread(scenes.publish, scene["scene_id"], payload)
         scene["project"] = project.name
         scene["rev"] = rev
@@ -406,8 +426,10 @@ class Handlers:
             "metrics": meta.get("metrics"),
             "checks_summary": meta.get("checks_summary"),
             "scene": scene,
-            "viewer": await self._viewer_for(project.name, params.get("client")),
+            "viewer": {**await self._viewer_for(project.name, params.get("client")), **settings},
         }
+        if not from_window and self._window is not None and self._window.has_viewers(project.name):
+            await self._window.broadcast(project.name, compact(envelope))
         return reply(compact(envelope))
 
     async def _viewer_for(self, project: str, client: dict[str, Any] | None) -> dict[str, Any]:

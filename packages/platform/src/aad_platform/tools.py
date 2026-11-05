@@ -197,15 +197,34 @@ TOOLS: list[dict[str, Any]] = [
         "name": "aad_show",
         "description": (
             "Show the user a revision inline, in an interactive 3D or 2D viewer. Call this only when the "
-            "user asks to see the part, never as a routine step. Hosts without inline support get a local URL to offer."
+            "user asks to see the part, never as a routine step. Use presentation to show only requested parts, "
+            "hide a housing, cut sections, or choose a display style; the user sees simple viewing controls. "
+            "Part selectors are exact names or paths from scene.parts. Hosts without inline support get a local URL to offer."
         ),
         "inputSchema": _schema(
             {
                 "project": _PROJECT,
                 "rev": _REV,
                 "compare_to": {"type": "integer", "minimum": 1},
-                "title": {"type": "string"},
-                "view": _enum("iso", "front", "top", "right"),
+                "title": {"type": "string", "maxLength": 160},
+                "view": _enum("iso", "front", "rear", "left", "right", "top", "bottom"),
+                "presentation": _schema({
+                    "isolate": {"type": "array", "items": {"type": "string", "maxLength": 256}, "minItems": 1, "maxItems": 256,
+                                "description": "Show only these exact part names, leaf paths, or group paths."},
+                    "hide": {"type": "array", "items": {"type": "string", "maxLength": 256}, "minItems": 1, "maxItems": 256},
+                    "style": _enum("shaded-edges", "shaded", "wireframe", "transparent"),
+                    "projection": _enum("orthographic", "perspective"),
+                    "section": _schema({
+                        "planes": {"type": "array", "minItems": 1, "maxItems": 3, "items": {
+                            **_schema({"plane": _enum("XY", "XZ", "YZ"), "normal": _VECTOR3,
+                                       "offset": {"type": "number", "description": "Signed distance from the model center in model units. Default 0."},
+                                       "flipped": {"type": "boolean"}}),
+                            "oneOf": [{"required": ["plane"]}, {"required": ["normal"]}],
+                        }},
+                        "intersection": {"type": "boolean", "description": "Use the clipping engine's intersection mode. Default false."},
+                    }, ["planes"]),
+                    "explode": {"type": "boolean"}, "grid": {"type": "boolean"},
+                }),
             },
             ["project"],
         ),

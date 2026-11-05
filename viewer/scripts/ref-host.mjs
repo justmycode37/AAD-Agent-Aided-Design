@@ -65,7 +65,7 @@ addEventListener("message", async (e) => {
  * @param {object} o.toolResult MCP result for the initial tool call
  * @param {(method: string, params: object) => Promise<object>} o.onRequest answers tools/call and friends
  */
-export async function openRefHost({ html, toolResult, onRequest, width = 728, height = 584, strictCsp = false, gpu = false, theme = "dark", displayMode = "inline" }) {
+export async function openRefHost({ html, toolResult, onRequest, width = 728, height = 800, strictCsp = false, gpu = false, theme = "dark", displayMode = "inline" }) {
   const args = gpu ? ["--use-angle=metal", "--enable-gpu", "--ignore-gpu-blocklist"] : ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"];
   const browser = await chromium.launch({ headless: true, channel: "chromium", args });
   const page = await (await browser.newContext({ viewport: { width, height } })).newPage();

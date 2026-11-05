@@ -1,6 +1,20 @@
 import { defineConfig, type Plugin } from "vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
 
+/** Keep XYZ arrows/labels clear of the canvas edge and rounded frame corners. */
+function insetOrientationMarker(): Plugin {
+  return {
+    name: "aad:inset-orientation-marker",
+    enforce: "pre",
+    transform(code, id) {
+      if (!id.endsWith("/three-cad-viewer.esm.js")) return null;
+      const before = "renderer.setViewport(0, 0, this.width, this.height);";
+      if (!code.includes(before)) throw new Error("Update the pinned orientation marker padding patch");
+      return { code: code.replace(before, "renderer.setViewport(12, 12, this.width, this.height);"), map: null };
+    },
+  };
+}
+
 /**
  * three-cad-viewer lists Poly Haven HDR environment maps that it fetches at runtime.
  * The viewer must not use the network (CONTRACTS section 8), so the remote list is removed.
@@ -41,7 +55,7 @@ function removeZodEvalProbe(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [removeRemoteEnvironmentMaps(), removeZodEvalProbe(), viteSingleFile({ removeViteModuleLoader: true })],
+  plugins: [insetOrientationMarker(), removeRemoteEnvironmentMaps(), removeZodEvalProbe(), viteSingleFile({ removeViteModuleLoader: true })],
   build: {
     outDir: "dist",
     target: "es2022",

@@ -51,9 +51,26 @@ function gunzip(b) { return gunzipSync(b).toString(); }
 
 await scenario("small-part-t3-limits", {}, async ({ host, mcp, diag }) => {
   const state = await host.hostState();
-  check(state.sized >= 560 && state.sized < 900, "requests its complete inline height", String(state.sized));
+  check(state.sized >= 540 && state.sized < 900, "requests its complete inline height", String(state.sized));
   check(state.tooLarge === 0, "no app message over 256 KiB");
   check(mcp.stats.chunks === 1, "one chunk for a small scene", String(mcp.stats.chunks));
+  const marker = await host.frame().evaluate(() => {
+    const v = globalThis.__viewer, marker = v.rendered.orientationMarker;
+    const calls = [], original = v.renderer.setViewport;
+    v.renderer.setViewport = function (...args) { if (args.length === 4) calls.push(args); return original.apply(this, args); };
+    try { v.update(true, false); } finally { v.renderer.setViewport = original; }
+    marker.scene.updateMatrixWorld(true); marker.camera.updateMatrixWorld(true);
+    const points = marker.labels.flatMap(label => {
+      const b = label.geometry.boundingBox;
+      return [b.min.x, b.max.x].flatMap(x => [b.min.y, b.max.y].map(y => {
+        const point = label.position.clone().set(x, y, 0).applyMatrix4(label.matrixWorld).project(marker.camera);
+        return [point.x, point.y];
+      }));
+    });
+    return { inset: calls.some(([x,y,w,h]) => x === 12 && y === 12 && w === 80 && h === 80),
+      labelsFit: points.every(([x,y]) => Math.abs(x) < .95 && Math.abs(y) < .95) };
+  });
+  check(marker.inset && marker.labelsFit, "XYZ marker and complete labels fit inside padded corner", JSON.stringify(marker));
   console.log("     timings", JSON.stringify(diag.ms));
 });
 
@@ -74,51 +91,65 @@ function assemblyFixture() {
 }
 
 const assembly = assemblyFixture();
-await scenario("cad-inspection-controls", { scene: assembly, strictCsp: true }, async ({ host, diag }) => {
+await scenario("simple-controls-and-agent-views", { scene: assembly, strictCsp: true }, async ({ host, mcp, diag }) => {
   const frame = host.frame();
   const button = name => frame.getByRole("button", { name, exact: true });
+  const update = async (viewer) => {
+    await host.page.evaluate(result => document.getElementById("f").contentWindow.postMessage({ jsonrpc: "2.0", method: "ui/notifications/tool-result", params: result }, "*"), {
+      ...mcp.toolResult, structuredContent: { ...mcp.toolResult.structuredContent, viewer: { mode: "inline", ...viewer } },
+    });
+  };
   check(diag.triangles === assembly.manifest.triangles && diag.verified, "all original assembly triangles verified");
-  await button("Section").click();
-  check(await frame.evaluate(() => globalThis.__viewer.getClipSlider(0) === 0 && globalThis.__viewer.state.get("activeTab") === "clip"), "section cuts through the model center");
-  await button("Section").click();
-  await button("Parts").click();
-  await frame.getByRole("combobox", { name: "Part", exact: true }).selectOption("/Group/second");
-  await button("Hide part").click();
-  check(await frame.evaluate(() => globalThis.__viewer.getState("/Group/second").every(v => v === 0)), "individual component can be hidden");
-  await frame.getByRole("combobox", { name: "Display style" }).selectOption("wireframe");
-  check(await frame.evaluate(() => globalThis.__viewer.getState("/Group/main")[0] === 0 && globalThis.__viewer.getState("/Group/main")[1] === 1), "wireframe shows edges without surfaces");
-  check(await frame.evaluate(() => globalThis.__viewer.getState("/Group/second").every(v => v === 0)), "style changes preserve hidden components");
-  await frame.getByRole("combobox", { name: "Display style" }).selectOption("transparent");
-  check(await frame.evaluate(() => globalThis.__viewer.getTransparent()), "transparency enabled");
-  await button("Isolate part").click();
-  check(await frame.evaluate(() => globalThis.__viewer.getState("/Group/main").every(v => v === 0) && globalThis.__viewer.getState("/Group/second")[0] === 1), "component can be isolated");
-  await button("Show all").click();
-  check(await frame.evaluate(() => Object.values(globalThis.__viewer.getStates()).every(s => s[0] === 1)), "all parts can be restored");
-  for (const view of ["front", "rear", "left", "right", "top", "bottom", "iso"]) await frame.getByRole("combobox", { name: "Standard view" }).selectOption(view);
-  await button("Orthographic").click();
-  check(await frame.evaluate(() => globalThis.__viewer.getOrtho()), "orthographic camera enabled");
-  await button("Explode").click();
-  check(await frame.evaluate(() => globalThis.__viewer.state.get("animationMode") === "explode" && globalThis.__viewer.getRelativeTime() > 0.99), "assembly opens in exploded pose");
-  await button("Measure").click();
-  check(await frame.evaluate(() => globalThis.__viewer.state.get("activeTool") === "distance" && globalThis.__viewer.state.get("animationMode") !== "explode"), "measurement works on the assembled model");
-  await button("Reset view").click();
-  check(await frame.evaluate(() => !globalThis.__viewer.getTransparent() && !globalThis.__viewer.getOrtho() && globalThis.__viewer.state.get("activeTab") === "tree" && globalThis.__viewer.state.get("activeTool") === null), "reset restores inspection and camera settings");
-  await button("Fullscreen").click();
-  check((await host.hostState()).messages.some(m => m.method === "ui/request-display-mode"), "fullscreen uses the host gesture API");
-  await button("Fullscreen").click();
+  check(await frame.getByRole("button").count() === 4 && await frame.getByRole("combobox").count() === 0, "only three simple actions and a bigger-view button are visible");
+  await button("Pull apart").click();
+  check(await frame.evaluate(() => globalThis.__viewer.state.get("animationMode") === "explode" && globalThis.__viewer.getRelativeTime() > 0.99), "pull apart separates the pieces immediately");
+  await button("Put together").click();
+  check(await frame.evaluate(() => globalThis.__viewer.state.get("animationMode") !== "explode"), "put together restores assembly");
+  await button("Show grid").click();
+  check(await frame.evaluate(() => globalThis.__viewer.getGrids().every(Boolean) && globalThis.__viewer.getAxes()), "one button shows all XYZ grids and axes");
+  await button("Hide grid").click();
+  await update({ presentation: { isolate: ["/Group/second"] }, title: "One piece" });
+  await frame.waitForFunction(() => globalThis.__viewer.getState("/Group/main").every(v => v === 0));
+  check(await frame.evaluate(() => globalThis.__viewer.getState("/Group/second")[0] === 1), "agent isolates a requested piece on the existing mesh");
+  check(await button("Pull apart").isDisabled(), "single visible piece has no confusing explode action");
+  await button("Reset").click();
+  check(await frame.evaluate(() => globalThis.__viewer.getState("/Group/main").every(v => v === 0)), "reset keeps the agent's requested view");
+  await update({ presentation: { hide: ["/Group/second"], style: "wireframe" } });
+  await frame.waitForFunction(() => globalThis.__viewer.getState("/Group/main")[0] === 0 && globalThis.__viewer.getState("/Group/main")[1] === 1);
+  check(await frame.evaluate(() => globalThis.__viewer.getState("/Group/second").every(v => v === 0)), "agent chooses display style and hidden parts without user panels");
+  await update({ presentation: { section: { planes: [{ plane: "YZ", offset: -1 }, { normal: [0, -1, 0], offset: 0 }] }, projection: "orthographic", style: "transparent" }, view: "front" });
+  await frame.waitForFunction(() => globalThis.__viewer.getClipSlider(0) === -1);
+  check(await frame.evaluate(() => globalThis.__viewer.state.get("activeTab") === "clip" && globalThis.__viewer.getOrtho() && globalThis.__viewer.getTransparent()), "agent selects sections, projection, transparency and camera");
+  check(await frame.getByRole("button").count() === 4 && await frame.getByRole("combobox").count() === 0, "advanced view settings never expose CAD controls");
+  await update({ presentation: {} });
+  await frame.waitForFunction(() => globalThis.__viewer.state.get("activeTab") === "tree");
+  check(await frame.evaluate(() => Object.values(globalThis.__viewer.getStates()).every(s => s[0] === 1)), "agent can restore all pieces");
+  check(mcp.stats.chunks === 1 && await frame.evaluate(() => globalThis.__aad.loads === 1), "agent view changes do not reload or simplify the original scene");
+  await frame.locator("body").press("t");
+  check(await frame.evaluate(() => !globalThis.__viewer.getTransparent()), "hidden CAD shortcuts cannot surprise the user");
+  await button("Make bigger").click();
+  check((await host.hostState()).messages.some(m => m.method === "ui/request-display-mode"), "bigger view uses host gesture API");
+  await button("Make smaller").click();
 });
 
-await scenario("mobile-layout", { width: 390, scene: assembly }, async ({ host }) => {
+for (const width of [320, 390]) await scenario(`mobile-layout-${width}`, { width, height: 700, scene: assembly }, async ({ host }) => {
   const layout = await host.frame().evaluate(() => {
     const frame = document.querySelector(".aad-frame").getBoundingClientRect();
-    const footer = document.querySelector(".aad-footer").getBoundingClientRect();
+    const footer = document.querySelector(".aad-hint").getBoundingClientRect();
     const canvas = document.querySelector(".tcv_cad_viewer").getBoundingClientRect();
     const stage = document.querySelector(".aad-stage").getBoundingClientRect();
-    return { height: document.documentElement.getBoundingClientRect().height, frame: frame.bottom, footer: footer.bottom,
+    const labelsFit = [...document.querySelectorAll('.aad-toolbar button')].every(button => {
+      const label = button.querySelector('span').getBoundingClientRect(), bounds = button.getBoundingClientRect();
+      return label.left >= bounds.left && label.right <= bounds.right && label.bottom <= bounds.bottom;
+    });
+    return { height: document.documentElement.getBoundingClientRect().height, frame: frame.bottom, footer: footer.bottom, labelsFit,
       overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth, canvasRight: canvas.right, stageRight: stage.right };
   });
   check(layout.height >= layout.footer && layout.frame >= layout.footer, "mobile frame includes the complete bottom edge", JSON.stringify(layout));
   check(layout.overflow <= 1 && layout.canvasRight <= layout.stageRight + 1, "mobile CAD viewport has no horizontal clipping");
+  check(layout.labelsFit, "all three button labels fit at phone width");
+  await host.frame().getByRole("button", { name: "Pull apart", exact: true }).click();
+  check(await host.frame().getByRole("button", { name: "Put together", exact: true }).count() === 1, "phone control responds to a real tap target click");
 });
 
 const big = bigScene(5 * 1024 * 1024);
