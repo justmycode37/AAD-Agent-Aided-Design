@@ -56,7 +56,7 @@ def export(ctx: ModelContext, fmt: str, out: Path, **options: Any) -> Path:
     See ``packages/engine/fileio.md`` for supported options and exactly what is
     checked. A relative ``out`` is interpreted relative to the job directory.
     """
-    if not isinstance(fmt, str) or fmt.lower() not in {"step", "brep", "stl", "3mf", "glb"}:
+    if not isinstance(fmt, str) or fmt.lower() not in {"step", "iges", "brep", "stl", "obj", "ply", "3mf", "glb"}:
         raise _error("EXPORT_FAILED", "input", f"Unsupported export format: {fmt!r}.")
     fmt = fmt.lower()
     units = _units(ctx.units, "EXPORT_FAILED")
@@ -120,9 +120,9 @@ def import_file(
     source_units: str | None = None,
     project_dir: str | Path | None = None,
 ) -> ImportedModel:
-    """Import STEP, BREP, or STL into a context with one base feature.
+    """Import STEP, IGES, BREP, or STL into a context with one base feature.
 
-    STEP's native reader returns millimetres. BREP and STL carry no unit, so
+    STEP and IGES readers return millimetres. BREP and STL carry no unit, so
     their source defaults to assumed millimetres unless ``source_units`` is
     supplied. ``units`` selects the context's actual coordinate unit.
     """
@@ -133,7 +133,7 @@ def import_file(
         raise _error("IMPORT_FAILED", "input", "The import feature name must be nonempty.")
 
     source = Path(path)
-    fmt = {".step": "step", ".stp": "step", ".brep": "brep", ".stl": "stl"}.get(source.suffix.lower())
+    fmt = {".step": "step", ".stp": "step", ".iges": "iges", ".igs": "iges", ".brep": "brep", ".stl": "stl"}.get(source.suffix.lower())
     if fmt is None:
         raise _error("IMPORT_FAILED", "input", f"Unsupported import file extension: {source.suffix!r}.")
     if not source.is_file():
@@ -142,9 +142,9 @@ def import_file(
     if not job.is_dir():
         raise _error("IMPORT_FAILED", "input", f"The job directory is not available at: {job}.")
 
-    if fmt == "step":
+    if fmt in {"step", "iges"}:
         if source_units is not None:
-            raise _error("IMPORT_FAILED", "input", "STEP units are read from the file; source_units is not accepted.")
+            raise _error("IMPORT_FAILED", "input", f"{fmt.upper()} units are read from the file; source_units is not accepted.")
         actual_source: str | None = None
         assumed = False
         factor = 1.0 / _MM_PER_UNIT[target_units]
@@ -160,6 +160,10 @@ def import_file(
         if fmt == "step":
             shape = _read_step_mm(source)
             _require_shape(shape, require_solid=False)
+            if factor != 1.0:
+                shape, flattened = _scale_imported_brep(shape, factor)
+        elif fmt == "iges":
+            shape = _read_iges(source)
             if factor != 1.0:
                 shape, flattened = _scale_imported_brep(shape, factor)
         elif fmt == "brep":
@@ -332,6 +336,15 @@ def _write_export(shape: Any, fmt: str, path: Path, units: str, options: dict[st
     if fmt == "step":
         _write_step(shape, path, units, options["schema"])
         return
+    if fmt == "iges":
+        _write_iges(shape, path, units)
+        return
+    if fmt in {"obj", "ply"}:
+        vertices, triangles = _mesh_arrays(shape, linear, angular)
+        if len(vertices) < 3 or not triangles:
+            raise ValueError(f"{fmt.upper()} source has no mesh geometry")
+        (_write_obj if fmt == "obj" else _write_ply)(path, vertices, triangles, units)
+        return
     if fmt == "brep":
         ok = bd.export_brep(shape, path)
     elif fmt == "stl":
@@ -389,6 +402,54 @@ def _write_export(shape: Any, fmt: str, path: Path, units: str, options: dict[st
         ok = bd.export_gltf(shape, path, unit=unit, binary=True, linear_deflection=linear, angular_deflection=angular)
     if not ok:
         raise RuntimeError(f"{fmt.upper()} writer did not report success")
+
+
+def _write_iges(shape: Any, path: Path, units: str) -> None:
+    from OCP.IGESControl import IGESControl_Writer
+
+    if units == "in":
+        # The writer reads coordinates as millimetres whatever unit the file declares.
+        shape, _ = _scale_imported_brep(shape, _MM_PER_UNIT["in"])
+    writer = IGESControl_Writer("MM" if units == "mm" else "IN", 1)  # 1 selects B-rep entities.
+    if not writer.AddShape(shape.wrapped):
+        raise RuntimeError("The IGES writer rejected the shape")
+    writer.ComputeModel()
+    if not writer.Write(str(path)):
+        raise RuntimeError("IGES writer did not report success")
+
+
+def _write_obj(path: Path, vertices: list, triangles: list, units: str) -> None:
+    with path.open("w", encoding="ascii") as stream:
+        stream.write(f"# AAD mesh. Coordinates are in {units}; OBJ does not record units.\n")
+        stream.writelines(f"v {x:.9g} {y:.9g} {z:.9g}\n" for x, y, z in vertices)
+        stream.writelines(f"f {a + 1} {b + 1} {c + 1}\n" for a, b, c in triangles)
+
+
+def _write_ply(path: Path, vertices: list, triangles: list, units: str) -> None:
+    with path.open("w", encoding="ascii") as stream:
+        stream.write(
+            "ply\nformat ascii 1.0\n"
+            f"comment units {units}\n"
+            f"element vertex {len(vertices)}\nproperty double x\nproperty double y\nproperty double z\n"
+            f"element face {len(triangles)}\nproperty list uchar int vertex_indices\nend_header\n"
+        )
+        stream.writelines(f"{x:.9g} {y:.9g} {z:.9g}\n" for x, y, z in vertices)
+        stream.writelines(f"3 {a} {b} {c}\n" for a, b, c in triangles)
+
+
+def _read_iges(path: Path) -> Any:
+    from build123d import Shape
+    from OCP.IFSelect import IFSelect_RetDone
+    from OCP.IGESControl import IGESControl_Reader
+
+    reader = IGESControl_Reader()
+    if reader.ReadFile(str(path)) != IFSelect_RetDone:
+        raise ValueError("The IGES reader could not parse the file")
+    reader.TransferRoots()
+    shape = Shape.cast(reader.OneShape())
+    if shape is None or not shape.faces():
+        raise ValueError("The IGES file contains no surface geometry")
+    return shape
 
 
 def _mesh_absolute(shape: Any, linear: float, angular: float) -> None:
@@ -512,6 +573,21 @@ def _validate_export(shape: Any, fmt: str, path: Path, units: str, options: dict
                 f"{options['step_volume_tolerance']:.9g} (source {expected_mm3:.9g} mm^3, "
                 f"read back {actual_mm3:.9g} mm^3)"
             )
+    elif fmt == "iges":
+        # IGES carries surfaces, so a solid usually returns as faces: compare their area.
+        restored = _read_iges(path)
+        expected = float(shape.area)
+        actual = math.fsum(float(face.area) for face in restored.faces())
+        if units == "in":
+            actual /= _MM_PER_UNIT["in"] ** 2
+        if expected <= 0 or abs(actual - expected) / expected > 1e-3:
+            raise ValueError(f"IGES surface area drifted: source {expected:.9g}, read back {actual:.9g}")
+    elif fmt in {"obj", "ply"}:
+        text = path.read_text(encoding="ascii")
+        if fmt == "obj" and not ("\nv " in text and "\nf " in text):
+            raise ValueError("OBJ output has no vertices or faces")
+        if fmt == "ply" and not (text.startswith("ply\n") and "end_header\n" in text):
+            raise ValueError("PLY output has no header")
     elif fmt == "brep":
         _require_shape(bd.import_brep(path), require_solid=False)
     elif fmt == "stl":

@@ -210,10 +210,12 @@ def _install(args: argparse.Namespace) -> int:
     except Exception as exc:
         return _finish({"ok": False, "error": f"Client install failed: {exc}", "clients": writes}, args.json)
 
+    skill_result = _skill_step("install_skill", selected, args.dry_run)
+
     if args.dry_run:
         ok = all(item["action"] not in {"error", "failed"} for item in writes)
         message = "Dry run complete; no clients detected." if not writes else "Dry run complete."
-        return _finish({"ok": ok, "dry_run": True, "entry": {"command": entry.command, "args": list(entry.args)}, "clients": writes, "message": message}, args.json, _write_human(writes, message))
+        return _finish({"ok": ok, "dry_run": True, "skill": skill_result, "entry": {"command": entry.command, "args": list(entry.args)}, "clients": writes, "message": message}, args.json, _write_human(writes, message))
 
     prewarm_result: dict[str, Any] | None = None
     if not args.no_prewarm:
@@ -265,6 +267,7 @@ def _install(args: argparse.Namespace) -> int:
         "ok": ok,
         "dry_run": False,
         "clients": writes,
+        "skill": skill_result,
         "restart_hints": restart_hints,
         "prewarm": prewarm_result,
         "daemon": daemon_result,
@@ -273,6 +276,18 @@ def _install(args: argparse.Namespace) -> int:
         "message": " ".join(message_parts),
     }
     return _finish(payload, args.json)
+
+
+def _skill_step(function: str, selected: list[str], dry_run: bool) -> dict[str, Any] | None:
+    """The MCP server works without the skill, so a failure here is reported and never fatal."""
+    if "claude-code" not in selected:
+        return None
+    try:
+        from . import skill
+
+        return getattr(skill, function)(dry_run=dry_run)
+    except Exception as exc:
+        return {"action": "failed", "reason": f"{type(exc).__name__}: {exc}"}
 
 
 def _paths_overlap(first: Path, second: Path) -> bool:
@@ -330,6 +345,7 @@ def _uninstall(args: argparse.Namespace) -> int:
     if api_error:
         return _finish({"ok": False, "clients": writes, "client_error": api_error, "message": api_error}, args.json)
 
+    skill_result = _skill_step("uninstall_skill", selected, args.dry_run)
     stopped: bool | None = None
     stop_error: str | None = None
     if not args.dry_run:
@@ -360,7 +376,7 @@ def _uninstall(args: argparse.Namespace) -> int:
         message_parts.append(purge_message)
     if args.dry_run and args.purge:
         message_parts.append("AAD_HOME would be removed; ~/AAD is never purged.")
-    payload = {"ok": ok, "dry_run": args.dry_run, "clients": writes, "client_error": api_error, "daemon_stopped": stopped, "purged": purged, "message": " ".join(message_parts)}
+    payload = {"ok": ok, "dry_run": args.dry_run, "clients": writes, "skill": skill_result, "client_error": api_error, "daemon_stopped": stopped, "purged": purged, "message": " ".join(message_parts)}
     return _finish(payload, args.json, _write_human(writes, payload["message"]) if args.dry_run else None)
 
 

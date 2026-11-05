@@ -28,8 +28,12 @@ the trusted parent resolves only the declared supported-format file, rejects
 parent traversal and symlinks, and adds that exact file to the read-only
 allowlist. The model and checker still share one process, so this grant does
 not hide the reference from model code; the geometric-only honesty rule still
-requires that the reference was not traced into the model. A staged `asset(...)`
-API remains required for general project assets and is not implemented here.
+requires that the reference was not traced into the model. General project
+assets reach model code through `asset(name)`: when the source calls it, the
+trusted parent copies regular files from `<project>/imports/` into
+`<job>/assets/` before launch, skipping symlinks and files over 256 MiB. The
+sandbox grants no other project read. The copies are removed before the job
+becomes a revision, so a large import does not grow with every build.
 S2's trusted post-build operations must also adopt this launcher under
 [issue #21](https://github.com/justmycode37/AAD-Agent-Aided-Design/issues/21);
 the public model runner does not protect those separate processes.

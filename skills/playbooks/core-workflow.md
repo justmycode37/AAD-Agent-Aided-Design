@@ -7,7 +7,7 @@ candidate_status: unmeasured
 
 # Core modeling workflow
 
-Unmeasured candidate guidance. Use aad_library search for short summaries and get for one exact reference ID.
+Unmeasured candidate guidance. Use aad_library search for short summaries and get for one exact reference ID. Get workflow.capabilities.v1 for the full map of what AAD can do.
 
 ## Capture the request
 
@@ -15,7 +15,7 @@ Translate explicit user requirements into unique, measurable spec entries. Keep 
 
 ## Model with the API that exists
 
-`from aad import *` re-exports build123d and adds `params()`, `meta()`, `part()`, `feature()`, the `face()`, `edge()` and `vertex()` selectors, and gear helpers. Plain build123d also works, as below, and lands in one implicit feature. Name features when you expect to edit the part. Assembly helpers are not implemented. The full guide is playbook `aad.guide.v1`.
+`from aad import *` re-exports build123d and adds `params()`, `meta()`, `part()`, `feature()`, the `face()`, `edge()` and `vertex()` selectors, gear helpers, assembly(), asset() and the helpers in playbook workflow.capabilities.v1. Plain build123d also works, as below, and lands in one implicit feature. Name features when you expect to edit the part. Assembly helpers are not implemented. The full guide is playbook `aad.guide.v1`.
 
     from aad import *
 

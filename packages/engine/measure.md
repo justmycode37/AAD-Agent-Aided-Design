@@ -23,6 +23,16 @@ no certified global error bound or mesh approximation is asserted.
 | `area` | Trimmed face area if selected, otherwise summed native surface area; mm²/in². Whole area includes cavity surfaces and assembly interfaces. | optional a, no b |
 | `volume` | Sum of independently enumerated native solid volumes, including nested bodies; mm³/in³. | no selectors |
 | `inertia` | Central volume inertia tensor in world XYZ; mm⁵/in⁵. Includes the volume centroid as `reference_point` and `axes=world_xyz`. | no selectors |
+| `length` | Arc length of one selected edge; mm/in. | a |
+| `bbox` | Axis-aligned size with `min` and `max` corners, of a selected entity or the whole shape; mm/in. | optional a |
+| `center_of_mass` | Uniform-density centroid of the native solids in world coordinates; mm/in. Material is ignored. | no selectors |
+| `principal_inertia` | Principal volume moments about the centroid with their unit `axes`; mm⁵/in⁵. | no selectors |
+
+`mass` and `thickness` stay refused here, because they need sourced materials and
+sampling that live in `aad_quality`. The platform's `aad_measure` provides them. Mass
+is volume times a catalog density, per component for an assembly, and refuses to run
+without a material. Thickness reports the smallest wall found by the process screen's
+sampled rays, for one solid. It is not a proven global minimum.
 
 Volume and inertia validate each native body and require a finite positive
 signed volume before aggregation. A forward body cannot mask a reversed body.

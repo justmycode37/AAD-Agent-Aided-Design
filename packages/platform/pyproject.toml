@@ -8,7 +8,7 @@ license = "Apache-2.0"
 dependencies = [
     "aad-drafting==0.1.0",
     "aad-engine==0.1.0",
-    "aad-quality==0.1.0",
+    "aad-quality[parts]==0.1.0",
     "aad-render[vtk]==0.0.1",
     "mcp==2.3.0",
     "pyyaml>=6",

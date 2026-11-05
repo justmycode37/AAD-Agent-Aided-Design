@@ -9,11 +9,13 @@ import math
 import sys
 import time
 import traceback
-from dataclasses import asdict, is_dataclass, replace
+from dataclasses import asdict, fields, is_dataclass, replace
 from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+import aad.cad as cad
+from aad.cad import configure_assets
 from aad._runtime import (
     ModelInputError, configure_params, current_param_definitions, current_params, validate_params,
 )
@@ -146,6 +148,7 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
         return _result_wire(_failed_result(failure, elapsed_ms=_elapsed_ms(started), job_dir=job_dir))
 
     configure_modeling(source)
+    configure_assets(job_dir / "assets", payload.get("units", "mm"))
     tracked_build_parts: list[Any] = []
     original_build_part = build123d.BuildPart
 
@@ -194,6 +197,8 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
             namespace[name] = getattr(build123d, name)
     for name in ("Param", "params", "meta", "part", "feature", "face", "edge", "vertex", "entity_shape", "SelectorError"):
         namespace[name] = getattr(aad, name)
+    for name in cad.__all__:
+        namespace[name] = getattr(cad, name)
 
     try:
         with contextlib.redirect_stdout(stdout_stream), contextlib.redirect_stderr(stderr_stream):
@@ -248,7 +253,14 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
     finally:
         build123d.BuildPart = original_build_part
 
+    if payload.get("kind") == "2d":
+        return _finish_sheet(namespace, payload, metadata, source_path, started, stdout_stream, stderr_stream)
+
     try:
+        candidate = namespace.get("result")
+        if isinstance(candidate, cad.Assembly):
+            metadata["assembly"] = candidate.record()
+            namespace["result"] = candidate.compound()
         shape = _extract_shape(namespace, tracked_build_parts, build123d.Shape)
     except (TypeError, ValueError) as exc:
         failure = Failure(
@@ -431,6 +443,121 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
     )
     result.checks_summary = _checks_summary(checks)
     return _result_wire(result)
+
+
+def _finish_sheet(
+    namespace: dict[str, Any],
+    payload: dict[str, Any],
+    metadata: dict[str, Any],
+    source_path: Path,
+    started: float,
+    stdout_stream: Any,
+    stderr_stream: Any,
+) -> dict[str, Any]:
+    """Finish a kind='2d' build: save the Sheet2D, run the 2D suite and write its scene."""
+    job_dir = Path(payload["job_dir"])
+
+    def failed(code: str, message: str, kernel: str | None = None) -> dict[str, Any]:
+        failure = Failure(code=code, phase="validate", message=message, kernel_message=kernel, file=source_path.name,
+                          repair=["Create a sheet with sheet2d() from aad_drafting, or assign one to `result`."])
+        return _result_wire(_failed_result(failure, elapsed_ms=_elapsed_ms(started), job_dir=job_dir,
+                                           stdout=stdout_stream.getvalue(), stderr=stderr_stream.getvalue()))
+
+    try:
+        drafting = importlib.import_module("aad_drafting")
+        from aad_drafting.model2d import Sheet2D, latest_sheet
+    except ImportError as exc:
+        return failed("IMPORT_FAILED", "A 2D build needs the aad_drafting package.", str(exc))
+    sheet = namespace.get("result")
+    if not isinstance(sheet, Sheet2D):
+        if sheet is not None:
+            return failed("BAD_INPUT", f"A 2D project's `result` must be a Sheet2D, not {type(sheet).__name__}. "
+                                       "Extrude it into a part project for 3D.")
+        sheet = latest_sheet()
+    if not isinstance(sheet, Sheet2D):
+        return failed("BAD_INPUT", "The 2D model completed without a sheet.")
+    units = metadata.get("units", "mm")
+    if sheet.units != units:
+        return failed("BAD_INPUT", f"The sheet uses {sheet.units} but the project declares {units}. Numbers are never rescaled.")
+    try:
+        data = sheet.to_dict()
+        (job_dir / "sheet.json").write_text(json.dumps(data, allow_nan=False), encoding="utf-8")
+    except (OSError, TypeError, ValueError) as exc:
+        return failed("BAD_INPUT", "The sheet could not be saved.", f"{type(exc).__name__}: {exc}")
+
+    context = ModelContext(
+        project_dir=Path(payload["project_dir"]),
+        rev=payload.get("rev", 0),
+        kind="2d",
+        units=units,
+        sheet=data,
+        params=current_params(),
+        spec=payload.get("spec", {}),
+        material=metadata.get("material"),
+        process=metadata.get("process"),
+        job_dir=job_dir,
+        meta=metadata,
+        param_definitions=current_param_definitions(),
+    )
+    context.metrics = _sheet_metrics(sheet, units, _elapsed_ms(started))
+    if not any(entity.layer == "cut" and entity.kind != "text" for entity in sheet.entities.values()):
+        return failed("BAD_INPUT", "The sheet has no cut geometry, so its contours cannot be checked.")
+    keep = {item.name for item in fields(Check)}
+    checks = [
+        Check(**{key: value for key, value in dict(item).items() if key in keep})
+        for item in drafting.checks(context)
+    ]
+    checks.append(Check(
+        id="2d_requirements_unproven", suite="2d", level="warn", status="skip",
+        message="Spec requirements are not evaluated on 2D sheets yet, so this revision stays draft.",
+    ))
+    scene = None
+    try:
+        scene_dir = job_dir / "scene"
+        scene_dir.mkdir(exist_ok=True)
+        value = drafting.make_scene(context, scene_dir)
+        scene = SceneManifest(**value) if isinstance(value, dict) else value
+    except Exception as exc:  # The sheet is still real evidence without its viewer scene.
+        checks.append(Check(id="scene_generation_failed", suite="2d", level="warn", status="warn",
+                            message="Scene generation failed; the saved sheet was retained.",
+                            actual=f"{type(exc).__name__}: {exc}"))
+    failing = next((c for c in checks if c.level == "error" and c.status == "fail"), None)
+    result = BuildResult(
+        ok=failing is None,
+        status="draft" if failing is None else "failed",
+        summary="The sheet built and passed its 2D checks." if failing is None else f"2D check {failing.id} failed: {failing.message}",
+        context=context,
+        checks=checks,
+        metrics=context.metrics,
+        artifacts={"sheet.json": str(job_dir / "sheet.json")},
+        scene=scene,
+        job_dir=job_dir,
+        build_ms=_elapsed_ms(started),
+        stdout=stdout_stream.getvalue(),
+        stderr=stderr_stream.getvalue(),
+    )
+    if failing is not None:
+        result.failure = Failure(code="NOT_VERIFIED", phase="validate", message=result.summary,
+                                 feature=failing.feature, file=source_path.name)
+    result.checks_summary = _checks_summary(checks)
+    return _result_wire(result)
+
+
+def _sheet_metrics(sheet: Any, units: str, build_ms: float) -> dict[str, Any]:
+    metrics: dict[str, Any] = {
+        "units": units, "bbox": [0.0, 0.0, 0.0], "solids": 0, "faces": 0,
+        "edges": len(sheet.entities), "valid": True, "build_ms": build_ms,
+    }
+    layers = [layer for layer in sheet.layers if any(
+        entity.layer == layer and entity.kind != "text" for entity in sheet.entities.values())]
+    if layers:
+        size = sheet.bounding_box(layers=layers).size
+        metrics["bbox"] = [_number(size.X), _number(size.Y), 0.0]
+    try:
+        metrics["area"] = _number(sheet.to_face().area)
+    except Exception:  # Open or absent cut contours have no area. The 2D checks report why.
+        pass
+    return metrics
 
 
 def _extract_shape(namespace: dict[str, Any], build_parts: list[Any], shape_type: type[Any]) -> Any:

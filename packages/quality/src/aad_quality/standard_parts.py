@@ -5,6 +5,8 @@ Part construction is deliberately limited to the closed registry below.
 """
 from __future__ import annotations
 
+import importlib
+
 import math
 from copy import deepcopy
 from importlib.metadata import PackageNotFoundError, version
@@ -167,6 +169,80 @@ _CATALOG: tuple[dict[str, Any], ...] = (
     },
 )
 
+_FAST_THREAD = "Uses upstream's simple form: threads are not modeled, so check thread fit separately."
+_NOMINAL = "Nominal catalog geometry. It does not prove purchased-hardware fit, rating or load capacity."
+
+
+def _family(
+    id: str, family: str, title: str, summary: str, module: str, cls: str, defaults: dict[str, Any],
+    fixed: dict[str, Any] | None = None, limitation: str = _NOMINAL,
+) -> dict[str, Any]:
+    """One catalog record. Size names are validated by the pinned upstream constructor."""
+    arguments = ", ".join(f"{key}={value!r}" for key, value in defaults.items())
+    return {
+        "id": id,
+        "family": family,
+        "title": title,
+        "summary": summary,
+        "source": {**_UPSTREAM_SOURCE, "constructor": f"{module}.{cls}"},
+        "parameters": {key: {"type": "number" if isinstance(value, int | float) else "text", "default": value}
+                       for key, value in defaults.items()},
+        "fixed": fixed or {},
+        "example": (
+            "from aad_quality.standard_parts import make_part\n"
+            f"item = make_part({id!r}, {arguments})"
+        ),
+        "limitations": [limitation],
+    }
+
+
+_FAMILIES: tuple[dict[str, Any], ...] = (
+    _family("fastener.iso4017.hex_head_screw", "fastener", "ISO 4017 hex head screw", "Metric fully threaded hex head screw.",
+            "bd_warehouse.fastener", "HexHeadScrew", {"size": "M6-1", "length": 20.0},
+            {"fastener_type": "iso4017", "simple": True}, _FAST_THREAD),
+    _family("fastener.iso10642.countersunk_screw", "fastener", "ISO 10642 countersunk screw", "Metric hexagon socket countersunk screw.",
+            "bd_warehouse.fastener", "CounterSunkScrew", {"size": "M6-1", "length": 20.0},
+            {"fastener_type": "iso10642", "simple": True}, _FAST_THREAD),
+    _family("fastener.iso7380.button_head_screw", "fastener", "ISO 7380 button head screw", "Metric hexagon socket button head screw.",
+            "bd_warehouse.fastener", "ButtonHeadScrew", {"size": "M6-1", "length": 20.0},
+            {"fastener_type": "iso7380_1", "simple": True}, _FAST_THREAD),
+    _family("fastener.iso4026.set_screw", "fastener", "ISO 4026 set screw", "Metric hexagon socket flat point set screw.",
+            "bd_warehouse.fastener", "SetScrew", {"size": "M6-1", "length": 10.0},
+            {"fastener_type": "iso4026", "simple": True}, _FAST_THREAD),
+    _family("nut.iso4032.hex_nut", "fastener", "ISO 4032 hex nut", "Metric hex nut, style 1.",
+            "bd_warehouse.fastener", "HexNut", {"size": "M6-1"}, {"fastener_type": "iso4032", "simple": True}, _FAST_THREAD),
+    _family("washer.iso7089.plain", "fastener", "ISO 7089 plain washer", "Metric plain washer, normal series.",
+            "bd_warehouse.fastener", "PlainWasher", {"size": "M6"}, {"fastener_type": "iso7089"}),
+    _family("bearing.angular_contact.skt", "bearing", "Angular contact ball bearing", "Single-row angular contact ball bearing.",
+            "bd_warehouse.bearing", "SingleRowAngularContactBallBearing", {"size": "M10-30-9"}, {"bearing_type": "SKT"}),
+    _family("bearing.cylindrical_roller.skt", "bearing", "Cylindrical roller bearing", "Single-row cylindrical roller bearing.",
+            "bd_warehouse.bearing", "SingleRowCylindricalRollerBearing", {"size": "M17-40-12"}, {"bearing_type": "SKT"}),
+    _family("seal.iso3601.o_ring", "seal", "ISO 3601 O-ring", "Toroidal seal by three-digit size code.",
+            "bd_warehouse.o_rings", "ORing", {"size": "210"}),
+    _family("ring.external_snap", "retaining", "External retaining ring", "External snap ring by shaft size.",
+            "bd_warehouse.retaining_ring", "ExternalSnapRing", {"size": "25"}),
+    _family("ring.internal_snap", "retaining", "Internal retaining ring", "Internal snap ring by bore size.",
+            "bd_warehouse.retaining_ring", "InternalSnapRing", {"size": "25"}),
+    _family("key.parallel", "power_transmission", "Parallel shaft key", "Parallel key sized from the shaft diameter.",
+            "bd_warehouse.shaft_key", "ShaftKey", {"shaft_diameter": 20.0, "length": 30.0}),
+    _family("gear.spur", "power_transmission", "Involute spur gear", "Spur gear by module and tooth count.",
+            "bd_warehouse.gear", "SpurGear", {"module": 2.0, "tooth_count": 20, "pressure_angle": 20.0, "thickness": 10.0}),
+    _family("gear.helical", "power_transmission", "Involute helical gear", "Helical gear by module, tooth count and helix angle.",
+            "bd_warehouse.gear", "HelicalGear",
+            {"module": 2.0, "tooth_count": 20, "pressure_angle": 20.0, "helix_angle": 15.0, "thickness": 10.0}),
+    _family("gear.rack", "power_transmission", "Gear rack", "Straight rack by module and tooth count.",
+            "bd_warehouse.gear", "RackGear", {"module": 2.0, "tooth_count": 20, "pressure_angle": 20.0, "thickness": 10.0}),
+    _family("gear.worm", "power_transmission", "Worm", "Worm by module, starts and diametral quotient.",
+            "bd_warehouse.gear", "Worm", {"module": 2.0, "starts": 1, "diametral_quotient": 10.0, "length": 40.0}),
+    _family("sprocket.roller_chain", "power_transmission", "Roller chain sprocket", "Sprocket by tooth count. Defaults fit 1/2 inch pitch chain.",
+            "bd_warehouse.sprocket", "Sprocket", {"num_teeth": 16}),
+    _family("flange.weld_neck", "piping", "Weld neck flange", "Pipe flange by nominal pipe size and pressure class.",
+            "bd_warehouse.flange", "WeldNeckFlange", {"nps": "2", "flange_class": 150}),
+    _family("flange.blind", "piping", "Blind flange", "Blind pipe flange by nominal pipe size and pressure class.",
+            "bd_warehouse.flange", "BlindFlange", {"nps": "2", "flange_class": 150}),
+)
+_CATALOG = (*_CATALOG, *_FAMILIES)
+_FAMILY_IDS = {part["id"] for part in _FAMILIES}
 _BY_ID = {part["id"]: part for part in _CATALOG}
 
 
@@ -258,6 +334,14 @@ def make_part(id: str, **params: Any) -> Any:
     if entry is None:
         raise ValueError(f"unknown standard part id: {id!r}")
     _reject_unknown_parameters(id, entry, params)
+
+    if id in _FAMILY_IDS:
+        _require_pinned_backend()
+        source = entry["source"]["constructor"]
+        module_name, class_name = source.rsplit(".", 1)
+        arguments = {key: spec["default"] for key, spec in entry["parameters"].items()}
+        arguments.update(params)
+        return getattr(importlib.import_module(module_name), class_name)(**arguments, **entry["fixed"])
 
     if id == _FASTENER_ID:
         size = _select_size(

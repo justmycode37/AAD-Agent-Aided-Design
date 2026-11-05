@@ -24,7 +24,7 @@ source = { editable = "packages/platform" }
 dependencies = [
     { name = "aad-drafting" },
     { name = "aad-engine" },
-    { name = "aad-quality" },
+    { name = "aad-quality", extra = ["parts"] },
     { name = "aad-render", extra = ["vtk"] },
     { name = "mcp" },
     { name = "pyyaml" },
@@ -38,7 +38,7 @@ dependencies = [
 requires-dist = [
     { name = "aad-drafting", editable = "packages/drafting" },
     { name = "aad-engine", editable = "packages/engine" },
-    { name = "aad-quality", editable = "packages/quality" },
+    { name = "aad-quality", extras = ["parts"], editable = "packages/quality" },
     { name = "aad-render", extras = ["vtk"], editable = "packages/render" },
     { name = "mcp", specifier = "==2.3.0" },
     { name = "pyyaml", specifier = ">=6" },

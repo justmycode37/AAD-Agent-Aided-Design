@@ -99,7 +99,7 @@ def test_main_skill_is_served_as_the_guide_and_its_examples_build(tmp_path):
     assert entry["text"].startswith("# AAD guide")
     assert "aad.guide.v1" in [item["id"] for item in library("search", kind="playbook", query="guide")["items"]]
     blocks = [block.split("```", 1)[0] for block in entry["text"].split("```python\n")[1:]]
-    model, _selectors, assembly, gears = blocks
+    model, _selectors, assembly, gears, sheet = blocks
 
     built = run_build(BuildRequest(source=model, job_dir=tmp_path / "job", material="steel_1018"))
     assert built.ok, built.failure
@@ -107,7 +107,10 @@ def test_main_skill_is_served_as_the_guide_and_its_examples_build(tmp_path):
 
     namespace = {}
     exec("from aad import *\n" + assembly, namespace)
-    assert len(namespace["result"].solids()) == 2 and namespace["result"].is_valid
+    assert namespace["result"].bom()[0]["quantity"] == 3
+    assert len(namespace["result"].compound().solids()) == 4 and namespace["result"].compound().is_valid
+    exec(sheet, namespace)
+    assert namespace["plate"].to_face().area > 0
     exec("from aad import *\n" + gears, namespace)
     assert namespace["pinion"].is_valid and not (namespace["pinion"] & namespace["wheel"])
 

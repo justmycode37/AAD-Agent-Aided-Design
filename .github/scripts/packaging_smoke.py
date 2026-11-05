@@ -280,7 +280,7 @@ if viewer_html_bytes <= 0:
 
 aad_metadata = metadata.distribution("aad-design").metadata
 requires_dist = aad_metadata.get_all("Requires-Dist") or []
-required_runtime = ["aad-engine==0.1.0", "aad-drafting==0.1.0", "aad-quality==0.1.0", "aad-render[vtk]==0.0.1"]
+required_runtime = ["aad-engine==0.1.0", "aad-drafting==0.1.0", "aad-quality[parts]==0.1.0", "aad-render[vtk]==0.0.1"]
 for requirement in required_runtime:
     if not any(line.lower().replace(" ", "") == requirement.lower() for line in requires_dist):
         raise SystemExit(f"Installed aad wheel is missing runtime requirement {requirement}: {requires_dist}")

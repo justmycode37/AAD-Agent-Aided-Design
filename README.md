@@ -6,6 +6,10 @@ The Python distribution is `aad-design`; the CLI command and Python modeling imp
 
 Pre-release and not yet published. [ARCHITECTURE.md](ARCHITECTURE.md) explains how it fits together, and `CONTRACTS.md` is the binding set of interfaces.
 
+## What agents can do
+
+Parts, assemblies with a BOM and interference checks, sheet metal with flat patterns, surfaces, direct edits, threads, gears and standard parts, 2D sheets, drawings, and STEP, IGES, STL, OBJ, PLY, 3MF, GLB, DXF, SVG and PDF exchange. [`docs/cad-parity.md`](docs/cad-parity.md) compares this with commercial CAD, including what is still missing. Agents read the guide, playbook `aad.guide.v1`, through `aad_library`, with working code in `workflow.capabilities.v1`. `aad install` also adds the guide as the `aad` skill for Claude Code.
+
 ## Develop
 
 Requires Python 3.12 and [uv](https://docs.astral.sh/uv/) (`brew install uv`).

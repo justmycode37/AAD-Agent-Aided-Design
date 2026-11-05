@@ -64,6 +64,17 @@ valid before an override is applied. Bounds are declarations, not inferred
 kernel limits. Units do not convert coordinates. Applied values are in
 `ctx.params`; live slider records are in `ctx.param_definitions`.
 
+`aad.cad` adds operations build123d does not package: `assembly`, `asset`,
+`sheet_metal`, `variable_fillet`, `press_pull`, `delete_faces`, `sew_solid`,
+`pattern_along`, `exploded`, `overlap_volume` and `motion_clearance`. They return
+real shapes and raise `CadOperationError` rather than return a near miss. An
+`Assembly` assigned to `result` is built as one compound, and its components and
+BOM are stored in the revision's `meta.json`. BREP keeps no names, so post-build
+operations rebuild the tree from that record. `Assembly.bom()` refuses one part
+number on different volumes. `motion_clearance` samples only the poses it is given.
+`sheet_metal` handles one strip with parallel bends, and its allowance is
+`angle * (inner_radius + k_factor * thickness)`.
+
 `meta(**fields)` records finite JSON data. `units` must be `mm` or `in`;
 `name`, `material`, and `process`, when present, are nonempty strings. Physical
 declarations in the model, build request, and spec must agree. A conflict is a
@@ -74,8 +85,7 @@ reach metrics, gates, and optional hooks.
 
 `with part("name") as bp:` opens a BuildPart and labels its output. There is
 one named part per build. With no explicit `result`, it supplies the output
-even if later helper builders exist. This is a single-part helper; assemblies
-are not implemented here.
+even if later helper builders exist. This is a single-part helper; use `assembly()` for several parts.
 
 `with feature("name", intent="..."):` surrounds operations in the active
 BuildPart. Names are unique per build; `main` and `unknown` are reserved, and
@@ -150,8 +160,7 @@ operations require loading and resolving against a live shape in a worker.
 Validation covers the named Box/hole/fillet fixture, edits with retained names
 or explicit candidates, topology identity/replacement, source/dependency
 tracking, declarations, injection, ties, and same-context measurement. This
-is not the 30-part regression corpus. Pool, sandbox, revision, I/O, gate,
-assembly, and status work is outside this change.
+is not the 30-part regression corpus.
 
 ```sh
 UV_PROJECT_ENVIRONMENT=/tmp/aad-s1-modeling uv run --locked --python 3.12 \

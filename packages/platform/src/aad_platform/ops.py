@@ -11,6 +11,7 @@ import dataclasses
 import importlib
 import json
 import os
+import shutil
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -90,24 +91,66 @@ def load_context(request: dict[str, Any]) -> Any:
 
         spec = parse_spec((rev_dir / "spec.yaml").read_text())
     features = [_feature(item) for item in meta.get("features") or []]
+    sheet = None
+    if (rev_dir / "sheet.json").exists():
+        sheet = json.loads((rev_dir / "sheet.json").read_text())
+    assembly = (meta.get("meta") or {}).get("assembly")
+    if shape is not None and assembly:
+        shape = _restore_assembly(shape, assembly)
     return ModelContext(
         project_dir=project_dir,
         rev=request["rev"],
         kind=request.get("kind", "part"),
         units=request.get("units", "mm"),
         shape=shape,
-        sheet=None,
+        sheet=sheet,
         features=features,
         params=meta.get("params") or {},
         metrics=meta.get("metrics") or {},
         spec=spec,
-        material=request.get("material"),
+        material=request.get("material") or (meta.get("meta") or {}).get("material"),
         process=request.get("process"),
         job_dir=Path(request["out_dir"]),
+        meta=meta.get("meta") or {},
     )
 
 
+def _restore_assembly(shape: Any, assembly: dict[str, Any]) -> Any:
+    """BREP stores no tree or names, so rebuild the recorded components, in order, on the same geometry."""
+    from build123d import Compound
+
+    names = assembly.get("components") or []
+    children = list(shape) if isinstance(shape, Compound) else []
+    if not names or len(names) != len(children):
+        return shape
+    numbers = {
+        name: row.get("part_number")
+        for row in assembly.get("bom") or []
+        for name in row.get("components") or []
+    }
+    # Assembly.bom() refused differing geometry under one number, so a number is one part.
+    representative: dict[str, Any] = {}
+    for name, child in zip(names, children, strict=True):
+        number = numbers.get(name) or name
+        child.label = name
+        child.part_number = number
+        child.obj = representative.setdefault(number, child)
+    return Compound(label=assembly.get("name") or "assembly", children=children)
+
+
+def _sheet_preview(ctx: Any, out: Path) -> dict[str, Any]:
+    make_drawing = _required("aad_drafting", "make_drawing", "Sheet preview")
+    drawing = _plain(make_drawing(ctx, {"formats": ["svg"]}, out))
+    preview = drawing.get("preview")
+    return {
+        "images": [{"path": str(preview), "mime": "image/png"}] if preview else [],
+        "artifacts": {k: str(v) for k, v in (drawing.get("artifacts") or {}).items()},
+    }
+
+
 def op_render(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
+    if ctx.kind == "2d":
+        return _sheet_preview(ctx, out)
     render = _required("aad_render", "render", "Agent rendering")
     from aad.engine.types import RenderRequest
 
@@ -184,9 +227,75 @@ def op_query(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
     return {"count": len(entities), "entities": _plain(items)}
 
 
+_CM3_PER_UNIT3 = {"mm": 1e-3, "in": 2.54**3}
+
+
+def _density(material_id: str) -> tuple[float, dict[str, Any]]:
+    get_material = _required("aad_quality.materials", "get_material", "The material catalog")
+    material = get_material(material_id)
+    if not material:
+        raise OpFailure("BAD_INPUT", "input", f"Material {material_id!r} has no sourced density. Search aad_library kind material.")
+    return float(material["density_g_cm3"]), material
+
+
+def _measure_mass(ctx: Any) -> dict[str, Any]:
+    """Nominal, fully dense mass from sourced densities. Without a material, no mass is claimed."""
+    factor = _CM3_PER_UNIT3[ctx.units]
+    rows = (ctx.meta.get("assembly") or {}).get("bom") or []
+    grams = 0.0
+    breakdown = []
+    if rows:
+        for row in rows:
+            material = row.get("material") or ctx.material
+            if not material:
+                raise OpFailure("BAD_INPUT", "input", f"Component {row['part_number']!r} has no material, so no mass is claimed.")
+            line = row["unit_volume"] * row["quantity"] * factor * _density(material)[0]
+            grams += line
+            breakdown.append({"part_number": row["part_number"], "material": material, "quantity": row["quantity"], "mass_g": line})
+    else:
+        if not ctx.material:
+            raise OpFailure("BAD_INPUT", "input", "Mass needs a declared material with a sourced density. Set material in aad_new or meta().")
+        volume = sum(float(solid.volume) for solid in ctx.shape.solids())
+        grams = volume * factor * _density(ctx.material)[0]
+    result = {"kind": "mass", "value": grams, "unit": "g", "definition": "nominal_fully_dense_volume_times_sourced_density"}
+    if ctx.material:
+        result["material"] = ctx.material
+    if breakdown:
+        result["breakdown"] = breakdown
+    return result
+
+
+def _measure_thickness(ctx: Any) -> dict[str, Any]:
+    screen = _required("aad_quality.process_geometry", "wall_thickness_screen", "Wall thickness")
+    if ctx.shape is None or len(ctx.shape.solids()) != 1:
+        raise OpFailure("BAD_INPUT", "input", "Wall thickness needs exactly one solid. For an assembly, measure a part project.")
+    walls = screen(ctx.shape, units=ctx.units, tolerance_mm=1e-3)
+    mm_per_unit = {"mm": 1.0, "in": 25.4}[ctx.units]
+    return {
+        "kind": "thickness",
+        "value": walls.minimum_mm / mm_per_unit,
+        "unit": ctx.units,
+        "definition": "smallest_sampled_wall_not_a_proven_global_minimum",
+        "samples_hit": walls.samples_hit,
+        "samples_missed": walls.samples_missed,
+        "sample_limit_reached": walls.sample_limit_reached,
+    }
+
+
 def op_measure(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
+    kind = args["kind"]
+    if ctx.kind == "2d":
+        if kind not in {"area", "bbox"} or args.get("a") or args.get("b"):
+            raise OpFailure("BAD_INPUT", "input", "A 2D sheet supports whole-sheet area and bbox measurements.")
+        evidence = _required("aad_drafting", "measurement_evidence", "2D measurement")
+        return {"measurement": _plain({"kind": kind, "evidence": evidence(ctx)})}
+    if ctx.shape is not None and not args.get("a") and not args.get("b"):
+        if kind == "mass":
+            return {"measurement": _plain(_measure_mass(ctx))}
+        if kind == "thickness":
+            return {"measurement": _plain(_measure_thickness(ctx))}
     measure = _required("aad.engine.measure", "measure", "Measurement")
-    return {"measurement": _plain(measure(ctx, args["kind"], args.get("a"), args.get("b")))}
+    return {"measurement": _plain(measure(ctx, kind, args.get("a"), args.get("b")))}
 
 
 def op_compare(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
@@ -263,7 +372,39 @@ def _export_kernel(ctx: Any, fmt: str, path: Path, options: dict[str, Any]) -> N
         raise OpFailure("EXPORT_FAILED", "kernel", f"The kernel did not write a usable {fmt} file.")
 
 
+def _export_sheet(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
+    files: dict[str, str] = {}
+    for fmt in args["formats"]:
+        if fmt in {"dxf", "svg"}:
+            export_2d = _required("aad_drafting", "export_2d", "2D export")
+            files[fmt] = str(export_2d(ctx, fmt, out / f"{args['stem']}.{fmt}"))
+        elif fmt == "pdf":
+            make_drawing = _required("aad_drafting", "make_drawing", "PDF export")
+            files[fmt] = str(_plain(make_drawing(ctx, {"formats": ["pdf"]}, out)).get("artifacts", {})["pdf"])
+        elif fmt == "viewer_html":
+            files[fmt] = _viewer_page(ctx, out / f"{args['stem']}.viewer.html")
+        else:
+            raise OpFailure("EXPORT_FAILED", "input", f"A 2D sheet exports DXF, SVG, PDF or viewer_html, not {fmt}. Extrude it in a part project for 3D formats.")
+    return {"files": files}
+
+
+def _viewer_page(ctx: Any, path: Path) -> str:
+    """A single self-contained page that opens from disk with the revision's own scene."""
+    from .viewer.bundle import export_bundle
+
+    scene_dir = Path(ctx.project_dir) / ".aad" / "revs" / f"{ctx.rev:06d}" / "scene"
+    if not (scene_dir / "scene.bin.gz").is_file():
+        raise OpFailure("EXPORT_FAILED", "input", "This revision has no saved scene, so no standalone viewer can be written.")
+    working = path.parent / f".{path.name}.bundle"
+    export_bundle(scene_dir, working)
+    os.replace(working / "standalone.html", path)
+    shutil.rmtree(working, ignore_errors=True)
+    return str(path)
+
+
 def op_export(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
+    if ctx.kind == "2d":
+        return _export_sheet(ctx, args, out)
     files: dict[str, str] = {}
     options = args.get("options") or {}
     stem = args["stem"]
@@ -282,9 +423,7 @@ def op_export(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
             continue
         path = out / f"{stem}.{fmt}"
         if fmt == "viewer_html":
-            exporter = _required("aad_render", "export_viewer_html", "Standalone viewer export")
-            path = out / f"{stem}.viewer.html"
-            exporter(ctx, path)
+            path = Path(_viewer_page(ctx, out / f"{stem}.viewer.html"))
         elif engine_export is not None:
             path = Path(engine_export(ctx, fmt, path, **options))
         else:
@@ -294,8 +433,21 @@ def op_export(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
 
 
 def op_import(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
+    if Path(args["path"]).suffix.lower() in {".dxf", ".svg"}:
+        drafting = importlib.import_module("aad_drafting")
+        parse = drafting.parse_dxf if args["path"].lower().endswith(".dxf") else drafting.parse_svg
+        sheet = parse(args["path"])
+        return {"imported": {"format": Path(args["path"]).suffix[1:].lower(), "role": args.get("as", "base"),
+                             "entities": len(sheet.entities), "layers": sorted(sheet.layers),
+                             "history_notice": "Imported as editable sheet entities. Load it in model.py with asset()."}}
     importer = _required("aad.engine.fileio", "import_file", "Import")
-    return {"imported": _plain(importer(args["path"], out, name=args.get("name"), role=args.get("as", "base")))}
+    imported = importer(args["path"], out, name=args.get("name"), role=args.get("as", "base"))
+    shape = imported.context.shape
+    return {"imported": {
+        "format": imported.source_format, "role": imported.role, "units": imported.context.units,
+        "source_units": imported.source_units, "assumed_units": imported.source_units_assumed,
+        "solids": len(shape.solids()), "faces": len(shape.faces()), "history_notice": imported.history_notice,
+    }}
 
 
 def op_library(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
