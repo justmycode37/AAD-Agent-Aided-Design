@@ -250,11 +250,11 @@ def _feature_map_for_part(
     kernel: Any,
     get_faces: Any,
     get_edges: Any,
+    face_buckets: dict[int, list[int]],
+    edge_buckets: dict[int, list[int]],
     face_count: int,
     edge_count: int,
 ) -> dict[str, list[str]]:
-    face_buckets = _index_by_hash(engine_faces)
-    edge_buckets = _index_by_hash(engine_edges)
     faces = [
         face_features.get(index) or "main"
         for face in _mesh_face_order(source_shape, kernel, get_faces)
@@ -503,6 +503,8 @@ def _write_single_scene(ctx: Any, out: Path) -> tuple[Any, dict[str, Any]]:
 
     engine_faces = list(shape.faces()) if callable(getattr(shape, "faces", None)) else []
     engine_edges = list(shape.edges()) if callable(getattr(shape, "edges", None)) else []
+    face_buckets = _index_by_hash(engine_faces)
+    edge_buckets = _index_by_hash(engine_edges)
     features = getattr(ctx, "features", None)
     face_features = _feature_names(features, "faces", len(engine_faces))
     edge_features = _feature_names(features, "edges", len(engine_edges))
@@ -543,6 +545,8 @@ def _write_single_scene(ctx: Any, out: Path) -> tuple[Any, dict[str, Any]]:
                 kernel_of(source_leaf["shape"]["obj"]),
                 get_faces,
                 get_edges,
+                face_buckets,
+                edge_buckets,
                 mesh_faces,
                 mesh_edges,
             )

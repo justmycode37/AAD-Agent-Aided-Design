@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from build123d import Box, Compound, Cylinder, Edge, Face, Location, Plane, Wire, export_brep, import_brep, mirror
 import pytest
 
+import aad_render.scene as scene_module
 from aad_render import make_scene
 
 
@@ -82,6 +83,26 @@ def test_scene_payload_and_manifest_are_byte_stable(tmp_path):
     assert first_blob[4:8] == b"\0\0\0\0"
     assert first.scene_id == hashlib.sha256(first_blob).hexdigest()
     assert second.scene_id == first.scene_id
+
+
+def test_scene_indexes_feature_topology_once_for_all_parts(tmp_path, monkeypatch):
+    original = scene_module._index_by_hash
+    calls = 0
+
+    def counted(entities):
+        nonlocal calls
+        calls += 1
+        return original(entities)
+
+    monkeypatch.setattr(scene_module, "_index_by_hash", counted)
+    shape = Compound(
+        children=[Box(1, 1, 1).moved(Location((index * 2, 0, 0))) for index in range(4)]
+    )
+
+    manifest = make_scene(_context(shape), tmp_path)
+
+    assert len(manifest.parts) == 4
+    assert calls == 2
 
 
 def test_feature_map_matches_engine_topology_indices(tmp_path):
