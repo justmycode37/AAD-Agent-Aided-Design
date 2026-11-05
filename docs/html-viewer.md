@@ -24,6 +24,20 @@ asset into the final artifact. The viewer checks the original scene ID using
 SHA-256 when Web Crypto is available, the byte count, and the triangle count.
 It reports a missing asset instead of substituting a different mesh.
 
+Scene payloads are split into lossless RGB PNG chunks. This keeps the bytes
+close to 4/3 of the scene size when an HTML host inlines each image, instead of
+nesting base64 text inside SVG and then encoding that SVG again. The viewer
+requires every chunk, verifies each chunk's byte count and the complete scene's
+byte count and SHA-256 against `scene.json`, then reassembles the original bytes.
+A missing or altered chunk produces a visible load error; the viewer never
+substitutes geometry. This avoids relying on one oversized SVG data URL.
+
+Inline artifact limits are host-specific. The current T3 `html_preview` ceiling
+is 25 MiB; export estimates the inlined size and refuses to write `viewer.html`
+when the estimate exceeds that ceiling. It still writes `standalone.html` and
+reports its path so the user can open it locally or use a host with a larger
+limit. This 25 MiB figure is not a general HTML-host limit.
+
 The same export also writes `standalone.html`, which opens directly from disk
 with the viewer and original scene embedded. No daemon or internet connection
 is needed. Chat exports use the simple MCP App interface, including a wider

@@ -81,7 +81,9 @@ export interface EmbeddedScene {
 
 export interface BundledScene {
   manifest: SceneManifest;
-  asset: string;
+  assets?: string[];
+  chunk_bytes?: number[];
+  asset?: string;
   presentation?: import("./types").Presentation;
   view?: import("./types").CameraView;
   title?: string;
@@ -96,6 +98,31 @@ export function decodeSceneAsset(asset: string): Uint8Array {
   const payload = svg.getElementById("aad-scene");
   if (!payload) throw new Error("Scene asset has no AAD payload");
   return decodeBase64(payload.textContent?.trim() ?? "");
+}
+
+export async function decodeSceneAssets(assets: string[], counts: number[], total: number): Promise<Uint8Array> {
+  if (!assets.length || assets.length !== counts.length) throw new Error("Scene bundle is missing one or more chunks");
+  const chunks = await Promise.all(assets.map(async (asset, i) => {
+    if (!asset) throw new Error(`Scene chunk ${i} is missing`);
+    if (!asset.startsWith("data:image/png;base64,")) throw new Error(`Scene chunk ${i} was not bundled by the host`);
+    const image = new Image(); image.src = asset;
+    try { await image.decode(); } catch { throw new Error(`Scene chunk ${i} is missing or invalid`); }
+    const canvas = document.createElement("canvas"); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) throw new Error(`Could not decode scene chunk ${i}`);
+    context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    if (counts[i] > Math.floor(pixels.length / 4) * 3) throw new Error(`Scene chunk ${i} byte count exceeds its PNG payload`);
+    const bytes = new Uint8Array(counts[i]);
+    for (let j = 0; j < bytes.length; j++) bytes[j] = pixels[Math.floor(j / 3) * 4 + (j % 3)];
+    if (bytes.length !== counts[i]) throw new Error(`Scene chunk ${i} byte count mismatch`);
+    return bytes;
+  }));
+  const size = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  if (size !== total) throw new Error("Scene bundle byte count mismatch");
+  const bytes = new Uint8Array(size); let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+  return bytes;
 }
 
 /** The scene travels in the file, so the same loader checks its size and hash. */
@@ -119,12 +146,16 @@ export class EmbeddedTransport extends PageTransport {
 
 export class BundledTransport extends EmbeddedTransport {
   readonly controls: "simple" | "cad";
-  constructor(bundle: BundledScene) {
+  static async create(bundle: BundledScene): Promise<BundledTransport> {
+    const bytes = bundle.assets ? await decodeSceneAssets(bundle.assets, bundle.chunk_bytes ?? [], bundle.manifest.total_bytes) : decodeSceneAsset(bundle.asset!);
+    return new BundledTransport(bundle, bytes);
+  }
+  constructor(bundle: BundledScene, bytes: Uint8Array) {
     super({ scene_b64: "", envelope: {
       ok: true, project: bundle.manifest.project, rev: bundle.manifest.rev,
       status: bundle.manifest.status, summary: "Saved scene", scene: bundle.manifest,
       viewer: { mode: "inline", presentation: bundle.presentation, view: bundle.view, title: bundle.title, views: bundle.views },
-    } }, decodeSceneAsset(bundle.asset));
+    } }, bytes);
     this.controls = bundle.controls ?? "simple";
   }
 }

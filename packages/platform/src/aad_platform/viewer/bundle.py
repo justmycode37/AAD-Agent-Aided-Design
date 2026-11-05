@@ -9,6 +9,8 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import struct
+import zlib
 from pathlib import Path
 
 from . import viewer_path
@@ -22,6 +24,21 @@ def _asset(path: Path, payload: bytes, element_id: str, encoding: str = "base64+
         f'<metadata id="{element_id}" encoding="{encoding}">{encoded}</metadata></svg>',
         encoding="utf-8",
     )
+    return path.resolve()
+
+
+def _png_asset(path: Path, payload: bytes, width: int = 2048) -> Path:
+    """Store arbitrary bytes losslessly in RGB pixels without nested base64."""
+    height = (len(payload) + width * 3 - 1) // (width * 3)
+    padded = payload + bytes(width * height * 3 - len(payload))
+    rows = b"".join(b"\0" + padded[y * width * 3:(y + 1) * width * 3] for y in range(height))
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xffffffff)
+
+    png = (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+           + chunk(b"IDAT", zlib.compress(rows, level=1)) + chunk(b"IEND", b""))
+    path.write_bytes(png)
     return path.resolve()
 
 
@@ -59,9 +76,13 @@ def export_bundle(scene_dir: Path, output_dir: Path, *, presentation: dict | Non
         settings["title"] = title
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    asset = _asset(output_dir / f"scene-{manifest['scene_id']}.svg", payload, "aad-scene")
+    chunk_size = 4 * 1024 * 1024
+    chunks = [payload[i:i + chunk_size] for i in range(0, len(payload), chunk_size)]
+    assets = [_png_asset(output_dir / f"scene-{manifest['scene_id']}-{i}.png", chunk) for i, chunk in enumerate(chunks)]
     # Keep the complete manifest, including part names and the original scene ID.
-    config = _script_json({"manifest": manifest, "asset": str(asset), **settings})
+    # Keep file paths only in <img src>. Duplicating them in JSON makes some
+    # hosts inline each large image a second time when rewriting local assets.
+    config = _script_json({"manifest": manifest, "chunk_bytes": [len(c) for c in chunks], **settings})
     html = viewer_path().read_text(encoding="utf-8")
     # Bundle the runtime separately too: the full CAD library is larger than
     # HTML-only hosts' tool-argument limit. Its scripts remain ordinary inline
@@ -72,6 +93,7 @@ def export_bundle(scene_dir: Path, output_dir: Path, *, presentation: dict | Non
     bootstrap = r'''<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <script>window.__AAD_EMBEDDED_SCENE__ = CONFIG;</script>
+<div hidden id="aad-assets">ASSET_TAGS</div>
 <style>
 #aad-boot { min-height:510px; }
 .aad-boot-stage { position:relative; height:480px; }
@@ -85,6 +107,8 @@ def export_bundle(scene_dir: Path, output_dir: Path, *, presentation: dict | Non
 (async () => {
 await new Promise(resolve => { setTimeout(resolve, 80); requestAnimationFrame(() => requestAnimationFrame(resolve)); });
 try {
+  const bundle = window.__AAD_EMBEDDED_SCENE__;
+  bundle.assets = [...document.querySelectorAll("#aad-assets img")].map(img => img.src);
   const asset = RUNTIME;
   if (!asset.startsWith("data:image/svg+xml;base64,")) throw new Error("Bundle the viewer asset before displaying this HTML");
   const decode = (text) => Uint8Array.from(atob(text), c => c.charCodeAt(0));
@@ -109,11 +133,23 @@ try {
 } catch (error) { document.body.textContent = "Could not load CAD viewer: " + error.message; }
 })();
 </script></body></html>'''
-    html_bundle = bootstrap.replace("CONFIG", config, 1).replace("RUNTIME", _script_json(str(runtime_asset)), 1)
+    tags = "".join(
+        f'<img src="data:image/png;base64,{base64.b64encode(p.read_bytes()).decode("ascii")}" data-aad-chunk="{i}">'
+        for i, p in enumerate(assets)
+    )
+    html_bundle = bootstrap.replace("CONFIG", config, 1).replace("ASSET_TAGS", tags, 1).replace("RUNTIME", _script_json(str(runtime_asset)), 1)
     # A separate, genuinely standalone file also opens with no chat host/server.
-    standalone_config = _script_json({"manifest": manifest, "asset": "data:image/svg+xml;base64," + base64.b64encode(asset.read_bytes()).decode("ascii"), "controls": controls, **settings})
+    standalone_config = _script_json({"manifest": manifest, "assets": ["data:image/png;base64," + base64.b64encode(p.read_bytes()).decode("ascii") for p in assets], "chunk_bytes": [len(c) for c in chunks], "controls": controls, **settings})
     standalone = html.replace("<head>", f"<head>\n<script>window.__AAD_EMBEDDED_SCENE__ = {standalone_config};</script>", 1)
     (output_dir / "standalone.html").write_text(standalone, encoding="utf-8")
+    # T3's current html_preview limit is 25 MiB. Other hosts may set a different limit.
+    inline_estimate = len(html_bundle.encode("utf-8")) + runtime_asset.stat().st_size * 4 // 3 + 4096
+    host_limit = 25 * 1024 * 1024
+    if inline_estimate > host_limit:
+        raise ValueError(
+            f"Estimated inlined viewer size {inline_estimate / 1048576:.2f} MiB exceeds the host-specific 25 MiB html_preview limit; "
+            f"standalone.html was written to {output_dir / 'standalone.html'}. Open that file locally or use a host with a larger limit."
+        )
     target = output_dir / "viewer.html"
     target.write_text(html_bundle, encoding="utf-8")
     return target

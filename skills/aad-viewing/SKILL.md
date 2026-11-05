@@ -122,6 +122,7 @@ analysis ran. State missing loads, constraints, material, or results when they
 prevent a requested analysis view; provide the supported geometric views.
 
 `presentation.materials` accepts up to 256 `{parts, color, metalness, roughness, opacity}` overrides. Color is `#RRGGBB`; scalar values are from 0 to 1. `presentation.environment: "studio"` adds an offline generated reflection environment. Both affect display only and preserve scene bytes.
+HTML-only exports use lossless PNG scene chunks. The viewer verifies chunk and total byte counts and the scene SHA-256, and reports missing chunks as errors. The 25 MiB T3 `html_preview` limit is host-specific; oversized exports leave `standalone.html` and report its path.
 
 For the complete schema, capability table, precision limits, and HTML export
 workflow, fetch `aad_library(action="get", kind="playbook",
