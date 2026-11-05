@@ -136,6 +136,96 @@ def _shape_or_skip(ctx: Any) -> Any:
     return shape
 
 
+def _sheet_or_skip(ctx: Any) -> Any:
+    raw = getattr(ctx, "sheet", None)
+    if raw is None:
+        raise geometry.GeometryUnavailable("2D sheet geometry is missing")
+    try:
+        from aad_drafting.model2d import Sheet2D
+        return Sheet2D.from_dict(raw) if isinstance(raw, dict) else raw
+    except Exception as exc:
+        raise geometry.GeometryUnavailable(f"2D sheet geometry could not be read: {exc}") from exc
+
+
+def _eval_sheet_requirement(req_id: str, level: str, req: dict[str, Any], unit: str, factor: float | None, ctx: Any) -> Any:
+    field = next(key for key in req if key not in {"id", "level"})
+    sheet = _sheet_or_skip(ctx)
+    if field == "bbox":
+        if "z" in req["bbox"]:
+            raise geometry.UnsupportedGeometry("a 2D sheet has no Z extent; z requirements cannot be evaluated")
+        ranges = {axis: _range(value, unit=unit, path=("requirements", req_id, "bbox", axis)) for axis, value in req["bbox"].items()}
+        box = sheet.bounding_box(layers=("cut",))
+        actuals = {"x": box.size.X * factor, "y": box.size.Y * factor}
+        matches = all(_within(actuals[axis], value) for axis, value in ranges.items())
+        actual = ", ".join(f"{axis.upper()} {_actual_value(actuals[axis], power=1, unit=unit)}" for axis in ranges)
+        return _check(req_id, level=level, status=_comparison_status(matches, level),
+            message=f"2D bounding-box requirement {req_id!r} {'is satisfied' if matches else 'does not match the measured sheet' }.",
+            expected=", ".join(f"{axis.upper()} {_range_text(value)}" for axis, value in ranges.items()), actual=actual,
+            fix_hint="Adjust the sheet dimensions or update the spec to the intended size.", selector="2D cut geometry bounding box")
+    if field in {"area", "measure"}:
+        if factor is None:
+            raise geometry.UnsupportedGeometry("context units are not known")
+        kind = "area" if field == "area" else req["measure"].get("kind")
+        if kind != "area" or (field == "measure" and any(k in req["measure"] for k in ("a", "b", "selector"))):
+            raise geometry.UnsupportedGeometry("2D sheets support only whole-sheet area measurement")
+        area = sheet.to_face(layers=("cut",)).area * factor * factor
+        expected = req[field] if field == "area" else req.get("equals", {k: req[k] for k in ("min", "max") if k in req})
+        bound = _range(expected, unit=unit, power=2, path=("requirements", req_id, field))
+        matches = _within(area, bound)
+        return _check(req_id, level=level, status=_comparison_status(matches, level),
+            message=f"2D area requirement {req_id!r} {'is satisfied' if matches else 'does not match the measured sheet'}.",
+            expected=_range_text(bound), actual=_actual_value(area, power=2, unit=unit),
+            fix_hint="Adjust the cut contours or update the required area.", selector="filled 2D cut area")
+    if field == "holes":
+        body = req["holes"]
+        if body.get("through", True) is False:
+            raise geometry.UnsupportedGeometry("2D sheets have no depth evidence to evaluate holes.through: false")
+        circles = [e for e in sheet.entities.values() if e.layer == "cut" and e.kind == "circle" and e.closed]
+        for index, first in enumerate(circles):
+            first_center = sheet.points[first.points[0]]
+            for second in circles[index + 1:]:
+                second_center = sheet.points[second.points[0]]
+                center_distance = math.hypot(first_center.x - second_center.x, first_center.y - second_center.y)
+                if (center_distance + min(first.radius, second.radius)
+                        < max(first.radius, second.radius) - 1e-8):
+                    raise geometry.UnsupportedGeometry(
+                        f"nested circular cut contours {first.name!r} and {second.name!r} have ambiguous void/island topology"
+                    )
+        count = body.get("count")
+        diameter = _range(body["diameter"], unit=unit, path=("requirements", req_id, "holes", "diameter")) if "diameter" in body else None
+        matching = [e for e in circles if diameter is None or _within(2 * e.radius * factor, diameter)]
+        failures = []
+        if count is not None and len(matching) != count:
+            failures.append(f"{len(matching)} matching circular cut contour(s), expected {count}")
+        if diameter is not None and not matching:
+            failures.append("no circular cut contour has the required diameter")
+        pattern = body.get("pattern", {}).get("grid")
+        if pattern is not None:
+            if len(matching) != len(circles):
+                failures.append("grid check requires every counted circle to match the requested diameter")
+            else:
+                xs = sorted({round(sheet.points[e.points[0]].x, 8) for e in matching})
+                ys = sorted({round(sheet.points[e.points[0]].y, 8) for e in matching})
+                expected_x = _range(pattern[0], unit=unit, path=("requirements", req_id, "holes", "pattern", "grid", "x"))
+                expected_y = _range(pattern[1], unit=unit, path=("requirements", req_id, "holes", "pattern", "grid", "y"))
+                complete = len(matching) == len(xs) * len(ys) and len(xs) > 1 and len(ys) > 1
+                pitches_x = [b-a for a,b in zip(xs, xs[1:])]
+                pitches_y = [b-a for a,b in zip(ys, ys[1:])]
+                complete = complete and all(_within(v * factor, expected_x) for v in pitches_x) and all(_within(v * factor, expected_y) for v in pitches_y)
+                if not complete:
+                    failures.append("circular cut contours do not form the required complete grid")
+        actual = f"{len(matching)} closed circular cut contour(s)" + (f"; {', '.join(failures)}" if failures else "")
+        expected = str(count) + " circular contour(s)" if count is not None else "circular cut contours"
+        if diameter is not None: expected += f" with diameter {_range_text(diameter)}"
+        if pattern is not None: expected += f" in a grid with pitches {pattern}"
+        return _check(req_id, level=level, status=_comparison_status(not failures, level),
+            message=f"2D hole requirement {req_id!r} {'is satisfied' if not failures else 'does not match measured circular cut contours'}.",
+            expected=expected, actual=actual, fix_hint="Correct the circular cut contours or update the hole requirement.", selector="closed circular cut contours")
+    if field == "components":
+        return _eval_components(req_id, level, req)
+    raise geometry.UnsupportedGeometry(f"requirement type {field!r} has no supported 2D meaning")
+
+
 def _eval_bbox(req_id: str, level: str, req: dict[str, Any], unit: str, factor: float | None, ctx: Any) -> Any:
     expected_ranges = {
         axis: _range(value, unit=unit, path=("requirements", req_id, "bbox", axis))
@@ -623,6 +713,7 @@ def _evaluate_one(req: dict[str, Any], index: int, doc: dict[str, Any], ctx: Any
     types = [key for key in req if key not in {"id", "level"}]
     supported = {
         "bbox",
+        "area",
         "solids",
         "holes",
         "min_wall",
@@ -649,8 +740,24 @@ def _evaluate_one(req: dict[str, Any], index: int, doc: dict[str, Any], ctx: Any
         )
     field = known[0]
     unit = doc.get("units", "mm")
+    if getattr(ctx, "kind", None) == "2d":
+        if field not in {"bbox", "area", "holes", "measure", "components"}:
+            return _check(req_id, level=level, status="skip",
+                message=f"Requirement {req_id!r} ({field}) has no supported 2D meaning.",
+                expected="a requirement measurable from 2D sheet geometry",
+                actual=f"unknown (2D sheets do not provide {field} evidence)",
+                fix_hint="Use a 2D-supported bbox, holes, area or whole-sheet area measure requirement.")
+        try:
+            return _eval_sheet_requirement(req_id, level, req, unit, native_factor, ctx)
+        except geometry.UnsupportedGeometry as exc:
+            return _check(req_id, level=level, status="skip",
+                message=f"Requirement {req_id!r} was skipped: {exc}.",
+                expected="a requirement measurable from 2D sheet geometry", actual=f"unknown ({exc})",
+                fix_hint="Use a supported 2D sheet measurement.")
     if field == "bbox":
         return _eval_bbox(req_id, level, req, unit, native_factor, ctx)
+    if field == "area":
+        return _eval_sheet_requirement(req_id, level, req, unit, native_factor, ctx)
     if field == "solids":
         return _eval_solids(req_id, level, req, ctx)
     if field == "holes":

@@ -103,7 +103,7 @@ class SpecIssue:
 
 COMPONENT_ITEM_LIMIT = 500
 REQUIREMENT_TYPES = frozenset({
-    "bbox", "solids", "holes", "min_wall", "clearance", "mass_g", "symmetric",
+    "bbox", "area", "solids", "holes", "min_wall", "clearance", "mass_g", "symmetric",
     "measure", "material_at_point", "interference", "matches_reference", "components",
 })
 
@@ -337,6 +337,7 @@ def _validate_requirement(req: dict[str, Any], index: int, units: str) -> list[S
     field = known[0]
     allowed = {
         "bbox": {"id", "level", "bbox"},
+        "area": {"id", "level", "area"},
         "solids": {"id", "level", "solids"},
         "holes": {"id", "level", "holes"},
         "min_wall": {"id", "level", "min_wall"},
@@ -352,7 +353,9 @@ def _validate_requirement(req: dict[str, Any], index: int, units: str) -> list[S
     try:
         _check_keys(req, allowed, path)
         body = req[field]
-        if field == "bbox":
+        if field == "area":
+            parse_numeric_range(body, default_unit=units, power=2, path=path + (field,))
+        elif field == "bbox":
             values = _require_mapping(body, path + (field,))
             _check_keys(values, {"x", "y", "z"}, path + (field,))
             if not values:

@@ -139,5 +139,8 @@ The guide agents read is `skills/aad/SKILL.md`, which `aad_library` also serves 
 - Use of the content-addressed cache in `aad.engine.cache` by the daemon.
 - The independent validator in the build path, so `verified` is not reachable.
 - A sandbox on Windows, so builds fail there with `SANDBOX_DENIED`.
-- Spec requirements on `kind="2d"` sheets. Sheets build and run their 2D checks, but a spec is not evaluated on them, so they stay `draft`.
+- Spec requirement types without a 2D meaning remain explicitly skipped on `kind="2d"` sheets.
 - A global mate solver. Assemblies place parts explicitly with `assembly()` and `at=`.
+- `aad_measure` for mass and thickness, and the `viewer_html` export. These are declared in the tool schemas but return an error.
+- An `asset()` API for general project files in `model.py`.
+- Named assembly helpers. Assemblies are plain build123d compounds in a project of kind `assembly`.
