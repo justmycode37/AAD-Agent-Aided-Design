@@ -4,6 +4,8 @@ What happens when a real host runs AAD. "Tools" means the real flow ran: `aad_ne
 
 Last run 2026-11-04, macOS arm64, with the M0 stub viewer and stub tessellator. S3's viewer has not been tested on any host through this adapter yet.
 
+**This table is out of date.** The real viewer has shipped since this run, so every row needs rerunning before it can describe the current viewer.
+
 | Host | Tools | `supports_ui` seen | Viewer | Evidence |
 |---|---|---|---|---|
 | MCPJam 2.0.9 | Pass (`aad_show`) | true | **Inline renders.** WebGL, chunked load and sha256 check all ran | [screenshot](host-matrix/mcpjam-2.0.9-inline-stub.png) |

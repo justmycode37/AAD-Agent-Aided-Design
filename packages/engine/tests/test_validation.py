@@ -239,7 +239,8 @@ main()
             finally:
                 try:
                     os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError:
+                except (ProcessLookupError, PermissionError):
+                    # macOS reports EPERM for a group that holds only zombies.
                     pass
                 process.communicate(timeout=2)
 
