@@ -4,14 +4,27 @@ The user sees small icon buttons beside the model title. Hover hints and
 accessible labels name each action:
 
 - **Pull apart / Put together** separates an assembly and zooms to fit the pieces, then brings it back together at the previous assembled zoom and framing.
-- **Show grid / Hide grid** toggles the XYZ grids and axes.
+- **Show grid / Hide grid** toggles the XYZ grids and axes. This choice stays in place across Views and Reset.
 - **Views** opens the agent's named recipes: interiors, sections, components, cameras, or sourced analysis. Original restores the prepared starting view.
-- **Reset** returns to the selected recipe's initial settings.
+- **Reset** returns to the selected recipe's initial settings, apart from the grid.
 
-The corner button makes the view bigger. Drag to turn, scroll or pinch to zoom,
-and Shift-drag or right-drag to pan. The CAD toolbars, part tree, menus,
+The corner button makes the view bigger. The CAD toolbars, part tree, menus,
 measurement panels, and their keyboard shortcuts are hidden in chat.
 A model with one visible piece disables Pull apart.
+
+Opening a model, choosing a view, Reset, and resizing fit the visible component
+bounds to the current canvas, with room around the edges and title controls.
+
+| Input | Mac | Other desktops |
+| --- | --- | --- |
+| Rotate | Click-drag | Drag |
+| Pan | Two-finger scroll, both directions | Shift-drag or right-drag |
+| Zoom | Pinch; Option-scroll as a fallback | Scroll or pinch |
+
+Pull apart spaces coaxial components along the assembly axis and separates
+parallel stacks. Original geometry and part orientation do not change.
+Auto-spacing is a view layout inferred from bounding boxes, not a physical
+disassembly sequence or collision proof. Parts can still overlap in a projection.
 
 The local CAD window retains the native engine's tree, face/edge visibility,
 clipping and caps, measurement/properties, selection, cameras, exploded animation,
@@ -54,15 +67,21 @@ installed provider.
 
 `aad_show.presentation` supports isolate/hide lists, shaded/edge/wireframe/
 transparent styles, orthographic/perspective projection, one to three section
-planes, and initial explode/grid states. A section uses either XY/XZ/YZ or a
-custom normal. Offsets are signed distances from the model center in model
-units. Normals are normalized, offsets must be finite, and flipped reverses a
+planes, an explode state, and a new scene's initial grid state. A section uses
+either XY/XZ/YZ or a custom normal. Offsets are signed distances from the model
+center in model units. Normals are normalized, offsets must be finite, and flipped reverses a
 normal. The optional intersection flag selects the clipping engine's
 intersection mode. Use `title` for a short, plain-language caption.
 
-Each recipe starts from its own visibility/style/section settings, with grid and
-explode off unless explicitly enabled. Original restores the base presentation.
-Reset restores the selected recipe. Identical results are deduplicated; updated
+Each recipe starts from its own visibility/style/section settings, with explode
+off unless explicitly enabled. Original restores the base presentation. Reset
+restores the selected recipe.
+
+A new scene takes its grid from its initial recipe, off when absent. After that,
+Views, Original, Reset, and same-scene updates keep the user's exact XY/XZ/YZ
+planes and axes, and ignore `grid` in those recipes.
+
+Identical results are deduplicated; updated
 recipes for the same scene do not transfer the mesh again. A replaced recipe
 list keeps the selected ID when present, otherwise selects Original. Local
 windows receive the same results through WebSocket updates.

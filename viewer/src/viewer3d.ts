@@ -3,6 +3,9 @@ import { Display, Viewer, logger } from "three-cad-viewer";
 import "three-cad-viewer/css";
 import { displayStates, type DisplayMode, type Visibility } from "./display-mode";
 import type { Analysis } from "./transport/types";
+import { installNavigation } from "./navigation";
+import { planExplodeLayout, type ExplodePart } from "./explode-layout";
+import { cameraFit } from "./camera-fit";
 
 const TREE_WIDTH = 220;
 const TREE_HEIGHT = 320;
@@ -80,11 +83,85 @@ export function mountCad3d(
     viewer.showTools(fullControls);
     viewer.setPickHandler(fullControls);
     viewer.setSelectionInput(fullControls);
+    const disposeNavigation = installNavigation(viewer as never);
     // Keep keyboard navigation on the simple buttons. Hidden CAD actions must
     // not reappear when somebody presses a letter while turning the model.
     if (!fullControls) viewer.setKeyMap(Object.fromEntries([
       "axes", "axes0", "grid", "gridxy", "perspective", "transparent", "blackedges", "zscale", "reset", "resize", "iso", "front", "rear", "top", "bottom", "left", "right", "explode", "distance", "properties", "select", "help", "play", "stop", "tree", "clip", "material", "zebra", "studio",
     ].map(action => [action, ""])) as never);
+    const camera = viewer.rendered.camera as any;
+    const clipRanges = [camera.pCamera, camera.oCamera].map(c => ({ camera: c, far: c.far }));
+    const restoreFarPlanes = () => {
+      // Native CAD collapse can keep a zoomed-out camera. Cover the assembled
+      // model at that distance until its framing is restored as well.
+      const sphere = viewer.bbox!.boundingSphere();
+      const needed = camera.getCamera().position.distanceTo(sphere.center) + 2 * sphere.radius;
+      for (const range of clipRanges) { range.camera.far = Math.max(range.far, needed); range.camera.updateProjectionMatrix(); }
+    };
+    const extendFarPlanes = (bounds: any) => {
+      if (bounds.isEmpty()) return;
+      const sphere = bounds.boundingSphere();
+      const far = Math.max(100 * sphere.radius, camera.getCamera().position.distanceTo(sphere.center) + 2 * sphere.radius);
+      for (const range of clipRanges) {
+        range.camera.far = Math.max(range.far, far);
+        range.camera.updateProjectionMatrix();
+      }
+    };
+    const unsubscribeExplode = viewer.state.subscribe("animationMode", change => {
+      if (change.new !== "explode") restoreFarPlanes();
+    });
+    const nativeReset = viewer.reset;
+    viewer.reset = () => {
+      nativeReset();
+      // The engine resets its controls target but leaves the camera wrapper's
+      // zoom origin at the last pan position.
+      camera.target.copy(viewer.rendered.controls.getTarget());
+      if (viewer.state.get("animationMode") !== "explode") restoreFarPlanes();
+      fit();
+    };
+    const visibleKey = () => JSON.stringify(Object.entries(viewer.getStates()).filter(([, state]) => state.includes(1)).map(([id]) => id).sort());
+    let plannedVisibility = "";
+    let explodeSettings: [number, number, number] = [2, 1, 2.5];
+    // Use the engine's animation lifecycle in both interfaces, with an axial
+    // layout that also separates concentric parts instead of scaling centers.
+    viewer.explode = (duration = 2, speed = 1, multiplier = 2.5) => {
+      viewer.clearAnimation();
+      explodeSettings = [duration, speed, multiplier];
+      plannedVisibility = visibleKey();
+      const groups = viewer.rendered.nestedGroup.groups;
+      (viewer.rendered.nestedGroup.rootGroup as any).updateMatrixWorld(true);
+      const parts: ExplodePart[] = [];
+      for (const [id, state] of Object.entries(viewer.getStates())) {
+        if (!state.includes(1) || !groups[id]) continue;
+        const bounds = (viewer.bbox! as any).clone().makeEmpty().expandByObject(groups[id], false);
+        if (!bounds.isEmpty()) parts.push({ id, min: bounds.min.toArray(), max: bounds.max.toArray() });
+      }
+      const strength = Math.max(0, multiplier / 2.5);
+      const offsets = planExplodeLayout(parts).offsets;
+      const explodedBounds = (viewer.bbox! as any).clone().makeEmpty();
+      for (const part of parts) {
+        const delta = (groups[part.id] as any).position.clone().fromArray(offsets.get(part.id)!).multiplyScalar(strength);
+        explodedBounds.expandByPoint(delta.clone().fromArray(part.min).add(delta));
+        explodedBounds.expandByPoint(delta.clone().fromArray(part.max).add(delta));
+      }
+      let tracks = 0;
+      for (const id of Object.keys(viewer.getStates())) {
+        const group = groups[id] as any;
+        if (!group) continue;
+        // Keep zero tracks for hidden leaves, so even hiding the last visible
+        // piece keeps explode mode ready for a later tree visibility change.
+        const offset = offsets.get(id) ?? [0, 0, 0];
+        const delta = group.position.clone().fromArray(offset).multiplyScalar(strength);
+        if (group.parent) {
+          const origin = group.parent.worldToLocal(group.position.clone().set(0, 0, 0));
+          group.parent.worldToLocal(delta).sub(origin);
+        }
+        viewer.addPositionTrack(id, [0, duration], [[0, 0, 0], delta.toArray()]);
+        tracks++;
+      }
+      if (tracks) viewer.initAnimation(duration, speed, "E", false);
+      extendFarPlanes(explodedBounds);
+    };
     let mode: DisplayMode = "shaded-edges";
     let lastSize = cadSize(opts.width, opts.height);
     let batchDepth = 0;
@@ -96,6 +173,22 @@ export function mountCad3d(
       viewer.renderer.render = () => {};
       batchDepth++;
       try { action(); } finally { batchDepth--; viewer.renderer.render = render; viewer.update(true, false); }
+    };
+    // Tree notifications cover native checkbox/group changes and both public
+    // visibility setters, after the entire visibility change has completed.
+    const tree = viewer.rendered.treeview as any;
+    const notifyVisibility = tree.notificationHandler;
+    tree.notificationHandler = () => {
+      if (viewer.state.get("animationMode") === "explode" && visibleKey() !== plannedVisibility) {
+        const time = viewer.getRelativeTime();
+        const playing = (viewer as any).clipAction?.isRunning() && !(viewer as any).clipAction.paused;
+        batch(() => {
+          viewer.explode(...explodeSettings);
+          viewer.setRelativeTime(time);
+          if (playing) viewer.controlAnimation("play");
+        });
+      }
+      notifyVisibility();
     };
     const initialStates = structuredClone(viewer.getStates());
     const painted: { mesh: any; material: any }[] = [];
@@ -127,6 +220,8 @@ export function mountCad3d(
       }
     };
     let assembledCamera = viewer.getCameraLocationSettings();
+    let assembledWrapperTarget = viewer.rendered.camera.target.clone();
+    let assembledViewport = lastSize;
     const fit = () => {
       const bounds = (viewer.bbox! as any).clone().makeEmpty();
       for (const [id, state] of Object.entries(viewer.getStates())) {
@@ -134,18 +229,36 @@ export function mountCad3d(
         if (state.includes(1) && group) bounds.expandByObject(group, false);
       }
       if (bounds.isEmpty()) return;
-      viewer.setCameraTarget(bounds.center());
-      viewer.setCameraZoom(FIT_ZOOM * viewer.bbox!.boundingSphere().radius / Math.max(1e-9, bounds.boundingSphere().radius));
+      const center = bounds.center();
+      viewer.setCameraTarget(center);
+      camera.target.fromArray(center);
+      const c = camera.getCamera();
+      const inverse = c.quaternion.clone().invert();
+      const points = [bounds.min.x, bounds.max.x].flatMap(x => [bounds.min.y, bounds.max.y].flatMap(y => [bounds.min.z, bounds.max.z].map(z =>
+        c.position.clone().set(x, y, z).sub(camera.target).applyQuaternion(inverse).toArray())));
+      const canvas = viewer.rendered.controls.domElement;
+      const fitted = cameraFit(points, { width: canvas.clientWidth, height: canvas.clientHeight,
+        scaleX: c.projectionMatrix.elements[0], scaleY: c.projectionMatrix.elements[5], ortho: !!c.isOrthographicCamera,
+        distance: c.position.distanceTo(camera.target), near: c.near, verticalPadding: fullControls ? 24 : 56 });
+      const zoom = viewer.getCameraZoom();
+      c.position.sub(camera.target).setLength(fitted.distance).add(camera.target);
+      viewer.setCameraZoom(c.isOrthographicCamera ? zoom * fitted.zoomFactor : camera.camera_distance / fitted.distance);
+      extendFarPlanes(bounds);
     };
     const setExploded = (flag: boolean) => {
       if (flag === (viewer.state.get("animationMode") === "explode")) return;
       if (flag) {
         assembledCamera = viewer.getCameraLocationSettings();
+        assembledWrapperTarget = viewer.rendered.camera.target.clone();
+        assembledViewport = lastSize;
         viewer.setExplode(true); viewer.setRelativeTime(1);
         fit();
       } else {
         viewer.setExplode(false);
+        viewer.rendered.camera.target.copy(assembledWrapperTarget);
         viewer.setCameraLocationSettings(assembledCamera.position, assembledCamera.quaternion, assembledCamera.target, assembledCamera.zoom);
+        restoreFarPlanes();
+        if (lastSize !== assembledViewport) fit();
       }
     };
     const isolateParts = (ids: string[]) => {
@@ -193,7 +306,7 @@ export function mountCad3d(
         const s = cadSize(width, height);
         if (s.cadWidth === lastSize.cadWidth && s.height === lastSize.height) return;
         lastSize = s;
-        viewer.resizeCadView(s.cadWidth, TREE_WIDTH, s.height, !fullControls);
+        batch(() => { viewer.resizeCadView(s.cadWidth, TREE_WIDTH, s.height, !fullControls); fit(); });
       },
       setTheme(theme) {
         display.setTheme(theme);
@@ -201,6 +314,8 @@ export function mountCad3d(
         if (camera) { camera.zoom = 0.8; camera.updateProjectionMatrix(); }
       },
       dispose() {
+        disposeNavigation();
+        unsubscribeExplode();
         setAnalysis();
         viewer.dispose();
       },

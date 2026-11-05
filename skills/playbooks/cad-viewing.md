@@ -17,13 +17,21 @@ Views menu, and fullscreen. Small white-outlined icons sit beside the title.
 Advanced CAD panels and action shortcuts are hidden. Local windows retain the
 native CAD engine's full toolset; standalone exports can opt into CAD controls.
 
+Opening a scene, selecting a view, Reset, and resizing fit visible component
+bounds to the current canvas, leaving room for the title controls and edges.
+
+On Mac, click-drag rotates, two-finger scroll pans in both directions, pinch
+zooms, and Option-scroll is the zoom fallback. Other desktops scroll or pinch to
+zoom and Shift-drag or right-drag to pan.
+
 | Capability | How agents prepare chat views / local CAD behavior |
 | --- | --- |
 | Components | `presentation.isolate` or `hide`; exact names and leaf/group paths from `scene.parts`. Native tree also controls faces/edges and selection. |
 | Sections | `section.planes`: 1–3 XY/XZ/YZ or custom-normal planes, signed offsets from the model center in model units, optional flipped normals and intersection mode. Native Clip UI also exposes caps and plane controls. |
 | Display | `style`: shaded-edges, shaded, wireframe, transparent. Native materials and edges remain available locally. |
 | Camera | `view`: iso/front/rear/left/right/top/bottom; `projection`: orthographic/perspective. Native orientation marker, orbit, pan, and zoom. |
-| Explode/grid | Optional `explode` and `grid` booleans in each recipe. User toggles remain simple. Explode fits the pieces; collapse restores assembled framing. |
+| Explode | Optional `explode` boolean in each recipe. Explode fits the pieces; collapse restores assembled framing. See Exploded layout. |
+| Grid | Optional `grid` boolean, used only by the recipe that first presents a new scene. See Grid preference. Native CAD also controls individual planes and axes. |
 | Measurement | Native mesh distance, properties, and picking in the local CAD window. Mesh measurements are not exact B-rep metrology. `aad_measure` may be unavailable; inspect its result. |
 | Surface inspection | Native zebra, material, studio lighting, and Z scale in CAD mode. Remote environment-map fetches are excluded by the offline viewer contract. |
 | Analysis | Named `analysis` views color whole components using supplied scalar summaries. A legend shows quantity, units, range, and source. No solver is provided by this viewer. |
@@ -51,7 +59,8 @@ Pass `views` to `aad_show`, alongside the reviewed revision and optional base
 Use actual part names from `scene.parts`, not the example names. Each recipe is
 complete and independent: absent visibility/style/section fields use the normal
 whole-model display. Recipes do not inherit base filters. Original restores the
-base presentation; Reset restores the currently selected recipe. Repeating an
+base presentation; Reset restores the currently selected recipe, apart from the
+grid preference below. Repeating an
 identical result preserves the selection; replacing recipes preserves its ID
 when present and otherwise returns to Original. `views: []` clears the menu.
 The same scene hash is reused without fetching or retessellating its geometry.
@@ -61,6 +70,21 @@ are unique `[A-Za-z0-9_-]` strings up to 64 characters; `original` is reserved.
 Labels are unique, non-empty, at most 48 characters. Optional descriptions are
 at most 240 characters. `presentation.inside` is a legacy alias for one Interior
 recipe; new integrations use `views`.
+
+## Grid preference
+
+A new scene takes its grid from the initial recipe; `grid` absent means off. After
+that, the grid belongs to the user. Views, Original, Reset, and same-scene
+`aad_show` updates keep the exact XY/XZ/YZ planes and axes, whether on or off, and
+ignore `grid` in those recipes. Use a recipe's `grid` only to set a new scene's
+starting state, not to toggle the grid on a displayed scene.
+
+## Exploded layout
+
+Pull apart spaces coaxial components along the assembly axis and separates parallel
+stacks. Original geometry and part orientation do not change. Auto-spacing is a
+view layout inferred from bounding boxes. It is not a physical disassembly
+sequence or collision proof, and parts can still overlap in a projection.
 
 ## Analysis views: evidence before color
 
