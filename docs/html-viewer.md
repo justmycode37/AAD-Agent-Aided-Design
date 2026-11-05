@@ -40,7 +40,7 @@ uv run python -m aad_platform.viewer.bundle \
   --title 'Gearbox'
 ```
 
-`--presentation` and `--views` accept the same settings as `aad_show`; see
+`--presentation` and `--views` accept the same settings as `aad_show`, including per-part `materials` and the offline `environment: "studio"`; see
 [CAD viewing](cad-viewing.md). `--view` selects a standard camera direction.
 Reset restores the selected recipe; Original restores the base presentation.
 

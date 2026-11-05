@@ -15,6 +15,23 @@ def test_only_show_has_a_ui_resource():
     assert next(t for t in TOOLS if t["name"] == "aad_show")["_meta"]["ui"]["resourceUri"] == VIEWER_URI
 
 
+def test_aad_show_schema_accepts_materials_and_studio_at_both_levels():
+    from jsonschema import Draft202012Validator
+
+    tool = next(t for t in TOOLS if t["name"] == "aad_show")
+    payload = {
+        "project": "gearbox",
+        "presentation": {"environment": "studio", "materials": [
+            {"parts": ["/Group/case"], "color": "#aabbcc", "metalness": 0.8, "roughness": 0.25, "opacity": 0.9},
+        ]},
+        "views": [{"id": "finish", "label": "Finish", "presentation": {
+            "environment": "studio", "materials": [{"parts": ["/Group/gear"], "roughness": 0.4}],
+        }}],
+    }
+    Draft202012Validator.check_schema(tool["inputSchema"])
+    Draft202012Validator(tool["inputSchema"]).validate(payload)
+
+
 def test_app_only_descriptions_warn_the_model():
     for tool in TOOLS:
         if tool.get("_meta", {}).get("ui", {}).get("visibility") == ["app"]:

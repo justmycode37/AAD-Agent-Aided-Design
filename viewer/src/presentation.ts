@@ -1,5 +1,8 @@
 import type { Cad3dView } from "./viewer3d";
 import type { Presentation } from "./transport/types";
+// three is bundled transitively by the pinned CAD viewer; its runtime API is used here.
+// @ts-ignore missing upstream declaration bundle
+import { CanvasTexture, EquirectangularReflectionMapping, SRGBColorSpace } from "three";
 
 export function resolveParts(selectors: string[], ids: string[]): string[] {
   return [...new Set(selectors.flatMap(selector => {
@@ -15,6 +18,7 @@ export function resolveParts(selectors: string[], ids: string[]): string[] {
 /** Agent requests affect presentation only. They never change scene buffers. */
 export function applyPresentation(view: Cad3dView, presentation: Presentation = {}): void {
   const viewer = view.viewer;
+  setEnvironment(viewer as any, presentation.environment === "studio");
   const wasExploded = viewer.state.get("animationMode") === "explode";
   view.setExploded(false);
   view.showAll();
@@ -23,6 +27,29 @@ export function applyPresentation(view: Cad3dView, presentation: Presentation = 
   const ids = Object.keys(viewer.getStates());
   if (presentation.isolate) view.isolateParts(resolveParts(presentation.isolate, ids));
   if (presentation.hide) for (const id of resolveParts(presentation.hide, ids)) view.hidePart(id);
+  const materialKey = view as unknown as object;
+  let records = paintedMaterials.get(materialKey);
+  if (!records) { records = []; paintedMaterials.set(materialKey, records); }
+  for (const record of records) record.mesh.material = record.original;
+  records.length = 0;
+  for (const override of presentation.materials ?? []) for (const id of resolveParts(override.parts, ids)) {
+    const group = viewer.rendered.nestedGroup.groups[id] as any;
+    group?.traverse((mesh: any) => {
+      if (!mesh.isMesh || !mesh.material) return;
+      const original = mesh.material;
+      const copy = (material: any) => {
+        const next = material.clone();
+        if (override.color) next.color?.set(override.color);
+        if (override.metalness !== undefined && "metalness" in next) next.metalness = override.metalness;
+        if (override.roughness !== undefined && "roughness" in next) next.roughness = override.roughness;
+        if (override.opacity !== undefined) { next.opacity = override.opacity; next.transparent = override.opacity < 1; next.depthWrite = override.opacity >= 1; }
+        next.needsUpdate = true;
+        return next;
+      };
+      mesh.material = Array.isArray(original) ? original.map(copy) : copy(original);
+      records!.push({ mesh, original });
+    });
+  }
   viewer.setOrtho(presentation.projection === "orthographic");
   if (presentation.section) {
     viewer.setActiveTab("clip");
@@ -44,4 +71,26 @@ export function applyPresentation(view: Cad3dView, presentation: Presentation = 
   view.fit();
   view.setExploded((presentation.explode ?? wasExploded) && view.canExplode());
   viewer.showTools(view.fullControls); viewer.setPickHandler(view.fullControls);
+}
+
+const paintedMaterials = new WeakMap<object, { mesh: any; original: any }[]>();
+const studioEnvironments = new WeakMap<object, { original: any; texture: any }>();
+function setEnvironment(viewer: any, enabled: boolean): void {
+  let state = studioEnvironments.get(viewer);
+  if (!state && viewer.rendered?.scene) {
+    const canvas = document.createElement("canvas"); canvas.width = 512; canvas.height = 256;
+    const ctx = canvas.getContext("2d")!;
+    const gradient = ctx.createLinearGradient(0, 0, 0, 256);
+    gradient.addColorStop(0, "#202a38"); gradient.addColorStop(.35, "#aeb9c8");
+    gradient.addColorStop(.48, "#f8fbff"); gradient.addColorStop(.57, "#596575"); gradient.addColorStop(1, "#121923");
+    ctx.fillStyle = gradient; ctx.fillRect(0, 0, 512, 256);
+    for (const [x, y, w, h] of [[42, 24, 70, 150], [195, 4, 110, 110], [390, 35, 58, 170]]) {
+      ctx.fillStyle = "rgba(255,255,255,.8)"; ctx.fillRect(x, y, w, h);
+    }
+    const texture = new CanvasTexture(canvas); texture.mapping = EquirectangularReflectionMapping; texture.colorSpace = SRGBColorSpace;
+    state = { original: viewer.rendered.scene.environment, texture }; studioEnvironments.set(viewer, state);
+  }
+  if (!state) return;
+  viewer.rendered.scene.environment = enabled ? state.texture : state.original;
+  viewer.rendered.scene.environmentIntensity = enabled ? .65 : 1;
 }

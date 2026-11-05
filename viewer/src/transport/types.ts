@@ -30,6 +30,8 @@ export interface Presentation {
   inside?: { hide?: string[]; section?: Presentation["section"] };
   explode?: boolean;
   grid?: boolean;
+  materials?: { parts: string[]; color?: string; metalness?: number; roughness?: number; opacity?: number }[];
+  environment?: "studio";
 }
 
 export interface Analysis {
