@@ -16,6 +16,9 @@ from pathlib import Path
 from . import viewer_path
 from ..presentation import VIEWS, normalize_presentation, normalize_views
 
+HTML_ARGUMENT_LIMIT = 512_000
+HTML_INLINE_LIMIT = 25 * 1024 * 1024
+
 
 def _asset(path: Path, payload: bytes, element_id: str, encoding: str = "base64+gzip") -> Path:
     encoded = base64.b64encode(payload).decode("ascii")
@@ -47,11 +50,12 @@ def _script_json(value: object) -> str:
 
 
 def export_bundle(scene_dir: Path, output_dir: Path, *, presentation: dict | None = None, view: str | None = None, title: str | None = None, views: list | None = None, controls: str = "simple") -> Path:
-    """Write viewer.html and a lossless SVG metadata asset for one saved scene.
+    """Write chat and standalone viewers for one saved scene.
 
     Pass viewer.html's text to an HTML host with local image inlining support.
-    The host must bundle the referenced asset; opening the source HTML directly
-    reports that requirement instead of silently substituting geometry.
+    The scene is carried in lossless PNG chunks and the viewer runtime in an SVG
+    asset. Opening viewer.html directly reports missing host-inlined assets
+    instead of silently substituting geometry. standalone.html works offline.
     """
     manifest = json.loads((scene_dir / "scene.json").read_text(encoding="utf-8"))
     payload = (scene_dir / "scene.bin.gz").read_bytes()
@@ -103,13 +107,14 @@ def export_bundle(scene_dir: Path, output_dir: Path, *, presentation: dict | Non
 @media (prefers-reduced-motion:reduce) { .aad-boot-bar span { animation:none; transform:translateX(90%); } }
 </style>
 </head><body><main id="aad-boot"><div class="aad-boot-stage"><div class="aad-boot-bar" role="progressbar" aria-label="Loading viewer"><span></span></div></div></main>
-<script>
-(async () => {
+<script type="module">
+await (async () => {
 await new Promise(resolve => { setTimeout(resolve, 80); requestAnimationFrame(() => requestAnimationFrame(resolve)); });
 try {
   const bundle = window.__AAD_EMBEDDED_SCENE__;
-  bundle.assets = [...document.querySelectorAll("#aad-assets img")].map(img => img.src);
-  const asset = RUNTIME;
+  bundle.assets = [...document.querySelectorAll("#aad-assets img[data-aad-chunk]")].map(img => img.src);
+  const asset = document.querySelector("#aad-runtime-asset")?.src;
+  if (!asset) throw new Error("Viewer runtime asset is missing");
   if (!asset.startsWith("data:image/svg+xml;base64,")) throw new Error("Bundle the viewer asset before displaying this HTML");
   const decode = (text) => Uint8Array.from(atob(text), c => c.charCodeAt(0));
   const xml = new DOMParser().parseFromString(new TextDecoder().decode(decode(asset.split(",")[1])), "image/svg+xml");
@@ -128,24 +133,33 @@ try {
     const script = document.createElement("script");
     if (source.type) script.type = source.type;
     script.textContent = source.textContent;
-    document.body.append(script);
+    await new Promise((resolve, reject) => {
+      script.addEventListener("load", resolve, { once: true });
+      script.addEventListener("error", () => reject(new Error("Could not start the CAD viewer runtime")), { once: true });
+      document.body.append(script);
+    });
   }
 } catch (error) { document.body.textContent = "Could not load CAD viewer: " + error.message; }
 })();
 </script></body></html>'''
-    tags = "".join(
-        f'<img src="data:image/png;base64,{base64.b64encode(p.read_bytes()).decode("ascii")}" data-aad-chunk="{i}">'
-        for i, p in enumerate(assets)
-    )
-    html_bundle = bootstrap.replace("CONFIG", config, 1).replace("ASSET_TAGS", tags, 1).replace("RUNTIME", _script_json(str(runtime_asset)), 1)
+    tags = "".join(f'<img src="{p}" data-aad-chunk="{i}">' for i, p in enumerate(assets))
+    tags += f'<img id="aad-runtime-asset" src="{runtime_asset}">'
+    html_bundle = bootstrap.replace("CONFIG", config, 1).replace("ASSET_TAGS", tags, 1)
     # A separate, genuinely standalone file also opens with no chat host/server.
     standalone_config = _script_json({"manifest": manifest, "assets": ["data:image/png;base64," + base64.b64encode(p.read_bytes()).decode("ascii") for p in assets], "chunk_bytes": [len(c) for c in chunks], "controls": controls, **settings})
     standalone = html.replace("<head>", f"<head>\n<script>window.__AAD_EMBEDDED_SCENE__ = {standalone_config};</script>", 1)
     (output_dir / "standalone.html").write_text(standalone, encoding="utf-8")
-    # T3's current html_preview limit is 25 MiB. Other hosts may set a different limit.
-    inline_estimate = len(html_bundle.encode("utf-8")) + runtime_asset.stat().st_size * 4 // 3 + 4096
-    host_limit = 25 * 1024 * 1024
-    if inline_estimate > host_limit:
+    # Refuse before writing a file that cannot fit T3's tool argument limit.
+    argument_chars = len(html_bundle.encode("utf-16-le")) // 2
+    if argument_chars > HTML_ARGUMENT_LIMIT:
+        raise ValueError(
+            f"viewer.html is {argument_chars:,} characters, above the 512,000-character html_preview/html_render argument limit; "
+            f"standalone.html was written to {output_dir / 'standalone.html'}. Use it locally or split the scene/part listing."
+        )
+    # T3 currently allows 25 MiB after local image inlining. Estimate one
+    # base64 expansion for each PNG plus the bundled viewer SVG; this is host-specific.
+    inline_estimate = len(html_bundle.encode("utf-8")) + sum(p.stat().st_size for p in assets + [runtime_asset]) * 4 // 3 + 4096
+    if inline_estimate > HTML_INLINE_LIMIT:
         raise ValueError(
             f"Estimated inlined viewer size {inline_estimate / 1048576:.2f} MiB exceeds the host-specific 25 MiB html_preview limit; "
             f"standalone.html was written to {output_dir / 'standalone.html'}. Open that file locally or use a host with a larger limit."

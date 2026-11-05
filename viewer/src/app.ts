@@ -353,6 +353,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
     diagnostics.ms = { read: readAt - started, parse: parsedAt - readAt, mount: performance.now() - parsedAt, sinceToolResult: performance.now() - started };
     await paintLoading();
     diagnostics.loads++; diagnostics.state = "ready";
+    console.info(`AAD viewer ready: ${triangles} triangles; ${nextScene.total_bytes} scene bytes`);
     q(".aad-progress").hidden = true; q<HTMLFieldSetElement>(".aad-toolbar").disabled = false;
     size();
   };

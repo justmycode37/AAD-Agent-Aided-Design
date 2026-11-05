@@ -58,9 +58,14 @@ def test_bundle_preserves_original_scene_bytes_and_complete_manifest(saved_scene
     html = viewer.read_text(encoding="utf-8")
     config = json.loads(html.split("window.__AAD_EMBEDDED_SCENE__ = ", 1)[1].split(";</script>", 1)[0])
     assert config["manifest"] == manifest
-    assets = re.findall(r'<img src="data:image/png;base64,([^"]+)" data-aad-chunk="\d+">', html)
+    assets = re.findall(r'<img src="([^"]+)" data-aad-chunk="\d+">', html)
     assert len(assets) == len(config["chunk_bytes"]) == 1
-    assert decode_rgb_png(base64.b64decode(assets[0]), config["chunk_bytes"][0]) == payload
+    assert assets[0].startswith("/")
+    runtime_asset = re.search(r'<img id="aad-runtime-asset" src="([^"]+)">', html)
+    assert runtime_asset and runtime_asset[1].startswith("/")
+    assert 'querySelectorAll("#aad-assets img[data-aad-chunk]")' in html
+    assert "data:image/png;base64," not in html
+    assert decode_rgb_png(__import__("pathlib").Path(assets[0]).read_bytes(), config["chunk_bytes"][0]) == payload
     assert (source / "scene.bin.gz").read_bytes() == payload
     runtime = next((tmp_path / "export").glob("viewer-*.svg"))
     runtime_metadata = ElementTree.parse(runtime).find("{http://www.w3.org/2000/svg}metadata")
@@ -68,6 +73,8 @@ def test_bundle_preserves_original_scene_bytes_and_complete_manifest(saved_scene
     assert len(html) < 512_000  # Scene and CAD runtime travel as assets, not tool arguments.
     standalone = (tmp_path / "export" / "standalone.html").read_text(encoding="utf-8")
     assert "data:image/png;base64," in standalone
+    standalone_config = json.loads(standalone.split("window.__AAD_EMBEDDED_SCENE__ = ", 1)[1].split(";</script>", 1)[0])
+    assert decode_rgb_png(base64.b64decode(standalone_config["assets"][0].split(",", 1)[1]), len(payload)) == payload
     assert 'src="/src/main.ts"' not in standalone
 
 
@@ -123,13 +130,16 @@ def test_14_34mb_scene_fits_inline_estimate_and_oversize_points_to_standalone(tm
     source = tmp_path / "scene"
     source.mkdir()
     payload = os.urandom(14_340_000)
+    parts = [{"path": f"/Group/part_{i:04d}/component_interface", "name": f"Synthetic component {i:04d} with mounting interface"} for i in range(805)]
     manifest = {"scene_id": hashlib.sha256(payload).hexdigest(), "total_bytes": len(payload),
-                "triangles": 1, "project": "synthetic", "rev": 1, "status": "draft", "parts": []}
+                "triangles": 1, "project": "synthetic", "rev": 1, "status": "draft", "parts": parts}
     (source / "scene.bin.gz").write_bytes(payload)
     (source / "scene.json").write_text(json.dumps(manifest), encoding="utf-8")
     output = tmp_path / "fits"
     viewer = export_bundle(source, output)
     assert viewer.exists() and (output / "standalone.html").exists()
+    assert len(viewer.read_text(encoding="utf-8")) < 512_000
+    assert len(json.loads(viewer.read_text(encoding="utf-8").split("window.__AAD_EMBEDDED_SCENE__ = ", 1)[1].split(";</script>", 1)[0])["manifest"]["parts"]) == 805
     assert sum(path.stat().st_size for path in output.glob("scene-*.png")) * 4 / 3 < 25 * 1024 * 1024
 
     too_large = os.urandom(20 * 1024 * 1024)
@@ -141,3 +151,19 @@ def test_14_34mb_scene_fits_inline_estimate_and_oversize_points_to_standalone(tm
         export_bundle(source, oversized)
     assert (oversized / "standalone.html").exists()
     assert not (oversized / "viewer.html").exists()
+
+
+def test_bundle_refuses_manifest_over_html_argument_limit(tmp_path):
+    source = tmp_path / "scene"
+    source.mkdir()
+    payload = gzip.compress(b'{"triangles": []}')
+    parts = [{"path": f"/Group/{i}/" + "x" * 160, "name": "component " + "y" * 128} for i in range(4000)]
+    manifest = {"scene_id": hashlib.sha256(payload).hexdigest(), "total_bytes": len(payload),
+                "triangles": 0, "project": "synthetic", "rev": 1, "status": "draft", "parts": parts}
+    (source / "scene.bin.gz").write_bytes(payload)
+    (source / "scene.json").write_text(json.dumps(manifest), encoding="utf-8")
+    output = tmp_path / "too-many-parts"
+    with pytest.raises(ValueError, match=r"512,000-character html_preview/html_render argument limit.*standalone.html"):
+        export_bundle(source, output)
+    assert (output / "standalone.html").exists()
+    assert not (output / "viewer.html").exists()
