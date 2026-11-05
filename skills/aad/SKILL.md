@@ -589,7 +589,7 @@ Revisions never change. A failed build leaves the head alone. Use `checkout` to 
 
 Also, using upstream defaults and simple threads: `fastener.iso4017.hex_head_screw`, `fastener.iso10642.countersunk_screw`, `fastener.iso7380.button_head_screw`, `fastener.iso4026.set_screw`, `nut.iso4032.hex_nut`, `washer.iso7089.plain`, `bearing.angular_contact.skt`, `bearing.cylindrical_roller.skt`, `seal.iso3601.o_ring`, `ring.external_snap`, `ring.internal_snap`, `key.parallel`, `gear.spur`, `gear.helical`, `gear.rack`, `gear.worm`, `sprocket.roller_chain`, `flange.weld_neck`, `flange.blind`.
 
-Build one with `from aad_quality.standard_parts import make_part`, outside any builder. `bd_warehouse` also provides `ClearanceHole`, `TapHole`, `ThreadedHole`, `InsertHole` and `PressFitHole`.
+Build one with `from aad_quality.standard_parts import make_part`, outside any builder. The rollers in the bearing families overlap their races slightly in the upstream geometry, so an `interference` check reports those pairs. `bd_warehouse` also provides `ClearanceHole`, `TapHole`, `ThreadedHole`, `InsertHole` and `PressFitHole`.
 
 **Real components:** never invent a purchased part. `kind="component"` lists over 2,000 purchasable units: fasteners, bearings, seals, springs, semiconductors, passives, sensors, relays, switches, motors, connectors, batteries, power parts and MCUs.
 
