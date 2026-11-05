@@ -5,8 +5,8 @@ import sys
 
 import pytest
 
-from aiad_drafting import Sheet2D, sheet2d
-from aiad_drafting.constraints import ConstraintError
+from aad_drafting import Sheet2D, sheet2d
+from aad_drafting.constraints import ConstraintError
 
 
 def constrained_rectangle():
@@ -94,7 +94,7 @@ def test_underconstraint_and_invalid_references_are_named():
 
 
 def test_public_model_and_solver_imports_do_not_load_cad_or_scipy():
-    subprocess.run([sys.executable, "-c", "from aiad_drafting import Sheet2D, ConstraintSketch; "
+    subprocess.run([sys.executable, "-c", "from aad_drafting import Sheet2D, ConstraintSketch; "
                     "import sys; assert not any(n in sys.modules for n in ('build123d', 'OCP', 'scipy'))"],
                    check=True)
 

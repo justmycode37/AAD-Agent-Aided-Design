@@ -116,7 +116,7 @@
       "suite": "hard"
     },
     {
-      "actual": "ModuleNotFoundError: No module named 'aiad_quality'",
+      "actual": "ModuleNotFoundError: No module named 'aad_quality'",
       "assumptions": null,
       "expected": null,
       "feature": null,
@@ -124,13 +124,13 @@
       "heuristic": null,
       "id": "spec_checks_unavailable",
       "level": "warn",
-      "message": "Specification checks are unavailable because aiad_quality is not installed.",
+      "message": "Specification checks are unavailable because aad_quality is not installed.",
       "selector": null,
       "status": "skip",
       "suite": "spec"
     },
     {
-      "actual": "ModuleNotFoundError: No module named 'aiad_quality'",
+      "actual": "ModuleNotFoundError: No module named 'aad_quality'",
       "assumptions": null,
       "expected": null,
       "feature": null,
@@ -138,13 +138,13 @@
       "heuristic": null,
       "id": "process_checks_unavailable",
       "level": "warn",
-      "message": "Process checks are unavailable because aiad_quality is not installed.",
+      "message": "Process checks are unavailable because aad_quality is not installed.",
       "selector": null,
       "status": "skip",
       "suite": "process"
     },
     {
-      "actual": "ModuleNotFoundError: No module named 'aiad_render'",
+      "actual": "ModuleNotFoundError: No module named 'aad_render'",
       "assumptions": null,
       "expected": null,
       "feature": null,
@@ -152,7 +152,7 @@
       "heuristic": null,
       "id": "scene_generation_unavailable",
       "level": "warn",
-      "message": "Scene generation is unavailable because aiad_render is not installed.",
+      "message": "Scene generation is unavailable because aad_render is not installed.",
       "selector": null,
       "status": "skip",
       "suite": "hard"

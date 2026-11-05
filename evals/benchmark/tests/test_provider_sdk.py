@@ -6,11 +6,11 @@ import json
 import httpx2
 import pytest
 
-from evals.benchmark.harness.aiad_benchmark_harness.providers import (
+from evals.benchmark.harness.aad_benchmark_harness.providers import (
     AnthropicMessagesAdapter,
     OpenAIResponsesAdapter,
 )
-from evals.benchmark.harness.aiad_benchmark_harness.types import (
+from evals.benchmark.harness.aad_benchmark_harness.types import (
     MCPObservation,
     ObservationBlock,
     PublicStageProjection,

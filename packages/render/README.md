@@ -1,4 +1,4 @@
-# aiad-render
+# aad-render
 
 Owned by S3. Two jobs:
 
@@ -22,17 +22,17 @@ machine (load average about 4.5):
 Ranges are two runs of the benchmark. The budget is 300 ms for at most 200 faces (`PLAN.md` section 9). A typical part is far
 inside it. A hole-heavy part near the 200-face limit misses it by about 10–15% at the median under this load; an earlier run
 of the same part measured 281 ms. Reproduce with
-`uv run --locked --package aiad-render --all-extras python packages/render/tests/perf/bench_scene.py --repeat 20`. Each run
+`uv run --locked --package aad-render --all-extras python packages/render/tests/perf/bench_scene.py --repeat 20`. Each run
 uses geometry nothing has seen, because repeating a part measures OCCT's and ocp-tessellate's mesh caches. `make_scene`
 clears ocp-tessellate's cache itself, so a reloaded revision gets the same bytes and feature map as the first build.
 
-Both run inside kernel workers. `import aiad_render` stays cheap; kernel and renderer imports happen on first use.
+Both run inside kernel workers. `import aad_render` stays cheap; kernel and renderer imports happen on first use.
 
 `render(ctx, req, out)` writes PNG images and `inspection.json` under an output directory and
 returns all their paths. With labels it also returns `labels.json`. Callers must distinguish
-PNG and JSON files. The `aiad_render` MCP tool returns the report in `inspection`, the label
+PNG and JSON files. The `aad_render` MCP tool returns the report in `inspection`, the label
 legend in `labels`, and paths in `artifacts`; only PNG files become image content blocks.
-Install the optional `aiad-render[vtk]` extra for the production backend. The context needs a
+Install the optional `aad-render[vtk]` extra for the production backend. The context needs a
 build123d shape, units, and optional feature metadata; both dictionaries and objects are accepted.
 Requests accept the fields below and size (1–2048 pixels for Python, 64–2048 for MCP, default
 1024). A sheet is one square image containing front, right, top,
@@ -49,7 +49,7 @@ rulers and automatic overall/diameter callouts. Isometric views have a scale bar
 
 ```python
 from pathlib import Path
-from aiad_render import render
+from aad_render import render
 
 paths = render(ctx, {
     "views": ["sheet", "iso"],
@@ -129,10 +129,10 @@ thickness maps can take seconds. Kernel/VTK import time is additional on a cold 
 Reproduce samples and tests from the repository root:
 
 ```sh
-uv run --locked --package aiad-render --all-extras python packages/render/examples/agent_renders.py /tmp/aiad-renders
-uv run --locked --package aiad-render --all-extras --with pytest --with pytest-timeout python -m pytest packages/render/tests
+uv run --locked --package aad-render --all-extras python packages/render/examples/agent_renders.py /tmp/aad-renders
+uv run --locked --package aad-render --all-extras --with pytest --with pytest-timeout python -m pytest packages/render/tests
 ```
 
-The backend interface and lazy registration live in `aiad_render.backends`. Importing the
+The backend interface and lazy registration live in `aad_render.backends`. Importing the
 package never opens a human interface. `make_scene` remains a separate viewer integration;
 it is not implemented by the agent rendering module.

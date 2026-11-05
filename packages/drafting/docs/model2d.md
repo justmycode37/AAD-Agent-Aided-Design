@@ -1,15 +1,15 @@
 # Native 2D model primitives
 
-`aiad_drafting.model2d` provides a small editable 2D model whose geometry is
+`aad_drafting.model2d` provides a small editable 2D model whose geometry is
 represented by build123d and OCCT. Import the API directly:
 
 ```python
-from aiad_drafting.model2d import Sheet2D, latest_sheet, sheet2d
+from aad_drafting.model2d import Sheet2D, latest_sheet, sheet2d
 
 panel = sheet2d("laser_panel", units="mm")
 panel.rectangle("outline", 100, 60, origin=(-50, -30))
 panel.circle("mount_hole", (-40, -20), 2.2)
-panel.text("label", "AIAD", (-5, 3), height=3)
+panel.text("label", "AAD", (-5, 3), height=3)
 ```
 
 `sheet2d()` returns a `Sheet2D` directly, and that object can also be used in a
@@ -71,7 +71,7 @@ error. Text outlining is not part of this primitive API.
   sheet containing the originals and exact transformed copies. A full radial
   turn omits the duplicate endpoint; a partial turn includes both endpoints.
 - `extrude(height)` returns a real build123d `Solid` or `Compound`. It exposes
-  `aiad_history` and the JSON-native editable source as `aiad_source_sheet`.
+  `aad_history` and the JSON-native editable source as `aad_source_sheet`.
 
 Derived operations add a history entry with source sheet/entity names, source
 geometry, parameters, result names, and—where available—result geometry.

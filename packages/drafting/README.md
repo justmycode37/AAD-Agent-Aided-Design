@@ -1,6 +1,6 @@
-# aiad-drafting
+# aad-drafting
 
-Editable 2D geometry is available through `from aiad_drafting import sheet2d`.
+Editable 2D geometry is available through `from aad_drafting import sheet2d`.
 See [native primitives and operations](docs/model2d.md) and
 [named SciPy constraints](docs/constraints.md). The 2D data API imports without
 loading the CAD kernel; native operations load build123d on demand.
@@ -17,12 +17,12 @@ S4 creates composed drawing sheets from a build123d shape or an assembly
 context. It writes SVG, R2013 DXF, vector PDF, and a PNG preview. The public
 entry point is:
 
-    from aiad_drafting import DrawingRequest, make_drawing
+    from aad_drafting import DrawingRequest, make_drawing
 
     result = make_drawing(ctx, DrawingRequest(), output_dir)
 
 ctx is read structurally and should expose a build123d shape as shape.
-units may be mm or in; no import from aiad.engine.types is needed.
+units may be mm or in; no import from aad.engine.types is needed.
 Requests may also be dictionaries. DrawingResult.dimensions includes measured
 values and their geometry sources.
 

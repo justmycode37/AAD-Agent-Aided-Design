@@ -4,8 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from aiad_quality._checks import make_check
-from aiad_quality.spec import spec_checks, verification_ready
+from aad_quality._checks import make_check
+from aad_quality.spec import spec_checks, verification_ready
 
 
 def _check(check_id, suite, status, *, level="error", expected="measured value", actual="10 mm"):

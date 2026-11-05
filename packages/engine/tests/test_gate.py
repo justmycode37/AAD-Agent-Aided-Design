@@ -9,9 +9,9 @@ from unittest.mock import patch
 
 from build123d import Box, Compound, Cylinder, Face, Shell, Solid, Sphere
 
-from aiad.engine.gate import GateTolerances, _check_mesh_arrays, _fresh_mesh_arrays, hard_checks
-from aiad.engine.jobs import run_build
-from aiad.engine.types import BuildRequest, ModelContext
+from aad.engine.gate import GateTolerances, _check_mesh_arrays, _fresh_mesh_arrays, hard_checks
+from aad.engine.jobs import run_build
+from aad.engine.types import BuildRequest, ModelContext
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -38,7 +38,7 @@ class GeometricGateTests(unittest.TestCase):
             "holed_part": Box(20, 20, 6) - Cylinder(3, 10),
         }
         for name, shape in shapes.items():
-            with self.subTest(shape=name), tempfile.TemporaryDirectory(prefix="aiad-gate-test-") as tmp:
+            with self.subTest(shape=name), tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
                 job_dir = Path(tmp) / "job"
                 checks = hard_checks(context(shape, job_dir))
                 errors = [check for check in checks if check.level == "error"]
@@ -58,12 +58,12 @@ class GeometricGateTests(unittest.TestCase):
                 self.assertGreater(actual_number(mesh, "minimum_triangle_area"), 1e-12)
                 self.assertIn("configured_deflection=0.1 mm", mesh.actual)
                 self.assertIn("configured_angular_deflection=0.35 rad", mesh.actual)
-                self.assertFalse(list(job_dir.glob("aiad-gate-*")))
+                self.assertFalse(list(job_dir.glob("aad-gate-*")))
 
     def test_open_shell_without_a_solid_is_reported_and_mesh_is_open(self) -> None:
         shape = Shell([Box(4, 4, 4).faces()[0]])
         self.assertEqual(len(shape.solids()), 0)
-        with tempfile.TemporaryDirectory(prefix="aiad-gate-test-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
             checks = check_map(hard_checks(context(shape, Path(tmp))))
         self.assertEqual(checks["solid_count"].status, "fail")
         self.assertEqual(checks["closed_shells"].status, "fail")
@@ -72,7 +72,7 @@ class GeometricGateTests(unittest.TestCase):
         self.assertIn("boundary_edges=", checks["mesh_watertight"].actual)
 
     def test_empty_and_missing_shapes_return_checks_without_raising(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="aiad-gate-test-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
             empty_checks = check_map(hard_checks(context(Compound(children=[]), Path(tmp) / "empty")))
             missing_checks = check_map(hard_checks(context(None, Path(tmp) / "missing")))
 
@@ -96,7 +96,7 @@ class GeometricGateTests(unittest.TestCase):
         open_shell = Shell([Box(4, 4, 4).faces()[0]])
         invalid_solid = Solid(open_shell)
         self.assertFalse(invalid_solid.is_valid)
-        with tempfile.TemporaryDirectory(prefix="aiad-gate-test-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
             checks = check_map(hard_checks(context(invalid_solid, Path(tmp))))
         self.assertEqual(checks["brep_valid"].status, "fail")
         self.assertIn("BRepCheck_Analyzer.IsValid()=false", checks["brep_valid"].actual)
@@ -104,7 +104,7 @@ class GeometricGateTests(unittest.TestCase):
     def test_degenerate_kernel_edges_are_reported_even_for_a_valid_sphere(self) -> None:
         shape = Sphere(5)
         self.assertTrue(shape.is_valid)
-        with tempfile.TemporaryDirectory(prefix="aiad-gate-test-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
             edge_check = check_map(hard_checks(context(shape, Path(tmp))))["edge_quality"]
         self.assertEqual(edge_check.status, "fail")
         self.assertNotIn("degenerate_edges=0", edge_check.actual)
@@ -118,7 +118,7 @@ class GeometricGateTests(unittest.TestCase):
         BRep_Builder().MakeFace(raw_face)
         shape = Face(raw_face)
         self.assertEqual(shape.area, 0)
-        with tempfile.TemporaryDirectory(prefix="aiad-gate-test-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
             checks = check_map(hard_checks(context(shape, Path(tmp))))
         self.assertEqual(checks["brep_valid"].status, "fail")
         self.assertEqual(checks["face_quality"].status, "fail")
@@ -127,7 +127,7 @@ class GeometricGateTests(unittest.TestCase):
 
     def test_tiny_edges_and_sliver_faces_use_configured_thresholds(self) -> None:
         thin_box = Box(1, 1, 0.0001)
-        with tempfile.TemporaryDirectory(prefix="aiad-gate-test-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
             defaults = check_map(hard_checks(context(thin_box, Path(tmp) / "default")))
             configured = check_map(
                 hard_checks(
@@ -144,7 +144,7 @@ class GeometricGateTests(unittest.TestCase):
         self.assertEqual(configured["face_quality"].status, "pass")
 
     def test_reported_values_preserve_a_close_threshold_comparison(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="aiad-gate-test-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
             edge = check_map(hard_checks(
                 context(Box(1, 1, 1), Path(tmp)), {"min_edge_length_mm": 1.000000000001}
             ))["edge_quality"]
@@ -156,7 +156,7 @@ class GeometricGateTests(unittest.TestCase):
     def test_large_area_narrow_faces_are_detected_as_sliver_proxies(self) -> None:
         shape = Box(100, 1, 0.0005)
         common = {"min_edge_length_mm": 0, "min_face_area_mm2": 0.00001}
-        with tempfile.TemporaryDirectory(prefix="aiad-gate-test-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
             checks = check_map(hard_checks(context(shape, Path(tmp)), common))
             relaxed = check_map(hard_checks(
                 context(shape, Path(tmp)), {**common, "min_face_width_mm": 0.0001}
@@ -173,7 +173,7 @@ class GeometricGateTests(unittest.TestCase):
     def test_inch_step_roundtrip_and_thresholds_use_millimetres(self) -> None:
         shape = Box(1, 2, 3)
         small = Box(0.0005, 1, 1)
-        with tempfile.TemporaryDirectory(prefix="aiad-gate-test-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
             mm = check_map(hard_checks(context(small, Path(tmp), units="mm")))
             inches = check_map(hard_checks(context(small, Path(tmp), units="in")))
             step = check_map(hard_checks(context(shape, Path(tmp), units="in")))["step_volume_drift"]
@@ -187,7 +187,7 @@ class GeometricGateTests(unittest.TestCase):
 
     def test_multiple_solids_follow_part_and_assembly_policies(self) -> None:
         shape = Compound(children=[Box(2, 2, 2), Box(2, 2, 2).translate((5, 0, 0))])
-        with tempfile.TemporaryDirectory(prefix="aiad-gate-test-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
             part = check_map(hard_checks(context(shape, Path(tmp), kind="part")))
             assembly = check_map(hard_checks(context(shape, Path(tmp), kind="assembly")))
             unknown = check_map(hard_checks(context(shape, Path(tmp), kind="2d")))
@@ -207,7 +207,7 @@ class GeometricGateTests(unittest.TestCase):
     def test_nested_assemblies_use_native_solid_volumes_in_gate_and_metrics(self) -> None:
         source = 'result = Compound(children=[Compound(children=[Box(2,3,4).translate((3,5,7))])])'
         for units, factor in (("mm", 1), ("in", 25.4)):
-            with self.subTest(units=units), tempfile.TemporaryDirectory(prefix="aiad-gate-nested-") as temporary:
+            with self.subTest(units=units), tempfile.TemporaryDirectory(prefix="aad-gate-nested-") as temporary:
                 nested = Compound(children=[Compound(children=[Box(2, 3, 4)])])
                 ctx = context(nested, Path(temporary), kind="assembly", units=units)
                 step = check_map(hard_checks(ctx))["step_volume_drift"]
@@ -224,8 +224,8 @@ class GeometricGateTests(unittest.TestCase):
 
     def test_step_roundtrip_drift_fault_injection_fails_with_measured_volumes(self) -> None:
         source = Box(10, 10, 10)
-        with tempfile.TemporaryDirectory(prefix="aiad-gate-test-") as tmp:
-            with patch("aiad.engine.gate._import_step_shape", return_value=Box(10.1, 10, 10)):
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
+            with patch("aad.engine.gate._import_step_shape", return_value=Box(10.1, 10, 10)):
                 checks = check_map(hard_checks(context(source, Path(tmp))))
 
         step = checks["step_volume_drift"]
@@ -236,13 +236,13 @@ class GeometricGateTests(unittest.TestCase):
 
     def test_step_failures_skip_and_clean_unique_job_local_files_on_repeat(self) -> None:
         shape = Box(2, 3, 4)
-        with tempfile.TemporaryDirectory(prefix="aiad-gate-test-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
             job = Path(tmp) / "job"
             job.mkdir()
             sentinel = job / "roundtrip.step"
             sentinel.write_text("keep", encoding="utf-8")
             for _ in range(2):
-                with patch("aiad.engine.gate._import_step_shape", side_effect=RuntimeError("import fault")):
+                with patch("aad.engine.gate._import_step_shape", side_effect=RuntimeError("import fault")):
                     step = check_map(hard_checks(context(shape, job)))["step_volume_drift"]
                 self.assertEqual(step.status, "skip")
                 self.assertEqual(step.level, "error")
@@ -254,15 +254,15 @@ class GeometricGateTests(unittest.TestCase):
 
     def test_unavailable_kernel_and_mesh_checks_are_error_skips(self) -> None:
         shape = Box(2, 3, 4)
-        with tempfile.TemporaryDirectory(prefix="aiad-gate-test-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
             ctx = context(shape, Path(tmp))
             with patch("OCP.BRepCheck.BRepCheck_Analyzer", side_effect=RuntimeError("analyzer fault")):
                 validity = check_map(hard_checks(ctx))["brep_valid"]
-            with patch("aiad.engine.gate._fresh_mesh_arrays", side_effect=RuntimeError("mesh fault")):
+            with patch("aad.engine.gate._fresh_mesh_arrays", side_effect=RuntimeError("mesh fault")):
                 mesh = check_map(hard_checks(ctx))["mesh_watertight"]
             with patch("build123d.export_step", return_value=True):
                 step = check_map(hard_checks(ctx))["step_volume_drift"]
-            self.assertFalse(list(Path(tmp).glob("aiad-gate-*")))
+            self.assertFalse(list(Path(tmp).glob("aad-gate-*")))
         for check, detail in ((validity, "analyzer fault"), (mesh, "mesh fault"),
                               (step, "non-empty STEP file")):
             self.assertEqual(check.status, "skip")
@@ -271,9 +271,9 @@ class GeometricGateTests(unittest.TestCase):
 
     def test_invalid_roundtrip_volume_and_overflow_never_pass(self) -> None:
         shape = Box(2, 3, 4)
-        with tempfile.TemporaryDirectory(prefix="aiad-gate-test-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
             ctx = context(shape, Path(tmp))
-            with patch("aiad.engine.gate._import_step_shape", return_value=Compound(children=[])):
+            with patch("aad.engine.gate._import_step_shape", return_value=Compound(children=[])):
                 zero = check_map(hard_checks(ctx, {"step_volume_abs_mm3": 1e10}))["step_volume_drift"]
             overflow = check_map(hard_checks(ctx, {"step_volume_rel": 1e308}))["step_volume_drift"]
         self.assertEqual(zero.status, "fail")
@@ -282,7 +282,7 @@ class GeometricGateTests(unittest.TestCase):
         self.assertIn("not finite", overflow.actual)
 
     def test_worker_failure_names_the_actual_hard_check(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="aiad-gate-test-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
             result = run_build(BuildRequest(
                 source="result = Box(0.001, 1, 1)", project_dir=Path(tmp), job_dir=Path(tmp) / "job"
             ))
@@ -294,7 +294,7 @@ class GeometricGateTests(unittest.TestCase):
 
     def test_zero_volume_step_comparison_is_not_a_pass(self) -> None:
         shape = Shell([Box(4, 4, 4).faces()[0]])
-        with tempfile.TemporaryDirectory(prefix="aiad-gate-test-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
             checks = check_map(hard_checks(context(shape, Path(tmp))))
 
         step = checks["step_volume_drift"]
@@ -410,7 +410,7 @@ class GeometricGateTests(unittest.TestCase):
         self.assertIn("boundary_edges=6", check.actual)
 
     def test_invalid_tolerances_skip_threshold_checks_as_errors(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="aiad-gate-test-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
             for invalid in (
                 {"min_edge_length_mm": -1}, {"min_face_width_mm": float("nan")},
                 {"mesh_deflection_mm": 0}, {"mesh_vertex_weld_mm": True}, {1: 1, "typo": 1},
@@ -424,7 +424,7 @@ class GeometricGateTests(unittest.TestCase):
                         self.assertEqual(checks[check_id].level, "error")
 
     def test_unknown_units_withhold_every_threshold_check(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="aiad-gate-test-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
             checks = check_map(hard_checks(context(Box(2, 2, 2), Path(tmp), units="cm")))
         self.assertEqual(checks["gate_units"].status, "fail")
         for check_id in ("edge_quality", "face_quality", "step_volume_drift", "mesh_watertight"):

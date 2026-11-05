@@ -15,10 +15,10 @@ from pathlib import Path
 
 from build123d import Box, Cylinder, Pos
 
-from aiad_drafting.export import arc, circle, line, polyline, text, write_dxf, write_png, write_svg
-from aiad_drafting.geometry import Curve, ProjectedBounds, ProjectedView
-from aiad_drafting.types import DrawingView
-from aiad_drafting.views import project_drawing_view
+from aad_drafting.export import arc, circle, line, polyline, text, write_dxf, write_png, write_svg
+from aad_drafting.geometry import Curve, ProjectedBounds, ProjectedView
+from aad_drafting.types import DrawingView
+from aad_drafting.views import project_drawing_view
 
 
 OUTPUT = Path(__file__).resolve().parents[1] / "samples" / "section-detail"

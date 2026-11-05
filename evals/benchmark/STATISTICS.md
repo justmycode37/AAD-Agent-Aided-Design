@@ -1,6 +1,6 @@
 # Reporting protocol
 
-This protocol is declared before inspecting real-agent outcomes. There are no sampled agent results in this directory yet. Statistical tests use synthetic controls and cannot establish AIAD's release criteria.
+This protocol is declared before inspecting real-agent outcomes. There are no sampled agent results in this directory yet. Statistical tests use synthetic controls and cannot establish AAD's release criteria.
 
 Each reported number must identify its run manifests, source/task/catalog hashes, provider/model/budget, units, numerator and denominator, uncertainty method and reproduction command. Report comparison arms and model families separately. Scripted controls, missing usage receipts, ineligible runs and unsupported tasks remain visible in their own categories. A statistical helper does not authenticate a caller's provenance labels.
 

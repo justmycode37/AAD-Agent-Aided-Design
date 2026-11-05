@@ -11,20 +11,20 @@ from pathlib import Path
 
 import pytest
 
-from aiad_platform import daemon_ctl
-from aiad_platform import doctor
+from aad_platform import daemon_ctl
+from aad_platform import doctor
 
 
 @pytest.fixture
 def temp_home(monkeypatch):
-    home = Path(tempfile.mkdtemp(prefix="aiad-", dir="/tmp"))
+    home = Path(tempfile.mkdtemp(prefix="aad-", dir="/tmp"))
     monkeypatch.setenv("HOME", str(home))
-    monkeypatch.setenv("AIAD_HOME", str(home))
-    monkeypatch.setenv("AIAD_NO_BROWSER", "1")
+    monkeypatch.setenv("AAD_HOME", str(home))
+    monkeypatch.setenv("AAD_NO_BROWSER", "1")
     try:
         yield home
     finally:
-        # This only probes the daemon associated with this test's temp AIAD_HOME.
+        # This only probes the daemon associated with this test's temp AAD_HOME.
         try:
             daemon_ctl.stop(timeout_s=0.2)
         except Exception:
@@ -33,18 +33,18 @@ def temp_home(monkeypatch):
 
 
 def test_engine_failure_names_the_step_and_skips_dependents(monkeypatch, temp_home):
-    monkeypatch.delenv("AIAD_NO_BROWSER", raising=False)
+    monkeypatch.delenv("AAD_NO_BROWSER", raising=False)
 
     def check_daemon_without_browser_override():
-        assert "AIAD_NO_BROWSER" not in os.environ
+        assert "AAD_NO_BROWSER" not in os.environ
         return doctor._check("daemon", "pass", "Daemon check ran.")
 
     monkeypatch.setattr(doctor, "_python_check", lambda: doctor._check("python", "pass", "Python check ran."))
     monkeypatch.setattr(doctor, "_version_check", lambda: doctor._check("version", "pass", "Version check ran."))
-    monkeypatch.setattr(doctor, "_home_check", lambda: doctor._check("aiad_home", "pass", "Home check ran."))
+    monkeypatch.setattr(doctor, "_home_check", lambda: doctor._check("aad_home", "pass", "Home check ran."))
     monkeypatch.setattr(doctor, "_config_check", lambda: doctor._check("config", "pass", "Config check ran."))
     monkeypatch.setattr(doctor, "_mcp_startup_check", lambda: doctor._check("mcp_startup", "pass", "MCP check ran."))
-    monkeypatch.setattr(doctor, "_engine_check", lambda: doctor._check("engine", "fail", "aiad.engine.jobs is not importable: injected failure.", "Install the engine."))
+    monkeypatch.setattr(doctor, "_engine_check", lambda: doctor._check("engine", "fail", "aad.engine.jobs is not importable: injected failure.", "Install the engine."))
     monkeypatch.setattr(doctor, "_kernel_check", lambda: doctor._check("kernel", "pass", "Kernel check ran."))
     monkeypatch.setattr(doctor, "_viewer_check", lambda: doctor._check("viewer", "warn", "Stub viewer."))
     monkeypatch.setattr(doctor, "_daemon_check", check_daemon_without_browser_override)
@@ -64,7 +64,7 @@ def test_engine_failure_names_the_step_and_skips_dependents(monkeypatch, temp_ho
     assert "engine failed" in checks["project_show"]["message"]
     assert checks["render"]["status"] == "skip"
     assert checks["export"]["status"] == "skip"
-    assert "AIAD_NO_BROWSER" not in __import__("os").environ or __import__("os").environ["AIAD_NO_BROWSER"] == "1"
+    assert "AAD_NO_BROWSER" not in __import__("os").environ or __import__("os").environ["AAD_NO_BROWSER"] == "1"
 
 
 def test_kernel_check_accepts_either_real_environment_outcome(temp_home):
@@ -126,7 +126,7 @@ def test_slow_initialize_preserves_performance_warning_and_rejects_invalid_outpu
         assert "startup budget" in result["fix"]
 
 
-@pytest.mark.parametrize("method", ["aiad_render", "aiad_export", "aiad_show"])
+@pytest.mark.parametrize("method", ["aad_render", "aad_export", "aad_show"])
 def test_rpc_waits_for_native_operations_but_keeps_control_calls_bounded(monkeypatch, method):
     class SlowClient:
         async def call(self, _method, _params):
@@ -135,7 +135,7 @@ def test_rpc_waits_for_native_operations_but_keeps_control_calls_bounded(monkeyp
 
     monkeypatch.setattr(doctor, "CONTROL_RPC_TIMEOUT_S", 0.01)
     monkeypatch.setattr(doctor, "CAD_RPC_TIMEOUT_S", 0.5)
-    if method == "aiad_show":
+    if method == "aad_show":
         with pytest.raises(TimeoutError):
             asyncio.run(doctor._rpc_call(SlowClient(), method, {}))
     else:
@@ -149,11 +149,11 @@ def test_native_operation_still_has_a_finite_deadline(monkeypatch):
 
     monkeypatch.setattr(doctor, "CAD_RPC_TIMEOUT_S", 0.01)
     with pytest.raises(TimeoutError):
-        asyncio.run(doctor._rpc_call(StalledClient(), "aiad_render", {}))
+        asyncio.run(doctor._rpc_call(StalledClient(), "aad_render", {}))
 
 
 def test_doctor_request_does_not_open_window(monkeypatch):
-    from aiad_platform.daemon import handlers
+    from aad_platform.daemon import handlers
 
     class Window:
         def open_once(self, _project):
@@ -172,7 +172,7 @@ def test_doctor_request_does_not_open_window(monkeypatch):
 
 
 def test_prewarm_bounds_total_time_and_skips_retry_after_timeout(monkeypatch):
-    from aiad_platform import prewarm
+    from aad_platform import prewarm
 
     clock = [0.0]
     calls = []

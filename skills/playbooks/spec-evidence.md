@@ -24,9 +24,9 @@ Treat these as unproven in this tree:
 
 - min_wall can fail with a sampled thin-wall witness; passing samples remain unproven. Bounding boxes and sparse rays are not a general wall-thickness proof.
 - symmetric can fail from a separated mirror, but a potential pass remains skip without a certified pointwise error bound.
-- measure needs the planned AIAD semantic selector and measurement providers, which are absent here.
+- measure needs the planned AAD semantic selector and measurement providers, which are absent here.
 - Unknown or malformed requirements never pass silently.
 
 A pass is evidence for that requirement only. It does not show that the requirement list matches the entire original request. Error-level skips, missing evidence, or evaluator failures withhold verification.
 
-Source: [AIAD spec implementation notes](../../packages/quality/SPEC.md).
+Source: [AAD spec implementation notes](../../packages/quality/SPEC.md).

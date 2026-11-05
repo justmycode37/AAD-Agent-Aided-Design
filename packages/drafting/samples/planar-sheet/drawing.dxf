@@ -1551,11 +1551,11 @@ AcDbSymbolTableRecord
 100
 AcDbLinetypeTableRecord
   2
-AIAD_HIDDEN
+AAD_HIDDEN
  70
 0
   3
-AIAD hidden edges
+AAD hidden edges
  72
 65
  73
@@ -2695,7 +2695,7 @@ AcDbText
  40
 6.0
   1
-AIAD
+AAD
  11
 196.0
  21

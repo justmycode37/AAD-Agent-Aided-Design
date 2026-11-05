@@ -2,10 +2,10 @@
 from types import SimpleNamespace
 import pytest
 from build123d import Axis, Box, Cylinder, GridLocations, Hole, BuildPart, Pos, Rot, Rectangle, Torus, export_step
-from aiad_quality._checks import make_check,record
-from aiad_quality.spec import load_spec,spec_checks,verification_ready
-from aiad_quality.process import process_checks
-from aiad_quality import spec_geometry
+from aad_quality._checks import make_check,record
+from aad_quality.spec import load_spec,spec_checks,verification_ready
+from aad_quality.process import process_checks
+from aad_quality import spec_geometry
 
 
 def context(shape,spec,**kwargs):
@@ -143,7 +143,7 @@ def test_exception_evidence_and_unknown_process_settings_cannot_promote():
 
 
 def test_checks_use_engine_contract_type():
-    from aiad.engine.types import Check
+    from aad.engine.types import Check
     check=spec_checks(context(Box(1,1,1),{'requirements':[{'id':'body','solids':1}]}))[0]
     assert isinstance(check,Check)
 

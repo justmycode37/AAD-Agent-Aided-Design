@@ -35,8 +35,8 @@
   "environment": {
     "python": "3.12.10",
     "packages": {
-      "aiad-engine": "0.1.0",
-      "aiad-quality": "0.1.0",
+      "aad-engine": "0.1.0",
+      "aad-quality": "0.1.0",
       "build123d": "0.13.0",
       "cadquery-ocp-novtk": "8.0.1.1.0"
     }

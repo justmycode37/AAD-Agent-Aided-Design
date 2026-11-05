@@ -18,9 +18,9 @@ from xml.etree import ElementTree
 import build123d as bd
 from pygltflib import GLTF2
 
-from aiad.engine import fileio
-from aiad.engine.fileio import FileIOError, export, import_file
-from aiad.engine.types import FeatureInfo, ModelContext
+from aad.engine import fileio
+from aad.engine.fileio import FileIOError, export, import_file
+from aad.engine.types import FeatureInfo, ModelContext
 
 
 class FileIOTests(unittest.TestCase):
@@ -39,7 +39,7 @@ class FileIOTests(unittest.TestCase):
 
     def test_module_import_is_kernel_free(self) -> None:
         code = (
-            "import sys; import aiad.engine.fileio; "
+            "import sys; import aad.engine.fileio; "
             "assert 'build123d' not in sys.modules; assert 'OCP' not in sys.modules"
         )
         subprocess.run([sys.executable, "-c", code], check=True, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})

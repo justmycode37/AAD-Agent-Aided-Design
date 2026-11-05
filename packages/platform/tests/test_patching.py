@@ -1,6 +1,6 @@
 import pytest
 
-from aiad_platform.daemon.patching import PatchError, apply_patch
+from aad_platform.daemon.patching import PatchError, apply_patch
 
 SOURCE = "a\nb\nc\nd\n"
 

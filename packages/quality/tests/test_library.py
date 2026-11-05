@@ -7,8 +7,8 @@ import sys
 
 import pytest
 
-from aiad_quality import library
-from aiad_quality.catalog import server_instruction_candidate, tool_description_candidates
+from aad_quality import library
+from aad_quality.catalog import server_instruction_candidate, tool_description_candidates
 
 
 def test_search_returns_bounded_summaries_and_get_loads_one_entry():
@@ -58,7 +58,7 @@ def test_catalog_arguments_cannot_be_paths_or_code(args):
 def test_all_catalog_lookups_are_kernel_free_in_fresh_process():
     result = subprocess.run([sys.executable, "-c", """
 import sys
-from aiad_quality import library
+from aad_quality import library
 for kind in ('part','material','playbook','api'):
     result=library('search',kind=kind)
     assert result['total']>0, kind
@@ -71,11 +71,11 @@ assert not any(n=='build123d' or n=='OCP' or n.startswith('OCP.') or n=='bd_ware
 
 def test_repeated_public_calls_do_not_replace_the_function_with_a_module():
     result = subprocess.run([sys.executable, "-c", """
-import aiad_quality
+import aad_quality
 for _ in range(3):
-    assert callable(aiad_quality.library)
-    assert aiad_quality.library('get',kind='material',id='pla')['found']
-    assert aiad_quality.library('search',kind='part')['total']>0
+    assert callable(aad_quality.library)
+    assert aad_quality.library('get',kind='material',id='pla')['found']
+    assert aad_quality.library('search',kind='part')['total']>0
 """], capture_output=True, text=True, timeout=15)
     assert result.returncode == 0, result.stderr
 
@@ -92,7 +92,7 @@ def test_description_candidates_cover_contract_without_claiming_improvement():
 
 
 def test_published_core_example_builds_the_requested_geometry():
-    from aiad_quality.catalog import _guidance_root
+    from aad_quality.catalog import _guidance_root
     text = _guidance_root().joinpath('playbooks/core-workflow.md').read_text(encoding='utf-8')
     source = '\n'.join(line[4:] for line in text.splitlines() if line.startswith('    '))
     assert 'result = bracket.part' in source

@@ -1,10 +1,10 @@
 # Named 2D constraints
 
-`aiad_drafting.constraints` provides an independent 2D sketch API. It does not
+`aad_drafting.constraints` provides an independent 2D sketch API. It does not
 import `build123d`, the engine, or `model2d`.
 
 ```python
-from aiad_drafting.constraints import ConstraintSketch
+from aad_drafting.constraints import ConstraintSketch
 
 sketch = ConstraintSketch()
 sketch.add_point("A", 0, 0)

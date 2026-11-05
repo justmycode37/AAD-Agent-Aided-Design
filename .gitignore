@@ -11,4 +11,4 @@ packages/*/dist/
 packages/*/build/
 node_modules/
 .DS_Store
-.aiad/
+.aad/

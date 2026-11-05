@@ -7,9 +7,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-from aiad_drafting.io2d import export_2d
-from aiad_drafting.model2d import Sheet2D
-from aiad_drafting.scene2d import make_scene
+from aad_drafting.io2d import export_2d
+from aad_drafting.model2d import Sheet2D
+from aad_drafting.scene2d import make_scene
 
 
 SAMPLE_DIR = Path(__file__).resolve().parents[1] / "samples" / "native-2d"
@@ -31,7 +31,7 @@ def build_panel() -> Sheet2D:
     panel.rectangle("switch_opening", width=16, height=8, origin=(-8, 19), layer="cut")
     panel.line("fold_score", (0, -35), (0, 35), layer="score")
     panel.line("alignment_score", (-35, 0), (35, 0), layer="score")
-    panel.text("panel_label", "AIAD LASER PANEL", (-62, -41), height=3, layer="engrave")
+    panel.text("panel_label", "AAD LASER PANEL", (-62, -41), height=3, layer="engrave")
     panel.text("revision_mark", "REV A", (47, 38), height=2, layer="engrave")
     return panel
 

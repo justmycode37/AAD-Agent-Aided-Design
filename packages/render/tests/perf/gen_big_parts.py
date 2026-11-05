@@ -1,8 +1,8 @@
 """Generate real high-triangle and near-5-MB scenes for viewer profiling.
 
 Run with:
-    uv run --locked --package aiad-render --all-extras \
-      python packages/render/tests/perf/gen_big_parts.py /tmp/aiad-render-perf
+    uv run --locked --package aad-render --all-extras \
+      python packages/render/tests/perf/gen_big_parts.py /tmp/aad-render-perf
 
 The generated STEP-free scene directories are performance fixtures; keep them
 outside the repository and do not commit them.
@@ -29,7 +29,7 @@ from build123d import (
     fillet,
 )
 
-from aiad_render import make_scene
+from aad_render import make_scene
 
 
 def many_hole_plate(columns: int, rows: int):

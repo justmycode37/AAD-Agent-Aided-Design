@@ -1,4 +1,4 @@
-# AIAD contracts
+# AAD contracts
 
 These interfaces let five threads work in parallel without talking to each other. Build against them and stub what is not ready.
 
@@ -13,12 +13,12 @@ PLAN.md, CONTRACTS.md                shared; edit only per the rule above
 pyproject.toml, README.md, .github/  S2 (uv workspace root, CI)
 uv.lock                              generated; any sector may regenerate it
 docs/                                each sector's own named files
-packages/engine/src/aiad/             S1  public modeling API and engine
-packages/platform/src/aiad_platform/  S2  CLI, daemon, MCP adapter
-packages/render/src/aiad_render/      S3  tessellation and agent renders
-packages/drafting/src/aiad_drafting/  S4  2D, constraints, drawings
-packages/quality/src/aiad_quality/    S5  spec, process checks
-viewer/                              S3  TypeScript; builds dist/aiad-viewer.html
+packages/engine/src/aad/             S1  public modeling API and engine
+packages/platform/src/aad_platform/  S2  CLI, daemon, MCP adapter
+packages/render/src/aad_render/      S3  tessellation and agent renders
+packages/drafting/src/aad_drafting/  S4  2D, constraints, drawings
+packages/quality/src/aad_quality/    S5  spec, process checks
+viewer/                              S3  TypeScript; builds dist/aad-viewer.html
 skills/                              S5  playbooks
 evals/                               S5  corpus, harness, results
 fixtures/                            S1  sample models, scenes, revisions
@@ -26,7 +26,7 @@ tests/e2e/                           S2  end-to-end smoke tests
 ```
 
 **Git workflow (GitHub, PRs into `main`):**
-- **Use your own worktree.** Threads do not share a checkout. From the main checkout, run `git fetch origin && git worktree add "../AIAD-worktrees/<sector>" -b <sector>/<topic> origin/main` and do all work there. Skip this if your thread already runs in its own worktree. Never switch branches in the main checkout.
+- **Use your own worktree.** Threads do not share a checkout. From the main checkout, run `git fetch origin && git worktree add "../AAD-worktrees/<sector>" -b <sector>/<topic> origin/main` and do all work there. Skip this if your thread already runs in its own worktree. Never switch branches in the main checkout.
 - **Keep branches small.** One topic per branch, such as `s3/chunk-loader`, merged within hours rather than days. Run `git fetch origin && git rebase origin/main` often to pick up other sectors' work.
 - **Open a PR for every change:** `gh pr create --base main`, titled `s3: ...`. The body says what changed, how it was tested, and any contract changes.
 - **Merge your own PRs.** Merge when the branch is rebased on the latest `main`, your tests pass and CI is green. For anything beyond a small change, have a sub-agent review the diff first and fix what it finds. Then run `gh pr merge --squash --delete-branch`. If branch protection requires a human, tell the user rather than bypassing it.
@@ -37,7 +37,7 @@ tests/e2e/                           S2  end-to-end smoke tests
 - **Never** change repo settings or visibility, publish packages, or create releases without asking the user.
 - **Tooling:** use Python 3.12 and `uv`. If `uv` is missing, run `brew install uv`. The root workspace uses `members = ["packages/*"]`, so a new `packages/<name>/pyproject.toml` needs no root edit. Develop in a local venv until S2's root workspace is on `main`.
 
-**Distribution names:** `aiad` (`packages/platform`, provides the `aiad` command and depends on the others), `aiad-engine` (imports as `aiad`), `aiad-render`, `aiad-drafting`, `aiad-quality`. To depend on another workspace package, list it in `dependencies` and add `[tool.uv.sources] <name> = { workspace = true }`.
+**Distribution names:** `aad-design` (`packages/platform`, provides the `aad` command and depends on the others), `aad-engine` (imports as `aad`), `aad-render`, `aad-drafting`, `aad-quality`. To depend on another workspace package, list it in `dependencies` and add `[tool.uv.sources] <name> = { workspace = true }`.
 
 **Pinned versions** (raise only with a changelog entry): `build123d==0.13.0`, `cadquery-ocp-novtk==8.0.1.1.0`, `mcp==2.3.0`, `ezdxf==1.4.5`, `three-cad-viewer@5.1.3`, `@modelcontextprotocol/ext-apps@2.0.4`.
 
@@ -47,26 +47,26 @@ tests/e2e/                           S2  end-to-end smoke tests
 
 ```
 <root>/<project>/
-  project.json     {id, name, kind, units, process, head_rev, created, aiad_version}
+  project.json     {id, name, kind, units, process, head_rev, created, aad_version}
   model.py         current source
   spec.yaml        requirements
   exports/         files for the user
-  .aiad/
+  .aad/
     revs/000007/   model.py, spec.yaml, meta.json, part.brep, scene.bin.gz, scene.json, sheet.png
     cache/         content-addressed, safe to delete
     jobs/          job dirs, the only place sandboxed code may write
 ```
 
-`<root>` comes from MCP roots, else `~/AIAD`. `model.py` and `spec.yaml` should work well in git. `.aiad/` is a cache plus history and is listed in a generated `.gitignore`.
+`<root>` comes from MCP roots, else `~/AAD`. `model.py` and `spec.yaml` should work well in git. `.aad/` is a cache plus history and is listed in a generated `.gitignore`.
 
-Global state: `~/.aiad/` containing `config.toml`, `run/aiadd.sock`, `run/aiadd.json` (pid, http port, token, version), `logs/`.
+Global state: `~/.aad/` containing `config.toml`, `run/aadd.sock`, `run/aadd.json` (pid, http port, token, version), `logs/`.
 
 ---
 
 ## 3. `model.py`
 
 ```python
-from aiad import *                 # build123d plus the helpers below
+from aad import *                 # build123d plus the helpers below
 
 P = params(width=60.0, depth=40.0, t=6.0, hole_d=4.4, spacing=(46.0, 26.0))
 meta(name="fan_bracket", units="mm", material="steel_1018", process="cnc_3axis")
@@ -132,10 +132,10 @@ All tools accept `project` unless noted and return the envelope in section 6. In
 ### Model-visible
 
 ```ts
-aiad_new({ name: string, kind?: "part"|"assembly"|"2d", units?: "mm"|"in",
+aad_new({ name: string, kind?: "part"|"assembly"|"2d", units?: "mm"|"in",
           process?: string, material?: string, spec?: string /*yaml*/, source?: string })
 
-aiad_build({ project, base_rev?: number,
+aad_build({ project, base_rev?: number,
             source?: string,                       // full model.py, or
             patch?: string,                        // unified diff against base_rev, or
             params?: Record<string, number|string>,// overrides, or combine with the above
@@ -144,19 +144,19 @@ aiad_build({ project, base_rev?: number,
             dry_run?: boolean,                     // full build and checks, no new head
             wait_s?: number })                     // default 30; returns status "running" with job id
 
-aiad_inspect({ project, rev?: number,
+aad_inspect({ project, rev?: number,
               what?: "summary"|"features"|"params"|"topology"|"diff", against?: number })
 
-aiad_query({ project, rev?: number, selector: string, expect?: number, limit?: number })
+aad_query({ project, rev?: number, selector: string, expect?: number, limit?: number })
 
-aiad_measure({ project, rev?: number,
+aad_measure({ project, rev?: number,
               kind: "distance"|"angle"|"radius"|"area"|"volume"|"mass"|"inertia"|"thickness"|"clearance",
               a?: string, b?: string })             // selectors
 
-aiad_check({ project, rev?: number,
+aad_check({ project, rev?: number,
             suites?: ("hard"|"spec"|"process"|"interference"|"2d")[] })
 
-aiad_render({ project, rev?: number,
+aad_render({ project, rev?: number,
              views?: ("sheet"|"iso"|"front"|"back"|"left"|"right"|"top"|"bottom"|"custom")[],
              style?: "shaded"|"lines"|"xray",
              section?: { plane: "XY"|"XZ"|"YZ"|string, offset?: number },
@@ -173,24 +173,24 @@ aiad_render({ project, rev?: number,
              heatmap_range?: number[2], min_wall?: number, direction?: number[3],
              size?: number })                       // default 1024, max 2048
 
-aiad_show({ project, rev?: number, compare_to?: number, title?: string,
+aad_show({ project, rev?: number, compare_to?: number, title?: string,
            view?: "iso"|"front"|"top"|"right" })    // the only tool with _meta.ui
 
-aiad_drawing({ project, rev?: number, sheet?: "A4"|"A3"|"A2"|"A1"|"letter"|"tabloid",
+aad_drawing({ project, rev?: number, sheet?: "A4"|"A3"|"A2"|"A1"|"letter"|"tabloid",
               views?: DrawingView[], dimensions?: "auto"|"none"|DimensionSpec[],
               style?: "iso"|"asme", title_block?: Record<string,string>, formats?: ("svg"|"dxf"|"pdf")[] })
 
-aiad_history({ project, action?: "list"|"diff"|"checkout"|"branch"|"job",
+aad_history({ project, action?: "list"|"diff"|"checkout"|"branch"|"job",
               rev?: number, against?: number, name?: string, job?: string })
 
-aiad_import({ project?: string, path: string, name?: string, as?: "base"|"reference" })
+aad_import({ project?: string, path: string, name?: string, as?: "base"|"reference" })
 
-aiad_export({ project, rev?: number,
+aad_export({ project, rev?: number,
              formats: ("step"|"stl"|"3mf"|"glb"|"brep"|"dxf"|"svg"|"pdf"|"viewer_html")[],
              options?: Record<string, unknown>,     // e.g. tolerance
              allow_unverified?: boolean })          // otherwise only verified revisions export
 
-aiad_library({ action: "search"|"get", kind?: "part"|"material"|"playbook"|"api",
+aad_library({ action: "search"|"get", kind?: "part"|"material"|"playbook"|"api",
               query?: string, id?: string })        // no project
 ```
 
@@ -199,27 +199,27 @@ aiad_library({ action: "search"|"get", kind?: "part"|"material"|"playbook"|"api"
 These use `_meta.ui.visibility: ["app"]`. Their descriptions start with "Internal viewer tool. Do not call." in case a host ignores visibility.
 
 ```ts
-aiad_scene_read({ scene_id: string, offset: number, length?: number })
+aad_scene_read({ scene_id: string, offset: number, length?: number })
   // -> structuredContent {data_b64, offset, byte_count, total_bytes, has_more}
 
-aiad_set_param({ project, base_rev: number, name: string, value: number|string })
+aad_set_param({ project, base_rev: number, name: string, value: number|string })
   // -> a new draft revision and its SceneManifest
 
-aiad_pick_info({ project, rev: number, part: string, kind: "face"|"edge"|"vertex", id: number })
+aad_pick_info({ project, rev: number, part: string, kind: "face"|"edge"|"vertex", id: number })
   // -> {selector, feature, geometry: {type, center, normal, radius, area, length}}
 
-aiad_file_read({ project, path: string, offset: number, length?: number })
+aad_file_read({ project, path: string, offset: number, length?: number })
   // -> same chunk format; only files under exports/
 ```
 
 ### UI declaration
 
 ```jsonc
-// on aiad_show
-"_meta": { "ui": { "resourceUri": "ui://aiad/viewer" } }
+// on aad_show
+"_meta": { "ui": { "resourceUri": "ui://aad/viewer" } }
 
-// resources/read of ui://aiad/viewer
-{ "uri": "ui://aiad/viewer", "mimeType": "text/html;profile=mcp-app", "text": "<single-file html>" }
+// resources/read of ui://aad/viewer
+{ "uri": "ui://aad/viewer", "mimeType": "text/html;profile=mcp-app", "text": "<single-file html>" }
 ```
 
 Always register these. Do not gate on the host's capability advert (PLAN D9). Omit `_meta.ui.csp` so that the strict default applies.
@@ -244,20 +244,20 @@ type Envelope = {
   checks?: Check[],                 // failures and warnings first, passes collapsed to counts
   checks_summary?: { pass: number, fail: number, warn: number, skip: number },
   failure?: Failure,
-  artifacts?: Record<string, string>,  // aiad://<project>/<rev>/<name>, plus file paths for exports
-  scene?: SceneManifest,               // aiad_show, aiad_set_param
+  artifacts?: Record<string, string>,  // aad://<project>/<rev>/<name>, plus file paths for exports
+  scene?: SceneManifest,               // aad_show, aad_set_param
   viewer?: { mode: "inline"|"window"|"none", url?: string },
   user_selection?: Selection[],        // picks from window mode since the last call
   next?: string[],                     // at most 3 short hints
   // Tool-specific payloads, each small and only on its own tool's result:
-  entities?: unknown[],                // aiad_query
-  measurement?: unknown,               // aiad_measure
-  topology?: unknown,                  // aiad_inspect what: "topology"
-  features?: unknown[],                // aiad_inspect what: "features"
-  params?: unknown,                    // aiad_inspect what: "params"
-  diff?: { source: string, params: unknown, metrics: unknown },  // aiad_history, aiad_inspect
-  imported?: unknown,                  // aiad_import
-  library?: unknown                    // aiad_library
+  entities?: unknown[],                // aad_query
+  measurement?: unknown,               // aad_measure
+  topology?: unknown,                  // aad_inspect what: "topology"
+  features?: unknown[],                // aad_inspect what: "features"
+  params?: unknown,                    // aad_inspect what: "params"
+  diff?: { source: string, params: unknown, metrics: unknown },  // aad_history, aad_inspect
+  imported?: unknown,                  // aad_import
+  library?: unknown                    // aad_library
 }
 
 type Check = {
@@ -310,13 +310,13 @@ type SceneManifest = {
 - **`tcv-5`:** gzip of the JSON shapes tree that three-cad-viewer 5.x takes, plus `feature_map: { [partPath]: { faces: string[], edges: string[] } }` mapping each face and edge index to a feature name.
 - **`svg-1`:** gzip of JSON `{ svg: string, sheet: {w, h, units}, layers: string[], entities: Entity[] }`.
 
-**Transfer:** the viewer calls `aiad_scene_read`. Chunks are 128 KiB of compressed bytes before base64, at most 4 in flight. The viewer checks `total_bytes` and `scene_id` and supports retrying a chunk. S1 ships sample scenes under `fixtures/scenes/` as soon as S3 needs them; until then S3 generates its own with ocp-tessellate.
+**Transfer:** the viewer calls `aad_scene_read`. Chunks are 128 KiB of compressed bytes before base64, at most 4 in flight. The viewer checks `total_bytes` and `scene_id` and supports retrying a chunk. S1 ships sample scenes under `fixtures/scenes/` as soon as S3 needs them; until then S3 generates its own with ocp-tessellate.
 
 ---
 
 ## 8. Viewer behavior
 
-The viewer only displays (`PLAN.md` D17). Picking, sliders, the Ask box and review tools are not built. `Selection`, `aiad_set_param`, `aiad_pick_info` and `POST /context` stay reserved so that their names and shapes don't change if the user later asks for them.
+The viewer only displays (`PLAN.md` D17). Picking, sliders, the Ask box and review tools are not built. `Selection`, `aad_set_param`, `aad_pick_info` and `POST /context` stay reserved so that their names and shapes don't change if the user later asks for them.
 
 **Transport interface** (S3 defines it in TypeScript; there is one UI over three implementations):
 
@@ -350,12 +350,12 @@ type Selection = { project: string, rev: number, kind: "face"|"edge"|"vertex"|"p
 
 `ui/update-model-context` carries a short text description plus `structuredContent: { selection: Selection[] }`. Each update replaces the last.
 
-**Local window:** `GET http://127.0.0.1:<port>/p/<project>?token=<token>`; the daemon sends WebSocket updates on `/ws`. Tokens come from `~/.aiad/run/aiadd.json`. The daemon rejects a missing token or a foreign `Origin`.
+**Local window:** `GET http://127.0.0.1:<port>/p/<project>?token=<token>`; the daemon sends WebSocket updates on `/ws`. Tokens come from `~/.aad/run/aadd.json`. The daemon rejects a missing token or a foreign `Origin`.
 
 The window transport talks to these same-origin routes:
 
-- `GET /p/<project>?token=<token>` returns the viewer HTML with `window.__AIAD_WINDOW__ = {project, token}` set before the app script runs.
-- `POST /rpc` with `Authorization: Bearer <token>` and body `{method, params}` returns `{content, structuredContent, isError}`, shaped like an MCP tool result. Allowed methods: `aiad_show` and the four app-only tools.
+- `GET /p/<project>?token=<token>` returns the viewer HTML with `window.__AAD_WINDOW__ = {project, token}` set before the app script runs.
+- `POST /rpc` with `Authorization: Bearer <token>` and body `{method, params}` returns `{content, structuredContent, isError}`, shaped like an MCP tool result. Allowed methods: `aad_show` and the four app-only tools.
 - `POST /context` with `Authorization: Bearer <token>` and body `{project, selection: Selection[], text?}` replaces the stored selection. It is attached as `user_selection` to the next tool result for that project, then cleared.
 - `GET /ws?token=<token>&project=<project>` is a WebSocket that sends `{type: "result", envelope: Envelope}` for each new revision of that project.
 
@@ -365,10 +365,10 @@ The daemon also rejects any `Host` other than `127.0.0.1:<port>` or `localhost:<
 
 ## 9. Python interfaces between packages
 
-S1 publishes `aiad.engine.types` within its first hour; others import from it. Workers call these in-process. The platform calls workers via `aiad.engine.jobs`.
+S1 publishes `aad.engine.types` within its first hour; others import from it. Workers call these in-process. The platform calls workers via `aad.engine.jobs`.
 
 ```python
-# aiad.engine.types
+# aad.engine.types
 @dataclass
 class ModelContext:
     project_dir: Path; rev: int; kind: str; units: str
@@ -383,26 +383,26 @@ class ModelContext:
     job_dir: Path                    # the only writable path
 
 # S1
-def aiad.engine.jobs.run_build(req: BuildRequest) -> BuildResult
-def aiad.engine.gate.hard_checks(ctx: ModelContext) -> list[Check]
-def aiad.engine.select.resolve(ctx, selector: str, expect: int | None = None) -> list[Entity]
+def aad.engine.jobs.run_build(req: BuildRequest) -> BuildResult
+def aad.engine.gate.hard_checks(ctx: ModelContext) -> list[Check]
+def aad.engine.select.resolve(ctx, selector: str, expect: int | None = None) -> list[Entity]
 
 # S3
-def aiad_render.make_scene(ctx: ModelContext, out: Path, compare: ModelContext | None = None) -> SceneManifest
-def aiad_render.render(ctx: ModelContext, req: RenderRequest, out: Path) -> list[Path]
+def aad_render.make_scene(ctx: ModelContext, out: Path, compare: ModelContext | None = None) -> SceneManifest
+def aad_render.render(ctx: ModelContext, req: RenderRequest, out: Path) -> list[Path]
 
 # S4
-def aiad_drafting.make_drawing(ctx: ModelContext, req: DrawingRequest, out: Path) -> DrawingResult
-def aiad_drafting.checks(ctx: ModelContext) -> list[Check]
-def aiad_drafting.make_scene(ctx: ModelContext, out: Path) -> SceneManifest   # format svg-1
+def aad_drafting.make_drawing(ctx: ModelContext, req: DrawingRequest, out: Path) -> DrawingResult
+def aad_drafting.checks(ctx: ModelContext) -> list[Check]
+def aad_drafting.make_scene(ctx: ModelContext, out: Path) -> SceneManifest   # format svg-1
 
 # S5
-def aiad_quality.spec_checks(ctx: ModelContext) -> list[Check]
-def aiad_quality.process_checks(ctx: ModelContext) -> list[Check]
-def aiad_quality.library(action: str, **kw) -> dict
+def aad_quality.spec_checks(ctx: ModelContext) -> list[Check]
+def aad_quality.process_checks(ctx: ModelContext) -> list[Check]
+def aad_quality.library(action: str, **kw) -> dict
 ```
 
-**Worker pipeline:** run `model.py` → `hard_checks` → `spec_checks` → `process_checks` (or `aiad_drafting.checks` for 2D) → `make_scene` → optional `render` → return `BuildResult`. A failure in an optional step becomes a `warn` check, and must never discard a built revision.
+**Worker pipeline:** run `model.py` → `hard_checks` → `spec_checks` → `process_checks` (or `aad_drafting.checks` for 2D) → `make_scene` → optional `render` → return `BuildResult`. A failure in an optional step becomes a `warn` check, and must never discard a built revision.
 
 `render` returns PNG paths plus `inspection.json` and optional `labels.json`. The platform emits
 only PNGs as image blocks; it includes the JSON data in structured `inspection` and `labels`
@@ -418,7 +418,7 @@ with B-rep refinement of its smallest candidates, not proof of a global minimum.
 
 ## 10. Daemon RPC
 
-JSON-RPC 2.0, newline-delimited, over `~/.aiad/run/aiadd.sock` (named pipe on Windows). The first call is `hello {adapter_version, protocol: 1}`. On a mismatch the adapter restarts the daemon. Each MCP tool maps to one method of the same name with the same arguments, plus `client: {name, version, supports_ui: boolean}`.
+JSON-RPC 2.0, newline-delimited, over `~/.aad/run/aadd.sock` (named pipe on Windows). The first call is `hello {adapter_version, protocol: 1}`. On a mismatch the adapter restarts the daemon. Each MCP tool maps to one method of the same name with the same arguments, plus `client: {name, version, supports_ui: boolean}`.
 
 The daemon serializes jobs per project and runs different projects in parallel. Default pool: 2 warm workers, one spare.
 
@@ -430,7 +430,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 - 2026-11-04: S2 added optional tool-specific fields to the envelope in section 6, so that results of query, measure, inspect, history, import and library have named places.
 - 2026-11-04: S2 specified the window transport's routes in section 8, because S3's transport and S2's server need the same paths and shapes.
 - 2026-11-04: S2 tightened `verified` in section 6 (issue #5), because an untested `error`-level requirement must never pass as proven.
-- 2026-11-04: S2 added distribution names to section 1, because workspace packages must not collide and `uv tool install aiad` must get the CLI.
+- 2026-11-04: S2 added distribution names to section 1, because workspace packages must not collide and `uv tool install aad-design` must get the CLI.
 - 2026-11-04: S1 removed the mandatory stop-and-ask GitHub access note at the user's request; agents may run repository connection and authentication setup themselves.
 - 2026-11-04: v0 written with `PLAN.md`.
-- 2026-11-04: renamed to AIAD. Switched from a shared working tree to per-sector worktrees and PRs into `main`. Cross-sector messages moved to GitHub issues.
+- 2026-11-04: renamed to AAD. Switched from a shared working tree to per-sector worktrees and PRs into `main`. Cross-sector messages moved to GitHub issues.

@@ -6,9 +6,9 @@ from types import SimpleNamespace
 from build123d import Box
 import pytest
 
-from aiad_drafting import DrawingRequest, make_drawing
-from aiad_drafting.layout import text_bounds, text_width_mm
-from aiad_drafting.export import text
+from aad_drafting import DrawingRequest, make_drawing
+from aad_drafting.layout import text_bounds, text_width_mm
+from aad_drafting.export import text
 from examples.layout_samples import build_dense_mixed_hole_plate, build_two_part_assembly
 
 
@@ -60,9 +60,9 @@ def test_notes_revision_table_title_and_bom_wrap_without_truncation(tmp_path):
             views=("front", "top", "right", "iso"),
             dimensions="auto",
             style="asme",
-            title_block={"title": long_title, "drawing_no": "AIAD-S4-ASM-TEST"},
+            title_block={"title": long_title, "drawing_no": "AAD-S4-ASM-TEST"},
             notes=(long_note,),
-            revisions=({"revision": "A", "date": "2026-11-04", "description": change, "by": "AIAD"},),
+            revisions=({"revision": "A", "date": "2026-11-04", "description": change, "by": "AAD"},),
             bom=True,
             formats=("svg",),
         ),
@@ -134,7 +134,7 @@ def test_text_below_minimum_is_not_used_and_overlong_notes_fail_visibly(tmp_path
 
 
 def test_hole_leader_routes_around_other_bores():
-    from aiad_drafting.routing import hole_leader_path, segment_distance
+    from aad_drafting.routing import hole_leader_path, segment_distance
     circles=[(0,(0,0),2),(1,(7,0),2),(2,(14,0),2)]
     index,path=hole_leader_path(circles,[0],(25,0))
     assert index==0 and len(path)>2
@@ -146,7 +146,7 @@ def test_hole_leader_routes_around_other_bores():
 
 
 def test_png_glyphs_fit_the_measured_baseline_bounds(tmp_path):
-    from aiad_drafting.export import write_png
+    from aad_drafting.export import write_png
     from PIL import Image,ImageChops
     label=text("TITLE",5,10,2.5)
     write_png(tmp_path/"baseline.png",50,30,[label])
@@ -160,7 +160,7 @@ def test_png_glyphs_fit_the_measured_baseline_bounds(tmp_path):
 
 
 def test_same_part_number_does_not_merge_different_geometry():
-    from aiad_drafting.layout import bom_from_context
+    from aad_drafting.layout import bom_from_context
     a,b=Box(10,10,3),Box(20,10,3)
     rows=bom_from_context(SimpleNamespace(children=[{"part_number":"X","shape":a},{"part_number":"X","shape":b}]))
     assert len(rows)==2 and all(r["quantity"]==1 for r in rows)
@@ -184,7 +184,7 @@ def test_cylinder_schedule_dimensions_are_rendered_and_table_rules_clear(tmp_pat
 
 def test_open_cylindrical_cut_is_a_radius_not_a_through_hole(tmp_path):
     from build123d import Cylinder, Pos
-    from aiad_drafting.features import measure_cylinders
+    from aad_drafting.features import measure_cylinders
     shape=Box(20,20,10)-Cylinder(4,12)-Pos(-5,0,0)*Box(10,4,12)
     assert any(not f.full_circle for f in measure_cylinders(shape))
     result=make_drawing(SimpleNamespace(shape=shape,units="mm"),

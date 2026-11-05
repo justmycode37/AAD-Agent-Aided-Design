@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Build local AIAD wheels and validate a clean uv tool installation.
+"""Build local AAD wheels and validate a clean uv tool installation.
 
-This smoke test uses temporary uv, home, AIAD, and client-config directories.
-Only AIAD's own wheels are taken from the workspace; all runtime components
+This smoke test uses temporary uv, home, AAD, and client-config directories.
+Only AAD's own wheels are taken from the workspace; all runtime components
 are passed to ``uv tool install`` as local wheel files.
 """
 
@@ -26,11 +26,11 @@ from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[2]
 EXPECTED_WHEELS = {
-    "aiad": "0.0.1",
-    "aiad-engine": "0.1.0",
-    "aiad-render": "0.0.1",
-    "aiad-drafting": "0.1.0",
-    "aiad-quality": "0.1.0",
+    "aad-design": "0.0.1",
+    "aad-engine": "0.1.0",
+    "aad-render": "0.0.1",
+    "aad-drafting": "0.1.0",
+    "aad-quality": "0.1.0",
 }
 RUNTIME_PINS = {
     "mcp": "2.3.0",
@@ -44,10 +44,10 @@ BLOCKED_IMPORTS = (
     "OCP",
     "vtk",
     "vtkmodules",
-    "aiad.engine",
-    "aiad_render",
-    "aiad_drafting",
-    "aiad_quality",
+    "aad.engine",
+    "aad_render",
+    "aad_drafting",
+    "aad_quality",
 )
 RUNTIME_SIZE_LIMIT_BYTES = 1_000_000_000
 INSTALL_TIME_LIMIT_SECONDS = 180.0
@@ -133,7 +133,7 @@ def _parse_last_json(stdout: str) -> dict[str, Any]:
 def _isolated_environment(work_dir: Path, install_cache_dir: Path | None = None) -> tuple[dict[str, str], bool]:
     paths = {
         "home": work_dir / "home",
-        "aiad_home": work_dir / "aiad-home",
+        "aad_home": work_dir / "aad-home",
         "appdata": work_dir / "appdata",
         "xdg_config": work_dir / "xdg-config",
         "xdg_data": work_dir / "xdg-data",
@@ -163,7 +163,7 @@ def _isolated_environment(work_dir: Path, install_cache_dir: Path | None = None)
             env[name] = str(location.resolve())
     # Overrides that could point the isolated run at another checkout or at real client configs.
     for key in (
-        "PYTHONPATH", "PYTHONHOME", "AIAD_VIEWER_HTML", "UV_PROJECT", "UV_WORKSPACE",
+        "PYTHONPATH", "PYTHONHOME", "AAD_VIEWER_HTML", "UV_PROJECT", "UV_WORKSPACE",
         "CODEX_HOME", "CLINE_MCP_SETTINGS_PATH", "CLINE_DATA_DIR", "CLINE_DIR",
     ):  # fmt: skip
         env.pop(key, None)
@@ -171,7 +171,7 @@ def _isolated_environment(work_dir: Path, install_cache_dir: Path | None = None)
         {
             "HOME": str(paths["home"]),
             "USERPROFILE": str(paths["home"]),
-            "AIAD_HOME": str(paths["aiad_home"]),
+            "AAD_HOME": str(paths["aad_home"]),
             "APPDATA": str(paths["appdata"]),
             "XDG_CONFIG_HOME": str(paths["xdg_config"]),
             "XDG_DATA_HOME": str(paths["xdg_data"]),
@@ -182,7 +182,7 @@ def _isolated_environment(work_dir: Path, install_cache_dir: Path | None = None)
             "UV_PYTHON": "3.12",
             "UV_NO_CONFIG": "1",
             "PYTHONNOUSERSITE": "1",
-            "AIAD_NO_BROWSER": "1",
+            "AAD_NO_BROWSER": "1",
             "PATH": str(paths["uv_bin"]) + os.pathsep + env.get("PATH", ""),
         }
     )
@@ -201,7 +201,7 @@ def _find_tool_python(tool_dir: Path) -> Path:
                 # Preserve a venv's Python symlink path: resolving it points at
                 # the base interpreter and drops the tool's site-packages.
                 return candidate.absolute()
-    raise RuntimeError(f"Could not locate the installed aiad tool interpreter under {tool_dir}.")
+    raise RuntimeError(f"Could not locate the installed aad tool interpreter under {tool_dir}.")
 
 
 def _disk_usage_bytes(paths: list[Path]) -> int:
@@ -235,11 +235,11 @@ wheel_dir = pathlib.Path(sys.argv[2]).resolve()
 expected_wheels = json.loads(sys.argv[3])
 expected_runtime = json.loads(sys.argv[4])
 module_names = {
-    "aiad_platform",
-    "aiad.engine.jobs",
-    "aiad_render",
-    "aiad_drafting",
-    "aiad_quality",
+    "aad_platform",
+    "aad.engine.jobs",
+    "aad_render",
+    "aad_drafting",
+    "aad_quality",
 }
 site_roots = [pathlib.Path(p).resolve() for p in sys.path if "site-packages" in p or "dist-packages" in p]
 modules = {}
@@ -269,22 +269,22 @@ for name, expected_path in expected_wheels.items():
         raise SystemExit(f"{name} source {direct.get('url')!r} is not the built wheel {expected}")
     local_sources[name] = direct.get("url")
 
-from aiad_platform.viewer import viewer_path
+from aad_platform.viewer import viewer_path
 viewer = viewer_path().resolve()
-platform_root = pathlib.Path(importlib.import_module("aiad_platform").__file__).resolve().parent
+platform_root = pathlib.Path(importlib.import_module("aad_platform").__file__).resolve().parent
 if not viewer.is_file() or not viewer.is_relative_to(platform_root):
     raise SystemExit(f"Viewer HTML is missing from the installed package: {viewer}")
 viewer_html_bytes = viewer.stat().st_size
 if viewer_html_bytes <= 0:
     raise SystemExit("Installed viewer HTML is empty")
 
-aiad_metadata = metadata.distribution("aiad").metadata
-requires_dist = aiad_metadata.get_all("Requires-Dist") or []
-required_runtime = ["aiad-engine==0.1.0", "aiad-drafting==0.1.0", "aiad-quality==0.1.0", "aiad-render[vtk]==0.0.1"]
+aad_metadata = metadata.distribution("aad-design").metadata
+requires_dist = aad_metadata.get_all("Requires-Dist") or []
+required_runtime = ["aad-engine==0.1.0", "aad-drafting==0.1.0", "aad-quality==0.1.0", "aad-render[vtk]==0.0.1"]
 for requirement in required_runtime:
     if not any(line.lower().replace(" ", "") == requirement.lower() for line in requires_dist):
-        raise SystemExit(f"Installed aiad wheel is missing runtime requirement {requirement}: {requires_dist}")
-from aiad_quality import library
+        raise SystemExit(f"Installed aad wheel is missing runtime requirement {requirement}: {requires_dist}")
+from aad_quality import library
 for kind in ("part", "material", "playbook", "api"):
     if not library("search", kind=kind)["items"]:
         raise SystemExit(f"Installed quality catalog is empty for {kind}")
@@ -329,7 +329,7 @@ def _stdio_initialize(
         "params": {
             "protocolVersion": "2025-06-18",
             "capabilities": {},
-            "clientInfo": {"name": "aiad-packaging-smoke", "version": "0.0.1"},
+            "clientInfo": {"name": "aad-packaging-smoke", "version": "0.0.1"},
         },
     }
     started = time.monotonic()
@@ -376,7 +376,7 @@ def _stdio_initialize(
                         if (
                             isinstance(result_body, dict)
                             and candidate.get("id") == 1
-                            and result_body.get("serverInfo", {}).get("name") == "aiad"
+                            and result_body.get("serverInfo", {}).get("name") == "aad"
                             and isinstance(result_body.get("protocolVersion"), str)
                             and isinstance(result_body.get("capabilities"), dict)
                         ):
@@ -457,7 +457,7 @@ blocked = {BLOCKED_IMPORTS!r}
 class ImportTrace:
     def find_spec(self, fullname, path=None, target=None):
         if any(fullname == name or fullname.startswith(name + ".") for name in blocked):
-            fd = os.open(os.environ["AIAD_IMPORT_TRACE"], os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+            fd = os.open(os.environ["AAD_IMPORT_TRACE"], os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
             os.write(fd, (fullname + "\\n").encode())
             os.close(fd)
         return None
@@ -467,7 +467,7 @@ sys.meta_path.insert(0, ImportTrace())
     )
     probe_env = env.copy()
     probe_env["PYTHONPATH"] = str(probe_dir)
-    probe_env["AIAD_IMPORT_TRACE"] = str(trace_path)
+    probe_env["AAD_IMPORT_TRACE"] = str(trace_path)
     result = _stdio_initialize(
         executable,
         work_dir=work_dir,
@@ -482,7 +482,7 @@ sys.meta_path.insert(0, ImportTrace())
 
 def _prewarm(python: Path, *, cwd: Path, env: dict[str, str], result_path: Path) -> dict[str, Any]:
     code = """import json, pathlib, sys, time
-from aiad_platform.prewarm import run_prewarm
+from aad_platform.prewarm import run_prewarm
 started = time.monotonic()
 result = run_prewarm(lambda message: print(message, file=sys.stderr, flush=True))
 result[\"elapsed_seconds\"] = round(time.monotonic() - started, 3)
@@ -587,7 +587,7 @@ def _doctor(executable: Path, *, cwd: Path, env: dict[str, str]) -> dict[str, An
 
 def _prepare_work_dir(requested: Path | None) -> Path:
     if requested is None:
-        return Path(tempfile.mkdtemp(prefix="aiad-packaging-smoke-")).resolve()
+        return Path(tempfile.mkdtemp(prefix="aad-packaging-smoke-")).resolve()
     path = requested.expanduser().resolve()
     if path.exists() and any(path.iterdir()):
         raise RuntimeError(f"Refusing to reuse a non-empty packaging smoke directory: {path}")
@@ -616,8 +616,8 @@ def main() -> int:
             "python": platform.python_version(),
         },
         "scope": {
-            "install_kind": "fresh isolated UV cache; local AIAD wheels and registry runtime dependencies",
-            "runtime_disk_scope": "allocated bytes in UV_TOOL_DIR plus UV_TOOL_BIN_DIR; excludes UV_CACHE_DIR, Python interpreter, and AIAD_HOME data",
+            "install_kind": "fresh isolated UV cache; local AAD wheels and registry runtime dependencies",
+            "runtime_disk_scope": "allocated bytes in UV_TOOL_DIR plus UV_TOOL_BIN_DIR; excludes UV_CACHE_DIR, Python interpreter, and AAD_HOME data",
             "browser_suppressed": True,
             "real_client_configs_accessed": False,
             "host_page_cache": "not flushed or controlled; this is not a clean-machine benchmark",
@@ -666,14 +666,14 @@ def main() -> int:
             for name, version in EXPECTED_WHEELS.items()
         }
         result["built_wheels"] = {name: str(path) for name, path in wheels.items()}
-        with ZipFile(wheels["aiad"]) as package:
+        with ZipFile(wheels["aad-design"]) as package:
             viewer_files = sorted(
                 member
                 for member in package.namelist()
-                if member.startswith("aiad_platform/viewer/") and member.lower().endswith(".html")
+                if member.startswith("aad_platform/viewer/") and member.lower().endswith(".html")
             )
         if not viewer_files:
-            raise RuntimeError("The built aiad wheel contains no viewer HTML under aiad_platform/viewer/.")
+            raise RuntimeError("The built aad wheel contains no viewer HTML under aad_platform/viewer/.")
         result["built_wheel_viewer_html"] = viewer_files
 
         env, install_cache_was_empty = _isolated_environment(work_dir, args.download_cache)
@@ -682,7 +682,7 @@ def main() -> int:
         result["install_cache_initially_empty"] = install_cache_was_empty
         result["install_cache_path"] = env["UV_CACHE_DIR"]
         if not install_cache_was_empty:
-            result["scope"]["install_kind"] = "provisioned UV cache; local AIAD wheels and cached registry runtime dependencies"
+            result["scope"]["install_kind"] = "provisioned UV cache; local AAD wheels and cached registry runtime dependencies"
         install_command = [uv]
         if args.download_cache:
             install_command.append("--offline")
@@ -694,14 +694,14 @@ def main() -> int:
             "--link-mode",
             "copy",
             "--with",
-            str(wheels["aiad-engine"]),
+            str(wheels["aad-engine"]),
             "--with",
-            str(wheels["aiad-render"]),
+            str(wheels["aad-render"]),
             "--with",
-            str(wheels["aiad-drafting"]),
+            str(wheels["aad-drafting"]),
             "--with",
-            str(wheels["aiad-quality"]),
-            str(wheels["aiad"]),
+            str(wheels["aad-quality"]),
+            str(wheels["aad-design"]),
         ])
         install_started = time.monotonic()
         _run_logged(install_command, cwd=work_dir, env=env, timeout=900.0)
@@ -717,15 +717,15 @@ def main() -> int:
                 "measurement_note": "Fresh isolated uv package cache; host page cache was not flushed or controlled.",
             }
 
-        executable = next((candidate for candidate in (bin_dir / "aiad", bin_dir / "aiad.exe") if candidate.is_file()), None)
+        executable = next((candidate for candidate in (bin_dir / "aad", bin_dir / "aad.exe") if candidate.is_file()), None)
         if executable is None:
-            raise RuntimeError(f"uv did not install the aiad executable under {bin_dir}.")
+            raise RuntimeError(f"uv did not install the aad executable under {bin_dir}.")
         result["installed_executable"] = str(executable.resolve())
         python = _find_tool_python(tool_dir)
         result["installed_python"] = str(python)
 
         # The first process to import the adapter compiles its bytecode. No host can start
-        # `aiad mcp` this early, because `aiad install` writes the configs after pre-warming,
+        # `aad mcp` this early, because `aad install` writes the configs after pre-warming,
         # so this number is informational. The budgeted probe runs after pre-warm below.
         try:
             result["mcp_before_prewarm"] = _mcp_probe(executable, work_dir=work_dir, env=env)
@@ -760,10 +760,10 @@ def main() -> int:
             )
             version = _parse_last_json(version_result.stdout)
             result["version_command"] = version
-            if version.get("version") != EXPECTED_WHEELS["aiad"]:
-                functional_errors.append(f"Installed aiad version was {version.get('version')!r}, expected 0.0.1")
+            if version.get("version") != EXPECTED_WHEELS["aad-design"]:
+                functional_errors.append(f"Installed aad version was {version.get('version')!r}, expected 0.0.1")
         except Exception as exc:
-            functional_errors.append(f"Installed aiad version command failed: {type(exc).__name__}: {exc}")
+            functional_errors.append(f"Installed aad version command failed: {type(exc).__name__}: {exc}")
 
         try:
             provenance = _install_info_probe(
@@ -787,7 +787,7 @@ def main() -> int:
         result["prewarm_elapsed_seconds"] = round(time.monotonic() - prewarm_started, 3)
         result["prewarm"] = prewarm
 
-        # The number the budget applies to: a fresh `aiad mcp` process, kernel never imported by it.
+        # The number the budget applies to: a fresh `aad mcp` process, kernel never imported by it.
         try:
             probe = _mcp_probe(executable, work_dir=work_dir, env=env)
             probe["kernel_imports_absent"] = result["mcp"].get("kernel_imports_absent")
@@ -814,10 +814,10 @@ def main() -> int:
             doctor = _doctor(executable, cwd=work_dir, env=env)
             result["doctor"] = doctor
             if not doctor.get("functional_smoke_passed"):
-                functional_errors.append(doctor.get("functional_error", "Installed aiad doctor smoke failed"))
+                functional_errors.append(doctor.get("functional_error", "Installed aad doctor smoke failed"))
         except Exception as exc:
             result["doctor_error"] = f"{type(exc).__name__}: {exc}"
-            functional_errors.append(f"Installed aiad doctor failed: {type(exc).__name__}: {exc}")
+            functional_errors.append(f"Installed aad doctor failed: {type(exc).__name__}: {exc}")
         finally:
             stop = subprocess.run(
                 [str(executable), "daemon", "stop", "--json"],
@@ -829,7 +829,7 @@ def main() -> int:
                 timeout=30.0,
             )
             if stop.returncode != 0:
-                functional_errors.append(f"aiad daemon stop exited {stop.returncode}: {stop.stderr.strip()[:300]}")
+                functional_errors.append(f"aad daemon stop exited {stop.returncode}: {stop.stderr.strip()[:300]}")
             result["daemon_cleanup"] = {
                 "returncode": stop.returncode,
                 "stdout": stop.stdout.strip(),
@@ -880,11 +880,11 @@ def main() -> int:
         if not prewarm.get("ok"):
             blockers.append("Cold runtime prewarm did not complete within the prewarm runner's 240-second budget")
         if not (ROOT / "packages" / "quality" / "pyproject.toml").is_file():
-            blockers.append("aiad_quality is absent from the current workspace and is not verified by this packaging smoke")
+            blockers.append("aad_quality is absent from the current workspace and is not verified by this packaging smoke")
         result["scope"]["release_blockers"] = blockers
         result["scope"]["quality_component"] = {
             "status": "available" if (ROOT / "packages" / "quality" / "pyproject.toml").is_file() else "not_present_in_workspace",
-            "installed": "aiad-quality" in result.get("installed_artifact", {}).get("versions", {}),
+            "installed": "aad-quality" in result.get("installed_artifact", {}).get("versions", {}),
             "verified": False,
         }
         result["status"] = "failed" if functional_errors else ("passed_with_release_blockers" if blockers else "passed")

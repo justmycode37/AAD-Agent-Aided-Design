@@ -6,9 +6,9 @@ import pytest
 from build123d import Align, Box, Cylinder, Pos, RectangleRounded, extrude, Compound, Rot
 import math
 
-from aiad_quality._checks import record
-from aiad_quality.process import process_checks
-from aiad_quality import process_geometry
+from aad_quality._checks import record
+from aad_quality.process import process_checks
+from aad_quality import process_geometry
 
 ROOT=Path(__file__).resolve().parents[3]
 
@@ -122,7 +122,7 @@ def test_unknown_process_and_conflicting_context_are_errors():
 
 
 def test_failed_evaluator_cannot_hide_as_optional_warning(monkeypatch):
-    import aiad_quality.process as process
+    import aad_quality.process as process
     monkeypatch.setattr(process,'_additive_checks',lambda *args: (_ for _ in ()).throw(RuntimeError('broken kernel query')))
     check=record(process_checks(context(Box(1,1,1),'fdm_pla'))[0])
     assert check['level']=='error' and check['status']=='skip'

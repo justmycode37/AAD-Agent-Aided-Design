@@ -2,7 +2,7 @@
 from pathlib import Path
 from types import SimpleNamespace
 
-from aiad_drafting import DrawingRequest, make_drawing, sheet2d
+from aad_drafting import DrawingRequest, make_drawing, sheet2d
 
 
 def model(units="mm"):
@@ -12,7 +12,7 @@ def model(units="mm"):
     for index, (x, y) in enumerate(((-40, -20), (40, -20), (-40, 20), (40, 20))):
         panel.circle(f"mount{index + 1}", (x * factor, y * factor), 2.2 * factor)
     panel.rectangle("slot", 12 * factor, 4 * factor, origin=(-6 * factor, -2 * factor))
-    panel.text("mark", "AIAD", (-7 * factor, 8 * factor), 3 * factor)
+    panel.text("mark", "AAD", (-7 * factor, 8 * factor), 3 * factor)
     return panel
 
 

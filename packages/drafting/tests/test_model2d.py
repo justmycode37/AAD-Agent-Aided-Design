@@ -5,7 +5,7 @@ import math
 
 import pytest
 
-from aiad_drafting.model2d import Entity2D, Point2D, Sheet2D, latest_sheet, sheet2d
+from aad_drafting.model2d import Entity2D, Point2D, Sheet2D, latest_sheet, sheet2d
 
 
 @pytest.mark.parametrize("invalid", [
@@ -38,7 +38,7 @@ def test_named_points_primitives_layers_and_exact_native_edges():
     arc = sheet.arc("arc", (20, 12), 4, 350, 10)
     polyline = sheet.polyline("open_path", [(0, 20), (5, 25), (12, 20)])
     rectangle = sheet.rectangle("plate", 40, 30, origin=(0, 0))
-    label = sheet.text("mark", "AIAD", (3, 4), 2.5)
+    label = sheet.text("mark", "AAD", (3, 4), 2.5)
 
     assert line.points == ("origin", "baseline.end")
     assert circle.points == ("hole.center",)
@@ -46,7 +46,7 @@ def test_named_points_primitives_layers_and_exact_native_edges():
     assert polyline.points == ("open_path.p0", "open_path.p1", "open_path.p2")
     assert rectangle.kind == "rectangle" and rectangle.closed
     assert rectangle.points == tuple(f"plate.p{i}" for i in range(4))
-    assert label.kind == "text" and label.layer == "engrave" and label.text == "AIAD"
+    assert label.kind == "text" and label.layer == "engrave" and label.text == "AAD"
     assert {"cut", "score", "engrave"}.issubset(sheet.layers)
     assert sheet.points["origin"] is origin
 
@@ -173,9 +173,9 @@ def test_exact_offset_boolean_holes_patterns_extrusion_and_history():
     solid = cut.extrude(5)
     assert solid.volume == pytest.approx(result_face.area * 5, abs=1e-6)
     assert solid.is_valid
-    assert solid.aiad_history[-1]["operation"] == "extrude"
-    assert solid.aiad_history[-1]["parameters"]["height"] == 5
-    assert solid.aiad_source_sheet == cut.to_dict()
+    assert solid.aad_history[-1]["operation"] == "extrude"
+    assert solid.aad_history[-1]["parameters"]["height"] == 5
+    assert solid.aad_source_sheet == cut.to_dict()
 
 
 def test_union_and_intersection_keep_exact_circular_arcs():

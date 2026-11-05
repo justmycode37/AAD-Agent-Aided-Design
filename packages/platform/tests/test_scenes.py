@@ -2,11 +2,11 @@ import base64
 
 import pytest
 
-from aiad_platform.daemon import scenes
+from aad_platform.daemon import scenes
 
 
 def test_chunks_reassemble(tmp_path, monkeypatch):
-    monkeypatch.setenv("AIAD_HOME", str(tmp_path))
+    monkeypatch.setenv("AAD_HOME", str(tmp_path))
     source = tmp_path / "scene.gz"
     source.write_bytes(bytes(range(256)) * 2000)
     scene_id = "a" * 64
@@ -23,13 +23,13 @@ def test_chunks_reassemble(tmp_path, monkeypatch):
 
 
 def test_scene_id_cannot_escape_the_store(tmp_path, monkeypatch):
-    monkeypatch.setenv("AIAD_HOME", str(tmp_path))
+    monkeypatch.setenv("AAD_HOME", str(tmp_path))
     with pytest.raises(ValueError):
         scenes.read_chunk("../../etc/passwd", 0)
 
 
 def test_requested_length_is_capped(tmp_path, monkeypatch):
-    monkeypatch.setenv("AIAD_HOME", str(tmp_path))
+    monkeypatch.setenv("AAD_HOME", str(tmp_path))
     source = tmp_path / "scene.gz"
     source.write_bytes(b"x" * (scenes.CHUNK_BYTES * 2))
     scenes.publish("b" * 64, source)

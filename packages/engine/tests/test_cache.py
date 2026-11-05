@@ -21,8 +21,8 @@ from pathlib import Path
 
 import pytest
 
-from aiad.engine import cache as module
-from aiad.engine.cache import (
+from aad.engine import cache as module
+from aad.engine.cache import (
     CacheConflict, CacheCorruption, CacheInputError, CacheMiss, CacheUnsupported, GeometryCache,
 )
 
@@ -33,7 +33,7 @@ PAYLOAD = b"opaque candidate, not a native validity claim\x00\xff\r\n"
 
 def record():
     return {
-        "schema": "aiad.cache-identity.v1", "source": "# π\r\nresult = Box(2, 3, 4)\n",
+        "schema": "aad.cache-identity.v1", "source": "# π\r\nresult = Box(2, 3, 4)\n",
         "applied_params": {"width": 2.0, "nested": [True, None, {"n": -0.0}]},
         "spec": {"requirements": [{"id": "body", "solids": 1}], "unknown_extension": [3]},
         "kind": "part", "units": "mm", "material": None, "process": None,
@@ -457,7 +457,7 @@ WRITER = """
 import json, sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-from aiad.engine.cache import GeometryCache, CacheConflict
+from aad.engine.cache import GeometryCache, CacheConflict
 inputs = json.loads(sys.argv[4])
 cache, source = GeometryCache(Path(sys.argv[2])), Path(sys.argv[3])
 print('ready', flush=True)
@@ -516,7 +516,7 @@ def test_killed_writer_leaves_only_uncommitted_staging_and_releases_lock(tmp_pat
     inputs = record()
     source = candidate(tmp_path / "source")
     program = WRITER.replace("print('ready', flush=True)", """
-import aiad.engine.cache as cache_module
+import aad.engine.cache as cache_module
 real_rename = cache_module.os.rename
 def stop_before_commit(*args):
     print('staged', flush=True)
@@ -556,11 +556,11 @@ sys.path.insert(0, sys.argv[1])
 class BlockNative:
     def find_spec(self, fullname, path=None, target=None):
         if fullname.partition('.')[0] in {'build123d', 'OCP'} or fullname in {
-            'aiad.engine.identity', 'aiad.engine.jobs', 'aiad.engine.gate', 'aiad.engine.revisions'
+            'aad.engine.identity', 'aad.engine.jobs', 'aad.engine.gate', 'aad.engine.revisions'
         }:
             raise AssertionError('forbidden import: ' + fullname)
 sys.meta_path.insert(0, BlockNative())
-from aiad.engine import cache
+from aad.engine import cache
 for node in ast.walk(ast.parse(Path(cache.__file__).read_text())):
     if isinstance(node, (ast.Import, ast.ImportFrom)):
         names = [item.name for item in node.names] if isinstance(node, ast.Import) else [node.module]
@@ -594,7 +594,7 @@ def test_unsupported_locking_fails_explicitly(tmp_path, monkeypatch):
 
 
 def test_identity_compatibility(tmp_path):
-    from aiad.engine import identity as actual
+    from aad.engine import identity as actual
     cache = GeometryCache(tmp_path / "cache")
     payload = candidate(tmp_path / "source")
     keys = set()

@@ -158,7 +158,7 @@ def test_native_part_witnesses_reject_same_envelope_impostors(tmp_path,monkeypat
 def test_real_default_parts_pass_the_added_native_geometry_witnesses(tmp_path,monkeypatch,part_id):
     pytest.importorskip('bd_warehouse')
     from build123d import export_brep
-    from aiad_quality.standard_parts import make_part
+    from aad_quality.standard_parts import make_part
     monkeypatch.syspath_prepend(str(EVALS))
     import probe_parts
     artifact=tmp_path/'actual.brep';export_brep(make_part(part_id),str(artifact))

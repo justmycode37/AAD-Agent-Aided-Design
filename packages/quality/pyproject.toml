@@ -3,21 +3,21 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "aiad-quality"
+name = "aad-quality"
 version = "0.1.0"
-description = "Requirement evidence and conservative process screens for AIAD"
+description = "Requirement evidence and conservative process screens for AAD"
 requires-python = ">=3.12"
-dependencies = ["aiad-engine", "PyYAML>=6.0.3,<7"]
+dependencies = ["aad-engine", "PyYAML>=6.0.3,<7"]
 
 [tool.uv.sources]
-aiad-engine = { workspace = true }
+aad-engine = { workspace = true }
 
 [project.optional-dependencies]
 geometry = ["build123d==0.13.0", "cadquery-ocp-novtk==8.0.1.1.0"]
 parts = ["bd_warehouse==0.4.0"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/aiad_quality"]
+packages = ["src/aad_quality"]
 
 [tool.hatch.build.targets.sdist]
 include = ["/src", "/tests", "/pyproject.toml", "/hatch_build.py", "/README.md", "/SPEC.md", "/PROCESS.md"]

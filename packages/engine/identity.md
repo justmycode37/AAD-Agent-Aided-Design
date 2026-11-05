@@ -1,11 +1,11 @@
 # Build input identity
 
-`aiad.engine.identity.cache_identity` is a standard-library-only function. It
+`aad.engine.identity.cache_identity` is a standard-library-only function. It
 returns `(key, record)`: a lowercase SHA256 hex key and a detached JSON input
 record. It does not import the CAD kernel or the revision implementation.
 
 ```python
-from aiad.engine.identity import cache_identity
+from aad.engine.identity import cache_identity
 
 key, record = cache_identity(
     source="result = Box(60, 40, 6)\r\n",
@@ -31,7 +31,7 @@ hex digest. Material and process, when present, must also be nonblank strings.
 
 ## Canonical form
 
-The record contains every argument and `"schema": "aiad.cache-identity.v1"`.
+The record contains every argument and `"schema": "aad.cache-identity.v1"`.
 The digest is SHA256 over these exact bytes, with no trailing newline:
 
 ```python

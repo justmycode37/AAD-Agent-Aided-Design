@@ -3,9 +3,9 @@ import math
 
 import pytest
 
-from aiad_drafting import sheet2d, Sheet2D, latest_sheet
-from aiad_drafting.import2d import Imported2D, parse_svg
-from aiad_drafting.model2d import _entity_to_native
+from aad_drafting import sheet2d, Sheet2D, latest_sheet
+from aad_drafting.import2d import Imported2D, parse_svg
+from aad_drafting.model2d import _entity_to_native
 
 
 def test_exact_bezier_profile_has_measured_area_and_extrusion_history():
@@ -15,7 +15,7 @@ def test_exact_bezier_profile_has_measured_area_and_extrusion_history():
     assert sheet.to_face().area == pytest.approx(14.4)
     solid = sheet.extrude(2)
     assert solid.volume == pytest.approx(28.8)
-    assert solid.aiad_source_sheet["entities"]["crown"]["kind"] == "bezier"
+    assert solid.aad_source_sheet["entities"]["crown"]["kind"] == "bezier"
 
 
 def test_ellipse_native_area_endpoints_patterns_and_json():

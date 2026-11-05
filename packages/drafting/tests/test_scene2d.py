@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from aiad_drafting import scene2d
-from aiad_drafting.model2d import Sheet2D, latest_sheet
+from aad_drafting import scene2d
+from aad_drafting.model2d import Sheet2D, latest_sheet
 
 
 def _sample_sheet() -> Sheet2D:
@@ -188,7 +188,7 @@ def test_scene_invalid_units_and_text_only_geometry_bbox(tmp_path):
 
 
 def test_public_scene_and_export_entrypoints_keep_the_same_contract(tmp_path):
-    from aiad_drafting import export_2d, make_scene
+    from aad_drafting import export_2d, make_scene
     sheet = _sample_sheet()
     ctx = _ctx(sheet)
     path = export_2d(ctx, "svg", tmp_path / "public.svg")

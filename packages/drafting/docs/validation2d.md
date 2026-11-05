@@ -1,12 +1,12 @@
 # Native 2D geometry validation
 
-`aiad_drafting.validation2d` validates native cut paths and reports measured
+`aad_drafting.validation2d` validates native cut paths and reports measured
 geometry from an editable `Sheet2D`. Importing the module does not import
 build123d or OCCT. The kernel loads only when a check or measurement is
 requested.
 
 ```python
-from aiad_drafting.validation2d import checks, measurement_evidence
+from aad_drafting.validation2d import checks, measurement_evidence
 
 result_checks = checks(ctx)
 evidence = measurement_evidence(ctx)

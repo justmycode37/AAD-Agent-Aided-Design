@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 import uuid
 
-from aiad_quality import standard_parts
+from aad_quality import standard_parts
 from evidence import summaries
 from native_witnesses import geometry_witness
 

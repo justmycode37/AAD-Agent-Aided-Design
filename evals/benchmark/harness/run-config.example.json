@@ -1,7 +1,7 @@
 {
   "provider": "openai",
   "model": "REPLACE_WITH_AN_EXPLICIT_AVAILABLE_OPENAI_MODEL",
-  "backend_name": "aiad",
+  "backend_name": "aad",
   "backend_revision": "REPLACE_WITH_BACKEND_COMMIT_OR_RELEASE",
   "backend_environment": "REPLACE_WITH_ENVIRONMENT_DIGEST",
   "token_budget": 12000,

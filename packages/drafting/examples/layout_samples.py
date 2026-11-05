@@ -8,7 +8,7 @@ from typing import Any
 
 from build123d import Box, Compound, Cylinder, Pos
 
-from aiad_drafting import DrawingRequest, make_drawing
+from aad_drafting import DrawingRequest, make_drawing
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
@@ -95,7 +95,7 @@ def generate_layout_samples(output: Path = SAMPLES_ROOT) -> dict[str, Any]:
                 views=("front", "top", "right", "iso"),
                 dimensions="auto",
                 style="iso",
-                title_block={"title": "Dense mixed-hole fixture plate", "drawing_no": "AIAD-S4-PLATE-02"},
+                title_block={"title": "Dense mixed-hole fixture plate", "drawing_no": "AAD-S4-PLATE-02"},
                 notes=("Hole diameters and ordinate values are measured from the projected solid.",),
                 formats=("svg", "dxf", "pdf"),
             ),
@@ -109,7 +109,7 @@ def generate_layout_samples(output: Path = SAMPLES_ROOT) -> dict[str, Any]:
                 views=("front", "top", "iso"),
                 dimensions="auto",
                 style="iso",
-                title_block={"title": "Stepped turned shaft", "drawing_no": "AIAD-S4-TURN-01"},
+                title_block={"title": "Stepped turned shaft", "drawing_no": "AAD-S4-TURN-01"},
                 formats=("svg", "dxf", "pdf"),
             ),
             output,
@@ -122,10 +122,10 @@ def generate_layout_samples(output: Path = SAMPLES_ROOT) -> dict[str, Any]:
                 views=("front", "top", "right", "iso"),
                 dimensions="auto",
                 style="asme",
-                title_block={"title": "Two-part locating fixture", "drawing_no": "AIAD-S4-ASM-01"},
+                title_block={"title": "Two-part locating fixture", "drawing_no": "AAD-S4-ASM-01"},
                 notes=("Assembly children shown as listed in the source assembly tree.",),
                 revisions=(
-                    {"revision": "A", "date": "2026-11-04", "description": "Initial drawing layout", "by": "AIAD"},
+                    {"revision": "A", "date": "2026-11-04", "description": "Initial drawing layout", "by": "AAD"},
                 ),
                 bom=True,
                 formats=("svg", "dxf", "pdf"),

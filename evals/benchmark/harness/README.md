@@ -25,7 +25,7 @@ The parent-owned launcher should return `TrialLaunch(backend, isolation_prefligh
 
 ## Loop and trace behavior
 
-- Tool schemas are taken from the backend's native MCP catalog. The four AIAD app-only tools are filtered using names and MCP app metadata; tools that look like host filesystem, shell, browser, corpus, oracle, or credential functions are excluded. Tool descriptions and schemas are sanitized before they reach the provider. For non-AIAD catalogs, provide an explicit `native_tool_allowlist` from that backend's pinned catalog.
+- Tool schemas are taken from the backend's native MCP catalog. The four AAD app-only tools are filtered using names and MCP app metadata; tools that look like host filesystem, shell, browser, corpus, oracle, or credential functions are excluded. Tool descriptions and schemas are sanitized before they reach the provider. For non-AAD catalogs, provide an explicit `native_tool_allowlist` from that backend's pinned catalog.
 - The harness adds `benchmark_finish` with the protocol receipt schema. It stores the receipt as a model claim. Server `status: verified` claims are stored separately and neither kind is treated as independent evidence.
 - OpenAI uses Responses function calls and `responses.input_tokens.count`; Anthropic uses Messages tool blocks and `messages.count_tokens`. The prompt count includes the native tool catalog and images. The same reservation rule applies to both: count input, add the configured percentage and fixed safety margin, then reserve the full per-call output limit before generation. Anthropic's counter is documented as an estimate, so keep a positive margin. Actual cache, image, and reasoning usage detail is retained; cache and reasoning subcounts are not added twice.
 - Missing or malformed provider usage stops the loop and makes the trial ineligible. The result reports known input/output sums and uses `null` for a total if any attempted generation has unknown usage. A provider call timeout also leaves usage unknown.
@@ -40,7 +40,7 @@ Each invocation returns one `TrialResult`. Budget stops and incomplete model tur
 ## Programmatic composition
 
 ```python
-from evals.benchmark.harness.aiad_benchmark_harness import (
+from evals.benchmark.harness.aad_benchmark_harness import (
     IsolationPreflight,
     PublicStageProjection,
     RunConfig,

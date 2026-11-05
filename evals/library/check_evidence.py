@@ -17,7 +17,7 @@ def main():
     validate_parts(parts, base=BASE, expected=probe_parts.EXPECTED,
                    source_sha256=probe_parts.fingerprints(), measure=probe_parts.measure_artifact)
     mcp = load_document(BASE / "mcp-evidence.json")
-    require(mcp.get("versions") == {p: version(p) for p in ("aiad", "aiad-quality", "mcp")}, "MCP runtime versions disagree")
+    require(mcp.get("versions") == {p: version(p) for p in ("aad-design", "aad-quality", "mcp")}, "MCP runtime versions disagree")
     validate_mcp(mcp, source_sha256=check_mcp_library.fingerprints(),
                  probe_sha256=hashlib.sha256((BASE / "check_mcp_library.py").read_bytes()).hexdigest())
     print("PASS: exact trial/call coverage, source/guidance fingerprints and fresh BREP audits agree")

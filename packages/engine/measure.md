@@ -1,6 +1,6 @@
 # Native geometry measurement
 
-`aiad.engine.measure.measure(ctx, kind, a=None, b=None)` runs inside a trusted
+`aad.engine.measure.measure(ctx, kind, a=None, b=None)` runs inside a trusted
 kernel worker with a live 3D `ModelContext`. Importing the module stays
 kernel-free. It reads native BREP geometry rather than `ctx.metrics` or stored
 entity measurements. The function itself does not establish an OS boundary;
@@ -69,7 +69,7 @@ Tests run against main exercise whole-shape operations and explicit missing
 dependency failures. The selected-operation test class is visibly skipped until
 the selector dependency is present; this is not evidence of selector integration.
 The parent also runs that same test file with the actual immutable PR41 selector
-source loaded from a temporary file into `aiad.engine.select`, without a fake
+source loaded from a temporary file into `aad.engine.select`, without a fake
 resolver or a repository edit. After #41 merges, all cases run normally:
 
 ```sh

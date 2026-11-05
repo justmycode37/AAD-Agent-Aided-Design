@@ -9,8 +9,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from aiad_drafting import Entity2D, Sheet2D, sheet2d
-from aiad_drafting.validation2d import checks, measurement_evidence
+from aad_drafting import Entity2D, Sheet2D, sheet2d
+from aad_drafting.validation2d import checks, measurement_evidence
 
 
 def context(sheet, *, units=None, process=None):
@@ -49,7 +49,7 @@ def direct_closed_polyline(points, *, name="crossing", units="mm"):
 def test_validation_import_does_not_load_the_cad_kernel():
     package_src = Path(__file__).parents[1] / "src"
     code = (
-        "import sys; import aiad_drafting.validation2d; "
+        "import sys; import aad_drafting.validation2d; "
         "assert 'build123d' not in sys.modules; "
         "assert not any(name == 'OCP' or name.startswith('OCP.') for name in sys.modules)"
     )

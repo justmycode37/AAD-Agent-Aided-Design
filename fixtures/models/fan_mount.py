@@ -1,6 +1,6 @@
 """A four-hole fan mounting plate built with plain build123d contexts."""
 
-from aiad import *
+from aad import *
 
 P = params(
     width=60.0,

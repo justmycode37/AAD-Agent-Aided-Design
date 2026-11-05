@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from aiad_drafting import export_2d, make_scene
-from aiad_drafting._safe_output import OutputDirectory
-from aiad_drafting.model2d import Sheet2D
+from aad_drafting import export_2d, make_scene
+from aad_drafting._safe_output import OutputDirectory
+from aad_drafting.model2d import Sheet2D
 
 pytestmark = pytest.mark.skipif(os.name != 'posix', reason='POSIX directory-handle adversarial tests')
 

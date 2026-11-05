@@ -10,10 +10,10 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from aiad.engine.measure import MeasurementError, measure
-from aiad.engine.types import Entity, FeatureInfo, ModelContext
+from aad.engine.measure import MeasurementError, measure
+from aad.engine.types import Entity, FeatureInfo, ModelContext
 
-_HAS_SELECTORS = importlib.util.find_spec('aiad.engine.select') is not None
+_HAS_SELECTORS = importlib.util.find_spec('aad.engine.select') is not None
 
 
 def context(shape, units='mm', owners=None):
@@ -134,13 +134,13 @@ class WholeMeasurementTests(unittest.TestCase):
 
     def test_absent_selector_dependency_fails_explicitly(self):
         import build123d as bd
-        with patch.dict(sys.modules, {'aiad.engine.select': None}), self.assertRaises(MeasurementError) as raised:
+        with patch.dict(sys.modules, {'aad.engine.select': None}), self.assertRaises(MeasurementError) as raised:
             measure(context(bd.Box(2, 4, 6)), 'area', "face(where='max_z')")
         self.assertEqual(raised.exception.code, 'BAD_INPUT')
         self.assertIn('selector package is not installed', str(raised.exception))
 
     def test_import_is_kernel_free(self):
-        program = "import sys; import aiad.engine.measure; assert all(m not in sys.modules for m in ('build123d','OCP','vtk'))"
+        program = "import sys; import aad.engine.measure; assert all(m not in sys.modules for m in ('build123d','OCP','vtk'))"
         subprocess.run([sys.executable, '-c', program], check=True, timeout=10)
 
 
@@ -156,7 +156,7 @@ class SelectedMeasurementTests(unittest.TestCase):
         self.assertEqual(measured['scope'], 'selected_entities')
         self.assertEqual(len(measured['entities']), 2)
         self.assertEqual(measured['entities'][0]['feature'], 'stock')
-        self.assertNotIn('_aiad_binding', json.dumps(measured, allow_nan=False))
+        self.assertNotIn('_aad_binding', json.dumps(measured, allow_nan=False))
         self.assertAlmostEqual(measure(ctx, 'area', top)['value'], 8)
         self.assertAlmostEqual(measure(ctx, 'angle', top, bottom)['value'], 0)
         self.assertAlmostEqual(measure(ctx, 'angle', top, "face(where='max_x')")['value'], 90)

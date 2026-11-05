@@ -5,7 +5,7 @@ from importlib.metadata import PackageNotFoundError
 
 import pytest
 
-from aiad_quality.standard_parts import (
+from aad_quality.standard_parts import (
     _BEARING_SIZES,
     _FASTENER_LENGTHS_BY_SIZE,
     _THREAD_SIZES,
@@ -78,12 +78,12 @@ def test_make_part_rejects_unknown_ids_and_parameters_before_import(
 
 
 def test_missing_or_wrong_backend_fails_before_geometry_import(monkeypatch):
-    import aiad_quality.standard_parts as adapter
+    import aad_quality.standard_parts as adapter
     _forbid_optional_geometry_imports(monkeypatch)
     def missing(package):
         raise PackageNotFoundError(package)
     monkeypatch.setattr(adapter, 'version', missing)
-    with pytest.raises(RuntimeError, match=r'aiad-quality\[parts\]'):
+    with pytest.raises(RuntimeError, match=r'aad-quality\[parts\]'):
         make_part(FASTENER_ID)
     monkeypatch.setattr(adapter, 'version', lambda package: '0.3.0')
     with pytest.raises(RuntimeError, match='requires bd_warehouse==0.4.0'):

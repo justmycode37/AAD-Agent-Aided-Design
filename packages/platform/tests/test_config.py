@@ -1,12 +1,12 @@
 import pytest
 
-from aiad_platform import config
-from aiad_platform.daemon.handlers import viewer_mode
+from aad_platform import config
+from aad_platform.daemon.handlers import viewer_mode
 
 
 @pytest.fixture(autouse=True)
 def home(tmp_path, monkeypatch):
-    monkeypatch.setenv("AIAD_HOME", str(tmp_path))
+    monkeypatch.setenv("AAD_HOME", str(tmp_path))
     return tmp_path
 
 
@@ -49,7 +49,7 @@ def test_viewer_mode(setting, client, expected):
 def test_browser_opens_only_when_windows_were_requested(setting, opens, monkeypatch):
     import asyncio
 
-    from aiad_platform.daemon.handlers import Handlers
+    from aad_platform.daemon.handlers import Handlers
 
     config.set_value("viewer", setting)
     opened = []
@@ -73,10 +73,10 @@ def test_browser_opens_only_when_windows_were_requested(setting, opens, monkeypa
 
 
 def test_set_param_shows_with_the_callers_client(monkeypatch):
-    """Regression: a nested aiad_show without a client looked like a call from an open local page."""
+    """Regression: a nested aad_show without a client looked like a call from an open local page."""
     import asyncio
 
-    from aiad_platform.daemon.handlers import Handlers
+    from aad_platform.daemon.handlers import Handlers
 
     handlers = Handlers()
     seen = []
@@ -88,8 +88,8 @@ def test_set_param_shows_with_the_callers_client(monkeypatch):
         seen.append(params)
         return {"structured": {"ok": True}}
 
-    monkeypatch.setattr(handlers, "aiad_build", build)
-    monkeypatch.setattr(handlers, "aiad_show", show)
+    monkeypatch.setattr(handlers, "aad_build", build)
+    monkeypatch.setattr(handlers, "aad_show", show)
     client = {"supports_ui": True}
-    asyncio.run(handlers.aiad_set_param({"project": "p", "base_rev": 1, "name": "w", "value": 2, "client": client}))
+    asyncio.run(handlers.aad_set_param({"project": "p", "base_rev": 1, "name": "w", "value": 2, "client": client}))
     assert seen == [{"project": "p", "rev": 2, "client": client}]

@@ -1,6 +1,6 @@
 """Build a simple, editable laser-cut mounting panel."""
 
-from aiad_drafting.model2d import sheet2d
+from aad_drafting.model2d import sheet2d
 
 
 panel = sheet2d("laser_panel", units="mm")
@@ -18,7 +18,7 @@ panel = panel.linear_pattern(
 )
 
 panel.line("center_score", (-44, 0), (44, 0), layer="score")
-panel.text("mark", "AIAD", (-5, 3), height=3, layer="engrave")
+panel.text("mark", "AAD", (-5, 3), height=3, layer="engrave")
 
 if __name__ == "__main__":
     face = panel.to_face(layers=("cut",))

@@ -1,7 +1,7 @@
 """Warm make_scene timing against the 300 ms budget (PLAN section 9) for parts of at most 200 faces.
 
 Run with:
-    uv run --locked --package aiad-render --all-extras \
+    uv run --locked --package aad-render --all-extras \
       python packages/render/tests/perf/bench_scene.py --repeat 20
 
 Prints one JSON record per part. Times are measured in this process after the imports and one warm-up
@@ -22,7 +22,7 @@ from types import SimpleNamespace
 
 from build123d import Align, Axis, Box, BuildPart, CounterBoreHole, GridLocations, Hole, Locations, Plane, fillet
 
-from aiad_render import make_scene
+from aad_render import make_scene
 
 BUDGET_MS = 300.0
 

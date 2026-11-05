@@ -1,6 +1,6 @@
 """One named plate, four through holes, and four rounded outside corners."""
 
-from aiad import *
+from aad import *
 
 P = params(
     width=Param(60.0, 40.0, 100.0, "mm"),

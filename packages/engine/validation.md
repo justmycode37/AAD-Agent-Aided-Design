@@ -1,6 +1,6 @@
 # Independent BREP inspection
 
-`aiad.engine.validation.inspect_brep(path, candidate_dir=..., kind=..., units=...,
+`aad.engine.validation.inspect_brep(path, candidate_dir=..., kind=..., units=...,
 timeout_s=60, spec=None)` produces `GeometryEvidence` without executing the model
 or trusting its metrics. The parent module imports only the standard library
 and kernel-free engine modules. Native parsing and geometry checks run in a

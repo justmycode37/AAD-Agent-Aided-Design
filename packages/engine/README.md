@@ -1,9 +1,9 @@
-# AIAD engine bootstrap
+# AAD engine bootstrap
 
 This package is the M0 S1 worker bootstrap. It publishes kernel-free contract
-dataclasses from `aiad.engine.types`, re-exports build123d names lazily from
-`aiad`, and runs each submitted script in a fresh OS-sandboxed Python subprocess
-through `aiad.engine.sandbox.popen`.
+dataclasses from `aad.engine.types`, re-exports build123d names lazily from
+`aad`, and runs each submitted script in a fresh OS-sandboxed Python subprocess
+through `aad.engine.sandbox.popen`.
 
 ## Install and run
 
@@ -23,8 +23,8 @@ uv run --locked --python 3.12 python -m unittest discover -s tests -v
 A simple request can build a shape directly or use a `BuildPart` context:
 
 ```python
-from aiad.engine.jobs import run_build
-from aiad.engine.types import BuildRequest
+from aad.engine.jobs import run_build
+from aad.engine.types import BuildRequest
 
 result = run_build(BuildRequest(source="result = Box(20, 10, 6)"))
 print(result.status, result.metrics, result.artifacts["part.brep"])
@@ -72,7 +72,7 @@ not add one. See [sandbox.md](sandbox.md) for the boundary and its tests.
   independently prove BREP validity. Worker proof claims and scene status stay
   draft pending a trusted validator, including binding its evidence to inputs
   and artifacts.
-- `aiad_quality` and `aiad_render` hooks are optional. Missing hooks produce
+- `aad_quality` and `aad_render` hooks are optional. Missing hooks produce
   explicit `skip` checks; hook exceptions produce `warn` checks and retain the
   BREP. An unavailable or skipped spec check cannot produce `verified`.
   Editable optional-package imports receive a directory-only search grant.
@@ -92,9 +92,9 @@ not add one. See [sandbox.md](sandbox.md) for the boundary and its tests.
   worker exits stay crashes, without inferring OOM or a kernel cause.
   A warm worker pool, memory budgets and a revision store remain required.
 - S2's trusted post-build operations still need to adopt this launcher under
-  [issue #21](https://github.com/justmycode37/AIAD-AI-Aided-Design-/issues/21).
+  [issue #21](https://github.com/justmycode37/AAD-Agent-Aided-Design/issues/21).
   Linux package/e2e CI must install bubblewrap under
-  [issue #50](https://github.com/justmycode37/AIAD-AI-Aided-Design-/issues/50);
+  [issue #50](https://github.com/justmycode37/AAD-Agent-Aided-Design/issues/50);
   public Linux build tests are not skipped when that dependency is absent.
 - Units are carried as request metadata. The model's numeric coordinates are
   not rescaled or inferred by the worker.

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 from build123d import Box, Cylinder, Pos, Rot, Sphere, Torus
 
-from aiad_quality.spec import spec_checks
+from aad_quality.spec import spec_checks
 
 
 def check(shape, body):

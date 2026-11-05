@@ -5,7 +5,7 @@ This package supplies on-demand content and a small part adapter. It has no real
 From the repository root, reproduce the package tests and repeated constructor measurements:
 
 ```sh
-UV_PROJECT_ENVIRONMENT=packages/quality/.ci-venv uv run --locked --package aiad-quality --all-extras --with pytest --with pytest-timeout python -m pytest packages/quality/tests -q
+UV_PROJECT_ENVIRONMENT=packages/quality/.ci-venv uv run --locked --package aad-quality --all-extras --with pytest --with pytest-timeout python -m pytest packages/quality/tests -q
 UV_PROJECT_ENVIRONMENT=packages/quality/.workspace-venv uv run --locked --all-packages --all-extras python evals/library/probe_parts.py --repetitions 3
 UV_PROJECT_ENVIRONMENT=packages/quality/.workspace-venv uv run --locked --all-packages --all-extras python evals/library/check_mcp_library.py
 UV_PROJECT_ENVIRONMENT=packages/quality/.workspace-venv uv run --locked --all-packages --all-extras python evals/library/check_evidence.py
@@ -21,7 +21,7 @@ Package resources must also work outside the checkout:
 
 ```sh
 uv build packages/quality --wheel --sdist --out-dir packages/quality/dist
-uv build packages/quality/dist/aiad_quality-0.1.0.tar.gz --wheel --out-dir packages/quality/dist/from-sdist
+uv build packages/quality/dist/aad_quality-0.1.0.tar.gz --wheel --out-dir packages/quality/dist/from-sdist
 ```
 
 The parent additionally installed the rebuilt wheel into a venv containing only the quality wheel and PyYAML, then called search/get for every kind repeatedly under `python -I`. Lookup and packaged candidate retrieval passed without importing a CAD kernel. Construction requires the optional pinned `parts` backend. Material and guidance sources are documented in the adjacent notes.

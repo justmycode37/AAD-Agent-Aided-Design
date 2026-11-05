@@ -1,6 +1,8 @@
-# AIAD
+# AAD (Agent-Aided Design)
 
 CAD for agents: a background MCP server that lets any agent design real 2D and 3D parts and prove they meet the request. When the user asks to see a part, the agent shows it inline in the chat.
+
+The Python distribution is `aad-design`; the CLI command and Python modeling import are `aad`. The shorter PyPI name `aad` belongs to another project.
 
 Pre-release and not yet published. `PLAN.md` is the scope and `CONTRACTS.md` is the binding set of interfaces.
 
@@ -10,7 +12,7 @@ Requires Python 3.12 and [uv](https://docs.astral.sh/uv/) (`brew install uv`).
 
 ```bash
 uv sync --all-packages              # create .venv with every workspace package
-uv run aiad version                 # run the CLI from the workspace
+uv run aad version                 # run the CLI from the workspace
 uv run pytest packages/platform     # one package's tests
 uv run pytest tests/e2e             # end-to-end smoke test
 ```

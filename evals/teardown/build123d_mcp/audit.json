@@ -9,7 +9,7 @@
   "scope": "deterministic teardown artifacts, not an independent sampled agent audit",
   "records": [
     {
-      "file": "/Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/blocked_counterbore/blocked_counterbore-r1.step",
+      "file": "/Users/benajaheger/Documents/museum of failures/AAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/blocked_counterbore/blocked_counterbore-r1.step",
       "task": "blocked_counterbore",
       "step_sha256": "d540e4ce5279554788c73ddac678defe1400e39364e2f594cc754d41917d4cbf",
       "checks": {
@@ -36,7 +36,7 @@
       "requirements_pass": false
     },
     {
-      "file": "/Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/blocked_counterbore/blocked_counterbore-r2.step",
+      "file": "/Users/benajaheger/Documents/museum of failures/AAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/blocked_counterbore/blocked_counterbore-r2.step",
       "task": "blocked_counterbore",
       "step_sha256": "ed5f2d8f9b3a0969de317cbe71c5d537769c1e3aed3bd71cb693940be51aeb79",
       "checks": {
@@ -63,7 +63,7 @@
       "requirements_pass": false
     },
     {
-      "file": "/Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/blocked_counterbore/blocked_counterbore-r3.step",
+      "file": "/Users/benajaheger/Documents/museum of failures/AAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/blocked_counterbore/blocked_counterbore-r3.step",
       "task": "blocked_counterbore",
       "step_sha256": "42b8f3e6f74c01f760bf582dc78c45e92758e477cdd82efc5485db149d1a642e",
       "checks": {
@@ -90,7 +90,7 @@
       "requirements_pass": false
     },
     {
-      "file": "/Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/edit_plate/edit_plate-r1.step",
+      "file": "/Users/benajaheger/Documents/museum of failures/AAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/edit_plate/edit_plate-r1.step",
       "task": "edit_plate",
       "step_sha256": "3ca43df149f73224438cda52c7097278b535959b671f6bf069e752815fa610b7",
       "checks": {
@@ -113,7 +113,7 @@
       "requirements_pass": true
     },
     {
-      "file": "/Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/edit_plate/edit_plate-r2.step",
+      "file": "/Users/benajaheger/Documents/museum of failures/AAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/edit_plate/edit_plate-r2.step",
       "task": "edit_plate",
       "step_sha256": "d083251d7a3b557e551da25665b4527974de2a189a8c913f7f2475754a450cd5",
       "checks": {
@@ -136,7 +136,7 @@
       "requirements_pass": true
     },
     {
-      "file": "/Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/edit_plate/edit_plate-r3.step",
+      "file": "/Users/benajaheger/Documents/museum of failures/AAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/edit_plate/edit_plate-r3.step",
       "task": "edit_plate",
       "step_sha256": "6e3d5167a5548de206343f9a281a3c09b8facc3ba6421aad037bee346e89a2ef",
       "checks": {
@@ -159,7 +159,7 @@
       "requirements_pass": true
     },
     {
-      "file": "/Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/plate/plate-r1.step",
+      "file": "/Users/benajaheger/Documents/museum of failures/AAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/plate/plate-r1.step",
       "task": "plate",
       "step_sha256": "4a5c708336d04c1610c8e4af4159b9ba7fb22d080596657697912096f8dd07a2",
       "checks": {
@@ -182,7 +182,7 @@
       "requirements_pass": true
     },
     {
-      "file": "/Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/plate/plate-r2.step",
+      "file": "/Users/benajaheger/Documents/museum of failures/AAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/plate/plate-r2.step",
       "task": "plate",
       "step_sha256": "7882e0ad8bf5c3f09b8308734a591deded93246af59136569ea8e69d575fe878",
       "checks": {
@@ -205,7 +205,7 @@
       "requirements_pass": true
     },
     {
-      "file": "/Users/benajaheger/Documents/museum of failures/AIAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/plate/plate-r3.step",
+      "file": "/Users/benajaheger/Documents/museum of failures/AAD-worktrees/s5/evals/teardown/build123d_mcp/outputs/step/plate/plate-r3.step",
       "task": "plate",
       "step_sha256": "d5cd62ea3ba4e09f1b6546ec5d19f3686df971f809e56e9f336d6ad1f71d2e63",
       "checks": {

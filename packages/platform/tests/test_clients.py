@@ -8,11 +8,11 @@ from pathlib import Path
 
 import pytest
 
-from aiad_platform.clients import CLIENT_IDS, ServerEntry, install, statuses, uninstall
-from aiad_platform.clients import _CLIENTS, _client_config_path, _client_detection_paths
-from aiad_platform.clients._formats import ABSENT, empty_text, get_entry, parse_document, set_entry
-from aiad_platform.clients._writers import _entry_for_client
-from aiad_platform.paths import aiad_home
+from aad_platform.clients import CLIENT_IDS, ServerEntry, install, statuses, uninstall
+from aad_platform.clients import _CLIENTS, _client_config_path, _client_detection_paths
+from aad_platform.clients._formats import ABSENT, empty_text, get_entry, parse_document, set_entry
+from aad_platform.clients._writers import _entry_for_client
+from aad_platform.paths import aad_home
 
 
 @pytest.fixture(autouse=True)
@@ -22,7 +22,7 @@ def isolated_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("APPDATA", str(home / "AppData" / "Roaming"))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(home / ".config"))
-    monkeypatch.setenv("AIAD_HOME", str(home / ".aiad"))
+    monkeypatch.setenv("AAD_HOME", str(home / ".aad"))
     for name in ("CODEX_HOME", "CLINE_DIR", "CLINE_DATA_DIR", "CLINE_MCP_SETTINGS_PATH"):
         monkeypatch.delenv(name, raising=False)
     return home
@@ -30,9 +30,9 @@ def isolated_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def _entry(home: Path, version: int = 1) -> ServerEntry:
     return ServerEntry(
-        command=str(home / "bin" / f"aiad-{version}"),
+        command=str(home / "bin" / f"aad-{version}"),
         args=("mcp", "--stdio"),
-        env={"AIAD_TEST_MODE": str(version)},
+        env={"AAD_TEST_MODE": str(version)},
     )
 
 
@@ -105,7 +105,7 @@ def _document(client_id: str, path: Path) -> dict:
 
 
 def _manifest_path(client_id: str) -> Path:
-    return aiad_home() / "backups" / client_id / "manifest.json"
+    return aad_home() / "backups" / client_id / "manifest.json"
 
 
 def _assert_unrelated_server(client_id: str, document: dict) -> None:
@@ -212,7 +212,7 @@ def test_dry_run_creates_no_file_backup_or_directory(client_id: str, isolated_ho
     assert result.action == "installed"
     assert before == after
     assert not path.exists()
-    assert not aiad_home().exists()
+    assert not aad_home().exists()
 
 
 @pytest.mark.parametrize("client_id", CLIENT_IDS)
@@ -266,7 +266,7 @@ def _add_unrelated_edit(client_id: str, path: Path) -> None:
 
 
 @pytest.mark.parametrize("client_id", CLIENT_IDS)
-def test_uninstall_after_unrelated_edit_keeps_edit_and_removes_only_aiad(client_id: str, isolated_home: Path) -> None:
+def test_uninstall_after_unrelated_edit_keeps_edit_and_removes_only_aad(client_id: str, isolated_home: Path) -> None:
     path, _ = _write_seed(client_id)
     assert install(client_id, _entry(isolated_home)).action == "installed"
     _add_unrelated_edit(client_id, path)
@@ -300,11 +300,11 @@ def test_unparseable_config_is_left_untouched(client_id: str, isolated_home: Pat
     assert result.action == "failed"
     assert path.read_bytes() == bad_bytes
     assert stat.S_IMODE(path.stat().st_mode) == 0o640
-    assert not aiad_home().exists()
+    assert not aad_home().exists()
 
 
 @pytest.mark.parametrize("client_id", CLIENT_IDS)
-def test_foreign_aiad_entry_is_skipped(client_id: str, isolated_home: Path) -> None:
+def test_foreign_aad_entry_is_skipped(client_id: str, isolated_home: Path) -> None:
     definition = _CLIENTS[client_id]
     foreign = _entry_for_client(client_id, ServerEntry(str(isolated_home / "bin" / "foreign"), ("serve",), {"OWNER": "other"}))
     text = set_entry(definition, empty_text(definition), foreign)
@@ -314,7 +314,7 @@ def test_foreign_aiad_entry_is_skipped(client_id: str, isolated_home: Path) -> N
 
     assert result.action == "skipped"
     assert path.read_bytes() == original
-    assert not aiad_home().exists()
+    assert not aad_home().exists()
 
 
 @pytest.mark.parametrize("client_id", ("codex", "goose", "zed"))
@@ -363,7 +363,7 @@ def test_codex_restart_hint_explains_exec_approval_and_t3_code(isolated_home: Pa
     assert "codex exec" in hint
     assert "approval_policy=never" in hint
     assert 'default_tools_approval_mode = "approve"' in hint
-    assert "AIAD does not set this for you" in hint
+    assert "AAD does not set this for you" in hint
     assert "T3 Code" in hint
     assert "~/.codex/config.toml" in hint
 
@@ -376,9 +376,9 @@ def test_macos_detection_uses_the_config_directory(client_id: str, isolated_home
 
 
 def test_no_writer_operation_touches_outside_temp_home(isolated_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from aiad_platform.clients import _writers
+    from aad_platform.clients import _writers
 
-    assert aiad_home().is_relative_to(isolated_home)
+    assert aad_home().is_relative_to(isolated_home)
     touched: list[Path] = []
     for name in ("_atomic_write", "_mkdir_one", "_unlink", "_rmdir"):
         original = getattr(_writers, name)
@@ -417,7 +417,7 @@ def test_zed_handles_escaped_quotes_and_nested_trailing_commas(isolated_home: Pa
 
     assert install("zed", _entry(isolated_home)).action == "installed"
     document = parse_document(_CLIENTS["zed"], path.read_text())
-    assert "aiad" in document["context_servers"] and "other" in document["context_servers"]
+    assert "aad" in document["context_servers"] and "other" in document["context_servers"]
     assert document["theme"] == 'a "quoted" } brace'
 
     assert uninstall("zed").action == "restored"
@@ -425,7 +425,7 @@ def test_zed_handles_escaped_quotes_and_nested_trailing_commas(isolated_home: Pa
 
 
 @pytest.mark.parametrize("client_id", CLIENT_IDS)
-def test_uninstall_keeps_user_fields_inside_aiad(client_id, isolated_home):
+def test_uninstall_keeps_user_fields_inside_aad(client_id, isolated_home):
     path, _ = _write_seed(client_id)
     assert install(client_id, _entry(isolated_home)).action == "installed"
     definition = _CLIENTS[client_id]
@@ -440,7 +440,7 @@ def test_uninstall_keeps_user_fields_inside_aiad(client_id, isolated_home):
 
 @pytest.mark.parametrize("delimiter", ['"""', "'''"])
 def test_codex_preserves_multiline_strings_with_table_like_lines(delimiter, isolated_home):
-    description = f'description = {delimiter}\n[mcp_servers.aiad]\nlost text\n[ui]\n{delimiter}\n'
+    description = f'description = {delimiter}\n[mcp_servers.aad]\nlost text\n[ui]\n{delimiter}\n'
     original = "[agents.researcher]\n" + description
     path, _ = _write_seed("codex", original)
     assert install("codex", _entry(isolated_home)).action == "installed"
@@ -475,7 +475,7 @@ def test_client_path_override_is_used_for_install(client_id, variable, suffix, i
 
 @pytest.mark.parametrize("operation", ["install", "uninstall"])
 def test_client_save_before_replace_is_preserved(operation, isolated_home, monkeypatch):
-    from aiad_platform.clients import _writers
+    from aad_platform.clients import _writers
 
     path, _ = _write_seed("claude-code")
     if operation == "uninstall":
@@ -497,7 +497,7 @@ def test_client_save_before_replace_is_preserved(operation, isolated_home, monke
 
 
 def test_manifest_failure_keeps_backup_when_client_prevents_rollback(isolated_home, monkeypatch):
-    from aiad_platform.clients import _writers
+    from aad_platform.clients import _writers
 
     path, original = _write_seed("claude-code")
     atomic_write = _writers._atomic_write

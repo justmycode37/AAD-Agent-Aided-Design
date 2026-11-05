@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from aiad_drafting.constraints import ConstraintSketch
+from aad_drafting.constraints import ConstraintSketch
 
 
 def main() -> None:

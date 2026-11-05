@@ -10,7 +10,7 @@ import pytest
 from build123d import Box, Cylinder, Polygon, Pos, extrude
 from PIL import Image
 
-from aiad_render import render
+from aad_render import render
 
 
 def _bracket():
@@ -110,7 +110,7 @@ def test_face_and_edge_labels_write_selector_legends(tmp_path, mode, kind):
 
 
 def test_section_is_capped_and_annotated_with_the_plane(tmp_path):
-    from aiad_render.agent_render import _parse_section, _section_shape
+    from aad_render.agent_render import _parse_section, _section_shape
 
     shape = _bracket()
     section = _parse_section({"plane": "XY", "offset": 15}, "mm")
@@ -182,7 +182,7 @@ def test_highlight_accepts_raw_face_and_edge_indices(tmp_path):
 
 
 def test_general_section_plane_string_is_supported():
-    from aiad_render.agent_render import _parse_section
+    from aad_render.agent_render import _parse_section
 
     section = _parse_section(
         {"plane": "point=(1,2,3);normal=(0,0,2)", "offset": 4},
@@ -202,7 +202,7 @@ def test_general_section_plane_string_is_supported():
     ],
 )
 def test_axis_aligned_section_offsets(plane, normal, point):
-    from aiad_render.agent_render import _parse_section
+    from aad_render.agent_render import _parse_section
 
     section = _parse_section({"plane": plane, "offset": 12}, "mm")
     assert section.normal == normal
@@ -225,7 +225,7 @@ def test_png_is_identical_in_two_processes(tmp_path, label, request_text, filena
 import sys
 from pathlib import Path
 from build123d import Box, Cylinder, Pos
-from aiad_render import render
+from aad_render import render
 from types import SimpleNamespace
 part = Box(40, 20, 6) + Pos(0, 7, 10) * Box(40, 6, 20) - Pos(0, -3, 0) * Cylinder(3, 10)
 render(SimpleNamespace(shape=part, units='mm', features=[]),
@@ -254,7 +254,7 @@ render(SimpleNamespace(shape=part, units='mm', features=[]),
 
 
 def _scene_for(shape):
-    from aiad_render.agent_render import _make_scene, _shape_bounds
+    from aad_render.agent_render import _make_scene, _shape_bounds
 
     faces, edges = shape.faces(), shape.edges()
     return _make_scene(
@@ -275,7 +275,7 @@ def _scene_for(shape):
 
 
 def test_thickness_reads_real_wall_sizes():
-    from aiad_render.thickness import face_thickness
+    from aad_render.thickness import face_thickness
 
     scene = _scene_for(Box(60, 40, 6))
     values = face_thickness(scene)
@@ -287,7 +287,7 @@ def test_thickness_reads_real_wall_sizes():
 
 
 def test_thickness_ignores_corners_and_finds_the_thin_wall():
-    from aiad_render.thickness import face_thickness
+    from aad_render.thickness import face_thickness
 
     # A 2 mm web between two 20 mm blocks: rays at the inside corners must not read near zero.
     part = Box(40, 40, 2) + Pos(-30, 0, 9) * Box(20, 40, 20) + Pos(30, 0, 9) * Box(20, 40, 20)
@@ -297,7 +297,7 @@ def test_thickness_ignores_corners_and_finds_the_thin_wall():
 
 
 def test_labels_skip_faces_the_camera_cannot_see():
-    from aiad_render.agent_render import _Label, _camera, _visible_labels
+    from aad_render.agent_render import _Label, _camera, _visible_labels
 
     box = Box(10, 10, 10)
     scene = _scene_for(box)
@@ -310,7 +310,7 @@ def test_labels_skip_faces_the_camera_cannot_see():
 
 
 def test_section_cap_is_hatched_and_colored(tmp_path):
-    from aiad_render.agent_render import _SECTION_CAP
+    from aad_render.agent_render import _SECTION_CAP
 
     paths = _render_or_skip(
         _context(_bracket()),
@@ -327,7 +327,7 @@ def test_section_cap_is_hatched_and_colored(tmp_path):
 
 
 def test_linux_without_display_or_osmesa_raises_instead_of_crashing(monkeypatch):
-    from aiad_render.backends import vtk_backend
+    from aad_render.backends import vtk_backend
 
     monkeypatch.setattr(vtk_backend.sys, "platform", "linux")
     for name in ("DISPLAY", "WAYLAND_DISPLAY", "VTK_DEFAULT_OPENGL_WINDOW"):
@@ -338,7 +338,7 @@ def test_linux_without_display_or_osmesa_raises_instead_of_crashing(monkeypatch)
 
 
 def test_linux_without_display_uses_osmesa_when_installed(monkeypatch):
-    from aiad_render.backends import vtk_backend
+    from aad_render.backends import vtk_backend
 
     monkeypatch.setattr(vtk_backend.sys, "platform", "linux")
     for name in ("DISPLAY", "WAYLAND_DISPLAY", "VTK_DEFAULT_OPENGL_WINDOW"):
@@ -352,7 +352,7 @@ def test_linux_without_display_uses_osmesa_when_installed(monkeypatch):
 
 
 def _capture_render(monkeypatch, ctx, req, out):
-    from aiad_render import agent_render
+    from aad_render import agent_render
 
     captured = []
 
@@ -368,7 +368,7 @@ def _capture_render(monkeypatch, ctx, req, out):
 
 def test_semantic_face_highlight_does_not_expand_to_the_whole_feature(monkeypatch, tmp_path):
     from types import SimpleNamespace
-    from aiad_render import agent_render
+    from aad_render import agent_render
 
     monkeypatch.setattr(agent_render, "_engine_resolver", lambda: (
         lambda ctx, selector: [SimpleNamespace(kind="face", index=1, feature="body")]

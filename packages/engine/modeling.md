@@ -1,6 +1,6 @@
 # Named modeling and semantic selection
 
-`from aiad import *` re-exports build123d and adds `Param`, `params`, `meta`,
+`from aad import *` re-exports build123d and adds `Param`, `params`, `meta`,
 `part`, `feature`, `face`, `edge`, and `vertex`. Kernel imports remain lazy.
 [The named mount fixture](../../fixtures/models/named_mount.py) builds a Box,
 four through holes, and four real fillets with the pinned kernel.
@@ -51,7 +51,7 @@ empty or ambiguous; it does not silently follow the closest face. A separate
 result without proven topology identity to the named builder has `unknown`
 ownership. Plain build123d scripts keep their implicit `main` feature.
 
-`aiad.engine.select.resolve(ctx, selector, expect=None)` returns `Entity`
+`aad.engine.select.resolve(ctx, selector, expect=None)` returns `Entity`
 metadata. Its grammar is one literal call to `face`, `edge`, or `vertex` with
 these optional keywords:
 
@@ -108,6 +108,6 @@ is not the 30-part regression corpus. Pool, sandbox, revision, I/O, gate,
 assembly, and status work is outside this change.
 
 ```sh
-UV_PROJECT_ENVIRONMENT=/tmp/aiad-s1-modeling uv run --locked --python 3.12 \
-  --package aiad-engine python -m unittest discover -s packages/engine/tests -v
+UV_PROJECT_ENVIRONMENT=/tmp/aad-s1-modeling uv run --locked --python 3.12 \
+  --package aad-engine python -m unittest discover -s packages/engine/tests -v
 ```

@@ -4,8 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from aiad_quality.schema import SpecValidationError, load_spec
-from aiad_quality.spec import spec_checks
+from aad_quality.schema import SpecValidationError, load_spec
+from aad_quality.spec import spec_checks
 
 
 def _ctx(spec):

@@ -1,12 +1,12 @@
 # Native file I/O
 
-`aiad.engine.fileio` imports without loading build123d or OCP. Call it in a
+`aad.engine.fileio` imports without loading build123d or OCP. Call it in a
 kernel worker: the platform is responsible for sandboxing, revision promotion,
 and deciding whether an unverified revision may be exported.
 
 ```python
 from pathlib import Path
-from aiad.engine.fileio import export, import_file
+from aad.engine.fileio import export, import_file
 
 # ctx is a ModelContext with a live build123d shape and an existing job_dir.
 step = export(ctx, "step", ctx.job_dir / "part.step", schema="AP242")

@@ -1,6 +1,6 @@
 # Process evidence
 
-`aiad_quality.process_checks(ctx)` reads the built B-rep and the requested process. It never treats model parameters or cached metrics as geometry. Each returned check has `heuristic: true`, its assumptions, the tested value, the threshold, and a repair hint. A passing finite screen is not a global manufacturing certificate.
+`aad_quality.process_checks(ctx)` reads the built B-rep and the requested process. It never treats model parameters or cached metrics as geometry. Each returned check has `heuristic: true`, its assumptions, the tested value, the threshold, and a repair hint. A passing finite screen is not a global manufacturing certificate.
 
 A missing process requests no screen. `spec.process` is honored if the context has no process; conflicting context/spec processes fail. Unknown processes, invalid settings and unexpected evaluator exceptions produce error diagnostics. Expected unavailable evidence produces `skip` at the configured severity.
 

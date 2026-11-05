@@ -1,11 +1,11 @@
 # OS sandbox and public build runner
 
-`aiad.engine.sandbox.popen(argv, job_dir, read_paths=())` constructs the OS policy,
+`aad.engine.sandbox.popen(argv, job_dir, read_paths=())` constructs the OS policy,
 launches with a sanitized environment, closes other file descriptors, and gives
 the child only stdin/stdout/stderr pipes. It never invokes a shell. The caller
 owns its timeout, memory budget, pipe handling, and process-group cleanup.
 
-Public `aiad.engine.jobs.run_build` always uses this coupled launcher. There is
+Public `aad.engine.jobs.run_build` always uses this coupled launcher. There is
 no request opt-out, caller environment override, or unsandboxed retry. Missing
 or unsupported boundaries and OS launch errors become structured
 `Failure(code="SANDBOX_DENIED", phase="sandbox")` results with the observed
@@ -25,7 +25,7 @@ Model source must not do I/O (`CONTRACTS.md` section 3). Runtime reads and
 job-local worker output are allowed by the OS policy, but `project_dir` does
 not grant project-file access. A staged `asset(...)` API remains required and
 is not implemented here. S2's trusted post-build operations must also adopt
-this launcher under [issue #21](https://github.com/justmycode37/AIAD-AI-Aided-Design-/issues/21);
+this launcher under [issue #21](https://github.com/justmycode37/AAD-Agent-Aided-Design/issues/21);
 the public model runner does not protect those separate processes.
 
 ## macOS protection exercised here
@@ -33,7 +33,7 @@ the public model runner does not protect those separate processes.
 Seatbelt is applied by `/usr/bin/sandbox-exec` with a default-deny profile.
 Network and Mach service access have no allow rules. Process creation is denied;
 exec of the same process retains the OS policy. Reads cover the interpreter,
-installed runtime packages, AIAD package source roots and explicitly granted
+installed runtime packages, AAD package source roots and explicitly granted
 assets. Active `site-packages`/`dist-packages` roots are included for tools such
 as uv that separate an overlay interpreter from its dependencies; arbitrary
 Python search paths are not added. The root directory itself may be read, without granting its children;
@@ -82,7 +82,7 @@ On macOS 26.6.2 / Python 3.12.10, an import trace reached the native extension
 `vtkmodules.vtkIOXdmf2` without returning before the diagnostic budget expired.
 An earlier public probe timed out during renderer import and retained its BREP.
 The cause of that native hang is unknown. S2 separately observed a native render
-abort in [issue #56](https://github.com/justmycode37/AIAD-AI-Aided-Design-/issues/56).
+abort in [issue #56](https://github.com/justmycode37/AAD-Agent-Aided-Design/issues/56).
 No graphics, network or Mach exception is added in response to either observation.
 The separate preview worker bounds their effect; successful native preview
 rendering inside this Mac policy remains unproven. Scene generation still runs
@@ -99,7 +99,7 @@ actual diagnostic must be retained without guessing which host configuration
 caused it. Linux execution is not verified by this Mac run or by simulated
 native-error tests. S2 must install the `bubblewrap` package (providing `bwrap`)
 in both Linux package and e2e CI jobs under
-[issue #50](https://github.com/justmycode37/AIAD-AI-Aided-Design-/issues/50).
+[issue #50](https://github.com/justmycode37/AAD-Agent-Aided-Design/issues/50).
 The public functional build tests remain enabled on Linux and will fail if the
 boundary cannot launch; passing argv tests or skipped Mac cases do not replace
 that evidence.

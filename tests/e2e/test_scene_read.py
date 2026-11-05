@@ -1,4 +1,4 @@
-"""aiad_scene_read returns the part's real mesh, not just bytes that happen to hash correctly."""
+"""aad_scene_read returns the part's real mesh, not just bytes that happen to hash correctly."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def call(mcp: Any, tool: str, /, **arguments: Any) -> dict[str, Any]:
 def read_all(mcp: Any, manifest: dict[str, Any]) -> tuple[bytes, list[int]]:
     data, sizes = b"", []
     while True:
-        chunk = call(mcp, "aiad_scene_read", scene_id=manifest["scene_id"], offset=len(data))["structuredContent"]
+        chunk = call(mcp, "aad_scene_read", scene_id=manifest["scene_id"], offset=len(data))["structuredContent"]
         assert chunk["total_bytes"] == manifest["total_bytes"]
         data += base64.b64decode(chunk["data_b64"])
         sizes.append(chunk["byte_count"])
@@ -45,14 +45,14 @@ def typed(buffer: dict[str, Any]) -> list[float]:
 
 @pytest.mark.usefixtures("engine")
 def test_scene_read_returns_the_built_geometry(mcp_process: Any) -> None:
-    mcp_process.request("initialize", {"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "aiad-e2e", "version": "1"}})
+    mcp_process.request("initialize", {"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "aad-e2e", "version": "1"}})
     mcp_process.send({"method": "notifications/initialized"})
-    call(mcp_process, "aiad_new", name="scene")
-    built = call(mcp_process, "aiad_build", project="scene", source=BRACKET, wait_s=WAIT_S)["structuredContent"]
+    call(mcp_process, "aad_new", name="scene")
+    built = call(mcp_process, "aad_build", project="scene", source=BRACKET, wait_s=WAIT_S)["structuredContent"]
     assert built["ok"], built
     assert not [c for c in built.get("checks", []) if "scene" in c["id"] and c["status"] != "pass"], built["checks"]
 
-    shown = call(mcp_process, "aiad_show", project="scene")["structuredContent"]
+    shown = call(mcp_process, "aad_show", project="scene")["structuredContent"]
     manifest = shown["scene"]
     assert manifest["format"] == "tcv-5" and manifest["bbox"] == pytest.approx([-30, -20, 0, 30, 20, 6], abs=1e-6)
     assert manifest["project"] == "scene" and manifest["rev"] == 1 and manifest["triangles"] > 12

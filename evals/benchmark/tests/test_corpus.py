@@ -34,7 +34,7 @@ class CorpusContractTests(unittest.TestCase):
         snippet = (
             "import sys; import evals.benchmark.corpus.loader; "
             "assert 'build123d' not in sys.modules; assert 'ezdxf' not in sys.modules; "
-            "assert 'aiad_quality' not in sys.modules; assert 'aiad.engine' not in sys.modules"
+            "assert 'aad_quality' not in sys.modules; assert 'aad.engine' not in sys.modules"
         )
         result = subprocess.run(
             [sys.executable, "-c", snippet],

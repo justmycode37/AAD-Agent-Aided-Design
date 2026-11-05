@@ -14,24 +14,24 @@ from typing import Any, Mapping, Sequence
 
 import pytest
 
-from evals.benchmark.harness.aiad_benchmark_harness.artifacts import (
+from evals.benchmark.harness.aad_benchmark_harness.artifacts import (
     UnsafeArtifactPath,
     stage_claimed_artifacts,
 )
-from evals.benchmark.harness.aiad_benchmark_harness.loop import (
+from evals.benchmark.harness.aad_benchmark_harness.loop import (
     filter_native_tools,
     normalize_mcp_observation,
     run_agent_loop,
 )
-from evals.benchmark.harness.aiad_benchmark_harness.providers import (
+from evals.benchmark.harness.aad_benchmark_harness.providers import (
     AnthropicMessagesAdapter,
     OpenAIResponsesAdapter,
     parse_anthropic_usage,
     parse_openai_usage,
 )
-from evals.benchmark.harness.aiad_benchmark_harness.security import safe_observation, safe_tool_text
-from evals.benchmark.harness.aiad_benchmark_harness.trace import InMemoryTraceWriter, JsonlTraceWriter
-from evals.benchmark.harness.aiad_benchmark_harness.types import (
+from evals.benchmark.harness.aad_benchmark_harness.security import safe_observation, safe_tool_text
+from evals.benchmark.harness.aad_benchmark_harness.trace import InMemoryTraceWriter, JsonlTraceWriter
+from evals.benchmark.harness.aad_benchmark_harness.types import (
     InputTokenEstimate,
     IsolationPreflight,
     MCPObservation,
@@ -194,7 +194,7 @@ class FakeBackend:
         return self.result
 
 
-def safe_tool(name: str = "aiad_build") -> ToolSpec:
+def safe_tool(name: str = "aad_build") -> ToolSpec:
     return ToolSpec(
         name=name,
         description="Build the requested CAD part.",
@@ -247,18 +247,18 @@ def test_run_loop_rechecks_mutable_public_asset_projection() -> None:
 
 def test_filter_removes_app_host_and_oracle_tools() -> None:
     tools = [
-        safe_tool("aiad_build"),
-        safe_tool("aiad_scene_read"),
-        safe_tool("aiad_fs_read"),
-        safe_tool("aiad_browser_open_url"),
-        safe_tool("aiad_fetch_url"),
-        safe_tool("aiad_exec_command"),
-        safe_tool("aiad_read_path"),
+        safe_tool("aad_build"),
+        safe_tool("aad_scene_read"),
+        safe_tool("aad_fs_read"),
+        safe_tool("aad_browser_open_url"),
+        safe_tool("aad_fetch_url"),
+        safe_tool("aad_exec_command"),
+        safe_tool("aad_read_path"),
         safe_tool("shell"),
         safe_tool("benchmark_oracle"),
         safe_tool("read_file"),
         ToolSpec(
-            name="aiad_configure_export",
+            name="aad_configure_export",
             description="Configure output options.",
             input_schema={
                 "type": "object",
@@ -268,7 +268,7 @@ def test_filter_removes_app_host_and_oracle_tools() -> None:
         safe_tool("create_sketch"),
     ]
     filtered = filter_native_tools(tools, allowlist=("create_sketch",))
-    assert [tool.name for tool in filtered] == ["aiad_build", "create_sketch"]
+    assert [tool.name for tool in filtered] == ["aad_build", "create_sketch"]
 
 
 def test_mock_observation_keeps_image_and_omits_scene_mesh() -> None:
@@ -454,7 +454,7 @@ def test_cumulative_budget_reservation_is_shared_by_provider_families(family: st
     provider = FakeProvider(
         [
             make_turn(
-                ProviderToolCall("call-1", "aiad_build", {"source": "mock"}),
+                ProviderToolCall("call-1", "aad_build", {"source": "mock"}),
                 usage=make_usage(600, 150),
             ),
             make_turn(usage=make_usage(300, 50)),
@@ -485,7 +485,7 @@ def test_cumulative_budget_reservation_is_shared_by_provider_families(family: st
 
 def test_missing_usage_stops_before_mcp_and_total_stays_unknown() -> None:
     provider = FakeProvider(
-        [make_turn(ProviderToolCall("call-1", "aiad_build", {}), usage=None)]
+        [make_turn(ProviderToolCall("call-1", "aad_build", {}), usage=None)]
     )
     backend = FakeBackend([safe_tool()])
     result = asyncio.run(
@@ -508,7 +508,7 @@ def test_missing_usage_stops_before_mcp_and_total_stays_unknown() -> None:
 def test_finish_claim_and_native_verified_claim_are_distinct_mock_records() -> None:
     provider = FakeProvider(
         [
-            make_turn(ProviderToolCall("call-build", "aiad_build", {"source": "mock"}), usage=make_usage()),
+            make_turn(ProviderToolCall("call-build", "aad_build", {"source": "mock"}), usage=make_usage()),
             make_turn(
                 ProviderToolCall(
                     "call-finish",
@@ -552,7 +552,7 @@ def test_finish_claim_and_native_verified_claim_are_distinct_mock_records() -> N
     assert result.trial_origin == "mock"
     assert result.backend_origin == "mock"
     assert not result.sample_eligible
-    assert backend.calls == [("aiad_build", {"source": "mock"})]
+    assert backend.calls == [("aad_build", {"source": "mock"})]
     events = [event["event"] for event in trace.events]
     assert "model_finish_claim" in events
     assert "native_server_verified_claim" in events
@@ -576,7 +576,7 @@ def test_openai_responses_adapter_uses_offline_sdk_surface_and_image_outputs() -
                     {
                         "type": "function_call",
                         "call_id": "openai-call-1",
-                        "name": "aiad_render",
+                        "name": "aad_render",
                         "arguments": "{}",
                     }
                 ],
@@ -599,13 +599,13 @@ def test_openai_responses_adapter_uses_offline_sdk_surface_and_image_outputs() -
     client = Client()
     adapter = OpenAIResponsesAdapter(client, "offline-mock-model")
     adapter.origin = "mock"
-    adapter.initialize(make_stage(), "mock instructions", [safe_tool("aiad_render")])
+    adapter.initialize(make_stage(), "mock instructions", [safe_tool("aad_render")])
     estimate = asyncio.run(adapter.count_prompt_tokens())
     turn = asyncio.run(adapter.complete(1024))
     image = base64.b64encode(b"mock-png").decode("ascii")
     result = ToolInvocationResult(
         call_id="openai-call-1",
-        name="aiad_render",
+        name="aad_render",
         observation=MCPObservation(
             is_error=False,
             blocks=(ObservationBlock(type="image", mime_type="image/png", data_base64=image),),
@@ -640,7 +640,7 @@ def test_anthropic_messages_adapter_preserves_tool_result_order_and_images() -> 
             return SimpleNamespace(
                 content=[
                     {"type": "text", "text": "Rendering."},
-                    {"type": "tool_use", "id": "anthropic-call-1", "name": "aiad_render", "input": {}},
+                    {"type": "tool_use", "id": "anthropic-call-1", "name": "aad_render", "input": {}},
                 ],
                 stop_reason="tool_use",
                 usage={
@@ -657,7 +657,7 @@ def test_anthropic_messages_adapter_preserves_tool_result_order_and_images() -> 
     client = Client()
     adapter = AnthropicMessagesAdapter(client, "offline-mock-model")
     adapter.origin = "mock"
-    adapter.initialize(make_stage(), "mock instructions", [safe_tool("aiad_render")])
+    adapter.initialize(make_stage(), "mock instructions", [safe_tool("aad_render")])
     estimate = asyncio.run(adapter.count_prompt_tokens())
     turn = asyncio.run(adapter.complete(1024))
     image = base64.b64encode(b"mock-png").decode("ascii")
@@ -666,7 +666,7 @@ def test_anthropic_messages_adapter_preserves_tool_result_order_and_images() -> 
         [
             ToolInvocationResult(
                 call_id="anthropic-call-1",
-                name="aiad_render",
+                name="aad_render",
                 observation=MCPObservation(
                     is_error=True,
                     blocks=(ObservationBlock(type="image", mime_type="image/png", data_base64=image),),
@@ -752,7 +752,7 @@ def test_artifact_stager_rejects_links(tmp_path: Path, link_kind: str):
 
 
 def test_artifact_stager_rejects_leaf_swap_before_open(tmp_path: Path, monkeypatch):
-    from evals.benchmark.harness.aiad_benchmark_harness import artifacts
+    from evals.benchmark.harness.aad_benchmark_harness import artifacts
 
     solver = tmp_path / "solver"
     solver.mkdir()

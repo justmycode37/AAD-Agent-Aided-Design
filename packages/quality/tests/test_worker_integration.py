@@ -1,6 +1,6 @@
 """Run the actual S1 worker with installed S5 hooks; no fabricated gate result."""
-from aiad.engine.jobs import run_build
-from aiad.engine.types import BuildRequest,Check
+from aad.engine.jobs import run_build
+from aad.engine.types import BuildRequest,Check
 import pytest
 
 

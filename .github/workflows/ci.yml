@@ -80,7 +80,7 @@ jobs:
         run: bash .github/scripts/setup_linux_runtime.sh
       - name: Run integrated workspace and smoke tests
         env:
-          AIAD_TEST_PACKAGES: ${{ needs.discover.outputs.packages }}
+          AAD_TEST_PACKAGES: ${{ needs.discover.outputs.packages }}
         run: |
           uv run --locked --all-packages --all-extras python - <<'PY'
           import json
@@ -88,7 +88,7 @@ jobs:
           import subprocess
           import sys
 
-          packages = json.loads(os.environ["AIAD_TEST_PACKAGES"])
+          packages = json.loads(os.environ["AAD_TEST_PACKAGES"])
           tests = [f"packages/{package['dir']}/tests" for package in packages]
           raise SystemExit(subprocess.call([sys.executable, "-m", "pytest", *tests, "tests/e2e"]))
           PY

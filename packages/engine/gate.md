@@ -1,6 +1,6 @@
 # Geometric hard gate
 
-`aiad.engine.gate.hard_checks(ctx)` returns hard-suite `Check` objects. The
+`aad.engine.gate.hard_checks(ctx)` returns hard-suite `Check` objects. The
 worker requires every error-level hard check to pass before a revision can be
 `verified`; a failed check fails the build, and an error-level skip leaves it
 unverified. Verification also requires the separate specification and process
@@ -109,22 +109,22 @@ or sandbox timings; cold imports and complex models were not measured. To
 repeat the measurement from the repository root:
 
 ```sh
-UV_PROJECT_ENVIRONMENT=/tmp/aiad-s1-gate-benchmark \
-  uv run --locked --python 3.12 --package aiad-engine --group dev python - <<'PY'
+UV_PROJECT_ENVIRONMENT=/tmp/aad-s1-gate-benchmark \
+  uv run --locked --python 3.12 --package aad-engine --group dev python - <<'PY'
 from pathlib import Path
 from statistics import median
 from tempfile import TemporaryDirectory
 from time import perf_counter_ns
 from build123d import Box, Cylinder
-from aiad.engine.gate import hard_checks
-from aiad.engine.types import ModelContext
+from aad.engine.gate import hard_checks
+from aad.engine.types import ModelContext
 
 cases = {
     "box": lambda: Box(20, 10, 6),
     "cylinder": lambda: Cylinder(5, 12),
     "holed_part": lambda: Box(20, 20, 6) - Cylinder(3, 10),
 }
-with TemporaryDirectory(prefix="aiad-s1-benchmark-") as job:
+with TemporaryDirectory(prefix="aad-s1-benchmark-") as job:
     for name, factory in cases.items():
         hard_checks(ModelContext(shape=factory(), job_dir=Path(job)))
         build_ms, gate_ms = [], []

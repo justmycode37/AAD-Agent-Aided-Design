@@ -9,12 +9,12 @@ import unittest
 from decimal import Decimal
 from pathlib import Path
 
-from aiad.engine.identity import cache_identity
+from aad.engine.identity import cache_identity
 
 
 def inputs() -> dict:
     return {
-        "source": "from aiad import *\r\nresult = Box(60, 40, 6)\n",
+        "source": "from aad import *\r\nresult = Box(60, 40, 6)\n",
         "applied_params": {
             "width": 60.0,
             "spacing": [46.0, 26.0],
@@ -70,7 +70,7 @@ class CacheIdentityTests(unittest.TestCase):
             '"asset_sha256":{"x.step":"' + "a" * 64 + '"},'
             '"kernel_versions":{"build123d":"0.13","occt":"8"},'
             '"kind":"part","material":null,"pipeline_identity":"build:1",'
-            '"process":"cnc","schema":"aiad.cache-identity.v1",'
+            '"process":"cnc","schema":"aad.cache-identity.v1",'
             '"source":"r = \'π\'\\r\\n",'
             '"spec":{"requirements":[{"equals":2.5,"id":"size"}]},'
             '"tolerances":{"linear":0.001},"units":"mm"}'
@@ -80,7 +80,7 @@ class CacheIdentityTests(unittest.TestCase):
         ).encode("utf-8")
         self.assertEqual(encoded, expected)
         self.assertEqual(key, hashlib.sha256(expected).hexdigest())
-        self.assertEqual(key, "de9a857fef608105c4532b77c72d5d100a755b977254d053415fcc083695a041")
+        self.assertEqual(key, "1920f66c078c89fa7167c4f1db17ca4898e4c44314c63aeaed7ad26a3bf7413e")
 
     def test_every_bound_input_changes_the_key(self) -> None:
         original = inputs()
@@ -310,7 +310,7 @@ class BlockKernel:
         return None
 
 sys.meta_path.insert(0, BlockKernel())
-from aiad.engine.identity import cache_identity
+from aad.engine.identity import cache_identity
 key, record = cache_identity(
     source='', applied_params={}, spec={}, kind='part', units='mm',
     material=None, process=None, kernel_versions={'kernel': '1'},
@@ -318,7 +318,7 @@ key, record = cache_identity(
 )
 assert len(key) == 64 and record['source'] == ''
 assert not any(name.partition('.')[0] in {'build123d', 'OCP'} for name in sys.modules)
-assert 'aiad.engine.revisions' not in sys.modules
+assert 'aad.engine.revisions' not in sys.modules
 """
         result = subprocess.run(
             [sys.executable, "-I", "-B", "-c", script, str(source_dir)],

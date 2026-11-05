@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import ezdxf
 import pytest
 
-from aiad_drafting import make_drawing
+from aad_drafting import make_drawing
 from examples.golden_set import OUTPUT, cases, snapshot
 
 
@@ -53,7 +53,7 @@ def geometry_bounds(shape):
 
 def assert_dimensions_from_native_geometry(case, result):
     from build123d import Compound
-    from aiad_drafting.model2d import _entity_to_native
+    from aad_drafting.model2d import _entity_to_native
     native = getattr(case.ctx, "sheet", None)
     shape = native.to_shape() if native else case.ctx.shape
     low, high = geometry_bounds(shape)

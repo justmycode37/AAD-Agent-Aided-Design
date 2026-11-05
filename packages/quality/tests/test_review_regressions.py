@@ -4,8 +4,8 @@ from types import SimpleNamespace
 import pytest
 from build123d import Box, Cylinder, Plane, Pos, Rot, mirror
 
-from aiad_quality.schema import SpecValidationError, load_spec
-from aiad_quality.spec import spec_checks
+from aad_quality.schema import SpecValidationError, load_spec
+from aad_quality.spec import spec_checks
 
 
 def check(shape, requirement):
@@ -116,7 +116,7 @@ def test_cylindrical_scope_accepts_fillets_without_hiding_a_missing_bore():
 
 
 def process_check(shape, process, suffix, **settings):
-    from aiad_quality.process import process_checks
+    from aad_quality.process import process_checks
     ctx = SimpleNamespace(shape=shape, units='mm', process=process, spec={'process_settings': settings}, features=[])
     return next(c for c in process_checks(ctx) if c.id.endswith(suffix))
 
@@ -145,9 +145,9 @@ def test_cavity_floor_does_not_block_the_exterior_lid_entry():
 
 
 def test_sampled_walls_cannot_certify_a_narrow_unsampled_web():
-    from aiad_quality.spec import verification_ready
-    from aiad_quality.process import process_checks
-    from aiad_quality._checks import make_check
+    from aad_quality.spec import verification_ready
+    from aad_quality.process import process_checks
+    from aad_quality._checks import make_check
     shape = Box(30, 30, 3) + Pos(0,0,4) * Box(.3, 2, 5)
     spec = {'process':'fdm_pla', 'process_settings':{'min_wall_mm':2}, 'requirements':[{'id':'body','solids':1}]}
     ctx = SimpleNamespace(shape=shape, units='mm', process='fdm_pla', spec=spec, features=[])
@@ -159,7 +159,7 @@ def test_sampled_walls_cannot_certify_a_narrow_unsampled_web():
 
 
 def test_complete_rectangular_geometry_proves_the_absence_of_cnc_cavities():
-    from aiad_quality.process import process_checks
+    from aad_quality.process import process_checks
     ctx = SimpleNamespace(shape=Box(10,10,3), units='mm', process='cnc_3axis', spec={}, features=[])
     checks = process_checks(ctx)
     assert checks and all(c.status == 'pass' for c in checks), checks
@@ -167,22 +167,22 @@ def test_complete_rectangular_geometry_proves_the_absence_of_cnc_cavities():
 
 def test_resolver_metadata_is_measured_only_through_its_live_native_binding(monkeypatch):
     import sys
-    from aiad.engine.types import Entity
+    from aad.engine.types import Entity
     shape = Box(10, 10, 10)
     selected = shape.faces()[0]
     entity = Entity(kind='face', index=0)
     def bind(ctx, candidate):
         assert ctx.shape is shape and candidate is entity
         return selected
-    monkeypatch.setitem(sys.modules, 'aiad.engine.select', SimpleNamespace(resolve=lambda *a, **k: [entity], entity_shape=bind))
+    monkeypatch.setitem(sys.modules, 'aad.engine.select', SimpleNamespace(resolve=lambda *a, **k: [entity], entity_shape=bind))
     result = check(shape, {'measure':{'kind':'area', 'a':'face(nth=0)'}, 'equals':'100 mm^2'})
     assert result.status == 'pass', result
 
 
 def test_advisory_process_unknown_does_not_block_measured_error_requirements():
-    from aiad_quality.spec import verification_ready
-    from aiad_quality.process import process_checks
-    from aiad_quality._checks import make_check
+    from aad_quality.spec import verification_ready
+    from aad_quality.process import process_checks
+    from aad_quality._checks import make_check
     spec={'process':'fdm_pla','process_settings':{'level':'warn'}, 'requirements':[{'id':'body','solids':1}]}
     ctx=SimpleNamespace(shape=Box(10,10,10), units='mm', process='fdm_pla', spec=spec, features=[])
     hard=[make_check(id='test-only',suite='hard',level='error',status='pass',message='test hard gate')]
@@ -190,7 +190,7 @@ def test_advisory_process_unknown_does_not_block_measured_error_requirements():
 
 
 def test_effective_process_is_required_at_the_readiness_boundary():
-    from aiad_quality.spec import verification_ready
+    from aad_quality.spec import verification_ready
     with pytest.raises(TypeError):
         verification_ready({}, [], [])
 
@@ -211,7 +211,7 @@ def test_y_axis_grid_uses_the_xz_plane():
 
 def test_shell_tunnel_count_handles_periodic_and_degenerate_surfaces():
     from build123d import Sphere, Torus
-    from aiad_quality.spec_geometry import closed_shell_tunnels
+    from aad_quality.spec_geometry import closed_shell_tunnels
     for shape, count in [(Box(10,10,10),0), (Sphere(3),0), (Torus(5,1),1), (plate(),4), (Box(10,10,10)-Sphere(2),0)]:
         assert closed_shell_tunnels(shape) == count
 

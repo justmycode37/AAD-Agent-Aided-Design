@@ -16,7 +16,7 @@ if __name__ == "__main__" and not __package__:
 
 from build123d import Align, Box, Compound, Cylinder, Pos
 
-from aiad_drafting import DrawingRequest, DrawingView, make_drawing, sheet2d
+from aad_drafting import DrawingRequest, DrawingView, make_drawing, sheet2d
 from examples.first_sheet import build_sample_context
 from examples.layout_samples import build_dense_mixed_hole_plate, build_simple_turned_part, build_two_part_assembly
 from examples.planar_sheet import model as native_panel
@@ -70,7 +70,7 @@ def fold_strip():
     sheet.rectangle("outline", 120, 40)
     sheet.line("fold1", (40, 0), (40, 40), layer="score")
     sheet.line("fold2", (80, 0), (80, 40), layer="score")
-    sheet.text("label", "AIAD", (12, 18), 3)
+    sheet.text("label", "AAD", (12, 18), 3)
     return sheet
 
 
@@ -81,7 +81,7 @@ def fixture():
     try:
         sys.path.insert(0, engine)
         sys.dont_write_bytecode = True
-        from aiad._runtime import configure_params
+        from aad._runtime import configure_params
         configure_params()
         namespace = runpy.run_path(str(REPO / "fixtures" / "models" / "fan_mount.py"))
         return part(namespace["fan_mount"].part, "S1 fan mounting plate")
@@ -128,8 +128,8 @@ def cases():
         index = len(result) + 1
         req = DrawingRequest(sheet=sheet, style=style, dimensions="auto",
             views=views or ("front", "top", "right", "iso"),
-            title_block={"title": ctx.name, "drawing_no": f"AIAD-G{index:02d}", "revision": "A"},
-            notes=notes, revisions=({"revision": "A", "date": "2026-11-04", "description": "Reference drawing", "by": "AIAD"},), bom=bom)
+            title_block={"title": ctx.name, "drawing_no": f"AAD-G{index:02d}", "revision": "A"},
+            notes=notes, revisions=({"revision": "A", "date": "2026-11-04", "description": "Reference drawing", "by": "AAD"},), bom=bom)
         result.append(Case(name, category, ctx, req))
     add("01-native-laser-panel", "laser", planar(native_panel()))
     add("02-obround-panel", "laser", planar(obround_panel()))

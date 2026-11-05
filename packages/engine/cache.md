@@ -1,6 +1,6 @@
 # Geometry candidate cache
 
-`aiad.engine.cache.GeometryCache` stores one opaque, nonempty `part.brep` per
+`aad.engine.cache.GeometryCache` stores one opaque, nonempty `part.brep` per
 declared input identity. It imports only the standard library. It never loads
 BREP geometry or imports/executes `model.py`.
 
@@ -15,9 +15,9 @@ revisions/cache integration.
 ## API and identity
 
 ```python
-from aiad.engine.cache import GeometryCache
+from aad.engine.cache import GeometryCache
 
-cache = GeometryCache(project / ".aiad" / "cache")
+cache = GeometryCache(project / ".aad" / "cache")
 # key and record came from cache_identity(**complete_trusted_snapshot), PR42.
 entry = cache.put(key, record, generated / "part.brep", candidate_dir=generated)
 entry = cache.lookup(key, record)
@@ -37,7 +37,7 @@ to the cache. `CachedGeometry` is frozen and contains only `key`, `brep_path`,
 The supplied plain JSON record must have **exactly** the PR42 fields:
 `schema`, `source`, `applied_params`, `spec`, `kind`, `units`, `material`,
 `process`, `kernel_versions`, `tolerances`, `asset_sha256`, `pipeline_identity`.
-The schema is `aiad.cache-identity.v1`. Validation matches PR42: explicit object
+The schema is `aad.cache-identity.v1`. Validation matches PR42: explicit object
 fields; nonblank identifying strings; explicit null material/process when
 absent; nonempty kernel versions with nonblank names/versions; nonblank asset
 names mapped to lowercase SHA256 digests. Empty source is allowed. Nested
@@ -173,15 +173,15 @@ changing root configuration or the lock file:
 cache_test_dir=$(mktemp -d)
 uv venv --python 3.12 "$cache_test_dir/venv"
 uv pip install --python "$cache_test_dir/venv/bin/python" -e packages/engine pytest pytest-timeout
-git show origin/s1/cache-identity:packages/engine/src/aiad/engine/identity.py > "$cache_test_dir/pr42_identity.py"
+git show origin/s1/cache-identity:packages/engine/src/aad/engine/identity.py > "$cache_test_dir/pr42_identity.py"
 chmod 444 "$cache_test_dir/pr42_identity.py"
-PYTHONDONTWRITEBYTECODE=1 AIAD_CACHE_IDENTITY_SOURCE="$cache_test_dir/pr42_identity.py" \
+PYTHONDONTWRITEBYTECODE=1 AAD_CACHE_IDENTITY_SOURCE="$cache_test_dir/pr42_identity.py" \
   "$cache_test_dir/venv/bin/python" -m pytest -p no:cacheprovider packages/engine/tests/test_cache.py -q
 ```
 
 The external-source test executes the **actual** PR42 function read-only from
 temporary storage, without installing or vendoring it. It visibly skips if
-`AIAD_CACHE_IDENTITY_SOURCE` is absent. The regular tests independently exercise
+`AAD_CACHE_IDENTITY_SOURCE` is absent. The regular tests independently exercise
 schema/key binding and numeric distinctions without that branch dependency.
 Pure storage tests need no kernel or Linux model sandbox. The import/opaque
 operations probe runs with `-I -S`, blocks kernel and pipeline imports, and

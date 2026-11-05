@@ -1,18 +1,18 @@
-from aiad_platform.tools import TOOL_NAMES, TOOLS, VIEWER_URI
+from aad_platform.tools import TOOL_NAMES, TOOLS, VIEWER_URI
 
 import pytest
 
 
 def test_thirteen_model_visible_and_four_app_only_tools():
     app_only = {t["name"] for t in TOOLS if t.get("_meta", {}).get("ui", {}).get("visibility") == ["app"]}
-    assert app_only == {"aiad_scene_read", "aiad_set_param", "aiad_pick_info", "aiad_file_read"}
+    assert app_only == {"aad_scene_read", "aad_set_param", "aad_pick_info", "aad_file_read"}
     assert len(TOOL_NAMES) == 17
 
 
 def test_only_show_has_a_ui_resource():
     with_ui = [t["name"] for t in TOOLS if "resourceUri" in t.get("_meta", {}).get("ui", {})]
-    assert with_ui == ["aiad_show"]
-    assert next(t for t in TOOLS if t["name"] == "aiad_show")["_meta"]["ui"]["resourceUri"] == VIEWER_URI
+    assert with_ui == ["aad_show"]
+    assert next(t for t in TOOLS if t["name"] == "aad_show")["_meta"]["ui"]["resourceUri"] == VIEWER_URI
 
 
 def test_app_only_descriptions_warn_the_model():
@@ -23,8 +23,8 @@ def test_app_only_descriptions_warn_the_model():
 
 def test_builds_are_not_marked_read_only():
     annotations = {t["name"]: t["annotations"] for t in TOOLS}
-    assert annotations["aiad_build"]["readOnlyHint"] is False
-    assert annotations["aiad_scene_read"]["readOnlyHint"] is True
+    assert annotations["aad_build"]["readOnlyHint"] is False
+    assert annotations["aad_scene_read"]["readOnlyHint"] is True
 
 
 @pytest.mark.parametrize("resource_delay_s", [0.0, 0.05])
@@ -37,7 +37,7 @@ def test_stray_stdout_cannot_corrupt_the_mcp_stream(tmp_path, resource_delay_s):
 
     script = f"""
 import asyncio, os, time
-from aiad_platform import adapter, viewer
+from aad_platform import adapter, viewer
 real = viewer.load_html
 def noisy():
     os.write(1, b"native library noise\\n")
@@ -50,7 +50,7 @@ asyncio.run(adapter.serve_stdio())
     requests = [
         {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "t", "version": "1"}}},
         {"jsonrpc": "2.0", "method": "notifications/initialized"},
-        {"jsonrpc": "2.0", "id": 2, "method": "resources/read", "params": {"uri": "ui://aiad/viewer"}},
+        {"jsonrpc": "2.0", "id": 2, "method": "resources/read", "params": {"uri": "ui://aad/viewer"}},
     ]
     async def exchange():
         process = await asyncio.create_subprocess_exec(
@@ -59,7 +59,7 @@ asyncio.run(adapter.serve_stdio())
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             limit=16 * 1024 * 1024,
-            env={**os.environ, "HOME": str(tmp_path), "AIAD_HOME": str(tmp_path)},
+            env={**os.environ, "HOME": str(tmp_path), "AAD_HOME": str(tmp_path)},
         )
         messages = []
 

@@ -9,12 +9,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from aiad_quality.materials import (
+from aad_quality.materials import (
     _validated_density,
     get_material,
     list_materials,
 )
-from aiad_quality.spec import spec_checks
+from aad_quality.spec import spec_checks
 
 
 _REQUIRED_ASSUMPTIONS = {
@@ -133,7 +133,7 @@ def test_material_catalog_import_does_not_load_a_cad_kernel():
             sys.executable,
             "-c",
             (
-                "import sys; import aiad_quality.materials; "
+                "import sys; import aad_quality.materials; "
                 "assert not any(name == 'build123d' or name.startswith('build123d.') "
                 "for name in sys.modules)"
             ),

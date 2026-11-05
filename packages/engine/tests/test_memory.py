@@ -15,7 +15,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
-from aiad.engine import memory, sandbox
+from aad.engine import memory, sandbox
 
 MIB = 1024 * 1024
 TIB = 1024 ** 4  # Installation/inheritance test only; no such allocation.
@@ -107,9 +107,9 @@ def guarded(name, *args, **kwargs):
     return original(name, *args, **kwargs)
 builtins.__import__ = guarded
 sys.path.insert(0, {str(source_root)!r})
-from aiad.engine import memory, sandbox
-assert 'aiad.engine._worker' not in sys.modules
-assert 'aiad.engine.jobs' not in sys.modules
+from aad.engine import memory, sandbox
+assert 'aad.engine._worker' not in sys.modules
+assert 'aad.engine.jobs' not in sys.modules
 with tempfile.TemporaryDirectory() as job:
     sandbox.subprocess.Popen = lambda *args, **kwargs: (args, kwargs)
     args, options = sandbox.popen([sys.executable, '-c', 'pass'], Path(job))
@@ -298,7 +298,7 @@ int main(int argc, char **argv) {
 class SandboxedMemoryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.native_directory = tempfile.TemporaryDirectory(prefix='aiad-memory-native-')
+        cls.native_directory = tempfile.TemporaryDirectory(prefix='aad-memory-native-')
         cls.addClassCleanup(cls.native_directory.cleanup)
         root = Path(cls.native_directory.name).resolve()
         source = root / 'probe.c'
@@ -314,7 +314,7 @@ class SandboxedMemoryTests(unittest.TestCase):
         self.resource = resource
         self.parent_limits = resource.getrlimit(resource.RLIMIT_AS)
         self.parent_signals = {name: signal.getsignal(getattr(signal, name)) for name in ('SIGPIPE', 'SIGXFZ', 'SIGXFSZ') if hasattr(signal, name)}
-        self.temporary = tempfile.TemporaryDirectory(prefix='aiad-memory-test-')
+        self.temporary = tempfile.TemporaryDirectory(prefix='aad-memory-test-')
         self.root = Path(self.temporary.name).resolve()
         self.job = self.root / 'job'
         self.job.mkdir()
@@ -368,7 +368,7 @@ class SandboxedMemoryTests(unittest.TestCase):
         malicious = "from pathlib import Path; Path('bootstrap-injected').write_text('bad'); raise AssertionError('job import')"
         for name in ('resource.py', 'sitecustomize.py', 'dataclasses.py', 'memory.py'):
             (self.job / name).write_text(malicious)
-        fake_package = self.job / 'aiad' / 'engine'
+        fake_package = self.job / 'aad' / 'engine'
         fake_package.mkdir(parents=True)
         (fake_package / 'memory.py').write_text(malicious)
         result = self.finish(self.launch(['true']))  # Original argv keeps PATH lookup.
@@ -383,7 +383,7 @@ for pair in [(cap[1]+1, cap[1]+1), (resource.RLIM_INFINITY, resource.RLIM_INFINI
     try: resource.setrlimit(resource.RLIMIT_AS, pair)
     except (ValueError, OSError) as exc: failures.append([type(exc).__name__, str(exc)])
     else: raise AssertionError('unprivileged target raised its hard limit')
-assert 'AIAD_TEST_SECRET' not in os.environ
+assert 'AAD_TEST_SECRET' not in os.environ
 assert not any(n == 'build123d' or n == 'OCP' or n.startswith('OCP.') for n in sys.modules)
 print(json.dumps(dict(pid=os.getpid(), limits=cap, stdin=sys.stdin.read(), failures=failures)))
 '''
@@ -391,7 +391,7 @@ print(json.dumps(dict(pid=os.getpid(), limits=cap, stdin=sys.stdin.read(), failu
 print(json.dumps(dict(pid=os.getpid(), limits=resource.getrlimit(resource.RLIMIT_AS), argv=sys.argv)), flush=True)
 os.execv(sys.executable, [sys.executable, '-I', '-S', '-B', '-c', {after!r}])
 '''
-        with patch.dict(os.environ, {'AIAD_TEST_SECRET': 'fixture'}):
+        with patch.dict(os.environ, {'AAD_TEST_SECRET': 'fixture'}):
             process = self.launch([sys.executable, '-I', '-S', '-B', '-c', before, 'quotes " and unicode ä'])
         records = self.records(self.finish(process, b'unchanged stdin\n'))
         expected = min([TIB, *(n for n in self.parent_limits if n != self.resource.RLIM_INFINITY)])

@@ -13,9 +13,9 @@ import time
 import unittest
 from unittest.mock import Mock, patch
 
-from aiad.engine import sandbox, validation
-from aiad.engine.types import Check
-from aiad.engine.validation import inspect_brep
+from aad.engine import sandbox, validation
+from aad.engine.types import Check
+from aad.engine.validation import inspect_brep
 
 
 class GeometryInspectionTests(unittest.TestCase):
@@ -28,7 +28,7 @@ class GeometryInspectionTests(unittest.TestCase):
         return path
 
     def test_public_box_has_independent_metrics_and_bound_snapshot(self):
-        with tempfile.TemporaryDirectory(prefix='aiad-inspect-box-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-inspect-box-') as temporary:
             path = self._brep(temporary)
             evidence = inspect_brep(path, candidate_dir=temporary, kind='part', units='mm', spec={'requirements': [{'id': 'fit'}]})
             self.assertTrue(evidence.ok, evidence.failure)
@@ -52,7 +52,7 @@ class GeometryInspectionTests(unittest.TestCase):
         import build123d as bd
         shape = bd.Compound(children=[bd.Compound(children=[bd.Box(2, 3, 4)])])
         shape.move(bd.Location((3, 5, 7)))
-        with tempfile.TemporaryDirectory(prefix='aiad-inspect-nested-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-inspect-nested-') as temporary:
             path = self._brep(temporary, shape)
             hashes = []
             for units in ('mm', 'in'):
@@ -70,7 +70,7 @@ class GeometryInspectionTests(unittest.TestCase):
     def test_multiple_bodies_cannot_pass_as_one_part(self):
         import build123d as bd
         shape = bd.Compound(children=[bd.Box(1, 2, 3), bd.Box(1, 2, 3).moved(bd.Location((10, 0, 0)))])
-        with tempfile.TemporaryDirectory(prefix='aiad-inspect-bodies-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-inspect-bodies-') as temporary:
             path = self._brep(temporary, shape)
             result = inspect_brep(path, candidate_dir=temporary, kind='part', units='mm')
             self.assertFalse(result.ok)
@@ -89,7 +89,7 @@ class GeometryInspectionTests(unittest.TestCase):
         cases = [('forward', bd.Compound(children=[positive, small]), True),
                  ('reversed', bd.Compound(children=[positive, reversed_solid]), False),
                  ('reversed-alone', reversed_solid, False)]
-        with tempfile.TemporaryDirectory(prefix='aiad-inspect-oriented-solids-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-inspect-oriented-solids-') as temporary:
             for name, shape, expected_ok in cases:
                 for units in ('mm', 'in'):
                     with self.subTest(case=name, units=units):
@@ -114,7 +114,7 @@ class GeometryInspectionTests(unittest.TestCase):
         shape = bd.Box(10, 8, 4)
         shape.bounding_box = lambda: SimpleNamespace(size=SimpleNamespace(X=123, Y=8, Z=4))
         self.assertEqual(shape.bounding_box().size.X, 123)
-        with tempfile.TemporaryDirectory(prefix='aiad-inspect-wrapper-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-inspect-wrapper-') as temporary:
             path = self._brep(temporary, shape)
             result = inspect_brep(path, candidate_dir=temporary, kind='part', units='mm')
             self.assertTrue(result.ok, result.failure)
@@ -122,7 +122,7 @@ class GeometryInspectionTests(unittest.TestCase):
             self.assertAlmostEqual(result.metrics['volume'], 320)
 
     def test_garbage_brep_returns_observed_failure_and_keeps_original(self):
-        with tempfile.TemporaryDirectory(prefix='aiad-inspect-garbage-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-inspect-garbage-') as temporary:
             path = Path(temporary) / 'part.brep'
             path.write_bytes(b'not a BREP fixture')
             evidence = inspect_brep(path, candidate_dir=temporary, kind='part', units='mm')
@@ -134,7 +134,7 @@ class GeometryInspectionTests(unittest.TestCase):
             self.assertTrue((evidence.inspection_dir / 'part.brep').is_file())
 
     def test_outside_link_empty_and_directory_paths_never_launch(self):
-        with tempfile.TemporaryDirectory(prefix='aiad-inspect-paths-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-inspect-paths-') as temporary:
             root = Path(temporary).resolve()
             candidate = root / 'candidate'
             candidate.mkdir()
@@ -156,7 +156,7 @@ class GeometryInspectionTests(unittest.TestCase):
                 self.assertEqual(evidence.failure.code, 'BAD_INPUT')
 
     def test_malformed_input_never_launches(self):
-        with tempfile.TemporaryDirectory(prefix='aiad-inspect-input-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-inspect-input-') as temporary:
             path = Path(temporary) / 'part.brep'
             path.write_bytes(b'fixture')
             for overrides in ({'timeout_s': 0}, {'timeout_s': float('nan')}, {'timeout_s': True},
@@ -169,7 +169,7 @@ class GeometryInspectionTests(unittest.TestCase):
                     self.assertEqual(evidence.failure.code, 'BAD_INPUT')
 
     def test_missing_boundary_fails_closed(self):
-        with tempfile.TemporaryDirectory(prefix='aiad-inspect-launch-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-inspect-launch-') as temporary:
             path = Path(temporary) / 'part.brep'
             path.write_bytes(b'fixture')
             with patch.object(sandbox, 'popen', side_effect=sandbox.SandboxUnavailable('fixture missing boundary')) as launch:
@@ -181,7 +181,7 @@ class GeometryInspectionTests(unittest.TestCase):
     def test_native_exit_and_hang_are_bounded_without_invented_causes(self):
         cases = [('import os; os.write(2,b"native inspection fixture"); os._exit(23)', 5, 'WORKER_CRASH'),
                  ('import time; time.sleep(30)', 0.2, 'TIMEOUT')]
-        with tempfile.TemporaryDirectory(prefix='aiad-inspect-lifecycle-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-inspect-lifecycle-') as temporary:
             path = Path(temporary) / 'part.brep'
             path.write_bytes(b'fixture')
             for bootstrap, budget, code in cases:
@@ -200,19 +200,19 @@ class GeometryInspectionTests(unittest.TestCase):
 sys.path.insert(0, sys.argv.pop(1))
 from pathlib import Path
 import importlib.util
-assert importlib.util.find_spec('aiad_inspection_poison') is None
+assert importlib.util.find_spec('aad_inspection_poison') is None
 try:
-    Path.cwd().parent.joinpath('aiad_inspection_poison.py').read_text()
+    Path.cwd().parent.joinpath('aad_inspection_poison.py').read_text()
 except OSError:
     pass
 else:
     raise AssertionError('candidate Python content was readable')
-from aiad.engine._validation_worker import main
+from aad.engine._validation_worker import main
 main()
 '''
-        with tempfile.TemporaryDirectory(prefix='aiad-inspect-module-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-inspect-module-') as temporary:
             path = self._brep(temporary)
-            (Path(temporary) / 'aiad_inspection_poison.py').write_text("raise RuntimeError('must not execute')")
+            (Path(temporary) / 'aad_inspection_poison.py').write_text("raise RuntimeError('must not execute')")
             (Path(temporary) / 'model.py').write_text("raise RuntimeError('model must not execute')")
             with patch.object(validation, '_BOOTSTRAP', bootstrap):
                 evidence = inspect_brep(path, candidate_dir=temporary, kind='part', units='mm')
@@ -223,7 +223,7 @@ main()
         # Trusted lifecycle fixture, outside the production sandbox launcher.
         # The Mac policy deliberately denies child creation in production.
         program = "import subprocess,sys; subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)']); print('inspector leader exited',flush=True)"
-        with tempfile.TemporaryDirectory(prefix='aiad-inspect-orphan-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-inspect-orphan-') as temporary:
             path = Path(temporary) / 'part.brep'
             path.write_bytes(b'fixture')
             process = subprocess.Popen([sys.executable, '-c', program], stdin=subprocess.PIPE,
@@ -244,7 +244,7 @@ main()
                 process.communicate(timeout=2)
 
     def test_response_binding_and_schema_are_validated(self):
-        with tempfile.TemporaryDirectory(prefix='aiad-inspect-response-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-inspect-response-') as temporary:
             path = Path(temporary) / 'part.brep'
             path.write_bytes(b'fixture')
             mutations = [lambda w: w.update(input_sha256='wrong'), lambda w: w.update(nonce='wrong'),
@@ -276,14 +276,14 @@ main()
                     self.assertIn('diagnostic retained', result.stderr)
 
     def test_snapshot_mutation_during_child_is_rejected(self):
-        with tempfile.TemporaryDirectory(prefix='aiad-inspect-mutation-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-inspect-mutation-') as temporary:
             path = Path(temporary) / 'part.brep'
             path.write_bytes(b'fixture')
             bootstrap = '''import sys,json
 from pathlib import Path
 payload=json.loads(sys.stdin.buffer.readline())
 Path('part.brep').write_text('changed')
-print('AIAD_GEOMETRY_EVIDENCE:'+json.dumps({'nonce':payload['nonce'],'input_sha256':payload['input_sha256'],'snapshot_sha256':payload['record']['snapshot_sha256']}))
+print('AAD_GEOMETRY_EVIDENCE:'+json.dumps({'nonce':payload['nonce'],'input_sha256':payload['input_sha256'],'snapshot_sha256':payload['record']['snapshot_sha256']}))
 '''
             with patch.object(validation, '_BOOTSTRAP', bootstrap):
                 result = inspect_brep(path, candidate_dir=temporary, kind='part', units='mm')
@@ -292,5 +292,5 @@ print('AIAD_GEOMETRY_EVIDENCE:'+json.dumps({'nonce':payload['nonce'],'input_sha2
             self.assertEqual(path.read_bytes(), b'fixture')
 
     def test_parent_import_is_kernel_free(self):
-        program = "import sys; import aiad.engine.validation; assert not any(m == 'build123d' or m == 'OCP' or m == 'vtk' for m in sys.modules)"
+        program = "import sys; import aad.engine.validation; assert not any(m == 'build123d' or m == 'OCP' or m == 'vtk' for m in sys.modules)"
         subprocess.run([sys.executable, '-c', program], check=True, timeout=10)

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from aiad_drafting.import2d import Imported2D, Import2DError, parse_dxf, parse_svg
+from aad_drafting.import2d import Imported2D, Import2DError, parse_dxf, parse_svg
 
 
 DATA = Path(__file__).parent / "data"
@@ -256,7 +256,7 @@ def test_svg_rejects_non_utf8_xml_before_entity_expansion(tmp_path):
 def test_live_sheet_preserves_exact_svg_beziers_and_ellipses():
     imported = parse_svg(DATA / "exact-curves.svg")
     sheet = imported.to_sheet("curves")
-    from aiad_drafting.model2d import _entity_to_native, Sheet2D
+    from aad_drafting.model2d import _entity_to_native, Sheet2D
     cubic = _entity_to_native(sheet, sheet.entities["exact-curves.s000"])
     assert cubic.geom_type.name == "BEZIER"
     assert (cubic.position_at(.5).X, cubic.position_at(.5).Y) == pytest.approx((15, 66.25))
@@ -285,7 +285,7 @@ def test_live_sheet_preserves_clockwise_reflected_arc_endpoints_and_sweep():
     sheet = imported.to_sheet()
     native = sheet.to_shape()
     record = next(entity for entity in imported.entities if entity["kind"] == "arc" and not entity["metadata"]["ccw"])
-    from aiad_drafting.model2d import _entity_to_native
+    from aad_drafting.model2d import _entity_to_native
     edge = _entity_to_native(sheet, sheet.entities[record["name"]])
     cx, cy = record["points"][0]
     for point, angle in [(edge.start_point(), record["start_angle"]), (edge.end_point(), record["end_angle"])]:
@@ -305,7 +305,7 @@ def test_live_sheet_imports_named_entities_units_layers_and_source_metadata():
         assert entity.layer == record["layer"]
         assert entity.metadata["source_name"] == record["name"]
     assert sheet.entities["circle:32"].radius == pytest.approx(5 / 25.4)
-    from aiad_drafting import Sheet2D
+    from aad_drafting import Sheet2D
     assert Sheet2D.from_dict(json.loads(json.dumps(sheet.to_dict()))).to_dict() == sheet.to_dict()
     svg = parse_svg(DATA / "layers-transform.svg").to_sheet()
     assert svg.entities["hole"].radius == pytest.approx(5)
@@ -333,7 +333,7 @@ def test_svg_sheared_conics_have_correct_exact_basis_and_arc_midpoint(tmp_path):
 @pytest.mark.parametrize("style", ["constant", "vertex"])
 def test_dxf_nonzero_polyline_width_is_retained_and_never_flattened(tmp_path, style):
     import ezdxf
-    from aiad_drafting import sheet2d, latest_sheet
+    from aad_drafting import sheet2d, latest_sheet
     document = ezdxf.new("R2013")
     document.header["$INSUNITS"] = 4
     if style == "constant":

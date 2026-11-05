@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from aiad_quality.spec import spec_checks
+from aad_quality.spec import spec_checks
 
 
 def _ctx(spec, shape, *, units="mm", project_dir=None, material=None, metrics=None, params=None):
@@ -200,7 +200,7 @@ def test_mass_is_skipped_without_identified_material_data():
 def test_custom_measure_skips_without_s1_resolver(monkeypatch):
     import sys
 
-    monkeypatch.setitem(sys.modules, "aiad.engine.select", None)
+    monkeypatch.setitem(sys.modules, "aad.engine.select", None)
     check = spec_checks(
         _ctx(
             {

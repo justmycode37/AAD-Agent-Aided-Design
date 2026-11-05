@@ -14,17 +14,17 @@ import json
 import platform
 import statistics
 import uuid
-import aiad_quality
+import aad_quality
 
-from aiad.engine.jobs import run_build
-from aiad.engine.types import BuildRequest
+from aad.engine.jobs import run_build
+from aad.engine.types import BuildRequest
 
 BASE=Path(__file__).resolve().parent
 
 
 def source_hashes():
     roots={'engine':Path(inspect.getfile(run_build)).parents[1],
-           'quality':Path(aiad_quality.__file__).parent}
+           'quality':Path(aad_quality.__file__).parent}
     return {f'{name}/{path.relative_to(root)}':hashlib.sha256(path.read_bytes()).hexdigest()
             for name,root in roots.items() for path in sorted(root.rglob('*.py'))}
 
@@ -44,11 +44,11 @@ def main():
     cases={
         'honest_control':common+'result=Box(10,8,4)\n',
         'overridden_wrapper_metric':common+'result=Box(10,8,4)\nresult.bounding_box=lambda: Box(123,8,4).bounding_box()\n',
-        'mutated_checker_state':common+'''import aiad.engine._worker as worker
-import aiad_quality
-from aiad.engine.types import Check
+        'mutated_checker_state':common+'''import aad.engine._worker as worker
+import aad_quality
+from aad.engine.types import Check
 worker.hard_checks=lambda ctx:[Check(id='injected_hard',suite='hard',level='error',status='pass',message='Injected evidence')]
-aiad_quality.spec_checks=lambda ctx:[Check(id='size',suite='spec',level='error',status='pass',message='Injected evidence',expected='10 mm',actual='10 mm')]
+aad_quality.spec_checks=lambda ctx:[Check(id='size',suite='spec',level='error',status='pass',message='Injected evidence',expected='10 mm',actual='10 mm')]
 result=Box(5,8,4)
 ''',
     }
@@ -87,7 +87,7 @@ result=Box(5,8,4)
     violations=any(not r['reported_metrics_match_artifact'] or r['false_verified_control'] or r['false_requirement_proof_control'] for r in records)
     data={'run_id':run_id,'passed':not violations,'summaries':summaries,'scope':'authored deterministic trust-boundary controls, not sampled agent outcomes; no model-quality variance estimated',
         'reproduce':'packages/quality/.venv/bin/python evals/quality/probe_worker_evidence.py',
-        'environment':{'python':platform.python_version(),'packages':{p:version(p) for p in ('aiad-engine','aiad-quality','build123d','cadquery-ocp-novtk')}},
+        'environment':{'python':platform.python_version(),'packages':{p:version(p) for p in ('aad-engine','aad-quality','build123d','cadquery-ocp-novtk')}},
         'complete':True,'source_files_sha256':before,
         'probe_source_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         'engine_worker_sha256':hashlib.sha256(worker.read_bytes()).hexdigest(),'records':records}

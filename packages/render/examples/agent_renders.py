@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import sys
 
 from build123d import Axis, Box, Cylinder, Pos, Rot, Sphere, fillet
-from aiad_render import render
+from aad_render import render
 
 
 def housing():

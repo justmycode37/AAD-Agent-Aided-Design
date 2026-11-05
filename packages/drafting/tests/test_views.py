@@ -6,9 +6,9 @@ from build123d import Align, Box, Cylinder, Pos
 from ezdxf import readfile
 import pytest
 
-from aiad_drafting import DrawingView
-from aiad_drafting.export import arc, circle, line, polyline, write_dxf
-from aiad_drafting.views import project_drawing_view, section_plane_trace
+from aad_drafting import DrawingView
+from aad_drafting.export import arc, circle, line, polyline, write_dxf
+from aad_drafting.views import project_drawing_view, section_plane_trace
 
 
 def _drilled_plate():
@@ -238,7 +238,7 @@ def test_detail_with_no_selected_curves_fails_clearly():
 
 
 def test_public_sheet_accepts_section_detail_mapping_and_preserves_layers(tmp_path):
-    from aiad_drafting import make_drawing
+    from aad_drafting import make_drawing
     from types import SimpleNamespace
     plate, _ = _drilled_plate()
     result = make_drawing(SimpleNamespace(shape=plate, units="mm"), {
@@ -255,7 +255,7 @@ def test_public_sheet_accepts_section_detail_mapping_and_preserves_layers(tmp_pa
 
 
 def test_mapping_section_outside_model_is_not_silently_orthographic(tmp_path):
-    from aiad_drafting import make_drawing
+    from aad_drafting import make_drawing
     from types import SimpleNamespace
     plate, _ = _drilled_plate()
     with pytest.raises(ValueError, match="does not intersect"):
@@ -270,7 +270,7 @@ def test_detail_coincident_with_model_circle_keeps_selected_geometry():
 
 
 def test_custom_parent_frame_is_inherited_and_parent_names_normalized(tmp_path):
-    from aiad_drafting import make_drawing
+    from aad_drafting import make_drawing
     from types import SimpleNamespace
     plate=Box(80,50,6)-Pos(20,0,0)*Cylinder(2,8)
     result=make_drawing(SimpleNamespace(shape=plate,units="mm"),{
@@ -290,7 +290,7 @@ def test_standalone_detail_with_unknown_parent_frame_fails():
 
 
 def test_hidden_arc_png_is_dashed_and_dxf_pattern_has_strokes(tmp_path):
-    from aiad_drafting.export import write_png
+    from aad_drafting.export import write_png
     from PIL import Image, ImageChops
     a=arc((20,20),10,20,160,True,dash=True)
     b=arc((20,20),10,20,160,True,dash=False)

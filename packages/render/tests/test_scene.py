@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from build123d import Box, Compound, Cylinder, Edge, Face, Location, Plane, Wire, export_brep, import_brep, mirror
 import pytest
 
-from aiad_render import make_scene
+from aad_render import make_scene
 
 
 def _entity(index: int) -> SimpleNamespace:

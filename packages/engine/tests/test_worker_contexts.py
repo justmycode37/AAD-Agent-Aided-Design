@@ -2,8 +2,8 @@
 
 import pytest
 
-from aiad.engine.jobs import run_build
-from aiad.engine.types import BuildRequest
+from aad.engine.jobs import run_build
+from aad.engine.types import BuildRequest
 
 SOURCE = "from build123d import *\nwith BuildPart() as bp:\n    Box(10, 10, 10)\n    {operation}\nresult = bp.part\n"
 
@@ -11,7 +11,7 @@ SOURCE = "from build123d import *\nwith BuildPart() as bp:\n    Box(10, 10, 10)\
 def test_named_part_publishes_nested_sketch_and_tracks_extrusion(tmp_path):
     from build123d import import_brep
 
-    source = '''from aiad import *
+    source = '''from aad import *
 with part("block"):
     with feature("stock"):
         with BuildSketch():

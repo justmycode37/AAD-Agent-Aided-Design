@@ -6,7 +6,7 @@ resident supervisor is still needed. S1 memory budgets are not complete.
 
 ## Explicit address-space policy
 
-`aiad.engine.memory.AddressSpaceBudget(bytes)` is an immutable, internal
+`aad.engine.memory.AddressSpaceBudget(bytes)` is an immutable, internal
 **per-process virtual-address-space ceiling**, not a RAM, RSS, physical-footprint
 or aggregate job cap. `bytes` must be a built-in integer with
 `1 <= bytes < sys.maxsize`; booleans, other types, zero, negative and out-of-range
@@ -17,8 +17,8 @@ budget. There is no default budget or generic memory-bytes setting.
 The only launch integration is:
 
 ```python
-from aiad.engine.memory import AddressSpaceBudget
-from aiad.engine import sandbox
+from aad.engine.memory import AddressSpaceBudget
+from aad.engine import sandbox
 
 # Caller chooses explicit_address_bytes; no measured default is implied.
 process = sandbox.popen(argv, job_dir,
@@ -123,8 +123,8 @@ ABI checks use installed macosx26.5 SDK headers `libproc.h`, `sys/proc_info.h` a
 to change. Successful local reads and matching layouts do not promise unlimited
 OS/architecture compatibility.
 
-The reproduced research (`/tmp/aiad-memory-research.sVoDEX/REPORT.md`, independently
-rerun under `/private/tmp/aiad-memory-repro.zvd7s73t`) observed VMS around 420 GB
+The reproduced research (`/tmp/aad-memory-research.sVoDEX/REPORT.md`, independently
+rerun under `/private/tmp/aad-memory-repro.zvd7s73t`) observed VMS around 420 GB
 with RSS in tens of MB. Installing absolute 64 MiB and 2 GiB AS limits failed
 before allocations. CPython reported `ValueError: current limit exceeds maximum
 limit`; native calls reported `EINVAL`. These are observed setup failures, not
@@ -139,7 +139,7 @@ Run from the repository with an external test environment to avoid root/lock
 changes:
 
 ```sh
-test_env=$(mktemp -d /tmp/aiad-memory-tests.XXXXXX)
+test_env=$(mktemp -d /tmp/aad-memory-tests.XXXXXX)
 UV_PROJECT_ENVIRONMENT="$test_env/venv" PYTHONDONTWRITEBYTECODE=1 \
   uv run --frozen --python 3.12 --all-packages python -B -m pytest \
   -p no:cacheprovider -q packages/engine/tests

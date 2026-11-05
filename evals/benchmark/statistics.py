@@ -2,7 +2,7 @@
 
 Inputs must come from the host's validated run/audit manifests. These helpers do
 not authenticate provenance or prove that a declared sampling plan was followed.
-No generated Python, AIAD check, or model-provided measurement is evaluated here.
+No generated Python, AAD check, or model-provided measurement is evaluated here.
 """
 
 from __future__ import annotations

@@ -8,14 +8,14 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from aiad.engine import sandbox
-from aiad.engine.jobs import run_build
-from aiad.engine.types import BuildRequest
+from aad.engine import sandbox
+from aad.engine.jobs import run_build
+from aad.engine.types import BuildRequest
 
 
 class SandboxPolicyTests(unittest.TestCase):
     def test_default_popen_preserves_command_environment_and_process_options(self) -> None:
-        from aiad.engine import memory
+        from aad.engine import memory
 
         with tempfile.TemporaryDirectory() as temporary:
             job = Path(temporary).resolve()
@@ -36,7 +36,7 @@ class SandboxPolicyTests(unittest.TestCase):
                 self.assertEqual(launch.call_count, 2)
 
     def test_configured_hook_rejects_unknown_policies_and_invalid_original_argv_before_launch(self) -> None:
-        from aiad.engine.memory import AddressSpaceBudget
+        from aad.engine.memory import AddressSpaceBudget
 
         class ResidentBudget:
             bytes = 1024
@@ -52,9 +52,9 @@ class SandboxPolicyTests(unittest.TestCase):
             launch.assert_not_called()
 
     def test_environment_does_not_inherit_secrets(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {"AIAD_TEST_SECRET": "private-fixture"}):
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {"AAD_TEST_SECRET": "private-fixture"}):
             env = sandbox.environment(Path(temporary))
-            self.assertNotIn("AIAD_TEST_SECRET", env)
+            self.assertNotIn("AAD_TEST_SECRET", env)
             self.assertEqual(Path(env["HOME"]), Path(temporary).resolve())
             self.assertTrue(Path(env["TMPDIR"]).is_dir())
 
@@ -175,7 +175,7 @@ class PublicBuildSandboxFailureTests(unittest.TestCase):
 @unittest.skipUnless(sys.platform == "darwin", "macOS Seatbelt escape tests")
 class MacSandboxTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory(prefix="aiad-sandbox-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="aad-sandbox-")
         self.root = Path(self.temporary.name).resolve()
         self.job = self.root / 'job'
         self.job.mkdir()
@@ -202,8 +202,8 @@ class MacSandboxTests(unittest.TestCase):
         self.assertEqual((self.job/'result.txt').read_text(), 'built')
 
     def test_child_does_not_receive_inherited_environment_secrets(self) -> None:
-        with patch.dict(os.environ, {'AIAD_TEST_SECRET': 'private-fixture'}):
-            result = self.run_script("import os; assert 'AIAD_TEST_SECRET' not in os.environ; print('clean')")
+        with patch.dict(os.environ, {'AAD_TEST_SECRET': 'private-fixture'}):
+            result = self.run_script("import os; assert 'AAD_TEST_SECRET' not in os.environ; print('clean')")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), 'clean')
 
@@ -325,7 +325,7 @@ else: raise RuntimeError('profile injected')
         outside_output = self.root / "escaped.txt"
         source = f'''import os, subprocess
 from pathlib import Path
-assert "AIAD_TEST_SECRET" not in os.environ
+assert "AAD_TEST_SECRET" not in os.environ
 assert Path.cwd() == Path({str(self.job)!r})
 assert Path(os.environ["HOME"]) == Path.cwd()
 assert Path(os.environ["TMPDIR"]).is_relative_to(Path.cwd())
@@ -341,7 +341,7 @@ for name, operation in [
     else: raise AssertionError(name + " escaped the public build sandbox")
 result = Box(2, 3, 4)
 '''
-        with patch.dict(os.environ, {"AIAD_TEST_SECRET": "private-fixture"}):
+        with patch.dict(os.environ, {"AAD_TEST_SECRET": "private-fixture"}):
             built = run_build(BuildRequest(source=source, project_dir=self.root, job_dir=self.job))
         self.assertTrue(built.ok, f"{built.summary}\n{built.failure}\n{built.stderr}")
         self.assertEqual(built.status, "draft")

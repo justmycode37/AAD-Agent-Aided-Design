@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 from build123d import Box, Cylinder, Pos
 
-from aiad_drafting import DrawingRequest, make_drawing
+from aad_drafting import DrawingRequest, make_drawing
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
@@ -47,7 +47,7 @@ def generate(output: Path = SAMPLE_OUTPUT):
         style="iso",
         title_block={
             "title": "Asymmetric drilled plate",
-            "drawing_no": "AIAD-S4-001",
+            "drawing_no": "AAD-S4-001",
             "revision": "A",
         },
         formats=("svg", "dxf", "pdf"),

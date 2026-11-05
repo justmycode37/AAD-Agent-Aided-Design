@@ -5,7 +5,7 @@ import math
 
 import pytest
 
-from aiad_drafting.constraints import ConstraintError, ConstraintSketch
+from aad_drafting.constraints import ConstraintError, ConstraintSketch
 
 
 def test_coincidence_carries_an_unreferenced_endpoint_without_false_conflict():

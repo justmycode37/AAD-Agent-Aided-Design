@@ -6,7 +6,7 @@ from ezdxf import readfile
 from PIL import Image, ImageChops
 import pytest
 
-from aiad_drafting import DimensionSpec, DrawingRequest, make_drawing
+from aad_drafting import DimensionSpec, DrawingRequest, make_drawing
 from examples.first_sheet import build_sample_context
 
 
@@ -185,7 +185,7 @@ def test_mixed_hole_diameters_and_spacing_appear_on_sheet(tmp_path):
 
 
 def test_custom_view_cannot_mislabel_named_axes(tmp_path):
-    from aiad_drafting import DrawingView
+    from aad_drafting import DrawingView
     with pytest.raises(ValueError, match="fixed direction"):
         make_drawing(build_sample_context(), DrawingRequest(
             views=(DrawingView("front", direction=(1,0,0)),)), tmp_path)
@@ -199,7 +199,7 @@ def test_missing_view_dimension_is_reported_as_failure(tmp_path):
 
 def test_raised_boss_does_not_hide_a_plate_through_hole_and_blind_holes_are_excluded():
     from build123d import Box, Cylinder, Pos
-    from aiad_drafting.geometry import through_holes, shape_bounds
+    from aad_drafting.geometry import through_holes, shape_bounds
     plate = Box(80,50,6) - Pos(-20,0,0)*Cylinder(3,8)
     raised = plate + Pos(20,0,5)*Cylinder(8,10)
     holes = through_holes(raised, shape_bounds(raised))
@@ -212,8 +212,8 @@ def test_raised_boss_does_not_hide_a_plate_through_hole_and_blind_holes_are_excl
 
 
 def test_clockwise_pdf_arc_and_complementary_arc_keys():
-    from aiad_drafting.export import arc, _reportlab_arc_angles
-    from aiad_drafting.geometry import Curve, _curve_key
+    from aad_drafting.export import arc, _reportlab_arc_angles
+    from aad_drafting.geometry import Curve, _curve_key
     assert _reportlab_arc_angles(arc((0,0), 2, 90, 0, False)) == (90, -90)
     first = Curve("arc", False, center=(0,0), radius=2, start_angle=0, end_angle=180)
     second = Curve("arc", False, center=(0,0), radius=2, start_angle=180, end_angle=0)

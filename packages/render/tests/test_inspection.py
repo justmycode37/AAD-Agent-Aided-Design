@@ -14,8 +14,8 @@ import pytest
 from build123d import Axis, Box, Cylinder, Pos, Rot, Sphere, fillet
 from PIL import Image
 
-from aiad_render import render
-from aiad_render import exact
+from aad_render import render
+from aad_render import exact
 
 
 def _ctx(shape, features=()):
@@ -440,11 +440,11 @@ def test_local_selectors_never_reach_the_engine_resolver(monkeypatch, tmp_path):
         calls.append(selector)
         return [SimpleNamespace(kind="face", index=1, feature=None)]
 
-    select = types.ModuleType("aiad.engine.select")
+    select = types.ModuleType("aad.engine.select")
     select.resolve = resolve
-    monkeypatch.setitem(sys.modules, "aiad", types.ModuleType("aiad"))
-    monkeypatch.setitem(sys.modules, "aiad.engine", types.ModuleType("aiad.engine"))
-    monkeypatch.setitem(sys.modules, "aiad.engine.select", select)
+    monkeypatch.setitem(sys.modules, "aad", types.ModuleType("aad"))
+    monkeypatch.setitem(sys.modules, "aad.engine", types.ModuleType("aad.engine"))
+    monkeypatch.setitem(sys.modules, "aad.engine.select", select)
     ctx = _ctx(Box(4, 4, 4), [{"name": "body", "faces": [0, 2]}])
     _render(
         ctx,
@@ -465,7 +465,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 from build123d import Box, Cylinder, Pos
-from aiad_render import render
+from aad_render import render
 part = Box(40, 30, 10) - Pos(5, 2, 0) * Cylinder(3, 30)
 request = ast.literal_eval(sys.argv[2])
 render(SimpleNamespace(shape=part, units="mm", features=[]), request, Path(sys.argv[1]))
@@ -495,7 +495,7 @@ def test_images_and_reports_are_identical_in_two_processes(tmp_path, request_tex
 
 
 def test_exact_module_has_no_import_time_kernel_dependency():
-    code = "import sys, aiad_render.exact; print('OCP' in sys.modules)"
+    code = "import sys, aad_render.exact; print('OCP' in sys.modules)"
     assert subprocess.run([sys.executable, "-c", code], capture_output=True, text=True).stdout.strip() == "False"
 
 

@@ -26,7 +26,7 @@ class DiscoveryTests(unittest.TestCase):
             pkg = self.root / "packages" / package
             (pkg / "tests").mkdir(parents=True)
             (pkg / "tests" / "test_example.py").touch()
-            (pkg / "pyproject.toml").write_text(f'[project]\nname = "aiad-{package}"\n')
+            (pkg / "pyproject.toml").write_text(f'[project]\nname = "aad-{package}"\n')
         (self.root / "tests/e2e").mkdir(parents=True)
         (self.root / "tests/e2e/test_smoke.py").touch()
         (self.root / "viewer").mkdir()
@@ -61,7 +61,7 @@ class DiscoveryTests(unittest.TestCase):
         self.assertIn("Required smoke tests are missing", captured.getvalue())
 
     def test_platform_is_a_leaf(self):
-        self.assert_selection(["packages/platform/src/aiad_platform/cli.py"], ["platform"])
+        self.assert_selection(["packages/platform/src/aad_platform/cli.py"], ["platform"])
 
     def test_viewer_keeps_its_build_and_smoke(self):
         self.assert_selection(["viewer/src/main.ts"], [], viewer=True)

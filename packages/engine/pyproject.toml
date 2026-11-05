@@ -3,9 +3,9 @@ requires = ["hatchling>=1.26"]
 build-backend = "hatchling.build"
 
 [project]
-name = "aiad-engine"
+name = "aad-engine"
 version = "0.1.0"
-description = "M0 build123d worker and public AIAD engine types"
+description = "M0 build123d worker and public AAD engine types"
 requires-python = ">=3.12"
 dependencies = [
     "build123d==0.13.0",
@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/aiad"]
+packages = ["src/aad"]
 
 [tool.uv]
 package = true

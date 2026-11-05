@@ -1,12 +1,12 @@
 # Editable 2D import
 
-`aiad_drafting.import2d` reads planar DXF and static SVG into an editable,
+`aad_drafting.import2d` reads planar DXF and static SVG into an editable,
 JSON-serializable record set. The parser keeps source curves analytic. It does
 not tessellate Beziers, ellipses, elliptical arcs, or polyline bulges to fit a
 backend that cannot represent them.
 
 ```python
-from aiad_drafting.import2d import parse_dxf, parse_svg
+from aad_drafting.import2d import parse_dxf, parse_svg
 
 dxf = parse_dxf("drawing.dxf", units="mm", layer_map={"Score Lines": "score"})
 svg = parse_svg("drawing.svg", units="in")
@@ -96,7 +96,7 @@ and the SVG default `layer0` map to `cut`.
 ## Sheet2D adapter
 
 `Imported2D.to_sheet(name=None)` imports `Sheet2D` lazily. Once
-`aiad_drafting.model2d.Sheet2D` is available, it creates a sheet using the
+`aad_drafting.model2d.Sheet2D` is available, it creates a sheet using the
 imported units and layers, then calls its `line`, `circle`, `arc`, `polyline`,
 and `text` methods with coordinate tuples. Source entity names and parser
 provenance are attached to entity metadata where supported.

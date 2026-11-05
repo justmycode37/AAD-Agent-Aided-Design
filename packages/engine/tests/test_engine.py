@@ -11,8 +11,8 @@ import unittest
 from unittest.mock import patch
 from pathlib import Path
 
-from aiad.engine.jobs import run_build
-from aiad.engine.types import BuildRequest
+from aad.engine.jobs import run_build
+from aad.engine.types import BuildRequest
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -21,7 +21,7 @@ class EngineBootstrapTests(unittest.TestCase):
     def test_types_import_does_not_import_kernel(self) -> None:
         code = (
             "import sys; from typing import get_type_hints; "
-            "import aiad.engine.types as engine_types; "
+            "import aad.engine.types as engine_types; "
             "get_type_hints(engine_types.ModelContext); "
             "assert 'build123d' not in sys.modules; "
             "assert 'OCP' not in sys.modules"
@@ -29,7 +29,7 @@ class EngineBootstrapTests(unittest.TestCase):
         subprocess.run([sys.executable, "-c", code], check=True, timeout=10)
 
     def test_box_script_returns_metrics_and_loadable_brep(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="aiad-engine-test-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="aad-engine-test-") as temporary:
             root = Path(temporary)
             result = run_build(
                 BuildRequest(
@@ -65,7 +65,7 @@ class EngineBootstrapTests(unittest.TestCase):
 
     def test_buildpart_fixture_produces_implicit_main_feature(self) -> None:
         source = (ROOT / "fixtures" / "models" / "fan_mount.py").read_text(encoding="utf-8")
-        with tempfile.TemporaryDirectory(prefix="aiad-engine-test-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="aad-engine-test-") as temporary:
             root = Path(temporary)
             result = run_build(
                 BuildRequest(
@@ -87,7 +87,7 @@ class EngineBootstrapTests(unittest.TestCase):
             self.assertTrue(any(check.suite == "process" for check in result.checks))
 
     def test_syntax_and_runtime_failures_report_source_location(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="aiad-engine-test-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="aad-engine-test-") as temporary:
             root = Path(temporary)
             syntax = run_build(
                 BuildRequest(source="result = Box(10, 10, 6", project_dir=root, job_dir=root / "syntax")
@@ -113,17 +113,17 @@ class EngineBootstrapTests(unittest.TestCase):
     def test_optional_hook_failures_warn_without_discarding_brep(self) -> None:
         source = """from pathlib import Path
 import sys
-Path("aiad_quality.py").write_text(
+Path("aad_quality.py").write_text(
     "def spec_checks(ctx):\\n    raise RuntimeError('quality hook fixture')\\n"
 )
-Path("aiad_render.py").write_text(
+Path("aad_render.py").write_text(
     "def make_scene(ctx, out):\\n    raise RuntimeError('scene hook fixture')\\n"
     "def render(ctx, req, out):\\n    raise RuntimeError('render hook fixture')\\n"
 )
 sys.path.insert(0, str(Path.cwd()))
 result = Box(4, 5, 6)
 """
-        with tempfile.TemporaryDirectory(prefix="aiad-engine-test-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="aad-engine-test-") as temporary:
             root = Path(temporary)
             result = run_build(
                 BuildRequest(
@@ -146,13 +146,13 @@ result = Box(4, 5, 6)
         # Trusted lifecycle fixture, deliberately outside the model launcher:
         # macOS correctly denies subprocess creation from sandboxed model code.
         program = "import subprocess,sys; subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)']); print('leader exited', flush=True)"
-        with tempfile.TemporaryDirectory(prefix="aiad-trusted-cleanup-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="aad-trusted-cleanup-") as temporary:
             process = subprocess.Popen([sys.executable, "-c", program], stdin=subprocess.PIPE,
                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
             try:
                 process.wait(timeout=3)
                 started = time.monotonic()
-                with patch("aiad.engine.jobs.sandbox.popen", return_value=process):
+                with patch("aad.engine.jobs.sandbox.popen", return_value=process):
                     built = run_build(BuildRequest(source="trusted cleanup fixture", project_dir=Path(temporary),
                                                    job_dir=Path(temporary) / "job", timeout_s=0.1))
                 self.assertLess(time.monotonic() - started, 5)
@@ -169,8 +169,8 @@ result = Box(4, 5, 6)
 
     @unittest.skipUnless(os.name == "posix", "POSIX orphan-pipe cleanup")
     def test_pipe_drain_is_bounded_when_a_descendant_leaves_the_group(self) -> None:
-        from aiad.engine.jobs import _kill_worker
-        with tempfile.TemporaryDirectory(prefix="aiad-trusted-cleanup-") as temporary:
+        from aad.engine.jobs import _kill_worker
+        with tempfile.TemporaryDirectory(prefix="aad-trusted-cleanup-") as temporary:
             pid_file = Path(temporary) / "child.pid"
             # This trusted test process may create an orphan holding the pipes;
             # production model launches always go through sandbox.popen.
@@ -185,7 +185,7 @@ result = Box(4, 5, 6)
             try:
                 process.wait(timeout=3)
                 started = time.monotonic()
-                with patch("aiad.engine.jobs.sandbox.popen", return_value=process):
+                with patch("aad.engine.jobs.sandbox.popen", return_value=process):
                     built = run_build(BuildRequest(source="trusted orphan-pipe fixture", project_dir=Path(temporary),
                                                    job_dir=Path(temporary) / "job", timeout_s=0.1))
                 self.assertLess(time.monotonic() - started, 5)
@@ -210,12 +210,12 @@ result = Box(4, 5, 6)
     def test_optional_hook_import_errors_preserve_a_built_context(self) -> None:
         source = """from pathlib import Path
 import sys
-Path('aiad_quality.py').write_text("raise RuntimeError('quality import failed')")
-Path('aiad_render.py').write_text("raise RuntimeError('render import failed')")
+Path('aad_quality.py').write_text("raise RuntimeError('quality import failed')")
+Path('aad_render.py').write_text("raise RuntimeError('render import failed')")
 sys.path.insert(0, str(Path.cwd()))
 result = Box(2, 3, 4)
 """
-        with tempfile.TemporaryDirectory(prefix="aiad-engine-test-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="aad-engine-test-") as temporary:
             built = run_build(BuildRequest(source=source, project_dir=Path(temporary)))
             self.assertTrue(built.ok, built.summary)
             self.assertIsNotNone(built.context)
@@ -227,8 +227,8 @@ result = Box(2, 3, 4)
 
     def test_empty_optional_outputs_warn_instead_of_reporting_success(self) -> None:
         module = "def make_scene(ctx, out):\n    return {}\ndef render(ctx, req, out):\n    return []\n"
-        source = "from pathlib import Path\nimport sys\n" + f"Path('aiad_render.py').write_text({module!r})\n" + "sys.path.insert(0, str(Path.cwd()))\nresult = Box(2, 2, 2)\n"
-        with tempfile.TemporaryDirectory(prefix="aiad-engine-test-") as temporary:
+        source = "from pathlib import Path\nimport sys\n" + f"Path('aad_render.py').write_text({module!r})\n" + "sys.path.insert(0, str(Path.cwd()))\nresult = Box(2, 2, 2)\n"
+        with tempfile.TemporaryDirectory(prefix="aad-engine-test-") as temporary:
             built = run_build(BuildRequest(source=source, project_dir=Path(temporary)))
             self.assertTrue(built.ok, built.summary)
             self.assertIsNone(built.scene)
@@ -239,14 +239,14 @@ result = Box(2, 3, 4)
 
     def test_optional_render_hook_errors_and_empty_outputs_warn(self) -> None:
         from types import SimpleNamespace
-        from aiad.engine._worker import _optional_render
-        from aiad.engine.types import ModelContext
+        from aad.engine._worker import _optional_render
+        from aad.engine.types import ModelContext
 
-        with tempfile.TemporaryDirectory(prefix="aiad-render-hook-test-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="aad-render-hook-test-") as temporary:
             context = ModelContext(job_dir=Path(temporary))
             for effect in (RuntimeError('render import failed'), None):
                 with self.subTest(import_error=effect is not None):
-                    with patch('aiad.engine._worker.importlib.import_module',
+                    with patch('aad.engine._worker.importlib.import_module',
                                side_effect=effect, return_value=SimpleNamespace(render=lambda *args: [])):
                         artifacts, check = _optional_render(context, True)
                     self.assertEqual(artifacts, {})
@@ -256,7 +256,7 @@ result = Box(2, 3, 4)
             def broken_hook(*args):
                 raise RuntimeError('render hook fixture')
 
-            with patch('aiad.engine._worker.importlib.import_module', return_value=SimpleNamespace(render=broken_hook)):
+            with patch('aad.engine._worker.importlib.import_module', return_value=SimpleNamespace(render=broken_hook)):
                 artifacts, check = _optional_render(context, True)
             self.assertEqual(artifacts, {})
             self.assertEqual(check.actual, 'RuntimeError: render hook fixture')
@@ -296,10 +296,10 @@ result = Box(2, 3, 4)
             ),
         ]
         for name, spec, returned_check in cases:
-            with self.subTest(name=name), tempfile.TemporaryDirectory(prefix="aiad-engine-test-") as temporary:
+            with self.subTest(name=name), tempfile.TemporaryDirectory(prefix="aad-engine-test-") as temporary:
                 root = Path(temporary)
                 module_source = (
-                    "from aiad.engine.types import Check\n"
+                    "from aad.engine.types import Check\n"
                     "def spec_checks(ctx):\n"
                     f"    return [{returned_check}]\n"
                     "def process_checks(ctx):\n"
@@ -307,7 +307,7 @@ result = Box(2, 3, 4)
                 )
                 source = (
                     "from pathlib import Path\nimport sys\n"
-                    f"Path('aiad_quality.py').write_text({module_source!r})\n"
+                    f"Path('aad_quality.py').write_text({module_source!r})\n"
                     "sys.path.insert(0, str(Path.cwd()))\n"
                     "result = Box(2, 2, 2)\n"
                 )
@@ -320,13 +320,13 @@ result = Box(2, 3, 4)
                 self.assertTrue(Path(result.artifacts["part.brep"]).is_file())
 
     def test_complete_gate_remains_draft_until_independent_validation(self) -> None:
-        module = "from aiad.engine.types import Check\ndef spec_checks(ctx):\n    return [Check(id='fit', suite='spec', status='pass')]\ndef process_checks(ctx):\n    return []\n"
+        module = "from aad.engine.types import Check\ndef spec_checks(ctx):\n    return [Check(id='fit', suite='spec', status='pass')]\ndef process_checks(ctx):\n    return []\n"
         for inject_step_failure in (False, True):
-            with self.subTest(step_unavailable=inject_step_failure), tempfile.TemporaryDirectory(prefix="aiad-engine-test-") as temporary:
+            with self.subTest(step_unavailable=inject_step_failure), tempfile.TemporaryDirectory(prefix="aad-engine-test-") as temporary:
                 root = Path(temporary)
-                source = "from pathlib import Path\nimport sys\n" + f"Path('aiad_quality.py').write_text({module!r})\n" + "sys.path.insert(0, str(Path.cwd()))\nresult = Box(2, 2, 2)\n"
+                source = "from pathlib import Path\nimport sys\n" + f"Path('aad_quality.py').write_text({module!r})\n" + "sys.path.insert(0, str(Path.cwd()))\nresult = Box(2, 2, 2)\n"
                 if inject_step_failure:
-                    source += "import aiad.engine.gate as gate\ndef fail_step(path):\n    raise RuntimeError('STEP fixture unavailable')\ngate._import_step_shape = fail_step\n"
+                    source += "import aad.engine.gate as gate\ndef fail_step(path):\n    raise RuntimeError('STEP fixture unavailable')\ngate._import_step_shape = fail_step\n"
                 built = run_build(BuildRequest(source=source, project_dir=root, spec={"requirements": [{"id": "fit"}]}))
                 self.assertTrue(built.ok, built.summary)
                 self.assertFalse(built.requirements_proven)
@@ -341,7 +341,7 @@ result = Box(2, 3, 4)
                     self.assertTrue(any(c.id == "worker_verification_unattested" and c.status == "skip" for c in built.checks))
 
     def test_timeout_and_crash_are_isolated_from_parent(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="aiad-engine-test-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="aad-engine-test-") as temporary:
             root = Path(temporary)
             timed_out = run_build(
                 BuildRequest(
@@ -374,7 +374,7 @@ result = Box(2, 3, 4)
 
     def test_forged_worker_success_without_artifact_is_rejected(self) -> None:
         fake = {"protocol": 1, "result": {"ok": True, "status": "verified", "requirements_proven": True}}
-        marker = ("AIAD_ENGINE_RESULT:" + json.dumps(fake) + "\n").encode()
+        marker = ("AAD_ENGINE_RESULT:" + json.dumps(fake) + "\n").encode()
         source = f"import os\nos.write(1, {marker!r})\nos._exit(0)\n"
         built = run_build(BuildRequest(source=source))
         self.assertFalse(built.ok)
@@ -394,7 +394,7 @@ result = Box(2, 3, 4)
                 counter += 1
                 job = root / f'job-{counter}'
                 job.mkdir()
-                marker = ("AIAD_ENGINE_RESULT:" + json.dumps({"protocol": 1, "result": wire}) + "\n").encode()
+                marker = ("AAD_ENGINE_RESULT:" + json.dumps({"protocol": 1, "result": wire}) + "\n").encode()
                 source = "import os\nfrom pathlib import Path\n" + preparation + "\n"
                 source += "os._exit(5)\n" if crash else f"os.write(1, {marker!r})\nos._exit(0)\n"
                 return run_build(BuildRequest(source=source, project_dir=root, job_dir=job))
@@ -434,8 +434,8 @@ result = Box(2, 3, 4)
                 (job/'part.brep').write_text('fixture bytes; geometry is not attested')
             if prepare is not None:
                 prepare(job)
-            return (('AIAD_ENGINE_RESULT:' + json.dumps({'protocol': 1, 'result': wire}) + '\n').encode(), b'')
-        with patch('aiad.engine.jobs.sandbox.popen') as popen:
+            return (('AAD_ENGINE_RESULT:' + json.dumps({'protocol': 1, 'result': wire}) + '\n').encode(), b'')
+        with patch('aad.engine.jobs.sandbox.popen') as popen:
             popen.return_value.returncode = 0
             popen.return_value.communicate.side_effect = communicate
             return run_build(BuildRequest(source='fixture', project_dir=root, job_dir=job))
@@ -456,7 +456,7 @@ result = Box(2, 3, 4)
             root = Path(temporary)
             self.mocked_result({'ok': True, 'status': 'draft'}, root)
             existing = (root/'job'/'part.brep').read_bytes()
-            with patch('aiad.engine.jobs.sandbox.popen') as popen:
+            with patch('aad.engine.jobs.sandbox.popen') as popen:
                 reused = run_build(BuildRequest(source='another source', project_dir=root, job_dir=root/'job'))
                 popen.assert_not_called()
             self.assertFalse(reused.ok)

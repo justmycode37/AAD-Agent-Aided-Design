@@ -11,7 +11,7 @@ import pytest
 from websockets.asyncio.client import connect
 from websockets.exceptions import ConnectionClosed
 
-from aiad_platform.daemon.window import WindowServer
+from aad_platform.daemon.window import WindowServer
 
 
 def _dispatch(calls):
@@ -115,7 +115,7 @@ def test_server_binds_loopback_and_serves_injected_html_with_security_headers():
             status, headers, body = await _http(port, _path(expected_url))
             html = body.decode("utf-8")
             assert status == 200
-            assert "<head data-view='stub'><script>window.__AIAD_WINDOW__ = {\"project\":\"bracket\",\"token\":\"x\\u003c/script\\u003e\\u003c\\u003e\\u0026\\u2028\\u2029\"};</script>" in html
+            assert "<head data-view='stub'><script>window.__AAD_WINDOW__ = {\"project\":\"bracket\",\"token\":\"x\\u003c/script\\u003e\\u003c\\u003e\\u0026\\u2028\\u2029\"};</script>" in html
             assert headers["cache-control"] == "no-store"
             assert headers["referrer-policy"] == "no-referrer"
             assert headers["x-content-type-options"] == "nosniff"
@@ -196,7 +196,7 @@ def test_host_and_origin_checks_cover_http_and_websocket_handshakes():
                 "/rpc",
                 method="POST",
                 headers=post_headers,
-                body=json.dumps({"method": "aiad_show", "params": {}}),
+                body=json.dumps({"method": "aad_show", "params": {}}),
             )
             assert status == 403
             status, _, _ = await _http(
@@ -235,7 +235,7 @@ def test_host_and_origin_checks_cover_http_and_websocket_handshakes():
 def test_post_requires_json_but_accepts_same_origin_or_no_origin():
     async def scenario():
         async with _running_server() as (server, port, calls):
-            rpc_body = json.dumps({"method": "aiad_show", "params": {"project": "demo"}})
+            rpc_body = json.dumps({"method": "aad_show", "params": {"project": "demo"}})
             context_body = json.dumps({"project": "demo", "selection": []})
             base = {"Authorization": "Bearer window-test-token"}
             status, _, _ = await _http(
@@ -280,7 +280,7 @@ def test_post_requires_json_but_accepts_same_origin_or_no_origin():
                 body=context_body,
             )
             assert status == 200 and json.loads(body) == {"ok": True}
-            assert calls == [("aiad_show", {"project": "demo"})]
+            assert calls == [("aad_show", {"project": "demo"})]
 
     asyncio.run(scenario())
 
@@ -301,28 +301,28 @@ def test_rpc_allowlist_happy_path_error_mapping_and_mcp_result_shape():
                     body=json.dumps({"method": method, "params": params}),
                 )
 
-            status, _, body = await call("aiad_show", {"project": "demo"})
+            status, _, body = await call("aad_show", {"project": "demo"})
             result = json.loads(body)
             assert status == 200
             assert result == {
-                "content": [{"type": "text", "text": "reply for aiad_show"}],
-                "structuredContent": {"ok": True, "project": "demo", "method": "aiad_show"},
+                "content": [{"type": "text", "text": "reply for aad_show"}],
+                "structuredContent": {"ok": True, "project": "demo", "method": "aad_show"},
                 "isError": False,
             }
 
-            status, _, body = await call("aiad_set_param", {"project": "demo", "force_error": True})
+            status, _, body = await call("aad_set_param", {"project": "demo", "force_error": True})
             assert status == 200
             assert json.loads(body)["isError"] is True
 
-            for method in ("aiad_scene_read", "aiad_pick_info", "aiad_file_read"):
+            for method in ("aad_scene_read", "aad_pick_info", "aad_file_read"):
                 status, _, body = await call(method, {})
                 assert status == 200
                 assert json.loads(body)["structuredContent"]["method"] == method
 
             count = len(calls)
-            status, _, body = await call("aiad_build", {})
+            status, _, body = await call("aad_build", {})
             assert status == 403 and body == b""
-            status, _, body = await call(["aiad_show"], {})
+            status, _, body = await call(["aad_show"], {})
             assert status == 403 and body == b""
             assert len(calls) == count
 
@@ -434,14 +434,14 @@ def test_broadcast_targets_only_matching_project_and_dead_socket_does_not_block(
 
 
 def test_open_once_suppresses_browser_but_records_project(monkeypatch):
-    monkeypatch.setenv("AIAD_NO_BROWSER", "1")
+    monkeypatch.setenv("AAD_NO_BROWSER", "1")
     opened = []
 
     def forbidden_open(url):
         opened.append(url)
         raise AssertionError("browser must remain closed in tests")
 
-    monkeypatch.setattr("aiad_platform.daemon.window.webbrowser.open", forbidden_open)
+    monkeypatch.setattr("aad_platform.daemon.window.webbrowser.open", forbidden_open)
 
     async def scenario():
         async with _running_server() as (server, _, _):

@@ -1,4 +1,4 @@
-"""Drives `aiad mcp` over real stdio, with HOME and AIAD_HOME in a temp dir."""
+"""Drives `aad mcp` over real stdio, with HOME and AAD_HOME in a temp dir."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ class McpProcess:
 
     def __init__(self, env: dict[str, str]):
         self.process = subprocess.Popen(
-            [sys.executable, "-m", "aiad_platform.cli", "mcp"],
+            [sys.executable, "-m", "aad_platform.cli", "mcp"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -73,23 +73,23 @@ class McpProcess:
 @pytest.fixture
 def engine() -> None:
     """Skip until the S1 engine is on main. After that, the workspace always has it."""
-    pytest.importorskip("aiad.engine.jobs")
+    pytest.importorskip("aad.engine.jobs")
 
 
 @pytest.fixture
-def aiad_env() -> Iterator[dict[str, str]]:
+def aad_env() -> Iterator[dict[str, str]]:
     # Short path: a unix socket path must stay under about 100 bytes.
-    with tempfile.TemporaryDirectory(prefix="aiad-e2e-", dir="/tmp") as tmp:
+    with tempfile.TemporaryDirectory(prefix="aad-e2e-", dir="/tmp") as tmp:
         home = Path(tmp).resolve()
         env = {
             **os.environ,
             "HOME": str(home),
-            "AIAD_HOME": str(home / ".aiad"),
-            "AIAD_IDLE_TIMEOUT_S": "60",
-            "AIAD_NO_BROWSER": "1",
+            "AAD_HOME": str(home / ".aad"),
+            "AAD_IDLE_TIMEOUT_S": "60",
+            "AAD_NO_BROWSER": "1",
         }
         yield env
-        info = home / ".aiad" / "run" / "aiadd.json"
+        info = home / ".aad" / "run" / "aadd.json"
         if info.exists():
             pid = json.loads(info.read_text())["pid"]
             try:
@@ -99,7 +99,7 @@ def aiad_env() -> Iterator[dict[str, str]]:
 
 
 @pytest.fixture
-def mcp_process(aiad_env: dict[str, str]) -> Iterator[McpProcess]:
-    process = McpProcess(aiad_env)
+def mcp_process(aad_env: dict[str, str]) -> Iterator[McpProcess]:
+    process = McpProcess(aad_env)
     yield process
     process.close()

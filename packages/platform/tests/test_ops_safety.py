@@ -3,18 +3,18 @@ from pathlib import Path
 
 import pytest
 
-from aiad_platform.daemon import handlers
-from aiad_platform.daemon.handlers import Handlers, _project_directory, _publish_exports
-from aiad_platform.daemon.projects import create_project
-from aiad_platform.rpc import RpcError
-from aiad_platform.specs import parse_spec
+from aad_platform.daemon import handlers
+from aad_platform.daemon.handlers import Handlers, _project_directory, _publish_exports
+from aad_platform.daemon.projects import create_project
+from aad_platform.rpc import RpcError
+from aad_platform.specs import parse_spec
 
 
 @pytest.fixture
 def project(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setenv("AIAD_HOME", str(tmp_path / ".aiad"))
-    (tmp_path / ".aiad").mkdir()
+    monkeypatch.setenv("AAD_HOME", str(tmp_path / ".aad"))
+    (tmp_path / ".aad").mkdir()
     return create_project("p")
 
 
@@ -30,7 +30,7 @@ def test_rejects_symlinked_project_directories(project, tmp_path):
             _project_directory(project, name)
     (outside / "secret").write_text("keep")
     with pytest.raises(RpcError):
-        asyncio.run(Handlers().aiad_file_read({"project": "p", "path": "secret"}))
+        asyncio.run(Handlers().aad_file_read({"project": "p", "path": "secret"}))
 
 
 def test_import_replaces_destination_symlink_without_following_it(project, tmp_path, monkeypatch):
@@ -45,7 +45,7 @@ def test_import_replaces_destination_symlink_without_following_it(project, tmp_p
         return {"ok": True, "imported": {}}
 
     monkeypatch.setattr(handlers, "run_op", fake_op)
-    result = asyncio.run(Handlers().aiad_import({"project": "p", "path": str(source)}))
+    result = asyncio.run(Handlers().aad_import({"project": "p", "path": str(source)}))
     assert result["structured"]["ok"]
     assert outside.read_text() == "keep"
     assert not (imports / source.name).is_symlink()
@@ -89,7 +89,7 @@ def test_library_preserves_worker_timeout(monkeypatch):
         return {"ok": False, "failure": {"code": "TIMEOUT", "phase": "timeout", "message": "timed out"}}
 
     monkeypatch.setattr(handlers, "run_op", timeout)
-    result = asyncio.run(Handlers().aiad_library({"action": "search", "query": "bolt"}))
+    result = asyncio.run(Handlers().aad_library({"action": "search", "query": "bolt"}))
     assert result["structured"]["failure"]["code"] == "TIMEOUT"
     assert result["structured"]["failure"]["phase"] == "timeout"
 
@@ -99,9 +99,9 @@ def test_duplicate_yaml_cannot_create_or_advance_project(project):
     with pytest.raises(ValueError, match="duplicate YAML key"):
         parse_spec(duplicate)
     handler = Handlers()
-    result = asyncio.run(handler.aiad_new({"name": "bad", "spec": duplicate}))
+    result = asyncio.run(handler.aad_new({"name": "bad", "spec": duplicate}))
     assert result["structured"]["failure"]["code"] == "BAD_INPUT"
     assert not (project.path.parent / "bad").exists()
-    result = asyncio.run(handler.aiad_build({"project": "p", "source": "result = None", "spec": duplicate}))
+    result = asyncio.run(handler.aad_build({"project": "p", "source": "result = None", "spec": duplicate}))
     assert result["structured"]["failure"]["code"] == "BAD_INPUT"
     assert project.head_rev is None

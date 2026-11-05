@@ -1,4 +1,4 @@
-"""`aiad serve --http` over a real socket: authentication, isolation and the build flow."""
+"""`aad serve --http` over a real socket: authentication, isolation and the build flow."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from typing import Any
 import pytest
 
 MODEL = "from build123d import Box\nresult = Box(60, 40, 6)\n"
-CLI = [sys.executable, "-m", "aiad_platform.cli"]
+CLI = [sys.executable, "-m", "aad_platform.cli"]
 
 
 def _free_port() -> int:
@@ -52,7 +52,7 @@ class Remote:
             "initialize",
             {"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "e2e", "version": "1"}},
         )
-        assert reply["result"]["serverInfo"]["name"] == "aiad"
+        assert reply["result"]["serverInfo"]["name"] == "aad"
         assert session
         notification = urllib.request.Request(
             self.url,
@@ -69,10 +69,10 @@ class Remote:
 
 @pytest.fixture
 def env() -> Iterator[dict[str, str]]:
-    with tempfile.TemporaryDirectory(prefix="aiad-r-", dir="/tmp") as tmp:
+    with tempfile.TemporaryDirectory(prefix="aad-r-", dir="/tmp") as tmp:
         home = Path(tmp).resolve()
-        yield {**os.environ, "HOME": str(home), "AIAD_HOME": str(home / ".aiad"), "AIAD_IDLE_TIMEOUT_S": "60", "AIAD_NO_BROWSER": "1"}
-        for info in (home / ".aiad" / "users").glob("*/.aiad/run/aiadd.json"):
+        yield {**os.environ, "HOME": str(home), "AAD_HOME": str(home / ".aad"), "AAD_IDLE_TIMEOUT_S": "60", "AAD_NO_BROWSER": "1"}
+        for info in (home / ".aad" / "users").glob("*/.aad/run/aadd.json"):
             try:
                 os.kill(json.loads(info.read_text())["pid"], 15)
             except (OSError, ValueError):
@@ -122,7 +122,7 @@ def test_refuses_network_bind_without_tls(env: dict[str, str], extra: list[str])
 
 def test_tokens_are_stored_hashed(env: dict[str, str]) -> None:
     token = _add_user(env, "alice")
-    stored = Path(env["AIAD_HOME"], "remote_users.json")
+    stored = Path(env["AAD_HOME"], "remote_users.json")
     assert token not in stored.read_text()
     assert stored.stat().st_mode & 0o077 == 0
 
@@ -145,18 +145,18 @@ def test_rejects_a_foreign_host_header(server: tuple[Remote, str, str]) -> None:
 def test_users_cannot_see_each_other(server: tuple[Remote, str, str]) -> None:
     remote, alice, bob = server
     a, b = remote.open_session(alice), remote.open_session(bob)
-    assert remote.call(alice, a, "aiad_new", name="secret")["structuredContent"]["ok"]
+    assert remote.call(alice, a, "aad_new", name="secret")["structuredContent"]["ok"]
 
-    other = remote.call(bob, b, "aiad_history", project="secret")["structuredContent"]
+    other = remote.call(bob, b, "aad_history", project="secret")["structuredContent"]
     assert other["failure"]["code"] == "BAD_INPUT"
     # Bob may use the same name without touching Alice's project.
-    assert remote.call(bob, b, "aiad_new", name="secret")["structuredContent"]["ok"]
+    assert remote.call(bob, b, "aad_new", name="secret")["structuredContent"]["ok"]
 
 
 def test_import_cannot_read_server_files(server: tuple[Remote, str, str]) -> None:
     remote, alice, _ = server
     session = remote.open_session(alice)
-    refused = remote.call(alice, session, "aiad_import", path="/etc/hosts")["structuredContent"]
+    refused = remote.call(alice, session, "aad_import", path="/etc/hosts")["structuredContent"]
     assert refused["failure"]["code"] == "IMPORT_FAILED"
 
 
@@ -164,17 +164,17 @@ def test_import_cannot_read_server_files(server: tuple[Remote, str, str]) -> Non
 def test_build_show_and_chunks_over_http(server: tuple[Remote, str, str]) -> None:
     remote, alice, _ = server
     session = remote.open_session(alice)
-    remote.call(alice, session, "aiad_new", name="part")
-    built = remote.call(alice, session, "aiad_build", project="part", source=MODEL, wait_s=200)["structuredContent"]
+    remote.call(alice, session, "aad_new", name="part")
+    built = remote.call(alice, session, "aad_build", project="part", source=MODEL, wait_s=200)["structuredContent"]
     assert built["ok"] and built["rev"] == 1, built
 
-    shown = remote.call(alice, session, "aiad_show", project="part")["structuredContent"]
+    shown = remote.call(alice, session, "aad_show", project="part")["structuredContent"]
     assert shown["viewer"]["mode"] == "inline"
     manifest = shown["scene"]
 
     data = b""
     while True:
-        chunk = remote.call(alice, session, "aiad_scene_read", scene_id=manifest["scene_id"], offset=len(data))["structuredContent"]
+        chunk = remote.call(alice, session, "aad_scene_read", scene_id=manifest["scene_id"], offset=len(data))["structuredContent"]
         data += base64.b64decode(chunk["data_b64"])
         if not chunk["has_more"]:
             break

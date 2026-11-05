@@ -1,6 +1,6 @@
 # Native 2D export and scene packages
 
-`aiad_drafting.io2d.export_2d(ctx, fmt, out, *, layers=None)` writes one raw
+`aad_drafting.io2d.export_2d(ctx, fmt, out, *, layers=None)` writes one raw
 SVG or R2013 DXF file and returns its resolved path. `out` names a file. The
 context is structural: it exposes `sheet`, `units`, and may expose
 `job_dir`. `sheet` is either a `Sheet2D` or the JSON-native mapping returned

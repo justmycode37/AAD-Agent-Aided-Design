@@ -1,6 +1,6 @@
 # AgentCAD teardown
 
-Pinned AgentCAD 0.7.1 at `428abffa763c12882697de6449c59ea15c18c540`. The competitor's dependency caps intentionally keep build123d 0.10.x and OCCT 7.8 together; AIAD pins are unchanged.
+Pinned AgentCAD 0.7.1 at `428abffa763c12882697de6449c59ea15c18c540`. The competitor's dependency caps intentionally keep build123d 0.10.x and OCCT 7.8 together; AAD pins are unchanged.
 
 From this directory:
 
@@ -20,7 +20,7 @@ The parent ran the MCP tool sequences. CLI `init --no-agent-setup` is setup only
 ## What to adopt
 
 - Immutable check receipts bind candidate geometry, selected policy and check evidence by hashes. Staged candidates can complete deferred checks without becoming current; promotion accepts saved bytes and records an idempotent operation. This is a stronger, explicit acceptance lifecycle than the current PLAN's build/status description. **Source-reviewed, not exercised by our default run tasks.** [Pinned change store](https://github.com/jdilla1277/agentcad/blob/428abffa763c12882697de6449c59ea15c18c540/src/agentcad/change_store.py), [MCP promotion tool](https://github.com/jdilla1277/agentcad/blob/428abffa763c12882697de6449c59ea15c18c540/src/agentcad/mcp/server.py).
-- Command success is separate from spec success: `check_spec` returns a `passed` field. AIAD should preserve the same distinction between successful execution and successful design checks. [Pinned checker](https://github.com/jdilla1277/agentcad/blob/428abffa763c12882697de6449c59ea15c18c540/src/agentcad/commands/check_spec.py).
+- Command success is separate from spec success: `check_spec` returns a `passed` field. AAD should preserve the same distinction between successful execution and successful design checks. [Pinned checker](https://github.com/jdilla1277/agentcad/blob/428abffa763c12882697de6449c59ea15c18c540/src/agentcad/commands/check_spec.py).
 - Source-frame shared/reference-only/candidate-only volumes and an explicit unavailable result help review edits without inferring success from two similar renders. The shared edit task calls `diff`; PLAN already requires shared/unique volume, so this reinforces the implementation priority rather than adding a novel requirement. [Pinned diff](https://github.com/jdilla1277/agentcad/blob/428abffa763c12882697de6449c59ea15c18c540/src/agentcad/commands/diff.py).
 - Direct file-descriptor separation protects MCP stdout from native CAD code and generated-script output. **Source-reviewed, not stress-tested here.** [Pinned MCP entry point](https://github.com/jdilla1277/agentcad/blob/428abffa763c12882697de6449c59ea15c18c540/src/agentcad/mcp/server.py).
 

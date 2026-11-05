@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from aiad._runtime import (
+from aad._runtime import (
     ModelInputError,
     Param,
     configure_params,
@@ -16,14 +16,14 @@ from aiad._runtime import (
     params,
     validate_params,
 )
-from aiad.engine import _worker
-from aiad.engine.jobs import run_build
-from aiad.engine.select import SelectorError, entity_shape, resolve
-from aiad.engine.types import BuildRequest, Entity, FeatureInfo, ModelContext
+from aad.engine import _worker
+from aad.engine.jobs import run_build
+from aad.engine.select import SelectorError, entity_shape, resolve
+from aad.engine.types import BuildRequest, Entity, FeatureInfo, ModelContext
 
 ROOT = Path(__file__).resolve().parents[3]
 MOUNT = (ROOT / "fixtures/models/named_mount.py").read_text(encoding="utf-8")
-BOX = """from aiad import *
+BOX = """from aad import *
 with part("block") as bp:
     with feature("stock", intent="rectangular stock"):
         Box(10, 8, 4)
@@ -77,7 +77,7 @@ class ParameterTests(unittest.TestCase):
 
 class ModelingTests(unittest.TestCase):
     def setUp(self) -> None:
-        temporary = tempfile.TemporaryDirectory(prefix="aiad-modeling-test-")
+        temporary = tempfile.TemporaryDirectory(prefix="aad-modeling-test-")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.jobs = 0
@@ -151,7 +151,7 @@ class ModelingTests(unittest.TestCase):
         self.assertEqual(ctx.param_definitions["width"]["max"], 100)
 
     def test_parent_result_preserves_named_metadata_and_semantic_selection(self) -> None:
-        source = '''from aiad import *
+        source = '''from aad import *
 P = params(width=Param(10, 5, 20, "mm"))
 meta(name="roundtrip", units="mm", purpose={"description": "fixture"})
 with part("block"):
@@ -211,7 +211,7 @@ with part("block"):
         self.assertTrue(all(candidate.geometry.get("area", 0) > 0 for candidate in raised.exception.failure.candidates))
 
     def test_identity_is_preserved_but_replacement_does_not_guess_ancestry(self) -> None:
-        drilled = self.live_build("""from aiad import *
+        drilled = self.live_build("""from aad import *
 with part("block"):
     with feature("stock"):
         Box(10, 8, 4)
@@ -222,7 +222,7 @@ with part("block"):
 """)
         self.assertTrue(drilled.ok, drilled.failure)
         self.assertIn("stock", next(f for f in drilled.context.features if f.name == "drill").deps)
-        replaced = self.live_build("""from aiad import *
+        replaced = self.live_build("""from aad import *
 with part("block"):
     with feature("stock"):
         Box(10, 8, 4)
@@ -303,7 +303,7 @@ with part("block"):
         self.assertEqual(len(resolve(ctx, "edge(parallel_xyz=(0,0,2))", expect=4)), 4)
 
     def test_metadata_reaches_pipeline_consistently_and_conflicts_fail(self) -> None:
-        source = 'from aiad import *\nmeta(units="in", material="steel_1018", process="cnc_3axis", note={"test": 1})\nresult = Box(2, 3, 4)\n'
+        source = 'from aad import *\nmeta(units="in", material="steel_1018", process="cnc_3axis", note={"test": 1})\nresult = Box(2, 3, 4)\n'
         built = self.live_build(source, units="in", spec={"units": "in", "material": "steel_1018", "process": "cnc_3axis"})
         self.assertTrue(built.ok, built.failure)
         self.assertEqual((built.context.units, built.context.material, built.context.process), ("in", "steel_1018", "cnc_3axis"))
@@ -345,7 +345,7 @@ with part("block"):
         duplicate = self.live_build(BOX + 'with bp:\n    with feature("stock"):\n        Box(1,1,1)\n')
         self.assertEqual(duplicate.failure.code, "BAD_INPUT")
         self.assertIn("already declared", duplicate.failure.message)
-        source = """from aiad import *
+        source = """from aad import *
 with part("bad"):
     with feature("stock"):
         Box(10, 8, 4)

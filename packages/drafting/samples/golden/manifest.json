@@ -4,10 +4,10 @@
       "category": "laser",
       "dimensions": 17,
       "files": {
-        "drawing.dxf": "ba23d25c4135f82ddf3f3d0e7181c2b584755ef46b37d3681ddd2f95b13d1d2e",
-        "drawing.pdf": "89f385bc35eabf7830af0f07cfb04b1d63d5b3241e88e42c9ba8dcf96d8546c3",
-        "drawing.png": "b90285ee8db8738b05b94c9dde69b1966f3082d4ffc82415591da3a2f4f014ba",
-        "drawing.svg": "a638b7c870b175c865f703baec67d6d0b12d9b76b74aecb161f1d5e9af1f32ad"
+        "drawing.dxf": "9e2e60bd333f377f9b280c208821f5536034a565fc0738edd89a085640bf7024",
+        "drawing.pdf": "88a0ef55e30083aa73d0378fc724ac00918ab46c9ee92a858f139d09ae6616d3",
+        "drawing.png": "0f040f0ae486ee6c443be574373c4975dd2285e0bd3b605eb82d2a18b7a6697b",
+        "drawing.svg": "7f5b55909afee46002e8795ba64a56bb37e66b7ff886e74efefe18a626370ce2"
       },
       "name": "01-native-laser-panel",
       "ok": true
@@ -16,10 +16,10 @@
       "category": "laser",
       "dimensions": 17,
       "files": {
-        "drawing.dxf": "2ec85e8ce659b2009c57045eccf4bd07dda0e2f514df3bf87fbe8de4a642d169",
-        "drawing.pdf": "18f6e546da76136fa501ae709aa76af02da635808f76856260f527256fcee6cf",
-        "drawing.png": "9c71d327ccc506de137c2c048306c497f0a2ef98d48b047468e99fd0e2f33bb4",
-        "drawing.svg": "d861483d4774bcb1e1c4207dd0ce4f6b60805399a15102496584d2a3637226ad"
+        "drawing.dxf": "9c08b242276cbb8fbbf215d21ad44cf2fdfec6170d2cd55063e1cf18b2ab142e",
+        "drawing.pdf": "9d783f89a56d543ef7b15422a29845e85603946d88cf671f796ffe4dd3c38398",
+        "drawing.png": "531342811385f0242aafc8898264a10ee1fbcd67597d8295ffa45de8242f649f",
+        "drawing.svg": "457d1cef1c24ee90abf82fa28b9da4f1c76937b70408512d54abf93b73c4eaca"
       },
       "name": "02-obround-panel",
       "ok": true
@@ -28,10 +28,10 @@
       "category": "laser",
       "dimensions": 14,
       "files": {
-        "drawing.dxf": "eb465c87e3fba7159f738e121d09c3f2daa6b58430f310726083c0232f673e7b",
-        "drawing.pdf": "cee9cd249b9bd0cf46fc7f5f6e7ece2973e44b5d0fef1ebc0a2bbe448e586ca0",
-        "drawing.png": "85e5b08e95771db1570524eb7deed63794953ad145fb5ae555ea1e8d39bfef2e",
-        "drawing.svg": "96a272f4ed2852dcf939cdf629a2b1ee3c5d794eeb1c935f0bdba69872e75ff2"
+        "drawing.dxf": "d09ff309232dce8dc1092c4c62d7b10fef6d1e3d774fb419e3269c6132d4ee80",
+        "drawing.pdf": "f6e7e8b2de9d81537504ca92d62f2b13001f26cad871f1c1d6f2e2c8a9f883b2",
+        "drawing.png": "c690c31fd2e88db46913455c1ad6a09a691be7dde7cb2474b34d35f8f0b4a5b6",
+        "drawing.svg": "19d136eedc803aed29474e4b2fd1b895ceb39c5699874c4460291648d3987815"
       },
       "name": "03-flange-ring",
       "ok": true
@@ -40,10 +40,10 @@
       "category": "laser",
       "dimensions": 15,
       "files": {
-        "drawing.dxf": "dfc0250659c4a26ea8a9233e4154471485bf3c2079f12f0514408246a234238d",
-        "drawing.pdf": "1107e76a7c914ca920672f7a6c85203c0c3f0c6914c642371859ae0756e964a0",
-        "drawing.png": "b2c7b5bddd8cbb84bc26c78a8ed9abf70b7f3c17c93e03e086ec8cf70aae6fd9",
-        "drawing.svg": "f0ef15a443b950f527161f8d5ec9c4e98a142977664f26e08158a6eb9e2c5cdc"
+        "drawing.dxf": "af8b65cba89c081bc4f24c0bed3effa925b9af57824b6b3341dd6741b8950a72",
+        "drawing.pdf": "cb29d82099e8053d0deb265ad84761198bb914de91012b0985fd6d7498114585",
+        "drawing.png": "22001ae535634db5d77137e885fa10ab1762e72c657d848447bcaba7bb0515b0",
+        "drawing.svg": "06d9e9a08f31f75d827bf0a712f8a468788065de28c2185964e875deff39f680"
       },
       "name": "04-scored-strip",
       "ok": true
@@ -52,10 +52,10 @@
       "category": "plate",
       "dimensions": 8,
       "files": {
-        "drawing.dxf": "262d3a04f174694f35469c29f2ac749477782c8d271206e7c2ade28f086ab96a",
-        "drawing.pdf": "e50782e96a1af26a6d7b65bbefee695703d2763d6d2fbefa4caccebf1fef9d59",
-        "drawing.png": "9cd3e4c49836e60dac8a694888a24e4e7abf1bba52cee121e560fc6f8d087789",
-        "drawing.svg": "e6e10e823b470acecf2fa45699cff146afe82d00aeef22d3fd3b8aee4b710606"
+        "drawing.dxf": "efaedd12ca513dd9be6a9831a8a6bb401ea3be67b573357bf24863de5294d9cf",
+        "drawing.pdf": "7eec39fbd117fb3eaa388a2f3c59852700d5a2352246081ddaa06b5841bb0836",
+        "drawing.png": "9fc3a15fd0364a99001b0d206e91058c2b68f7e66b2d1989550499fba0d6a47b",
+        "drawing.svg": "4bfce0a1ce90a1952e1b11b7e102bd5815bae33bf992f2594ba580c7bd2651b3"
       },
       "name": "05-s1-fan-mount",
       "ok": true
@@ -64,10 +64,10 @@
       "category": "plate",
       "dimensions": 8,
       "files": {
-        "drawing.dxf": "70c00b5d33adb839274c802b386f72e900741fcea0ee54c37f4c10bf513a32fb",
-        "drawing.pdf": "9292e962b0f3ec27e71c081fb3dab0fdd262935b85c515f8ee3ca80c9b389ec5",
-        "drawing.png": "51d0d168db623a4369dd74ca8e3b3188d0f0ab94876c1b59526e499a6c774352",
-        "drawing.svg": "d2223ec4fcbf74286ac7e35af03fec9ba77ed6e6f4e8b6f45f207bcf5a336234"
+        "drawing.dxf": "b47a3e1c34cf5bd0fb1a2cfaaa79d581a2dacc5b0d68cfb68e45ec3229ad0827",
+        "drawing.pdf": "917871a00659eb1185d3c321173609d70420d7de615ea26b5ab29fa62a9b0b61",
+        "drawing.png": "5d5f5989dc10fdf7a858503460f1c9ad46d31d029637b5333d929e85bab60d6b",
+        "drawing.svg": "6a1848694d1db364bd03aec366590409d5b5188e075564afcffd1546d995c775"
       },
       "name": "06-asymmetric-plate",
       "ok": true
@@ -76,10 +76,10 @@
       "category": "plate",
       "dimensions": 15,
       "files": {
-        "drawing.dxf": "81b222b6c9968a6b859ee5919e93a3244d417db86c6061138792742b972c7b12",
-        "drawing.pdf": "e48324fd603962e25535f951bbd335bc1cf9c9c2399f48aa811a8d27f5b01693",
-        "drawing.png": "02575ec933ccdb8fd41c8853f0345cdcea530d530e84a81dc76e98c219e256ba",
-        "drawing.svg": "9ef23e58c5e8b30fe3b5927d224af51257aa6fa23c1772c9936e72330ed2f409"
+        "drawing.dxf": "17f0bf3e76886e0973f8f78b475142c1c08e9ef12e4faa1afea423be728d3b44",
+        "drawing.pdf": "0d6cf9260622701e19a334cea1eff6e043afb4f11f75657192f9191d08692ee1",
+        "drawing.png": "0f50c3d6349eb58dfde284d1129447a4f04a9305240a4a54cea0552abab9c73d",
+        "drawing.svg": "b7fd209cfe4d35c5dafea2864b312de96fbe1c0c44521b835e4e46d4197829ae"
       },
       "name": "07-dense-fixture-plate",
       "ok": true
@@ -88,10 +88,10 @@
       "category": "plate",
       "dimensions": 8,
       "files": {
-        "drawing.dxf": "2f7b4b2ee7d86e9130fdd74a0ebc91af49e06aeeacdb474f0181423fa3a5aaec",
-        "drawing.pdf": "e0fc14548197b36ce94868bc363cd01268d775d6fb5cca6e1400f4b6497d21b6",
-        "drawing.png": "d43a65b93ea6ed21148dc51427fa99bc30d0942f76e7f5bd125efde948b0cbf9",
-        "drawing.svg": "4292f35445a1f5737b89695233cbb951df975515cc5ebebd92a2fb0853d5177c"
+        "drawing.dxf": "f6fce43c68312b45db77a0c92a9e784cb242124c435439f5ac5943d1d72ed128",
+        "drawing.pdf": "f12cd4d6803227b1685c2de3b52ef223c9ca44a5de46774f0053b61403dce0ad",
+        "drawing.png": "dca592f230730b866590b935fc0c7e74e0833c0f0aa869f6e51099642120c8b6",
+        "drawing.svg": "f37b35fdd3b09b656bb1df7a443ddbf7cac3b613171ecbf3ce317fbcf648db76"
       },
       "name": "08-section-detail-plate",
       "ok": true
@@ -100,10 +100,10 @@
       "category": "turned",
       "dimensions": 19,
       "files": {
-        "drawing.dxf": "c0d5e739a20449bc76e8067738beb5a5234cd84b50fa41295c0d56960537c6f5",
-        "drawing.pdf": "86bd8274eab884f4be4e7fa0d4848abbd25c577bc594440498f4dcb1ec0aad8e",
-        "drawing.png": "f6b88ffef6aa379d971eec7ca2a321ebcfe19385c08977e3e91a5cf469b76bc8",
-        "drawing.svg": "01e805b21bd73a1d3e012c9d86114ef4554cd7aaaf30a6f1702376fde8195209"
+        "drawing.dxf": "47fab4f8d376524b4db4873dc536c2708b8e749cf17504a44d8e85425c45dcba",
+        "drawing.pdf": "33c1560d8d406efbfc2de8f140d68bd24984fb66d2969f595150a1ae75fd4ee2",
+        "drawing.png": "434e124660fb42fa73f01169417d660efe6d2d187bd1986a5f6848583fac6c51",
+        "drawing.svg": "2e426a30a358d90d0a55e01a72da980762e8fa43c567848feefba4a6f2c1b1f3"
       },
       "name": "09-stepped-shaft",
       "ok": true
@@ -112,10 +112,10 @@
       "category": "turned",
       "dimensions": 10,
       "files": {
-        "drawing.dxf": "b9e83381043a97b415a7b69811bcf4d26682588a6db9be9db934f17f4d35ffb9",
-        "drawing.pdf": "bdd0a577d297db23edfd88d71fb2a6b46528b7aadec5e14aad1a653063b93114",
-        "drawing.png": "a390162ec5089d9d81a83004ee5f3e21b9a8b1260debf6a443b5ca1c2e817c22",
-        "drawing.svg": "b961b30a47bc5451e4055c5e47de378a3d03d02dcdcfc844346add23a4cff3a3"
+        "drawing.dxf": "56e727fb41e3049cdc2bcee642bc12a4a155be1c6b78549820ba9f1776f73088",
+        "drawing.pdf": "88d4e28f3bd0952f99cefeeaa36e02e0a892c5de1b43fff67ba87e71bc1d689c",
+        "drawing.png": "3d35b889407f526596d0223cc9e7967858c4c26bba8aff803296edc990b0798e",
+        "drawing.svg": "694ad91a45a66b98d2914ca473bd0db7ee63431fd07c68b98761e8754c291873"
       },
       "name": "10-bored-spacer",
       "ok": true
@@ -124,10 +124,10 @@
       "category": "turned",
       "dimensions": 14,
       "files": {
-        "drawing.dxf": "db07e91523edbce55d826329416296947c66caed8947e06b4fe99ffc13379ce4",
-        "drawing.pdf": "91ada3f69802db221650b4a2dafcadd45689bc399f6483dff571b2027c1f6c17",
-        "drawing.png": "2fe88c5fe5df2cc5ac1859f53d6d223f19e07c750279c36097bb1ae84d8a2be9",
-        "drawing.svg": "55cc9ff0710e42e2f9c157d00de36c8b98ff9af29928940bb5904b5f9a44535f"
+        "drawing.dxf": "481d2c7d06898c62d7d6a402be57bc6b880bde3126b757e0c50922418df275b5",
+        "drawing.pdf": "2347a40dee48f81673b005efec06c2e205893523900d90ecbd0c518dee844bfe",
+        "drawing.png": "d0c5c897cf0ac055ef638f0d4488feae4fffc2c127d27b3dc8da265609bcf1a7",
+        "drawing.svg": "fa26e8d7c7c2047ced6116233db5de41a909897721e43679599d0eb577c08afc"
       },
       "name": "11-shouldered-bushing",
       "ok": true
@@ -136,10 +136,10 @@
       "category": "turned",
       "dimensions": 19,
       "files": {
-        "drawing.dxf": "f778f73c7b5eba3a7560ac73b1fc97cd1e05c26d62d19d1082dcc9e13195c999",
-        "drawing.pdf": "d30e5b41603e5922f7793137f1b08a7f5a74c15be623267acfb83da72a0aaa7e",
-        "drawing.png": "18705d287f27fe8e6855bd5f836862e93ae3fcc7e0f59f4bd25fa3a1d2e528b0",
-        "drawing.svg": "df1265fe2a031c772f4fa346bf5c11745a946185b9c4556e314bda6863632364"
+        "drawing.dxf": "db53fbd1b9098fc45749f7b2e4edddd897cb67b2ccc38dde647cc847153b5579",
+        "drawing.pdf": "d65bc23d50fff2b227aa4dcc0345145d759e320c2fa74725cc7fbb6e686b0f53",
+        "drawing.png": "59a05007e8620ff00b4cd8f6c4980c69945eab29f3a1ba9a77d8b1211c97ee98",
+        "drawing.svg": "a165c24e6e3c9b8a57182fb5a6593908d0bc21bec58b113d80b853fb130c3eca"
       },
       "name": "12-grooved-spindle",
       "ok": true
@@ -148,10 +148,10 @@
       "category": "assembly",
       "dimensions": 11,
       "files": {
-        "drawing.dxf": "6f796f1b7e7835aac1153c3f21c6172693cc6fb8f25c9a83c66e23b01e28ffd2",
-        "drawing.pdf": "85c4730e645e18c964b004bf8eec645c97fd293d63644f166829a0e269e22ad5",
-        "drawing.png": "4ca5d4e3f280a8027428f411e5685f49b4ec60e2ab4f54883c317755ca240df5",
-        "drawing.svg": "cd2e97e316d748deef3661f178b09d91dfdf03a5bd6563f4d31c0f5ccc2bb6ed"
+        "drawing.dxf": "8c927c54e0ab4b4f0fd7529139769211f79094379821e6541c4d732c8e13cb3d",
+        "drawing.pdf": "5f3acfc801ff0ef8e5e0b6d9c092cb9e1e204fe910e1620ff32cc0fdf46d91b3",
+        "drawing.png": "c48f56590f46a4e8f406774f4bd2356dd7a62aa8445a78882b584e2e67ff3265",
+        "drawing.svg": "152952e7f96d984a6f510faf49e7353045598f671aeb08d8535930f27f750b0b"
       },
       "name": "13-locating-fixture",
       "ok": true
@@ -160,10 +160,10 @@
       "category": "assembly",
       "dimensions": 19,
       "files": {
-        "drawing.dxf": "4678be063f575e4bcc66dacce463899198fc993d265ed1b7f03f33b798ca626c",
-        "drawing.pdf": "b15279002d2a002f50575e47f26a10a4d65684e5e874b2e93d5bdccc8bd46de8",
-        "drawing.png": "67b9435a0520d1f0ae56addc9584f30565baa0ed0497e0a16175ead73ca8231d",
-        "drawing.svg": "cd0d21140bd081a7b9d6d8cbbc1f7f07d4b056cbf562e49501b27bf03946a945"
+        "drawing.dxf": "c2271ad96288e9048711ffbf7f00ca41e03fb538555a4e7cac02dbf3646e49cd",
+        "drawing.pdf": "77246e2c84cac643177508b226de709b3b3a57fcc02a00e178a0cc02a2411866",
+        "drawing.png": "bd869672cff184a596a1df1a18f6f26f08203d3f5330b7beacf6f706ff36535c",
+        "drawing.svg": "9d09ad7482e408f5400db25ad9c8debc699a955dfc8f7ae3aeb569e925a5142f"
       },
       "name": "14-twin-pin-fixture",
       "ok": true
@@ -172,10 +172,10 @@
       "category": "assembly",
       "dimensions": 19,
       "files": {
-        "drawing.dxf": "c73142295acb2c6007fbcb4ed0081532316b802866d9a74af04d04ead0d24020",
-        "drawing.pdf": "da07bc1825e34d276e9946ef8eab685d45b5224817e425d91a16122bdceb1257",
-        "drawing.png": "e67acaeafb4ff4b4adbed3b34a5dd13d559373a5dce8eeaf3acad9ac6b2c4fb5",
-        "drawing.svg": "d9e77c9e36e269f85b8a63496b2ff599ac1c341e2a4fcb425d82831056383c47"
+        "drawing.dxf": "a2af79d43ceb347d8d8a6a1770fee7c92ad7278e7ae15a060b893fef7bf9c690",
+        "drawing.pdf": "7147450076f445c0c3908f6089e3bcc39d100c86e089f0e8f01acb002989c4cc",
+        "drawing.png": "fa212f323ae48fd53d9ab8330e1eed153f66b39ab8ed37050e395891817e248c",
+        "drawing.svg": "c2e9a94a86590ee5124b9320646a08b01d7fad752431038402a2d5287b23a77b"
       },
       "name": "15-spacer-stack",
       "ok": true

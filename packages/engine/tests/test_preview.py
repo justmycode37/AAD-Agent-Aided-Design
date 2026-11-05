@@ -8,23 +8,23 @@ import time
 import unittest
 from unittest.mock import Mock, patch
 
-from aiad.engine import _preview
-from aiad.engine.jobs import run_build
-from aiad.engine.types import BuildRequest, BuildResult, Check, Failure, ModelContext, SceneManifest
+from aad.engine import _preview
+from aad.engine.jobs import run_build
+from aad.engine.types import BuildRequest, BuildResult, Check, Failure, ModelContext, SceneManifest
 
 
 class PreviewWorkerTests(unittest.TestCase):
     def test_public_preview_keeps_spec_failure_with_placeholder_id(self):
         source = '''import sys
 from types import ModuleType
-from aiad.engine.types import Check
-quality = ModuleType('aiad_quality')
+from aad.engine.types import Check
+quality = ModuleType('aad_quality')
 quality.spec_checks = lambda ctx: [Check(id='render_not_requested', suite='spec', level='error', status='fail', message='Required width is wrong', expected='5', actual='2')]
 quality.process_checks = lambda ctx: []
-sys.modules['aiad_quality'] = quality
+sys.modules['aad_quality'] = quality
 result = Box(2, 3, 4)
 '''
-        with tempfile.TemporaryDirectory(prefix='aiad-preview-check-id-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-preview-check-id-') as temporary:
             for preview in (False, True):
                 with self.subTest(preview=preview), patch.object(_preview, '_BOOTSTRAP', 'import os; os._exit(23)'):
                     result = run_build(BuildRequest(source=source, preview=preview,
@@ -42,7 +42,7 @@ result = Box(2, 3, 4)
     def test_only_internal_placeholder_is_replaced(self):
         cases = [('spec', 'error', 'fail'), ('process', 'error', 'fail'), ('spec', 'error', 'skip'),
                  ('process', 'warn', 'skip'), ('hard', 'error', 'skip'), ('hard', 'warn', 'fail')]
-        with tempfile.TemporaryDirectory(prefix='aiad-preview-check-id-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-preview-check-id-') as temporary:
             for suite, level, status in cases:
                 with self.subTest(suite=suite, level=level, status=status):
                     result = self._result(Path(temporary))
@@ -62,11 +62,11 @@ result = Box(2, 3, 4)
     def test_native_preview_does_not_execute_the_model_render_module(self):
         source = '''from pathlib import Path
 import sys
-Path('aiad_render.py').write_text("def make_scene(*args): return {}\\ndef render(*args):\\n    from pathlib import Path\\n    Path('model-render-was-run').write_text('untrusted')\\n    raise RuntimeError('model render executed')\\n")
+Path('aad_render.py').write_text("def make_scene(*args): return {}\\ndef render(*args):\\n    from pathlib import Path\\n    Path('model-render-was-run').write_text('untrusted')\\n    raise RuntimeError('model render executed')\\n")
 sys.path.insert(0, str(Path.cwd()))
 result = Box(2, 3, 4)
 '''
-        with tempfile.TemporaryDirectory(prefix='aiad-preview-native-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-preview-native-') as temporary:
             result = run_build(BuildRequest(source=source, preview=True, project_dir=Path(temporary),
                                             job_dir=Path(temporary) / 'job'))
             self.assertTrue(result.ok, result.summary)
@@ -84,7 +84,7 @@ result = Box(2, 3, 4)
             ('import os; os.write(2, b"native fixture diagnostic"); os._exit(23)', 2.0, 'render_failed', 'status 23'),
             ('import time; time.sleep(30)', 0.2, 'render_timeout', '0.2 second budget'),
         ]
-        with tempfile.TemporaryDirectory(prefix='aiad-preview-build-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-preview-build-') as temporary:
             for index, (bootstrap, budget, identifier, message) in enumerate(cases):
                 with self.subTest(identifier=identifier):
                     started = time.monotonic()
@@ -107,7 +107,7 @@ result = Box(2, 3, 4)
                         self.assertIn('native fixture diagnostic', result.stderr)
 
     def test_private_success_updates_summary_without_promoting_status(self):
-        with tempfile.TemporaryDirectory(prefix='aiad-preview-protocol-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-preview-protocol-') as temporary:
             root = Path(temporary).resolve()
             result = self._result(root)
             original_metrics = dict(result.metrics)
@@ -143,7 +143,7 @@ result = Box(2, 3, 4)
             self.assertIn('preview diagnostic', result.stderr)
 
     def test_invalid_or_outside_preview_artifacts_warn_and_preserve_failure(self):
-        with tempfile.TemporaryDirectory(prefix='aiad-preview-protocol-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-preview-protocol-') as temporary:
             root = Path(temporary).resolve()
             outside = root / 'outside.png'
             outside.write_bytes(b'\x89PNG\r\n\x1a\nfixture')
@@ -171,7 +171,7 @@ result = Box(2, 3, 4)
                     self.assertEqual(set(result.artifacts), {'part.brep'})
 
     def test_no_remaining_time_skips_launch_and_keeps_brep(self):
-        with tempfile.TemporaryDirectory(prefix='aiad-preview-protocol-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-preview-protocol-') as temporary:
             result = self._result(Path(temporary))
             with patch.object(_preview.sandbox, 'popen') as launch:
                 _preview.add_preview(result, timeout_s=0)
@@ -181,12 +181,12 @@ result = Box(2, 3, 4)
             self.assertEqual(set(result.artifacts), {'part.brep'})
 
     def test_pipe_exception_kills_a_running_preview(self):
-        with tempfile.TemporaryDirectory(prefix='aiad-preview-protocol-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-preview-protocol-') as temporary:
             result = self._result(Path(temporary))
             process = Mock(returncode=None)
             process.poll.return_value = None
             process.communicate.side_effect = [OSError('fixture pipe error'), (b'', b'drained diagnostic')]
-            with patch.object(_preview.sandbox, 'popen', return_value=process), patch('aiad.engine.jobs._kill_worker') as kill:
+            with patch.object(_preview.sandbox, 'popen', return_value=process), patch('aad.engine.jobs._kill_worker') as kill:
                 _preview.add_preview(result, timeout_s=60)
             kill.assert_called_once_with(process)
             self.assertEqual(process.communicate.call_count, 2)
@@ -196,12 +196,12 @@ result = Box(2, 3, 4)
             self.assertIn('drained diagnostic', result.stderr)
 
     def test_cleanup_exception_preserves_the_built_result(self):
-        with tempfile.TemporaryDirectory(prefix='aiad-preview-protocol-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='aad-preview-protocol-') as temporary:
             result = self._result(Path(temporary))
             process = Mock(returncode=None)
             process.poll.return_value = None
             process.communicate.side_effect = OSError('fixture pipe error')
-            with patch.object(_preview.sandbox, 'popen', return_value=process), patch('aiad.engine.jobs._kill_worker', side_effect=OSError('fixture cleanup error')):
+            with patch.object(_preview.sandbox, 'popen', return_value=process), patch('aad.engine.jobs._kill_worker', side_effect=OSError('fixture cleanup error')):
                 _preview.add_preview(result, timeout_s=60)
             self.assertTrue(result.ok)
             self.assertEqual(result.status, 'draft')

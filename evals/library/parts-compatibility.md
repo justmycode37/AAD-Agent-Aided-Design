@@ -2,13 +2,13 @@
 
 ## Pin and upstream evidence
 
-Use this exact optional dependency pin in AIAD's optional `parts` extra:
+Use this exact optional dependency pin in AAD's optional `parts` extra:
 
 ```toml
 "bd_warehouse==0.4.0"
 ```
 
-The upstream [v0.4.0 `pyproject.toml`](https://github.com/gumyr/bd_warehouse/blob/v0.4.0/pyproject.toml) declares `build123d >=0.12.0, <0.14.0`, which includes AIAD's contractual `build123d==0.13.0`; it also permits Python 3.12 and depends on `bd_materials >=0.2.0, <0.3.0`. The official tag points to commit `8e9be0645b53db3d7414f74828c2d67b0da21138`. The source is [Apache-2.0](https://github.com/gumyr/bd_warehouse/blob/v0.4.0/LICENSE).
+The upstream [v0.4.0 `pyproject.toml`](https://github.com/gumyr/bd_warehouse/blob/v0.4.0/pyproject.toml) declares `build123d >=0.12.0, <0.14.0`, which includes AAD's contractual `build123d==0.13.0`; it also permits Python 3.12 and depends on `bd_materials >=0.2.0, <0.3.0`. The official tag points to commit `8e9be0645b53db3d7414f74828c2d67b0da21138`. The source is [Apache-2.0](https://github.com/gumyr/bd_warehouse/blob/v0.4.0/LICENSE).
 
 The installed `bd_warehouse==0.4.0` files for `fastener.py`, `bearing.py`, `thread.py`, and the fastener and bearing parameter CSVs matched the corresponding v0.4.0 tag files byte for byte. The exercised constructors are [`SocketHeadCapScrew`](https://github.com/gumyr/bd_warehouse/blob/v0.4.0/src/bd_warehouse/fastener.py), [`SingleRowDeepGrooveBallBearing`](https://github.com/gumyr/bd_warehouse/blob/v0.4.0/src/bd_warehouse/bearing.py), and [`IsoThread`](https://github.com/gumyr/bd_warehouse/blob/v0.4.0/src/bd_warehouse/thread.py).
 
@@ -30,7 +30,7 @@ The parent strengthened the native BREP oracle after review: bounds alone admitt
 
 ## Reproduce
 
-From the AIAD worktree root:
+From the AAD worktree root:
 
 ```bash
 uv venv --python 3.12 packages/quality/.parts-venv
@@ -50,7 +50,7 @@ The adapter smoke checks can print the observed bboxes and validity with:
 ```bash
 PYTHONPATH=packages/quality/src \
   packages/quality/.parts-venv/bin/python - <<'PY'
-from aiad_quality.standard_parts import list_parts, make_part
+from aad_quality.standard_parts import list_parts, make_part
 
 for entry in list_parts():
     part = make_part(entry["id"])

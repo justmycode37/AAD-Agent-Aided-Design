@@ -32,7 +32,7 @@ evals/benchmark/corpus/.venv/bin/python -m unittest evals.benchmark.tests.test_c
 
 `generate_tasks` validates the task records before writing `tasks.json` and `public.json`. The test command checks schema, exact category counts, public/hidden separation, edit preservation, finite numbers, safe asset paths, and supported reference builds, while explicitly reporting unsupported drawings. `loader.py` imports neither build123d nor ezdxf; the reference builders load them only when called.
 
-The reference builds are host-only positive controls. They are not solver inputs, sampled-agent results, AIAD quality-evaluator results, or manufacturing proof. The corpus tests and task-generation script do not constitute a benchmark run.
+The reference builds are host-only positive controls. They are not solver inputs, sampled-agent results, AAD quality-evaluator results, or manufacturing proof. The corpus tests and task-generation script do not constitute a benchmark run.
 
 ## Current local reference-build result
 

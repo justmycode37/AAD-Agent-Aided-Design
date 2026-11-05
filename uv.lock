@@ -4,11 +4,11 @@ requires-python = "==3.12.*"
 
 [manifest]
 members = [
-    "aiad",
-    "aiad-drafting",
-    "aiad-engine",
-    "aiad-quality",
-    "aiad-render",
+    "aad-design",
+    "aad-drafting",
+    "aad-engine",
+    "aad-quality",
+    "aad-render",
 ]
 
 [manifest.dependency-groups]
@@ -18,14 +18,14 @@ dev = [
 ]
 
 [[package]]
-name = "aiad"
+name = "aad-design"
 version = "0.0.1"
 source = { editable = "packages/platform" }
 dependencies = [
-    { name = "aiad-drafting" },
-    { name = "aiad-engine" },
-    { name = "aiad-quality" },
-    { name = "aiad-render", extra = ["vtk"] },
+    { name = "aad-drafting" },
+    { name = "aad-engine" },
+    { name = "aad-quality" },
+    { name = "aad-render", extra = ["vtk"] },
     { name = "mcp" },
     { name = "pyyaml" },
     { name = "starlette" },
@@ -36,10 +36,10 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiad-drafting", editable = "packages/drafting" },
-    { name = "aiad-engine", editable = "packages/engine" },
-    { name = "aiad-quality", editable = "packages/quality" },
-    { name = "aiad-render", extras = ["vtk"], editable = "packages/render" },
+    { name = "aad-drafting", editable = "packages/drafting" },
+    { name = "aad-engine", editable = "packages/engine" },
+    { name = "aad-quality", editable = "packages/quality" },
+    { name = "aad-render", extras = ["vtk"], editable = "packages/render" },
     { name = "mcp", specifier = "==2.3.0" },
     { name = "pyyaml", specifier = ">=6" },
     { name = "starlette", specifier = ">=1" },
@@ -49,7 +49,7 @@ requires-dist = [
 ]
 
 [[package]]
-name = "aiad-drafting"
+name = "aad-drafting"
 version = "0.1.0"
 source = { editable = "packages/drafting" }
 dependencies = [
@@ -83,7 +83,7 @@ requires-dist = [
 provides-extras = ["test"]
 
 [[package]]
-name = "aiad-engine"
+name = "aad-engine"
 version = "0.1.0"
 source = { editable = "packages/engine" }
 dependencies = [
@@ -98,11 +98,11 @@ requires-dist = [
 ]
 
 [[package]]
-name = "aiad-quality"
+name = "aad-quality"
 version = "0.1.0"
 source = { editable = "packages/quality" }
 dependencies = [
-    { name = "aiad-engine" },
+    { name = "aad-engine" },
     { name = "pyyaml" },
 ]
 
@@ -117,7 +117,7 @@ parts = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiad-engine", editable = "packages/engine" },
+    { name = "aad-engine", editable = "packages/engine" },
     { name = "bd-warehouse", marker = "extra == 'parts'", specifier = "==0.4.0" },
     { name = "build123d", marker = "extra == 'geometry'", specifier = "==0.13.0" },
     { name = "cadquery-ocp-novtk", marker = "extra == 'geometry'", specifier = "==8.0.1.1.0" },
@@ -126,7 +126,7 @@ requires-dist = [
 provides-extras = ["geometry", "parts"]
 
 [[package]]
-name = "aiad-render"
+name = "aad-render"
 version = "0.0.1"
 source = { editable = "packages/render" }
 dependencies = [

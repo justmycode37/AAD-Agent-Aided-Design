@@ -12,20 +12,20 @@ from pathlib import Path
 
 import pytest
 
-from aiad_platform import __version__, daemon_ctl
-from aiad_platform import cli
+from aad_platform import __version__, daemon_ctl
+from aad_platform import cli
 
 
 @pytest.fixture
 def temp_home(monkeypatch):
-    home = Path(tempfile.mkdtemp(prefix="aiad-", dir="/tmp"))
+    home = Path(tempfile.mkdtemp(prefix="aad-", dir="/tmp"))
     monkeypatch.setenv("HOME", str(home))
-    monkeypatch.setenv("AIAD_HOME", str(home))
-    monkeypatch.setenv("AIAD_NO_BROWSER", "1")
+    monkeypatch.setenv("AAD_HOME", str(home))
+    monkeypatch.setenv("AAD_NO_BROWSER", "1")
     try:
         yield home
     finally:
-        # This path is the test's short-lived AIAD_HOME, never a shared user daemon.
+        # This path is the test's short-lived AAD_HOME, never a shared user daemon.
         try:
             daemon_ctl.stop(timeout_s=0.2)
         except Exception:
@@ -61,7 +61,7 @@ class FakeWriteResult:
 
 
 def install_fake_clients(monkeypatch, home: Path):
-    module = types.ModuleType("aiad_platform.clients")
+    module = types.ModuleType("aad_platform.clients")
     module.CLIENT_IDS = ("codex", "claude-code")
     module.ServerEntry = FakeServerEntry
     module.calls = []
@@ -89,7 +89,7 @@ def install_fake_clients(monkeypatch, home: Path):
     module.statuses = statuses
     module.install = install
     module.uninstall = uninstall
-    monkeypatch.setitem(sys.modules, "aiad_platform.clients", module)
+    monkeypatch.setitem(sys.modules, "aad_platform.clients", module)
     return module
 
 
@@ -108,7 +108,7 @@ def test_version_json(capsys, temp_home):
 def test_cli_import_and_version_do_not_load_heavy_modules_or_mcp(temp_home):
     env = os.environ.copy()
     import_probe = subprocess.run(
-        [sys.executable, "-c", "import sys; import aiad_platform.cli; bad={'build123d','OCP','vtk'} & set(sys.modules); assert not bad, bad"],
+        [sys.executable, "-c", "import sys; import aad_platform.cli; bad={'build123d','OCP','vtk'} & set(sys.modules); assert not bad, bad"],
         env=env,
         capture_output=True,
         text=True,
@@ -117,7 +117,7 @@ def test_cli_import_and_version_do_not_load_heavy_modules_or_mcp(temp_home):
     assert import_probe.returncode == 0, import_probe.stderr
 
     version_probe = subprocess.run(
-        [sys.executable, "-c", "import sys; from aiad_platform.cli import main; main(['version']); assert 'mcp' not in sys.modules"],
+        [sys.executable, "-c", "import sys; from aad_platform.cli import main; main(['version']); assert 'mcp' not in sys.modules"],
         env=env,
         capture_output=True,
         text=True,
@@ -129,7 +129,7 @@ def test_cli_import_and_version_do_not_load_heavy_modules_or_mcp(temp_home):
 
 def test_subprocess_cli_runs_in_temp_home(temp_home):
     result = subprocess.run(
-        [sys.executable, "-m", "aiad_platform.cli", "version", "--json"],
+        [sys.executable, "-m", "aad_platform.cli", "version", "--json"],
         env=os.environ.copy(),
         capture_output=True,
         text=True,
@@ -145,16 +145,16 @@ def test_script_entry_falls_back_to_python_module(monkeypatch, temp_home):
     command, args = cli._script_entry()
     assert command == sys.executable
     assert Path(command).is_absolute()
-    assert args == ("-m", "aiad_platform.cli", "mcp")
+    assert args == ("-m", "aad_platform.cli", "mcp")
 
 
 def test_script_entry_does_not_select_another_installation_on_path(monkeypatch, temp_home):
-    other = temp_home / "other" / "aiad"
+    other = temp_home / "other" / "aad"
     other.parent.mkdir()
     other.write_text("other installation")
     monkeypatch.setattr(sys, "argv", ["pytest"])
     monkeypatch.setattr(cli.shutil, "which", lambda _: str(other))
-    assert cli._script_entry() == (sys.executable, ("-m", "aiad_platform.cli", "mcp"))
+    assert cli._script_entry() == (sys.executable, ("-m", "aad_platform.cli", "mcp"))
 
 
 def test_install_dry_run_is_json_and_writes_nothing(monkeypatch, capsys, temp_home):
@@ -166,30 +166,30 @@ def test_install_dry_run_is_json_and_writes_nothing(monkeypatch, capsys, temp_ho
     assert result["dry_run"] is True
     assert result["clients"][0]["action"] == "would_install"
     assert not (temp_home / "codex.json").exists()
-    assert not (temp_home / "run" / "aiadd.sock").exists()
+    assert not (temp_home / "run" / "aadd.sock").exists()
     assert clients.calls[0][3] is True
     assert result["entry"]["command"] == sys.executable
-    assert result["entry"]["args"] == ["-m", "aiad_platform.cli", "mcp"]
+    assert result["entry"]["args"] == ["-m", "aad_platform.cli", "mcp"]
 
 
 def test_install_live_runs_requested_steps_and_reports_restart_hint(monkeypatch, capsys, temp_home):
     clients = install_fake_clients(monkeypatch, temp_home)
-    monkeypatch.setattr(cli, "_script_entry", lambda: ("/tmp/aiad", ("mcp",)))
-    monkeypatch.setattr("aiad_platform.daemon_ctl.ensure_running", lambda: {"running": True, "compatible": True, "pid": 42, "version": __version__})
-    monkeypatch.setattr("aiad_platform.doctor.run_doctor", lambda: {"ok": True, "checks": []})
+    monkeypatch.setattr(cli, "_script_entry", lambda: ("/tmp/aad", ("mcp",)))
+    monkeypatch.setattr("aad_platform.daemon_ctl.ensure_running", lambda: {"running": True, "compatible": True, "pid": 42, "version": __version__})
+    monkeypatch.setattr("aad_platform.doctor.run_doctor", lambda: {"ok": True, "checks": []})
     assert cli.main(["install", "--client", "codex", "--no-prewarm", "--json"]) == 0
     result = output_object(capsys)
     assert result["ok"] is True
     assert clients.calls[0][3] is False
     assert result["restart_hints"] == [{"id": "codex", "hint": "Start a new Codex session."}]
-    assert clients.calls[0][2].command == "/tmp/aiad"
+    assert clients.calls[0][2].command == "/tmp/aad"
 
 
 def test_uninstall_dry_run_preserves_client_config(monkeypatch, capsys, temp_home):
     install_fake_clients(monkeypatch, temp_home)
     config_path = temp_home / "codex.json"
     config_path.write_text('{"existing":true}')
-    monkeypatch.setattr("aiad_platform.daemon_ctl.stop", lambda: pytest.fail("dry run must not stop daemon"))
+    monkeypatch.setattr("aad_platform.daemon_ctl.stop", lambda: pytest.fail("dry run must not stop daemon"))
     assert cli.main(["uninstall", "--client", "codex", "--dry-run", "--json"]) == 0
     result = output_object(capsys)
     assert result["ok"] is True
@@ -197,15 +197,15 @@ def test_uninstall_dry_run_preserves_client_config(monkeypatch, capsys, temp_hom
     assert config_path.read_text() == '{"existing":true}'
 
 
-def test_uninstall_purge_removes_only_aiad_home(monkeypatch, capsys, temp_home):
+def test_uninstall_purge_removes_only_aad_home(monkeypatch, capsys, temp_home):
     install_fake_clients(monkeypatch, temp_home)
     state = temp_home / "state"
     state.mkdir()
-    monkeypatch.setenv("AIAD_HOME", str(state))
-    project_file = temp_home / "AIAD" / "part" / "keep.txt"
+    monkeypatch.setenv("AAD_HOME", str(state))
+    project_file = temp_home / "AAD" / "part" / "keep.txt"
     project_file.parent.mkdir(parents=True)
     project_file.write_text("keep")
-    monkeypatch.setattr("aiad_platform.daemon_ctl.stop", lambda: True)
+    monkeypatch.setattr("aad_platform.daemon_ctl.stop", lambda: True)
     assert cli.main(["uninstall", "--client", "codex", "--purge", "--json"]) == 0
     result = output_object(capsys)
     assert result["ok"] is True
@@ -221,7 +221,7 @@ def test_uninstall_failure_keeps_backups_and_returns_failure(monkeypatch, capsys
     backup.parent.mkdir(parents=True)
     backup.write_bytes(b"original config")
     clients.uninstall = lambda *_args, **_kw: FakeWriteResult("codex", action, None, backup, "", "Could not uninstall")
-    monkeypatch.setattr("aiad_platform.daemon_ctl.stop", lambda: True)
+    monkeypatch.setattr("aad_platform.daemon_ctl.stop", lambda: True)
     assert cli.main(["uninstall", "--client", "codex", "--purge", "--json"]) == 1
     assert output_object(capsys)["purged"] is False
     assert backup.read_bytes() == b"original config"
@@ -232,8 +232,8 @@ def test_purge_refuses_remaining_client_manifest(monkeypatch, temp_home):
     manifest = state / "backups" / "codex" / "manifest.json"
     manifest.parent.mkdir(parents=True)
     manifest.write_text("{}")
-    monkeypatch.setenv("AIAD_HOME", str(state))
-    assert cli._purge_aiad_home()[0] is False
+    monkeypatch.setenv("AAD_HOME", str(state))
+    assert cli._purge_aad_home()[0] is False
     assert manifest.exists()
 
 
@@ -283,7 +283,7 @@ def test_invalid_uninstall_does_not_stop_daemon(monkeypatch, capsys, temp_home):
 
 @pytest.mark.parametrize("metadata", [None, "not json"])
 def test_stop_probes_daemon_when_metadata_is_missing_or_invalid(metadata, temp_home):
-    from aiad_platform import paths
+    from aad_platform import paths
 
     daemon_ctl.ensure_running()
     if metadata is None:
@@ -295,15 +295,15 @@ def test_stop_probes_daemon_when_metadata_is_missing_or_invalid(metadata, temp_h
 
 
 def test_purge_protects_case_aliases_of_projects(monkeypatch, temp_home):
-    root = temp_home / "AIAD"
+    root = temp_home / "AAD"
     root.mkdir()
     protected = root / "part.txt"
     protected.write_text("keep")
-    alias = temp_home / "aiad"
+    alias = temp_home / "aad"
     if not alias.exists() or not alias.samefile(root):
         pytest.skip("requires a case-insensitive filesystem")
-    monkeypatch.setenv("AIAD_HOME", str(alias))
-    assert cli._purge_aiad_home()[0] is False
+    monkeypatch.setenv("AAD_HOME", str(alias))
+    assert cli._purge_aad_home()[0] is False
     assert protected.read_text() == "keep"
 
 
@@ -317,7 +317,7 @@ def test_remote_commands_are_json_and_forward_contract(monkeypatch, capsys, temp
         replies = []
         for method, _params in requests:
             structured = {"ok": True, "summary": f"{method} ok"}
-            if method == "aiad_show":
+            if method == "aad_show":
                 structured["viewer"] = {"url": "http://127.0.0.1:1234/view"}
             replies.append({"text": f"{method} ok", "structured": structured})
         return replies, None
@@ -326,23 +326,23 @@ def test_remote_commands_are_json_and_forward_contract(monkeypatch, capsys, temp
     assert cli.main(["build", "sample", str(source), "--param", "width=4.5", "--preview", "--create", "--json"]) == 0
     build = output_object(capsys)
     assert build["ok"] is True
-    assert [method for method, _params in calls] == ["aiad_new", "aiad_build"]
+    assert [method for method, _params in calls] == ["aad_new", "aad_build"]
     assert calls[0][1]["source"].startswith("from build123d")
     assert calls[1][1]["params"] == {"width": 4.5}
     assert calls[1][1]["preview"] is True
-    assert calls[1][1]["client"] == {"name": "aiad-cli", "supports_ui": False}
+    assert calls[1][1]["client"] == {"name": "aad-cli", "supports_ui": False}
 
     calls.clear()
     assert cli.main(["show", "sample", "--rev", "2", "--json"]) == 0
     show = output_object(capsys)
     assert show["ok"] is True
-    assert calls == [("aiad_show", {"project": "sample", "client": {"name": "aiad-cli", "supports_ui": False}, "rev": 2})]
+    assert calls == [("aad_show", {"project": "sample", "client": {"name": "aad-cli", "supports_ui": False}, "rev": 2})]
 
     calls.clear()
     assert cli.main(["export", "sample", "--format", "stl", "step", "--rev", "2", "--allow-unverified", "--json"]) == 0
     export = output_object(capsys)
     assert export["ok"] is True
-    assert calls[0][0] == "aiad_export"
+    assert calls[0][0] == "aad_export"
     assert calls[0][1]["formats"] == ["stl", "step"]
     assert calls[0][1]["allow_unverified"] is True
 
@@ -361,7 +361,7 @@ def test_update_json_prints_without_running_upgrade(monkeypatch, capsys, temp_ho
     monkeypatch.setattr(cli.subprocess, "run", lambda *_a, **_k: pytest.fail("update must not run without --run"))
     assert cli.main(["update", "--json"]) == 0
     result = output_object(capsys)
-    assert result["command"] == "uv tool upgrade aiad"
+    assert result["command"] == "uv tool upgrade aad-design"
     assert result["ran"] is False
 
 
@@ -373,7 +373,7 @@ def test_serve_without_an_action_explains_itself(capsys, temp_home):
 
 
 def test_doctor_command_json(monkeypatch, capsys, temp_home):
-    monkeypatch.setattr("aiad_platform.doctor.run_doctor", lambda: {"ok": False, "checks": [{"id": "engine", "status": "fail", "message": "missing"}]})
+    monkeypatch.setattr("aad_platform.doctor.run_doctor", lambda: {"ok": False, "checks": [{"id": "engine", "status": "fail", "message": "missing"}]})
     assert cli.main(["doctor", "--json"]) == 1
     result = output_object(capsys)
     assert result["ok"] is False

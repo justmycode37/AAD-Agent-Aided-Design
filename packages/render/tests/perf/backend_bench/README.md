@@ -14,10 +14,10 @@ uv run --no-project --python 3.12 \
   --with build123d==0.13.0 --with cadquery-ocp-novtk==8.0.1.1.0 \
   --with numpy==2.5.4 --with pillow==13.0.0 --with vtk==9.7.1 \
   --with moderngl==5.13.0 --with glcontext==3.1.0 \
-  python packages/render/tests/perf/backend_bench/collect.py --output /tmp/aiad-backend-bench
+  python packages/render/tests/perf/backend_bench/collect.py --output /tmp/aad-backend-bench
 ```
 
-`plot.py /tmp/aiad-backend-bench` generates a timing chart using Matplotlib (installed with VTK).
+`plot.py /tmp/aad-backend-bench` generates a timing chart using Matplotlib (installed with VTK).
 
 `collect.py` runs imports separately and two renders per backend in fresh processes, with a
 90-second timeout per process. It writes package versions and installed file sizes alongside

@@ -1,6 +1,6 @@
 from build123d import Box, Cylinder, Pos, Rot, Align
 import pytest
-from aiad_drafting.features import measure_cylinders
+from aad_drafting.features import measure_cylinders
 
 
 def test_stepped_shaft_has_exact_diameters_and_axial_stations():

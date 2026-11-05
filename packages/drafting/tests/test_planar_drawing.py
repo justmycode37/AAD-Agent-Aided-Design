@@ -5,9 +5,9 @@ from types import SimpleNamespace
 import ezdxf
 import pytest
 
-from aiad_drafting import DimensionSpec, DrawingRequest, make_drawing, sheet2d
-from aiad_drafting.drawing2d import prepare
-from aiad_drafting.sheet import _normalize_request
+from aad_drafting import DimensionSpec, DrawingRequest, make_drawing, sheet2d
+from aad_drafting.drawing2d import prepare
+from aad_drafting.sheet import _normalize_request
 from examples.planar_sheet import model
 
 
@@ -45,7 +45,7 @@ def test_native_sheet_draws_measured_xy_geometry_in_all_formats(tmp_path, units)
 
 
 def test_dimension_strokes_ignore_reference_geometry_outside_cut_bounds(tmp_path, monkeypatch):
-    from aiad_drafting import export
+    from aad_drafting import export
     sheet = sheet2d("datum")
     sheet.rectangle("outline", 100, 60)
     sheet.circle("mount", (20, 30), 3)
@@ -129,8 +129,8 @@ def test_sheet_writers_preserve_rotated_text_and_its_baseline(tmp_path, rotation
     import xml.etree.ElementTree as ET
     import numpy as np
     from PIL import Image
-    from aiad_drafting.export import text, write_png, write_svg, write_dxf
-    from aiad_drafting.layout import text_bounds
+    from aad_drafting.export import text, write_png, write_svg, write_dxf
+    from aad_drafting.layout import text_bounds
     label = text('ROTATED', 35, 35, 3, rotation=rotation, align=align)
     write_svg(tmp_path/'label.svg', 70, 70, [label])
     write_dxf(tmp_path/'label.dxf', 70, 70, [label])

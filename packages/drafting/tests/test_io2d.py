@@ -11,9 +11,9 @@ from xml.etree import ElementTree as ET
 import ezdxf
 import pytest
 
-from aiad_drafting import io2d
-from aiad_drafting.import2d import parse_dxf, parse_svg
-from aiad_drafting.model2d import Sheet2D, _entity_to_native, latest_sheet
+from aad_drafting import io2d
+from aad_drafting.import2d import parse_dxf, parse_svg
+from aad_drafting.model2d import Sheet2D, _entity_to_native, latest_sheet
 
 
 SVG_NS = "{http://www.w3.org/2000/svg}"
@@ -359,7 +359,7 @@ def test_flattened_import_provenance_is_not_reapplied_or_reemitted(tmp_path):
 
 def test_io2d_import_is_kernel_free_until_native_geometry_is_requested():
     package_src = Path(__file__).resolve().parents[1] / "src"
-    code = "import sys; import aiad_drafting.io2d; assert 'build123d' not in sys.modules; assert 'OCP' not in sys.modules"
+    code = "import sys; import aad_drafting.io2d; assert 'build123d' not in sys.modules; assert 'OCP' not in sys.modules"
     env = dict(os.environ)
     env["PYTHONPATH"] = str(package_src)
     env["PYTHONDONTWRITEBYTECODE"] = "1"

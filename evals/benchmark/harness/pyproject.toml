@@ -1,7 +1,7 @@
 [project]
-name = "aiad-benchmark-harness"
+name = "aad-benchmark-harness"
 version = "0.0.1"
-description = "Provider-agnostic MCP trial loop for the AIAD benchmark protocol."
+description = "Provider-agnostic MCP trial loop for the AAD benchmark protocol."
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "anthropic==2.4.0",
