@@ -907,9 +907,6 @@ class Handlers:
         # The component index and a bill-of-materials check are useless when cut off.
         limit = 100_000 if params.get("kind") == "component" or params.get("action") == "check" else 6000
         text = item["text"] if isinstance(item, dict) and isinstance(item.get("text"), str) else json.dumps(data, default=str)[:limit]
-        if isinstance(item, dict) and isinstance(item.get("text"), str):
-            # The text block carries the body. Repeating it here doubles what hosts send the model.
-            data = {**data, "item": {**item, "text": None, "text_chars": len(item["text"]), "text_in": "content"}}
         return {"structured": {"ok": True, "project": "", "status": "draft", "summary": "Library result.", "library": data}, "text": text}
 
     async def aad_set_param(self, params: dict[str, Any]) -> dict[str, Any]:
