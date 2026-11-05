@@ -4,17 +4,17 @@ const LABEL_HEIGHT = 18;
 const TARGET_SPACING = 85;
 export interface LabelBox { x: number; y: number; width: number; height: number }
 
-/** Round upward to a readable 1/2/5 interval. */
-export function niceGridStep(value: number): number {
-  if (!(value > 0) || !Number.isFinite(value)) return 1;
-  const power = 10 ** Math.floor(Math.log10(value));
-  const factor = value / power;
-  return (factor <= 1 ? 1 : factor <= 2 ? 2 : factor <= 5 ? 5 : 10) * power;
-}
-
-export function gridStep(pixelsPerUnit: number, viewportPixels = 1000): number {
-  // Bound work by viewport size, so close zoom still reaches fractional intervals.
-  return niceGridStep(Math.max(TARGET_SPACING, viewportPixels / 32) / Math.max(pixelsPerUnit, 1e-12));
+/** Choose sparse subdivisions of the fixed grid, with a dead band around zoom thresholds. */
+export function gridDivisions(halfExtent: number, pixelsPerUnit: number, previous = 0): number {
+  const spacing = halfExtent * pixelsPerUnit / previous;
+  if (previous && spacing >= 64 && spacing <= 150) return previous;
+  const candidates = [1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 25, 32, 40, 50, 64, 80, 100, 128];
+  const readable = candidates.filter(n => {
+    const value = halfExtent / n;
+    return Math.abs(Number(value.toPrecision(4)) - value) <= Math.abs(value) * 1e-8;
+  });
+  const wanted = halfExtent * pixelsPerUnit / TARGET_SPACING;
+  return readable.filter(n => n <= wanted).at(-1) ?? 1;
 }
 
 export function gridCoordinate(local: number, offset: number): string {
@@ -36,10 +36,10 @@ export function installAdaptiveGrid(viewer: any): () => void {
   const nativeCreateLabel = grid.createLabel;
   const halfExtent = grid.size / 2;
   let previousKey = "";
-  let patchCenter = [0, 0, 0];
+  let previousDivisions = 0;
+  let visibleLastFrame = new Set<any>();
   grid.createLabel = function(_tick: string, x: number, plane: number, horizontal: boolean) {
-    const axis = [[0, 1], [2, 0], [1, 2]][plane][horizontal ? 0 : 1];
-    const text = gridCoordinate(x, patchCenter[axis]);
+    const text = gridCoordinate(x, 0);
     const value = Number(text);
     // Native tick strings have already lost small fractions; use numeric coordinates.
     const label = nativeCreateLabel.call(this, text, x, plane, horizontal);
@@ -53,20 +53,13 @@ export function installAdaptiveGrid(viewer: any): () => void {
     if (!camera || !(halfExtent > 0)) return Promise.resolve();
     camera.updateMatrixWorld();
     const width = grid.cadWidth, height = grid.height;
-    const center = grid.position.clone().set(...viewer.getCameraTarget());
-    const origin = center.clone().project(camera);
-    const distance = center.distanceTo(camera.position);
-    const sample = Math.max(distance / 10000, halfExtent * 1e-10);
-    const lengths = ['x', 'y', 'z'].map(axis => {
-      const point = center.clone(); point[axis] += sample; point.project(camera);
-      return Math.hypot((point.x - origin.x) * width / 2, (point.y - origin.y) * height / 2) / sample;
-    }).filter(n => Number.isFinite(n) && n > 1e-8).sort((a, b) => a - b);
-    const pixelsPerUnit = lengths[Math.floor(lengths.length / 2)] ?? 0;
-    const viewport = Math.max(width, height);
-    const step = gridStep(pixelsPerUnit, viewport);
-    patchCenter = ['x', 'y', 'z'].map(axis => Math.round(center[axis] / step) * step);
-    const halfCells = Math.max(1, Math.floor(Math.min(width, height) * .45 / (Math.max(pixelsPerUnit, 1e-12) * step)));
-    const key = [step, halfCells, ...patchCenter].join(':');
+    // Density depends on camera scale, never orbit angle or a snapped camera target.
+    const cameraTarget = grid.position.clone().set(...viewer.getCameraTarget());
+    const distance = cameraTarget.distanceTo(camera.position);
+    const pixelsPerUnit = height * Math.abs(camera.projectionMatrix.elements[5]) /
+      (2 * (camera.isPerspectiveCamera ? Math.max(distance, 1e-12) : 1));
+    const divisions = gridDivisions(halfExtent, pixelsPerUnit, previousDivisions);
+    const key = `${divisions}:${grid.theme}`;
     if (key !== previousKey) {
       // Dispose grid lines and cached label resources before rebuilding; no scene meshes are involved.
       for (const group of grid.children) group.children[0]?.traverse((object: any) => {
@@ -74,20 +67,17 @@ export function installAdaptiveGrid(viewer: any): () => void {
         for (const material of [object.material ?? []].flat()) material.dispose();
       });
       grid.clearCache(); grid.clear();
-      // Keep the zero-aligned labels at round values, including when the extent changes.
-      grid.size = 2 * halfCells * step;
-      grid.ticks = grid.size / (2 * step);
+      // Rebuild subdivisions only; never resize or recenter the grid box.
+      grid.size = 2 * halfExtent;
+      grid.ticks = divisions;
       void grid.create(false);
       previousKey = key;
+      previousDivisions = divisions;
+      visibleLastFrame.clear();
     }
     if (force) grid.setVisible();
-    // A bounded patch follows the target; labels retain actual world coordinates.
-    for (const group of grid.children) group.position.set(...patchCenter);
-    if (!grid.centerGrid) {
-      grid.children[0].position.z -= grid.size / 2;
-      grid.children[1].position.y -= (grid.flipY ? -1 : 1) * grid.size / 2;
-      grid.children[2].position.x -= grid.size / 2;
-    }
+    // Keep the original planes, extent and origin fixed in world coordinates, as in native CAD.
+    grid.setCenter(grid.getAxes0(), grid.flipY);
     grid.updateWorldMatrix(true, true);
     const labelHeight = LABEL_HEIGHT * grid.gridFontSize / 10;
     const labels: { label: any; box: LabelBox; value: number }[] = [];
@@ -95,25 +85,26 @@ export function installAdaptiveGrid(viewer: any): () => void {
       for (const label of group.children.slice(1)) {
         label.visible = false;
         if (!group.visible || !label.isSprite) continue;
-        // Keep all coordinates horizontal and at a constant, modest CSS pixel size.
-        label.material.rotation = 0;
+        // Keep coordinates at a constant, modest CSS pixel size.
+        // Preserve the native axis orientation from the reference viewer.
         const aspect = label.userData.aspectRatio || 4;
         const scale = 2 * labelHeight / (height * Math.abs(camera.projectionMatrix.elements[5]));
         label.scale.set(scale * aspect, scale, 1);
         const point = label.getWorldPosition(label.position.clone()).project(camera);
-        const box = { x: (point.x + 1) * width / 2, y: (1 - point.y) * height / 2, width: labelHeight * aspect, height: labelHeight };
+        const box = { x: (point.x + 1) * width / 2, y: (1 - point.y) * height / 2, width: labelHeight * (aspect * Math.abs(Math.cos(label.material.rotation)) + Math.abs(Math.sin(label.material.rotation))), height: labelHeight * (aspect * Math.abs(Math.sin(label.material.rotation)) + Math.abs(Math.cos(label.material.rotation))) };
         if (![point.x, point.y, point.z].every(Number.isFinite) || point.z < -1 || point.z > 1) continue;
-        if (box.x - box.width / 2 < 8 || box.x + box.width / 2 > width - 8 || box.y < 72 || box.y > height - 16) continue;
+        if (box.x - box.width / 2 < 8 || box.x + box.width / 2 > width - 8 || box.y - box.height / 2 < 64 || box.y + box.height / 2 > height - 16) continue;
         if (box.x < 100 && box.y > height - 110) continue; // XYZ orientation marker.
         labels.push({ label, box, value: Math.abs(label.userData.aadTick ?? 0) });
       }
     }
     // Important small coordinates win; suppress duplicate/overlapping labels across all three planes.
-    labels.sort((a, b) => a.value - b.value);
+    labels.sort((a, b) => Number(visibleLastFrame.has(b.label)) - Number(visibleLastFrame.has(a.label)) || a.value - b.value);
+    visibleLastFrame = new Set();
     const placed: LabelBox[] = [];
     for (const { label, box } of labels) {
       if (placed.some(other => overlaps(box, other))) continue;
-      label.visible = true; placed.push(box);
+      label.visible = true; placed.push(box); visibleLastFrame.add(label);
     }
     return Promise.resolve();
   };

@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { gridCoordinate, gridStep, niceGridStep, overlaps } from '../src/adaptive-grid';
+import { gridCoordinate, gridDivisions, overlaps } from '../src/adaptive-grid';
 
 describe('adaptive coordinate grid', () => {
-  it('uses round intervals for large and fractional models', () => {
-    expect([0.0021, 0.06, 1, 1.1, 4.5, 50, 201].map(niceGridStep)).toEqual([0.005, .1, 1, 2, 5, 50, 500]);
+  it('refines a fixed extent as zoom increases without moving its planes', () => {
+    expect([.1, .3, 1, 3].map(ppu => gridDivisions(1200, ppu))).toEqual([1, 4, 12, 40]);
   });
-  it('gets coarser on zoom out, finer on zoom in, and bounds allocation at extreme zoom', () => {
-    const levels = [.05, .2, 1, 3, 10, 100000].map(ppu => gridStep(ppu, 500));
-    expect(levels).toEqual([2000, 500, 100, 50, 10, .001]);
-    for (let i = 1; i < levels.length; i++) expect(levels[i]).toBeLessThanOrEqual(levels[i - 1]);
-    expect(gridStep(1, 8000)).toBeGreaterThanOrEqual(8000 / 32);
+  it('holds the interval through small zoom changes rather than flickering at thresholds', () => {
+    expect(gridDivisions(1200, .3, 4)).toBe(4);
+    expect(gridDivisions(1200, .25, 4)).toBe(4);
+    expect(gridDivisions(1200, .5, 4)).toBe(4);
+    expect(gridDivisions(1200, .6, 4)).toBeGreaterThan(4);
+    expect(gridDivisions(1200, .1, 4)).toBeLessThan(4);
   });
   it('preserves fractional and panned world coordinates without native four-decimal rounding', () => {
     expect(gridCoordinate(.000012, 0)).toBe('0.000012');
