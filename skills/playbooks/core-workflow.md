@@ -7,9 +7,17 @@ candidate_status: unmeasured
 
 # Core modeling workflow
 
-Unmeasured candidate guidance. Use aad_library search for short summaries and get for one exact reference ID. Get workflow.capabilities.v1 for the full map of what AAD can do.
+Unmeasured candidate guidance. Use aad_library search for short summaries and get for one exact reference ID. Get workflow.capabilities.v1 for the full map of what AAD can do. Choose purchased parts from the component catalog; see components.real-parts.v1.
 
 ## Capture the request
+
+Default to a realistic assembly when the user asks for a real object. Include
+its interior, component interfaces, fasteners, support structure and power or
+control paths as applicable. An exterior silhouette is sufficient only when
+the user asks for an exterior study. Model moving envelopes and service access,
+inspect interior/section views and check critical interference. Identify
+representative components and unresolved engineering; CAD detail and shape
+validity alone do not establish operation or manufacturing readiness.
 
 Translate explicit user requirements into unique, measurable spec entries. Keep assumptions visible and separate; do not silently fill missing fits, tolerances, materials, loads, or process settings. Compare the model with the original request because a complete spec can still omit user intent.
 

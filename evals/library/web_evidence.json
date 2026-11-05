@@ -1,0 +1,105 @@
+{
+ "battery.li_ion.INR21700-P42A": {
+  "checked": "2026-11-05",
+  "note": "45 A needs temperature monitoring; 30 A without.",
+  "source": "Web search result read for this part",
+  "url": "https://www.nkon.nl/molicel-21700a-4200mah-30a.html"
+ },
+ "connector.XT30": {
+  "checked": "2026-11-05",
+  "note": "Current ratings seen; housing dimensions not confirmed.",
+  "source": "Web search result read for this part",
+  "url": "https://www.tme.com/ca/en/katalog/p,amass_1260/"
+ },
+ "connector.XT60": {
+  "checked": "2026-11-05",
+  "note": "Current ratings seen; housing dimensions not confirmed.",
+  "source": "Web search result read for this part",
+  "url": "https://octopart.com/xt60h-f-amass-118051282"
+ },
+ "elec.motor.A4988": {
+  "checked": "2026-11-05",
+  "note": "Orderable code A4988SETTR-T, 5 x 5 mm QFN-28.",
+  "source": "Web search result read for this part",
+  "url": "https://www.digikey.com/en/products/detail/allegro-microsystems/A4988SETTR-T/2237991"
+ },
+ "linear.rail.MGN12H": {
+  "checked": "2026-11-05",
+  "source": "Web search result read for this part",
+  "url": "https://www.123-3d.co.uk/HIWIN-MGN12H-linear-slider-block-i3904-t344.html"
+ },
+ "motor.bldc.MN2212-920KV": {
+  "checked": "2026-11-05",
+  "note": "V2.0 listing.",
+  "source": "Web search result read for this part",
+  "url": "https://store.tmotor.com/product/mn2212-v2-motor-navigator-type.html"
+ },
+ "motor.fan.NF-A4x10_FLX": {
+  "checked": "2026-11-05",
+  "note": "Maker gives 40 x 40 x 11 mm (12 with anti-vibration pads), 32 mm hole spacing.",
+  "source": "Web search result read for this part",
+  "url": "https://noctua.at/en/nf-a4x10-flx/specification"
+ },
+ "motor.servo.MG996R": {
+  "checked": "2026-11-05",
+  "source": "Web search result read for this part",
+  "url": "https://courses.ece.cornell.edu/ece5990/ECE5725_Spring2020_Projects/May_15_Demo/Smart Lock/W_pp445_yl656/datasheet/MG996R_Tower-Pro.pdf"
+ },
+ "motor.servo.SG90": {
+  "checked": "2026-11-05",
+  "note": "Sources conflict on outline (22-23.1 x 11.5-12.2 x 27-31 mm). Envelope uses the largest values.",
+  "source": "Web search result read for this part",
+  "url": "https://bit.nkust.edu.tw/~csshieh/teach/111A/mc/datasheet/SG90.pdf"
+ },
+ "motor.servo.XL430-W250-T": {
+  "checked": "2026-11-05",
+  "source": "Web search result read for this part",
+  "url": "https://emanual.robotis.com/docs/en/dxl/x/xl430-w250/"
+ },
+ "motor.stepper.17HS19-2004S1": {
+  "checked": "2026-11-05",
+  "source": "Web search result read for this part",
+  "url": "https://omc-stepperonline.com/nema-17-bipolar-59ncm-84oz-in-2a-42x48mm-4-wires-w-1m-cable-and-connector.html"
+ },
+ "motor.stepper.17HS4401": {
+  "checked": "2026-11-05",
+  "note": "Generic name with no single maker. Listings conflict: 1.5-1.7 A, 38-40.4 mm body. Measure the motor actually bought.",
+  "source": "Web search result read for this part",
+  "url": "https://www.digikey.fi/en/products/detail/olimex-ltd/SM-17HS4401/25823679"
+ },
+ "motor.stepper.23HS22-2804S": {
+  "checked": "2026-11-05",
+  "note": "6.35 mm shaft; 23HS22-2804S1 is a different 6 mm part.",
+  "source": "Web search result read for this part",
+  "url": "https://omc-stepperonline.com/nema-23-bipolar-1-8deg-1-26nm-178-4oz-in-2-8a-2-5v-57x57x56mm-4-wires.html"
+ },
+ "motor.stepper.28BYJ-48": {
+  "checked": "2026-11-05",
+  "note": "Exact gear ratio reported as 63.684:1 by a measurement source.",
+  "source": "Web search result read for this part",
+  "url": "https://www.olimex.com/Products/Robot-CNC-Parts/StepperMotors/SM-5VDC-DRV/"
+ },
+ "power.meanwell.LRS-100-24": {
+  "checked": "2026-11-05",
+  "note": "24 V 4.5 A = 108 W; retailer figures, maker PDF not read.",
+  "source": "Web search result read for this part",
+  "url": "https://www.arrow.com/en/products/lrs-100-24/mean-well-enterprises"
+ },
+ "protection.ptc.MF-R110": {
+  "checked": "2026-11-05",
+  "source": "Web search result read for this part",
+  "url": "https://azcus.digikey.com/en/products/detail/bourns-inc/MF-R110/259970"
+ },
+ "relay.pcb.SRD-05VDC-SL-C": {
+  "checked": "2026-11-05",
+  "note": "Listings vary on switching current; maker PDF not read.",
+  "source": "Web search result read for this part",
+  "url": "https://www.lcsc.com/product-detail/C35449.html"
+ },
+ "switch.microswitch.D2F-01": {
+  "checked": "2026-11-05",
+  "note": "Rated 0.1 A at 30 VDC; a 3 A rating belongs to D2F.",
+  "source": "Web search result read for this part",
+  "url": "https://octopart.com/zh/part/omron/D2F-01"
+ }
+}

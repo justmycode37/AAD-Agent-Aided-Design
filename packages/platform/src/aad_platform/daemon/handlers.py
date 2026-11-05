@@ -892,7 +892,7 @@ class Handlers:
         )
 
     async def aad_library(self, params: dict[str, Any]) -> dict[str, Any]:
-        args = {k: params.get(k) for k in ("action", "kind", "query", "id")}
+        args = {k: params.get(k) for k in ("action", "kind", "query", "id", "offset", "items")}
         request = {"op": "library", "args": args, "out_dir": str(paths.cache_dir() / "library")}
         result = await run_op(request, timeout_s=60.0)
         if not result.get("ok"):
@@ -904,7 +904,9 @@ class Handlers:
         data = result["library"]
         item = data.get("item") if isinstance(data, dict) else None
         # A fetched guide must reach the model whole, including hosts that only pass on the text.
-        text = item["text"] if isinstance(item, dict) and isinstance(item.get("text"), str) else json.dumps(data, default=str)[:6000]
+        # The component index and a bill-of-materials check are useless when cut off.
+        limit = 100_000 if params.get("kind") == "component" or params.get("action") == "check" else 6000
+        text = item["text"] if isinstance(item, dict) and isinstance(item.get("text"), str) else json.dumps(data, default=str)[:limit]
         return {"structured": {"ok": True, "project": "", "status": "draft", "summary": "Library result.", "library": data}, "text": text}
 
     async def aad_set_param(self, params: dict[str, Any]) -> dict[str, Any]:

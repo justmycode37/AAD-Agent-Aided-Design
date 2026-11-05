@@ -5,6 +5,16 @@
 [The named mount fixture](../../fixtures/models/named_mount.py) builds a Box,
 four through holes, and four real fillets with the pinned kernel.
 
+The namespace is not limited to box primitives. Curved profiles (`Spline`,
+`Bezier`, arcs), `loft`, `sweep`, `revolve`, booleans, offsets and fillets are
+available through the same import. Runnable examples cover a
+[hollow tapered casting](../../fixtures/models/curved_housing.py), a
+[spatial spline sweep](../../fixtures/models/freeform_sweep.py), and an
+[asymmetric spline outline with fillets](../../fixtures/models/spline_profile.py).
+See the [curved modeling playbook](../../skills/playbooks/modeling-curved-freeform.md)
+for construction choices and limits. These are geometry examples, not validated
+manufacturing designs.
+
 ## Gear profiles and solids
 
 `gear_profile(teeth, module, ...)` returns a transverse involute section as a

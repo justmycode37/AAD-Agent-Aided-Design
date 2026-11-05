@@ -29,3 +29,22 @@ def test_worker_uses_real_quality_checks_without_attesting_their_results(tmp_pat
     assert all(isinstance(check,Check) for check in result.checks)
     assert not any(check.id=='spec_checks_unavailable' for check in result.checks)
     assert result.artifacts
+
+
+def test_sandboxed_worker_can_place_catalog_parts_and_check_a_component_list(tmp_path):
+    source = (
+        "from aad_quality.components import make_envelope\n"
+        "result = make_envelope('bearing.radial.608')\n"
+    )
+    spec = {'requirements': [
+        {'id': 'bore', 'bbox': {'z': 7}},
+        {'id': 'BOM', 'components': [{'id': 'bearing.radial.608', 'qty': 1}, {'custom': 'hub', 'reason': 'designed here'}]},
+        {'id': 'FAKE', 'components': [{'id': 'fastener.iso4762.M3-0.5', 'length_mm': 17}]},
+    ]}
+    result = run_build(BuildRequest(source=source, project_dir=tmp_path, job_dir=tmp_path / 'job', spec=spec, timeout_s=60))
+    # An invented part is an error-level failure, so the build itself must not pass.
+    assert not result.ok and result.status == 'failed'
+    checks = {check.id: check for check in result.checks if check.suite == 'spec'}
+    assert checks['bore'].status == 'pass'
+    assert checks['BOM'].status == 'pass'
+    assert checks['FAKE'].status == 'fail' and 'nearest' in checks['FAKE'].message

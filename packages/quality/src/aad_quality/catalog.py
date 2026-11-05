@@ -10,7 +10,7 @@ from typing import Any
 
 import yaml
 
-KINDS = ("part", "material", "playbook", "api")
+KINDS = ("part", "component", "material", "playbook", "api")
 GUIDE_ID = "aad.guide.v1"
 _SEARCH_LIMIT = 5
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
@@ -103,20 +103,61 @@ def _entries(kind: str) -> list[dict[str, Any]]:
     if kind == "part":
         from .standard_parts import list_parts
         return list_parts()
+    if kind == "component":
+        from .components import list_components
+        return list_components()
     if kind == "playbook":
         return _playbooks()
     return deepcopy(_API)
 
 
+# "m3.5" is one size; a plain word split would also match it as "m3".
+_WORD = r"[a-z]+\d+\.\d+|\w+"
+
+
+def _search_terms(query: str | None) -> list[str]:
+    # "M3x16" is a thread and a length; "8x22x7" stays whole to match a bearing tag.
+    text = re.sub(r"\b(m\d+(?:\.\d+)?)x(?=\d)", r"\1 ", (query or "").casefold())
+    return re.findall(_WORD, text)
+
+
+def _rank(terms: list[str], entry: dict[str, Any]) -> int:
+    identity = f"{entry['id']} {entry.get('title', entry.get('name', ''))}".casefold()
+    words = set(re.findall(_WORD, identity)) | {tag.casefold() for tag in entry.get("tags", ()) if "x" in tag.casefold()}
+    score = 0
+    for term in terms:
+        if term in words:
+            score += 2
+        elif term in identity:
+            # A size inside a longer token is a different part: M3 is not M30.
+            score += -5 if any(ch.isdigit() for ch in term) else 1
+    return score
+
+
 def library(action: str, *, kind: str | None = None, query: str | None = None,
-            id: str | None = None) -> dict[str, Any]:
-    """Search small summaries or retrieve one complete catalog entry.
+            id: str | None = None, offset: int | None = None,
+            items: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """Search small summaries, retrieve one entry, or check a component list.
 
     IDs are looked up in a closed catalog, never interpreted as paths/code.
     Lookup does not instantiate a part or import a geometry kernel.
     """
-    if not isinstance(action, str) or action not in {"search", "get"}:
-        raise LibraryInputError("action must be search or get")
+    if not isinstance(action, str) or action not in {"search", "get", "check"}:
+        raise LibraryInputError("action must be search, get or check")
+    if action == "check":
+        if kind not in (None, "component") or query is not None or id is not None or offset is not None:
+            raise LibraryInputError("check accepts only items and kind=component")
+        from .components import check_items
+        try:
+            return check_items(items)
+        except ValueError as exc:
+            raise LibraryInputError(str(exc)) from exc
+    if items is not None:
+        raise LibraryInputError("items is only accepted by check")
+    if offset is not None and (isinstance(offset, bool) or not isinstance(offset, int) or offset < 0):
+        raise LibraryInputError("offset must be a non-negative integer")
+    if action == "get" and offset is not None:
+        raise LibraryInputError("get does not accept offset")
     if kind is not None and (not isinstance(kind, str) or kind not in KINDS):
         raise LibraryInputError(f"kind must be one of {', '.join(KINDS)}")
     if query is not None and (not isinstance(query, str) or len(query) > 512):
@@ -135,22 +176,44 @@ def library(action: str, *, kind: str | None = None, query: str | None = None,
             raise LibraryInputError("id is ambiguous; specify kind")
         return {"found": bool(matches), "id": id, "kind": kind,
                 "item": deepcopy(matches[0]) if matches else None}
-    terms = re.findall(r"[\w]+", (query or "").casefold())
+    terms = _search_terms(query)
     matches = []
+    hits: list[tuple[int, int, dict[str, Any]]] = []
+    wants_screw = re.search(r"\bm\d+(?:\.\d+)?x\d", (query or "").casefold()) is not None
     for entry in entries:
-        haystack = json.dumps(entry, ensure_ascii=False).casefold()
-        if all(term in haystack for term in terms):
-            identity = f"{entry['id']} {entry.get('title', entry.get('name', ''))}".casefold()
-            score = sum(term in identity for term in terms)
-            matches.append((score, entry))
-    matches.sort(key=lambda pair: (-pair[0], pair[1]["kind"], pair[1]["id"]))
+        # Every component shares this boilerplate, so it must not make a query match.
+        haystack = json.dumps({k: v for k, v in entry.items() if k not in ("limitations", "evidence")}, ensure_ascii=False).casefold()
+        # The index mentions every family, so it should only answer queries about itself.
+        if entry["id"] == "component.index" and terms and _rank(terms, entry) <= 0:
+            continue
+        found = sum(term in haystack for term in terms)
+        if found == len(terms):
+            matches.append((_rank(terms, entry) + (wants_screw and entry.get("category") == "fastener"), entry))
+        elif found and entry["kind"] == "component":
+            hits.append((found, _rank(terms, entry), entry))
+    partial = False
+    if not matches and hits and kind == "component":
+        # Values like "10k" live in option ranges, so offer the closest families.
+        partial = True
+        matches = [(found * 1000 + rank, entry) for found, rank, entry in hits]
+    # Components only outrank other kinds on score, so an unfiltered browse stays mixed.
+    matches.sort(key=lambda pair: (-pair[0], pair[1]["kind"] == "component", pair[1]["kind"], pair[1]["id"]))
+    start = offset or 0
     summaries = []
-    for _, entry in matches[:_SEARCH_LIMIT]:
-        summaries.append({"id": entry["id"], "kind": entry["kind"],
-                          "title": entry.get("title", entry.get("name", entry["id"])),
-                          "summary": entry.get("summary", "")[:180]})
-    return {"query": query or "", "items": summaries, "total": len(matches),
-            "truncated": len(matches) > _SEARCH_LIMIT}
+    for _, entry in matches[start:start + _SEARCH_LIMIT]:
+        summary = {"id": entry["id"], "kind": entry["kind"],
+                   "title": entry.get("title", entry.get("name", entry["id"])),
+                   "summary": entry.get("summary", "")[:180]}
+        if entry["kind"] == "component" and "evidence" in entry:
+            summary["evidence"] = entry["evidence"]["status"]
+        summaries.append(summary)
+    result = {"query": query or "", "items": summaries, "total": len(matches),
+              "truncated": len(matches) > start + _SEARCH_LIMIT}
+    if result["truncated"]:
+        result["next_offset"] = start + _SEARCH_LIMIT
+    if partial:
+        result["partial_match"] = True
+    return result
 
 
 def tool_description_candidates() -> dict[str, Any]:

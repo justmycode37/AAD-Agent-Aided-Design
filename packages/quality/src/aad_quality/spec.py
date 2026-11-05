@@ -595,6 +595,28 @@ def _eval_interference(req_id: str, level: str, req: dict[str, Any], ctx: Any) -
     )
 
 
+def _eval_components(req_id: str, level: str, req: dict[str, Any]) -> Any:
+    from .components import check_items
+
+    outcome = check_items(req["components"])
+    bad = [item for item in outcome["items"] if not item["ok"]]
+    weak = [item["id"] for item in outcome["items"] if item.get("evidence") == "author_recall"]
+    assumptions = "This compares the declared list with the catalog. It does not inspect the geometry, prove the model uses these parts, or prove stock."
+    if weak:
+        assumptions += f" Unverified catalog entries, confirm against a datasheet: {', '.join(weak)}."
+    problems = "; ".join(problem for item in bad for problem in item["problems"])
+    return _check(
+        req_id,
+        level=level,
+        status=_comparison_status(not bad, level),
+        message=f"Component list {req_id!r}: {len(outcome['items']) - len(bad)} of {len(outcome['items'])} entries are valid." + (f" {problems}" if problems else ""),
+        expected="every purchased part is a catalog id with a stocked option, every other part is declared custom with a reason",
+        actual=problems or "all entries valid",
+        fix_hint="Use aad_library search and get to pick a real part and option. Declare only parts this project designs as custom.",
+        assumptions=assumptions,
+    )
+
+
 def _evaluate_one(req: dict[str, Any], index: int, doc: dict[str, Any], ctx: Any, native_factor: float | None) -> Any:
     req_id = _requirement_id(req, index)
     level = _level(req)
@@ -611,6 +633,7 @@ def _evaluate_one(req: dict[str, Any], index: int, doc: dict[str, Any], ctx: Any
         "material_at_point",
         "interference",
         "matches_reference",
+        "components",
     }
     known = [key for key in types if key in supported]
     if len(known) != 1:
@@ -665,6 +688,8 @@ def _evaluate_one(req: dict[str, Any], index: int, doc: dict[str, Any], ctx: Any
         return _eval_symmetry(req_id, level, req, unit, native_factor, ctx)
     if field == "measure":
         return _eval_custom_measure(req_id, level, req, unit, native_factor, ctx)
+    if field == "components":
+        return _eval_components(req_id, level, req)
     if field == "material_at_point":
         spec_factor = mm_per_unit(unit)
         return _eval_material_point(req_id, level, req, unit, spec_factor, native_factor, ctx)

@@ -11,4 +11,6 @@ Unmeasured candidate guidance. Ask for the component envelope, connector and cab
 
 Separate the external envelope, cavity, mounting features, interface openings, and closure. Check assembly order and whether fasteners, cables, and tools can reach their targets. Use supplied component STEP files for explicit clearance checks when available; that measurement does not prove sealing, thermal performance, or assembly.
 
+For cast gearboxes, bell housings and organic covers, choose curved cross sections and lofts rather than defaulting to rectangular extrusions. Search `aad_library` for `curved freeform` (playbook `modeling.curved-freeform.v1`) for executable loft and spline sweep recipes. Plan bearing seats, split flanges, ribs, bosses and edge blends separately from the outer envelope. Match the requested silhouette and inspect sections through the cavity.
+
 For molding, keep local thickness transitions and bosses/ribs within resin and supplier guidance. A sampled thin wall can fail a min_wall requirement, but passing samples leave the global minimum unproven, so inspect sections and do not call a wall-thickness screen a global proof. Current 2D and named assembly helpers are incomplete.

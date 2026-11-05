@@ -101,9 +101,10 @@ class SpecIssue:
     requirement_index: int | None = None
 
 
+COMPONENT_ITEM_LIMIT = 500
 REQUIREMENT_TYPES = frozenset({
     "bbox", "solids", "holes", "min_wall", "clearance", "mass_g", "symmetric",
-    "measure", "material_at_point", "interference", "matches_reference",
+    "measure", "material_at_point", "interference", "matches_reference", "components",
 })
 
 
@@ -346,6 +347,7 @@ def _validate_requirement(req: dict[str, Any], index: int, units: str) -> list[S
         "material_at_point": {"id", "level", "material_at_point"},
         "interference": {"id", "level", "interference"},
         "matches_reference": {"id", "level", "matches_reference"},
+        "components": {"id", "level", "components"},
     }[field]
     try:
         _check_keys(req, allowed, path)
@@ -467,6 +469,12 @@ def _validate_requirement(req: dict[str, Any], index: int, units: str) -> list[S
                 raise ValueError(
                     f"{_path_text(path + (field, 'f_score', 'tau_pct_of_diagonal'))} must be greater than 0 and at most 100"
                 )
+        elif field == "components":
+            if not isinstance(body, list) or not body or len(body) > COMPONENT_ITEM_LIMIT:
+                raise ValueError(f"{_path_text(path + (field,))} must be a non-empty list of at most {COMPONENT_ITEM_LIMIT} entries")
+            for position, item in enumerate(body):
+                if not isinstance(item, dict) or ("id" in item) == ("custom" in item):
+                    raise ValueError(f"{_path_text(path + (field, position))} needs exactly one of id or custom")
     except (ValueError, TypeError, KeyError) as exc:
         issues.append(SpecIssue(str(exc), path, index))
     return issues
