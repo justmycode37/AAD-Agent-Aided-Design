@@ -11,20 +11,28 @@ Unmeasured candidate guidance. The current evaluator is described in packages/qu
 
 Use unique requirement IDs and explicit units. Lengths default to spec units (mm); model coordinates are not rescaled by units metadata.
 
+An optional requirement `covers` string or list names the request excerpt it
+is intended to address. It is a trace link only. Request review reports
+requirements without links, open questions and `not_checked` items with their
+reasons. It does not judge meaning or compute a request-coverage percentage.
+
 Current evaluator evidence:
 
 - bbox measures native B-rep bounds on requested axes, not parameter values.
 - solids counts native B-rep solids.
 - holes defaults to through bores; through: false includes open blind bores. Count with diameter selects matching bores, so other diameters can coexist. A grid uses the coordinate plane perpendicular to X/Y/Z bores. The all scope checks topology for omitted noncircular through tunnels; cylindrical scope limits coverage to analytic bores. Counts do not prove counterbore depth, screw access, or lack of obstruction.
 - clearance compares a model with a project-contained STEP asset for overlap and minimum distance.
+- measure supports unoriented angle in degrees between two planar faces or two straight edges; other entity combinations remain unknown.
+- position measures the center of one selected semantic entity, or the shortest distance from a target to one inward-facing full cylindrical hole axis. Feature positions use a selector naming the feature. Hole target's axial coordinate is ignored.
+- fit measures minimum separation between two exact assembly body names or semantic selectors. Clearance and interference bounds must be non-negative. A clearance range is in project units and cannot pass when selected solids overlap. An interference range measures common solid volume in mm³ and requires two solid operands. It does not establish a manufacturing fit class, contact pressure, or stress.
 - matches_reference compares a model surface with a project-contained STEP, STL, PLY, or OBJ reference using 100,000 fixed-seed area-weighted samples and exact point-to-triangle distances. Registration is proper rigid only (determinant +1), without scale or mirror. Use `f_score.min` and `tau_pct_of_diagonal` in the spec; the default threshold is 0.1% of the reference bbox diagonal. The CLI `aad compare <project> <reference> [--rev N] [--tau-pct 0.1] [--json]` reports the same surface metrics in a sandboxed worker; it is not an MCP tool.
 - material_at_point classifies one point as solid or void; it says nothing global about thickness or access.
 - mass_g uses a nominal density for exact catalog IDs when the materials provider is installed. Current IDs are scoped to PLA 3D700, AISI 1018, wrought 6061, and stainless 304/4301. The estimate treats the B-rep as fully dense; it is not finished-part mass or a mass guarantee. See the [material source ledger](../../evals/library/material-sources.md).
 
-Treat these as unproven in this tree:
+Evidence limits:
 
-- min_wall can fail with a sampled thin-wall witness; passing samples remain unproven. Bounding boxes and sparse rays are not a general wall-thickness proof.
-- symmetric can fail from a separated mirror, but a potential pass remains skip without a certified pointwise error bound.
+- min_wall can fail with a sampled thin-wall witness; without a sampled violation it remains skip. Finite ray samples cannot prove a global minimum.
+- symmetric passes only when a valid planar, straight-edged B-rep exactly matches its reflected face and edge signatures and the measured symmetric-difference volume is zero. A zero-volume boolean alone can hide sub-resolution differences. Curved boundaries and near-symmetric geometry remain skip unless a maximum pointwise deviation is established; a mirror separated by more than tolerance is a fail.
 - measure resolves semantic selectors to exactly one entity each and measures native geometry.
 - Unknown or malformed requirements never pass silently.
 

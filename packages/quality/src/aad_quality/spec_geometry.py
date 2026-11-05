@@ -547,6 +547,91 @@ def symmetry_difference_volume(shape: Any, plane: str, mm_per_native_unit: float
     return result
 
 
+def symmetry_exact_polyhedral_match(shape: Any, plane: str, mm_per_native_unit: float) -> bool:
+    """Compare planar polygon boundaries after reflection without a B-rep tolerance.
+
+    A zero boolean difference can hide sub-resolution changes because OCCT uses
+    geometric tolerances. This stricter path only proves equality for valid
+    planar, straight-edged B-reps: each face plane and its exact edge endpoints
+    must match the reflected face set. Curved or otherwise unsupported topology
+    remains unknown.
+    """
+    _required_shape(shape)
+    try:
+        from build123d import Shape
+        from OCP.BRepAdaptor import BRepAdaptor_Curve, BRepAdaptor_Surface
+        from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
+        from OCP.BRepCheck import BRepCheck_Analyzer
+        from OCP.GeomAbs import GeomAbs_Line, GeomAbs_Plane
+        from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt, gp_Trsf
+
+        raw = _raw(shape)
+        if not _solids(shape) or not BRepCheck_Analyzer(raw).IsValid():
+            raise UnsupportedGeometry("exact mirror comparison requires valid volumetric B-rep solids")
+        normal = {"YZ": (1.0, 0.0, 0.0), "XZ": (0.0, 1.0, 0.0), "XY": (0.0, 0.0, 1.0)}[plane]
+        transform = gp_Trsf()
+        transform.SetMirror(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(*normal)))
+        reflected = BRepBuilderAPI_Transform(raw, transform, True).Shape()
+        if reflected.IsNull() or not BRepCheck_Analyzer(reflected).IsValid():
+            raise UnsupportedGeometry("reflected B-rep is not valid")
+
+        def number(value: float) -> float:
+            result = float(value)
+            if not math.isfinite(result):
+                raise UnsupportedGeometry("exact mirror comparison found a non-finite value")
+            return 0.0 if result == 0.0 else result
+
+        def length(value: float) -> float:
+            return number(float(value) * mm_per_native_unit)
+
+        def point(vertex: Any) -> tuple[float, float, float]:
+            center = vertex.center()
+            return (length(center.X), length(center.Y), length(center.Z))
+
+        def signature(candidate: Any) -> tuple[Any, ...]:
+            faces = Shape.cast(candidate).faces()
+            face_signatures = []
+            for face in faces:
+                surface = BRepAdaptor_Surface(face.wrapped, True)
+                if surface.GetType() != GeomAbs_Plane:
+                    raise UnsupportedGeometry("exact mirror comparison currently requires planar faces")
+                plane_surface = surface.Plane()
+                direction = _xyz(plane_surface.Axis().Direction())
+                magnitude = math.sqrt(sum(value * value for value in direction))
+                if not math.isfinite(magnitude) or magnitude == 0:
+                    raise UnsupportedGeometry("planar face has an invalid normal")
+                unit_normal = tuple(value / magnitude for value in direction)
+                first_nonzero = next((value for value in unit_normal if abs(value) > 1e-14), None)
+                if first_nonzero is None:
+                    raise UnsupportedGeometry("planar face has an invalid normal")
+                if first_nonzero < 0:
+                    unit_normal = tuple(-value for value in unit_normal)
+                origin = _xyz(plane_surface.Location())
+                offset = sum(unit_normal[index] * origin[index] for index in range(3))
+                edges = []
+                for edge in face.edges():
+                    if BRepAdaptor_Curve(edge.wrapped).GetType() != GeomAbs_Line:
+                        raise UnsupportedGeometry("exact mirror comparison currently requires straight edges")
+                    endpoints = sorted(point(vertex) for vertex in edge.vertices())
+                    if len(endpoints) != 2:
+                        raise UnsupportedGeometry("straight face edge does not have two finite endpoints")
+                    edges.append(tuple(endpoints))
+                if not edges:
+                    raise UnsupportedGeometry("planar face has no straight boundary edges")
+                face_signatures.append((
+                    tuple(number(value) for value in unit_normal),
+                    length(offset),
+                    tuple(sorted(edges)),
+                ))
+            return tuple(sorted(face_signatures))
+
+        return signature(raw) == signature(reflected)
+    except UnsupportedGeometry:
+        raise
+    except Exception as exc:
+        raise UnsupportedGeometry(f"exact polyhedral mirror comparison failed: {exc}") from exc
+
+
 def mirror_separation_mm(shape: Any, plane: str, factor: float) -> float:
     """A disjoint mirror's minimum distance is a lower bound on deviation."""
     from build123d import Shape, Plane, mirror
@@ -556,6 +641,12 @@ def mirror_separation_mm(shape: Any, plane: str, factor: float) -> float:
 
 def _resolve_selector(ctx: Any, selector: str) -> Any:
     """Resolve a selector through S1's trusted resolver; never evaluate code."""
+    _, shape = _resolve_selector_entity(ctx, selector)
+    return shape
+
+
+def _resolve_selector_entity(ctx: Any, selector: str) -> tuple[Any, Any]:
+    """Return a selected entity and its live B-rep shape from S1's resolver."""
     try:
         from importlib import import_module
 
@@ -574,14 +665,174 @@ def _resolve_selector(ctx: Any, selector: str) -> Any:
             raise UnsupportedGeometry(f"selector resolved {len(found)} entities; exactly one is required")
         found = found[0]
     if hasattr(found, 'wrapped'):
-        return found
+        return found, found
     binding = getattr(module, 'entity_shape', None)
     if binding is None:
         raise UnsupportedGeometry("S1 resolver returned metadata without the live entity_shape binding API")
     try:
-        return binding(ctx, found)
+        return found, binding(ctx, found)
     except Exception as exc:
         raise UnsupportedGeometry(f"native selector binding failed: {exc}") from exc
+
+
+def selector_position_mm(ctx: Any, selector: str, mm_per_native_unit: float) -> tuple[float, float, float]:
+    """Measure the center of one selected feature entity and return XYZ in mm."""
+    from build123d import CenterOf, Shape
+
+    entity, topology = _resolve_selector_entity(ctx, selector)
+    selected = Shape.cast(_raw(topology))
+    center = selected.center() if getattr(entity, "kind", None) == "vertex" else selected.center(CenterOf.MASS)
+    point = tuple(float(value) * mm_per_native_unit for value in (center.X, center.Y, center.Z))
+    if any(not math.isfinite(value) for value in point):
+        raise UnsupportedGeometry("selected entity center is not finite")
+    return point
+
+
+def hole_axis_position_mm(
+    ctx: Any,
+    selector: str,
+    target_mm: tuple[float, float, float],
+    mm_per_native_unit: float,
+) -> tuple[tuple[float, float, float], float]:
+    """Measure a target's shortest distance to a selected inward cylindrical hole axis."""
+    from OCP.BRepAdaptor import BRepAdaptor_Surface
+    from OCP.BRepTools import BRepTools
+    from OCP.GeomAbs import GeomAbs_Cylinder
+    from OCP.TopAbs import TopAbs_REVERSED, TopAbs_FACE
+
+    entity, topology = _resolve_selector_entity(ctx, selector)
+    raw_face = _raw(topology)
+    if getattr(entity, "kind", None) != "face" or raw_face.ShapeType() != TopAbs_FACE:
+        raise UnsupportedGeometry("hole position requires a face selector")
+    surface = BRepAdaptor_Surface(raw_face, True)
+    if surface.GetType() != GeomAbs_Cylinder:
+        raise UnsupportedGeometry("hole position selector must resolve to a cylindrical face")
+    cylinder = surface.Cylinder()
+    if (raw_face.Orientation() == TopAbs_REVERSED) != cylinder.Direct():
+        raise UnsupportedGeometry("hole position selector is not an inward-facing bore")
+    u_min, u_max, _, _ = BRepTools.UVBounds_s(raw_face)
+    if abs(float(u_max) - float(u_min)) < 2.0 * math.pi - 1e-6:
+        raise UnsupportedGeometry("hole position selector is not a full-revolution cylindrical wall")
+    direction_raw = _xyz(cylinder.Axis().Direction())
+    magnitude = math.hypot(*direction_raw)
+    if not math.isfinite(magnitude) or magnitude == 0:
+        raise UnsupportedGeometry("hole axis direction is invalid")
+    direction = tuple(value / magnitude for value in direction_raw)
+    origin = tuple(value * mm_per_native_unit for value in _xyz(cylinder.Location()))
+    delta = tuple(target_mm[index] - origin[index] for index in range(3))
+    along = sum(delta[index] * direction[index] for index in range(3))
+    closest = tuple(origin[index] + along * direction[index] for index in range(3))
+    distance = math.dist(target_mm, closest)
+    if not math.isfinite(distance):
+        raise UnsupportedGeometry("hole centerline distance is not finite")
+    return closest, distance
+
+
+def _fit_operand(ctx: Any, name_or_selector: str) -> Any:
+    selector = name_or_selector.lstrip()
+    if selector.startswith(("face(", "edge(", "vertex(")):
+        return _resolve_selector(ctx, name_or_selector)
+    shape = getattr(ctx, "shape", None)
+    assembly = (getattr(ctx, "meta", None) or {}).get("assembly")
+    names = assembly.get("components") if isinstance(assembly, dict) else None
+    if not isinstance(names, list) or shape is None:
+        raise UnsupportedGeometry(f"named body {name_or_selector!r} is not available; use an assembly component name or selector")
+    try:
+        children = list(shape)
+    except Exception as exc:
+        raise UnsupportedGeometry(f"assembly bodies could not be enumerated: {exc}") from exc
+    if len(names) != len(children):
+        raise UnsupportedGeometry("assembly component names do not match the stored body geometry")
+    matches = [child for name, child in zip(names, children, strict=True) if name == name_or_selector]
+    if len(matches) != 1:
+        raise UnsupportedGeometry(f"named body {name_or_selector!r} resolved to {len(matches)} assembly components")
+    return matches[0]
+
+
+def _solid_overlap_mm3(first: Any, second: Any, mm_per_native_unit: float) -> float:
+    """Return exact common B-rep solid volume, or unknown if its boolean is incomplete."""
+    try:
+        from OCP.BRepAlgoAPI import BRepAlgoAPI_Common
+        from OCP.BRepCheck import BRepCheck_Analyzer
+        from OCP.BRepGProp import BRepGProp
+        from OCP.GProp import GProp_GProps
+
+        common = BRepAlgoAPI_Common(_raw(first), _raw(second))
+        common.Build()
+        if not common.IsDone():
+            raise UnsupportedGeometry("OCCT common-volume boolean did not complete")
+        result_shape = common.Shape()
+        if result_shape.IsNull():
+            volume = 0.0
+        else:
+            from OCP.TopAbs import TopAbs_SOLID
+            from OCP.TopExp import TopExp_Explorer
+
+            solids = TopExp_Explorer(result_shape, TopAbs_SOLID)
+            if not solids.More():
+                volume = 0.0
+            else:
+                if not BRepCheck_Analyzer(result_shape).IsValid():
+                    raise UnsupportedGeometry("OCCT common-volume result is invalid")
+                properties = GProp_GProps()
+                BRepGProp.VolumeProperties_s(result_shape, properties)
+                volume = float(properties.Mass()) * mm_per_native_unit**3
+    except ModuleNotFoundError as exc:
+        raise UnsupportedGeometry("OCCT common-volume operations are unavailable") from exc
+    except UnsupportedGeometry:
+        raise
+    except Exception as exc:
+        raise UnsupportedGeometry(f"OCCT common-volume boolean failed: {exc}") from exc
+    if not math.isfinite(volume) or volume < 0:
+        raise UnsupportedGeometry("common-volume result is not finite and non-negative")
+    return volume
+
+
+def fit_clearance_mm(ctx: Any, a: str, b: str, mm_per_native_unit: float) -> tuple[float | None, float]:
+    """Measure pair clearance; positive solid overlap is reported separately."""
+    first, second = _fit_operand(ctx, a), _fit_operand(ctx, b)
+    first_solids, second_solids = _solids(first), _solids(second)
+    overlap = _solid_overlap_mm3(first, second, mm_per_native_unit) if first_solids and second_solids else 0.0
+    if overlap > 0:
+        return None, overlap
+    return distance_mm(first, second, mm_per_native_unit), overlap
+
+
+def fit_interference_mm3(ctx: Any, a: str, b: str, mm_per_native_unit: float) -> float:
+    """Measure the B-rep common volume of two named solid bodies."""
+    first, second = _fit_operand(ctx, a), _fit_operand(ctx, b)
+    if not _solids(first) or not _solids(second):
+        raise UnsupportedGeometry("interference volume requires two named bodies or selectors that each resolve to solids")
+    return _solid_overlap_mm3(first, second, mm_per_native_unit)
+
+
+def _unoriented_angle_degrees(first_entity: Any, first: Any, second_entity: Any, second: Any) -> float:
+    """Measure the smaller angle between two planar faces or two straight edges."""
+    from OCP.BRepAdaptor import BRepAdaptor_Curve, BRepAdaptor_Surface
+    from OCP.GeomAbs import GeomAbs_Line, GeomAbs_Plane
+
+    entities = (first_entity, second_entity)
+    shapes = (first, second)
+    directions = []
+    if all(getattr(entity, "kind", None) == "face" for entity in entities):
+        for shape in shapes:
+            surface = BRepAdaptor_Surface(_raw(shape), True)
+            if surface.GetType() != GeomAbs_Plane:
+                raise UnsupportedGeometry("angle between faces requires two planar faces")
+            directions.append(_xyz(surface.Plane().Axis().Direction()))
+    elif all(getattr(entity, "kind", None) == "edge" for entity in entities):
+        for shape in shapes:
+            curve = BRepAdaptor_Curve(_raw(shape))
+            if curve.GetType() != GeomAbs_Line:
+                raise UnsupportedGeometry("angle between edges requires two straight edges")
+            directions.append(_xyz(curve.Line().Direction()))
+    else:
+        raise UnsupportedGeometry("angle requires two planar faces or two straight edges of the same kind")
+    dot = sum(directions[0][index] * directions[1][index] for index in range(3))
+    value = math.degrees(math.acos(min(1.0, max(0.0, abs(dot)))))
+    if not math.isfinite(value):
+        raise UnsupportedGeometry("angle result is not finite")
+    return value
 
 
 def _read_numeric(entity: Any, name: str) -> float | None:
@@ -625,12 +876,13 @@ def selector_measurement(ctx: Any, measure: dict[str, Any], mm_per_native_unit: 
     """
     kind = measure["kind"]
     selector_a = measure.get("a", measure.get("selector"))
-    first = _resolve_selector(ctx, selector_a)
+    first_entity, first = _resolve_selector_entity(ctx, selector_a) if kind == "angle" else (None, _resolve_selector(ctx, selector_a))
     if kind == "distance":
         second = _resolve_selector(ctx, measure["b"])
         return distance_mm(first, second, mm_per_native_unit), 1
     if kind == "angle":
-        raise UnsupportedGeometry("angle measurement is not supported by the current resolver contract")
+        second_entity, second = _resolve_selector_entity(ctx, measure["b"])
+        return _unoriented_angle_degrees(first_entity, first, second_entity, second), 0
     property_name = {"radius": "radius", "length": "length", "area": "area", "volume": "volume"}.get(kind)
     if property_name is None:
         raise UnsupportedGeometry(f"custom measurement kind {kind!r} is unsupported")

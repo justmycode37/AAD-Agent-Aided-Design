@@ -179,7 +179,7 @@ def test_global_min_wall_never_passes_from_bbox_or_sparse_evidence():
 
     check = spec_checks(_ctx({"requirements": [{"id": "wall", "min_wall": 1.0}]}, Box(20, 10, 4)))[0]
     assert check.status == "skip"
-    assert "cannot establish global minimum thickness" in check.actual
+    assert "finite samples cannot prove a global minimum" in check.actual
 
 
 def test_missing_shape_is_an_explicit_skip():
@@ -233,15 +233,149 @@ def test_custom_measure_uses_the_installed_s1_resolver():
     assert spec_checks(ctx)[0].status == "fail"
 
 
-def test_zero_difference_volume_is_diagnostic_not_a_pointwise_symmetry_proof():
+def test_custom_angle_measure_passes_and_fails_for_planar_faces():
     from build123d import Box
 
-    check = spec_checks(
-        _ctx({"requirements": [{"id": "mirror", "symmetric": {"plane": "YZ", "tolerance": "0.01 mm"}}]}, Box(10, 8, 6))
-    )[0]
+    requirement = {
+        "id": "corner_angle",
+        "measure": {"kind": "angle", "a": "face(where='max_z')", "b": "face(where='max_x')"},
+        "equals": "90 ± 0.01",
+    }
+    ctx = _ctx({"requirements": [requirement]}, Box(10, 8, 6))
+    passed = spec_checks(ctx)[0]
+    assert passed.status == "pass"
+    assert "90 degrees" in passed.actual
+    assert "± 0.01 degrees" in passed.expected
+    requirement["equals"] = "45 ± 0.01"
+    assert spec_checks(ctx)[0].status == "fail"
+
+
+def test_custom_angle_measure_supports_two_straight_edges():
+    from build123d import Box
+
+    requirement = {
+        "id": "edge_angle",
+        "measure": {"kind": "angle", "a": "edge(where='parallel_x', nth=0)", "b": "edge(where='parallel_y', nth=0)"},
+        "equals": 90,
+    }
+    assert spec_checks(_ctx({"requirements": [requirement]}, Box(10, 8, 6)))[0].status == "pass"
+
+
+def test_custom_angle_requires_two_planar_faces_or_two_straight_edges():
+    from build123d import Box
+
+    check = spec_checks(_ctx({"requirements": [{
+        "id": "unsupported_angle",
+        "measure": {"kind": "angle", "a": "face(where='max_z')", "b": "edge(where='parallel_x', nth=0)"},
+        "equals": 90,
+    }]}, Box(10, 8, 6)))[0]
     assert check.status == "skip"
-    assert "symmetric-difference volume 0 mm^3" in check.actual
-    assert "kernel error bound" in check.actual
+    assert "angle requires two planar faces or two straight edges" in check.message
+
+
+def test_position_requirement_measures_named_feature_entity_center_within_tolerance():
+    from build123d import Box
+    from aad.engine.select import resolve
+    from aad.engine.types import Entity, FeatureInfo
+
+    spec = {"requirements": [{
+        "id": "top_face_position",
+        "position": {"selector": "face(feature='web', where='max_z')", "target": [0, 0, 2], "tolerance": 0.01},
+    }]}
+    ctx = _ctx(spec, Box(10, 8, 4))
+    top, = resolve(ctx, "face(where='max_z')")
+    ctx.features = [FeatureInfo(name="web", faces=[Entity(kind="face", index=top.index, feature="web")])]
+    assert spec_checks(ctx)[0].status == "pass"
+    spec["requirements"][0]["position"]["target"] = [0, 0, 3]
+    failed = spec_checks(ctx)[0]
+    assert failed.status == "fail"
+    assert "deviation 1 mm" in failed.actual
+
+
+def test_position_requirement_measures_hole_axis_and_skips_a_boss():
+    from build123d import Box, Cylinder, Pos
+
+    bored = Box(20, 20, 6) - Pos(3, 4, 0) * Cylinder(2, 8)
+    hole = {"requirements": [{
+        "id": "hole_center",
+        "position": {"hole": "face(kind='cylinder')", "target": [3, 4, 20], "tolerance": 0.01},
+    }]}
+    assert spec_checks(_ctx(hole, bored))[0].status == "pass"
+    boss = Cylinder(2, 8)
+    unknown = spec_checks(_ctx(hole, boss))[0]
+    assert unknown.status == "skip"
+    assert "not an inward-facing bore" in unknown.message
+
+
+def _assembly_context(shape, spec, names):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        spec=spec, shape=shape, units="mm", features=[], params={}, metrics={}, process=None, material=None,
+        meta={"assembly": {"components": names}},
+    )
+
+
+def test_fit_clearance_between_named_bodies_passes_and_rejects_overlap():
+    from build123d import Box, Compound, Pos
+
+    shape = Compound(children=[Box(4, 4, 4), Pos(5, 0, 0) * Box(4, 4, 4)])
+    spec = {"requirements": [{"id": "body_gap", "fit": {
+        "a": "body_a", "b": "body_b", "clearance": {"min": 1, "max": 1},
+    }}]}
+    assert spec_checks(_assembly_context(shape, spec, ["body_a", "body_b"]))[0].status == "pass"
+    spec["requirements"][0]["fit"]["clearance"] = {"min": 1.1}
+    assert spec_checks(_assembly_context(shape, spec, ["body_a", "body_b"]))[0].status == "fail"
+
+    overlap = Compound(children=[Box(4, 4, 4), Pos(3, 0, 0) * Box(4, 4, 4)])
+    spec["requirements"][0]["fit"]["clearance"] = {"min": 0}
+    check = spec_checks(_assembly_context(overlap, spec, ["body_a", "body_b"]))[0]
+    assert check.status == "fail"
+    assert "common solid volume 16 mm³" in check.actual
+
+
+def test_fit_interference_range_and_selector_clearance():
+    from build123d import Box, Compound, Pos
+
+    overlap = Compound(children=[Box(4, 4, 4), Pos(3, 0, 0) * Box(4, 4, 4)])
+    spec = {"requirements": [{"id": "press_fit", "fit": {
+        "a": "body_a", "b": "body_b", "interference": {"min": 15, "max": 17},
+    }}]}
+    assert spec_checks(_assembly_context(overlap, spec, ["body_a", "body_b"]))[0].status == "pass"
+    spec["requirements"][0]["fit"]["interference"] = {"max": 10}
+    assert spec_checks(_assembly_context(overlap, spec, ["body_a", "body_b"]))[0].status == "fail"
+
+    selector_spec = {"requirements": [{"id": "face_gap", "fit": {
+        "a": "face(where='max_x')", "b": "face(where='min_x')", "clearance": {"min": 10, "max": 10},
+    }}]}
+    assert spec_checks(_ctx(selector_spec, Box(10, 8, 4)))[0].status == "pass"
+
+
+def test_zero_symmetric_difference_proves_solid_symmetry_but_near_symmetry_stays_unknown():
+    from build123d import Box, Pos
+
+    requirement = {"id": "mirror", "symmetric": {"plane": "YZ", "tolerance": "0.01 mm"}}
+    check = spec_checks(_ctx({"requirements": [requirement]}, Box(10, 8, 6)))[0]
+    assert check.status == "pass"
+    assert "all planar face supports and straight boundary edges exactly match" in check.actual
+
+    near = spec_checks(_ctx({"requirements": [requirement]}, Pos(0.001, 0, 0) * Box(10, 8, 6)))[0]
+    assert near.status == "skip"
+    assert "pointwise deviation" in near.actual
+
+    separated = spec_checks(_ctx({"requirements": [requirement]}, Pos(500, 0, 0) * Box(10, 8, 6)))[0]
+    assert separated.status == "fail"
+    assert "separated beyond tolerance" in separated.message
+
+
+def test_sampled_min_wall_can_reject_a_local_shortfall_but_never_proves_global_minimum():
+    from build123d import Box
+
+    failed = spec_checks(_ctx({"requirements": [{"id": "thin_wall", "min_wall": 2}]}, Box(10, 10, 1)))[0]
+    assert failed.status == "fail"
+    safe_samples = spec_checks(_ctx({"requirements": [{"id": "wall", "min_wall": 1}]}, Box(20, 10, 4)))[0]
+    assert safe_samples.status == "skip"
+    assert "finite samples cannot prove a global minimum" in safe_samples.actual
 
 
 def test_project_contained_step_clearance_passes_and_wrong_limit_fails(tmp_path):
