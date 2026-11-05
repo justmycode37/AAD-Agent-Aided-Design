@@ -1,6 +1,14 @@
 # S5 benchmark protocol, draft v1
 
-This is an evaluation implementation protocol, not a change to CONTRACTS.md. No benchmark outcome has been measured yet. Unit tests, scripted tool controls and reference builders must never be labelled real-agent outcomes.
+This is an evaluation implementation protocol, not a change to CONTRACTS.md. No real-agent benchmark outcome has been measured yet. Unit tests, scripted tool controls and reference builders must never be labelled real-agent outcomes.
+
+## Pilot implementation status (not release evidence)
+
+The repository now contains a frozen, outcome-blind 20-task selection in `pilot-selection.json`: five parts, four edit chains, three assemblies, three 2D profiles, two drawings, two clarification tasks and one infeasible request. Within each category, task IDs are ranked by SHA-256 of the fixed seed, category and task ID; the fixed quota is taken before any result is observed. The manifest records all rankings, the 100-task corpus hash and run order.
+
+The current runner exercises only AAD, one provider/model and one repetition. Its offline control uses a scripted model and real local MCP stdio/AAD daemon and is not an agent outcome. No paid or real-agent run is claimed here. This AAD-only pilot does not satisfy the matched-backend, multiple-model-family or repeated-trial release matrix described below, and a 20-task pilot is not the release gate. See [README.md](README.md) for the exact selection, budgets, command, oracle coverage and report fields.
+
+For original-request auditing, a task is a confirmed pass only with complete coverage and all checks passing. Any unsupported check remains unsupported and in the raw denominator; it never counts as a pass. Bounded positive evidence is indeterminate. The runner does not authenticate its own run manifest, so false-verified inference is blocked until a host-side manifest validation is performed outside the CLI.
 
 ## Task records
 

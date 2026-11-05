@@ -41,6 +41,7 @@ _APP_ONLY_NAMES = {
     "aad_file_read",
 }
 _FORBIDDEN_TOOL_NAMES = {
+    "aad_import",
     "bash",
     "shell",
     "terminal",
@@ -422,10 +423,18 @@ async def run_agent_loop(
     provider: ProviderAdapter | None = None,
     trace_sink: TraceSink | None = None,
     monotonic: Callable[[], float] = time.monotonic,
+    initialize_provider: bool = True,
+    next_stage: PublicStageProjection | None = None,
 ) -> TrialResult:
     """Run one trial. No aggregate score or release claim is produced here."""
     if not isinstance(stage, PublicStageProjection):
         raise TypeError("stage must be a validated PublicStageProjection")
+    if not initialize_provider and provider is None:
+        raise ValueError("a continuing stage must reuse an existing provider adapter")
+    if next_stage is not None and (
+        not isinstance(next_stage, PublicStageProjection) or next_stage.task_id != stage.task_id
+    ):
+        raise ValueError("next_stage must be a validated stage from the same task")
     # Re-copy and revalidate nested asset dictionaries so a caller cannot
     # mutate a previously validated projection before or during a trial.
     stage = PublicStageProjection(
@@ -613,7 +622,13 @@ async def run_agent_loop(
                 stop_reason = "provider_configuration_mismatch"
                 eligibility_reasons.append("provider_adapter_configuration_mismatch")
                 return result()
-            provider_adapter.initialize(stage, config.system_instructions, native_tools)
+            if initialize_provider:
+                provider_adapter.initialize(stage, config.system_instructions, native_tools)
+            elif not callable(getattr(provider_adapter, "advance_stage", None)):
+                state = "ineligible"
+                stop_reason = "provider_adapter_cannot_continue_task_stages"
+                eligibility_reasons.append("provider_adapter_cannot_continue_task_stages")
+                return result()
         except Exception as error:
             state = "provider_error"
             stop_reason = "provider_adapter_initialization_error"
@@ -865,6 +880,48 @@ async def run_agent_loop(
                         completed = True
                         finished = True
                         terminal = True
+                        if next_stage is not None:
+                            advance_stage = getattr(provider_adapter, "advance_stage", None)
+                            if not callable(advance_stage):
+                                state = "provider_error"
+                                stop_reason = "provider_adapter_cannot_continue_task_stages"
+                                eligibility_reasons.append("provider_adapter_cannot_continue_task_stages")
+                                completed = False
+                            else:
+                                continuation = {
+                                    "status": "stage_complete",
+                                    "next_stage_id": next_stage.stage_id,
+                                    "finish_receipt_is_evidence": False,
+                                }
+                                continuation_observation = MCPObservation(
+                                    is_error=False,
+                                    blocks=(ObservationBlock(type="text", text="Stage finished. Continue with the next public request."),),
+                                    structured_content=continuation,
+                                    raw_safe=continuation,
+                                    raw_digest=sha256_json(continuation),
+                                )
+                                results.append(ToolInvocationResult(
+                                    call_id=call.call_id,
+                                    name=call.name,
+                                    observation=continuation_observation,
+                                ))
+                                try:
+                                    provider_adapter.add_tool_results(turn, results)
+                                    advance_stage(next_stage)
+                                    sink.write_event({
+                                        "event": "task_stage_continuation_ready",
+                                        "from_stage_id": stage.stage_id,
+                                        "to_stage_id": next_stage.stage_id,
+                                    })
+                                except Exception as error:
+                                    state = "provider_error"
+                                    stop_reason = "provider_stage_continuation_failed"
+                                    eligibility_reasons.append("provider_stage_continuation_failed")
+                                    completed = False
+                                    sink.write_event({
+                                        "event": "task_stage_continuation_error",
+                                        "error": safe_exception_message(error),
+                                    })
                         break
                     tool_argument_proxies += 1
                     assert finish_error is not None

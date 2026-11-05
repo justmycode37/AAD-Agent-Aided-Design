@@ -248,6 +248,7 @@ def test_run_loop_rechecks_mutable_public_asset_projection() -> None:
 def test_filter_removes_app_host_and_oracle_tools() -> None:
     tools = [
         safe_tool("aad_build"),
+        safe_tool("aad_import"),
         safe_tool("aad_scene_read"),
         safe_tool("aad_fs_read"),
         safe_tool("aad_browser_open_url"),

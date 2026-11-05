@@ -15,8 +15,8 @@ This map lets the independent artifact-oracle implementation audit every intent 
 | Linear or radial repeated features | Extensions `linear_pattern` and `rotational_pattern` | Heat-sink fins, cover ribs, wheel lobes, wheel spokes | Checks centers/count, axis, and width or pitch radius. Does not prove the full surface shape of every fin, rib, lobe, or spoke; therefore bounded. |
 | Fastener access beside a wall | Extension `fastener_access` | `part_blocked_counterbore_001` | Checks the specified screw approach axis and finite shank/head envelope against surrounding geometry, excluding the intended seated counterbore. It is a bounded access witness, not a general fastener or process certificate. |
 | Assembly component count and placement | Extension `component_layout.parts[]` plus `bbox_mm`, `solids`, and component-center witnesses | All 10 assembly tasks | Compares the unordered set of component bounding boxes. It does not establish mating constraints, non-interference, motion, or a bill of materials; therefore bounded. |
-| 2D profile layers, closed contours, dimensions, holes, and extents | `dxf_profile.cut_layers`, `contour_count`, `closed_contours`, `circles`, `extents_mm`, and dimensioned `segments` | All 15 profile tasks | Segment endpoints and circles are checked against the stated tolerances. DXF/DXF-like geometry is the intended artifact evidence. |
-| Drawing dimensions and required views | `drawing_dimensions.dimensions[]` and `required_views` | All 5 drawing tasks | Checks the named measured values and view set. It does not certify drafting-standard compliance or collision-free sheet layout. |
+| 2D profile layers, closed contours, dimensions, holes, and extents | `dxf_profile.cut_layers`, `contour_count`, `closed_contours`, `circles`, `extents_mm`, and dimensioned `segments` | All 15 profile tasks | Segment endpoints and circles are checked against the stated tolerances. The pilot reads native Sheet2D JSON; it does not certify exported DXF compatibility. |
+| Drawing dimensions and required views | `drawing_dimensions.dimensions[]` and `required_views` | All 5 drawing tasks | The selected pilot mappings compare BRep-derived dimensions and projected views with SVG geometry and labels. This does not certify drafting-standard compliance or collision-free sheet layout. |
 | Missing information in vague requests | `clarification.missing[]` | All 5 vague tasks | No reference geometry or positive artifact expectation is present. |
 | Explicit contradictions or infeasibility | `clarification.conflicts[]` | All 5 infeasible tasks | Conflicts are arithmetic from public dimensions/tolerances. No positive geometry or reference builder is present. |
 
@@ -43,8 +43,29 @@ Counts are check records across all 120 stages; identical IDs intentionally recu
 
 No other check type is accepted by the loader. Unknown evidence is rejected as unsupported rather than silently passing. The strict validator also rejects non-finite values, duplicate IDs/requests, malformed check payloads, unsafe or escaping asset paths, duplicate JSON keys, and preservation IDs that do not identify unchanged checks in the immediately preceding stage.
 
+## Pilot oracle implementation
+
+The frozen 20-task pilot has 98 checks across 24 stages. Its selected checks have implementation and negative-mutant controls for these types:
+
+| Type | Selected checks | Pilot implementation |
+|---|---:|---|
+| `bbox_mm` | 16 | BRep bounds in millimetres |
+| `solids` | 16 | BRep solid count |
+| `point_material` | 40 | Solid/void samples from the saved BRep |
+| `cylindrical_bores` | 11 | Explicit axis, position, diameter/depth and through/blind witnesses |
+| `linear_pattern` | 2 | Fin center/width pattern witnesses |
+| `rotational_pattern` | 2 | Rotational center/count/radius witnesses |
+| `component_layout` | 3 | Unordered component bounding-box and center witnesses |
+| `dxf_profile` | 3 | Native Sheet2D JSON cut-layer geometry |
+| `drawing_dimensions` | 2 | BRep-derived requested dimensions and SVG projected-view checks |
+| `clarification` | 3 | Required missing/conflicting topics in the response |
+
+Of these 98 checks, 95 artifact checks remain bounded and three clarification/infeasible checks have complete coverage. Wrong BRep, Sheet2D JSON, SVG, and response mutants reject across all selected check types. A bounded positive `part_plate_001` reference control passes its witnesses but remains indeterminate.
+
+The implementation is scoped to this selection. `clearance_mm`, `slot_pattern`, `fastener_access`, `asset_match`, and unreviewed task-specific mappings remain unsupported; any future use stays unsupported until independently implemented and tested. The report never counts an unsupported check as a pass. The drawing oracle is implemented for the two selected requests, but the corpus still has no complete positive drawing-reference control, and the other three drawing mappings remain out of pilot scope.
+
 ## Coverage status
 
-All artifact stages are labeled `bounded`. Finite material points, bounds, listed bores and named views do not prove every requested surface, thickness, absence of extra features or geometry-to-dimension association. A well-formed check definition does not establish that the independent oracle implements it. Unsupported checks remain unassessed. The five drawing reference builders explicitly remain unsupported until actual projections and geometry-derived dimensions replace their former placeholders.
+All artifact stages are labeled `bounded`. Finite material points, bounds, listed bores and named views do not prove every requested surface, thickness, absence of extra features or geometry-to-dimension association. A well-formed check definition does not establish that the independent oracle implements it. Unsupported checks remain unassessed. The pilot's two selected drawing oracles inspect actual projections and geometry-derived dimensions; they do not replace the missing positive drawing-reference controls for the full corpus.
 
 All 10 clarification/infeasible stages have a disposition check and no reference factory. No expected geometry is fabricated for them. Reference controls remain separate from all public task inputs except the explicitly declared `fan_envelope.stl` asset.

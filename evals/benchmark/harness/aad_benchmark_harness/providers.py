@@ -291,6 +291,13 @@ class OpenAIResponsesAdapter:
             for spec in self._specs
         ]
 
+    def advance_stage(self, stage: PublicStageProjection) -> None:
+        """Append the next stage request while retaining prior task context."""
+        self._input.append({
+            "role": "user",
+            "content": [{"type": "input_text", "text": stage_prompt(stage)}],
+        })
+
     def tool_catalog_payload(self) -> Any:
         return self._tools
 
@@ -448,6 +455,14 @@ class AnthropicMessagesAdapter:
             }
             for spec in self._specs
         ]
+
+    def advance_stage(self, stage: PublicStageProjection) -> None:
+        """Append the next stage request after the preceding tool result."""
+        prompt = {"type": "text", "text": stage_prompt(stage)}
+        if self._messages and self._messages[-1].get("role") == "user" and isinstance(self._messages[-1].get("content"), list):
+            self._messages[-1]["content"].append(prompt)
+        else:
+            self._messages.append({"role": "user", "content": [prompt]})
 
     def tool_catalog_payload(self) -> Any:
         return self._tools

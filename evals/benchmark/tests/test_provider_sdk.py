@@ -74,6 +74,13 @@ def test_official_sdk_serializes_multiturn_tool_image_and_usage(family):
                     {"status": "draft"}, {"origin": "mock"}, "a" * 64,
                 ),
             )])
+            adapter.advance_stage(PublicStageProjection(
+                "mock-task",
+                "Mock title",
+                "part",
+                "edit",
+                "Now edit the mock part and preserve its bores.",
+            ))
             assert (await adapter.count_prompt_tokens()).tokens == 100
         finally:
             await adapter.aclose()
@@ -84,9 +91,13 @@ def test_official_sdk_serializes_multiturn_tool_image_and_usage(family):
     assert all(any(tool.get("name") == "benchmark_finish" for tool in payload["tools"]) for _, payload in requests)
     last = requests[-1][1]
     if family == "openai":
-        assert last["input"][-1]["type"] == "function_call_output"
-        assert last["input"][-1]["output"][0]["type"] == "input_image"
+        assert last["input"][-2]["type"] == "function_call_output"
+        assert last["input"][-2]["output"][0]["type"] == "input_image"
+        assert last["input"][-1]["role"] == "user"
+        assert "preserve its bores" in last["input"][-1]["content"][0]["text"]
         assert requests[1][1]["store"] is False
     else:
         assert last["messages"][-1]["content"][0]["type"] == "tool_result"
         assert last["messages"][-1]["content"][0]["content"][0]["type"] == "image"
+        assert last["messages"][-1]["content"][1]["type"] == "text"
+        assert "preserve its bores" in last["messages"][-1]["content"][1]["text"]
