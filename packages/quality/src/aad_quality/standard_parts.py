@@ -219,7 +219,7 @@ _FAMILIES: tuple[dict[str, Any], ...] = (
             {"fastener_type": "iso4026", "simple": True}, _FAST_THREAD),
     _family("nut.iso4032.hex_nut", "fastener", "ISO 4032 hex nut", "Metric hex nut, style 1.",
             "bd_warehouse.fastener", "HexNut", {"size": "M6-1"}, {"fastener_type": "iso4032"},
-            "Built by AAD from upstream's ISO 4032 dimension table with a 0.95 s chamfer. Threads are not modeled, so check thread fit separately."),
+            "Built by AAD from upstream's ISO 4032 dimension table with a 0.95 s chamfer and a plain bore at the major diameter. Threads are not modeled, so check thread fit separately."),
     _family("washer.iso7089.plain", "fastener", "ISO 7089 plain washer", "Metric plain washer, normal series.",
             "bd_warehouse.fastener", "PlainWasher", {"size": "M6"}, {"fastener_type": "iso7089"}),
     _family("bearing.angular_contact.skt", "bearing", "Angular contact ball bearing", "Single-row angular contact ball bearing.",
@@ -332,7 +332,9 @@ def _nominal_fastener_length(part_id: str, size: str, value: Any) -> float:
 
 
 def _hex_nut(size: str) -> Any:
-    """An ISO 4032 style 1 nut from upstream's dimension table, with a plain minor-diameter bore.
+    """An ISO 4032 style 1 nut from upstream's dimension table, with a plain major-diameter bore.
+
+    The bore matches the envelope screw, so the two touch without overlapping.
 
     Upstream's chamfer cone stops just short of the hexagon corners and leaves
     0.003 mm edges there, which the hard gate rightly rejects. Here the chamfer
@@ -345,7 +347,7 @@ def _hex_nut(size: str) -> Any:
     if row is None or not row.get("iso4032:s"):
         raise ValueError(f"nut.iso4032.hex_nut has no size {size!r}")
     across_flats, height = float(row["iso4032:s"]), float(row["iso4032:m"])
-    major, pitch = (float(value) for value in size[1:].split("-"))
+    major = float(size[1:].split("-")[0])
     hexagon = RegularPolygon(radius=across_flats / 2, side_count=6, major_radius=False)
     prism = Solid.extrude(hexagon.faces()[0], Vector(0, 0, height))
 
@@ -356,8 +358,7 @@ def _hex_nut(size: str) -> Any:
     profile = Face(Wire.make_polygon([Plane.XZ.from_local_coords((r, z)) for r, z in outline], close=True))
     chamfered = prism.intersect(Solid.revolve(profile, 360, Axis.Z))[0]
 
-    minor = major - 1.0825 * pitch
-    bore = Solid.make_cylinder(minor / 2, height + 2, Plane((0, 0, -1)))
+    bore = Solid.make_cylinder(major / 2, height + 2, Plane((0, 0, -1)))
     nut = chamfered.cut(bore)
     if not nut.is_valid or len(nut.solids()) != 1:
         raise RuntimeError(f"The {size} hex nut did not form one valid solid")
