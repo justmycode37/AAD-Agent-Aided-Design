@@ -136,8 +136,9 @@ def _extra_reads(args: dict[str, Any]) -> list[str]:
 
 
 def _spec_reference_reads(project: Any, rev: int, args: dict[str, Any]) -> list[str]:
+    # An empty list means the default suites, which include spec.
     suites = args.get("suites")
-    if suites is not None and "spec" not in suites:
+    if suites and "spec" not in suites:
         return []
     spec_path = project.path / ".aad" / "revs" / f"{rev:06d}" / "spec.yaml"
     try:

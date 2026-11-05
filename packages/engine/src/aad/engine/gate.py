@@ -318,7 +318,8 @@ def interference_checks(
 
     Bounding boxes only discard pairs that are provably disjoint. Pairwise
     common-volume checks use a finite wall-clock budget; pairs not reached when
-    it expires remain explicitly unchecked. The result contains at most
+    it expires remain explicitly unchecked. A pair already being checked finishes
+    and counts, because it was fully checked. The result contains at most
     ``INTERFERENCE_MAX_REPORTED_PAIRS`` overlap and unknown-pair details.
     """
     if isinstance(volume_threshold_mm3, bool) or not isinstance(volume_threshold_mm3, (int, float)):

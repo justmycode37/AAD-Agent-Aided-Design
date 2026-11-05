@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from math import acos, cos, pi, radians, sin, tan
 import struct
+
 import numpy as np
 import pytest
 from build123d import Align, Box, Compound, Cylinder, Edge, Face, Pos, Sphere, Vector, Wire, export_step, extrude, import_step
@@ -178,3 +179,29 @@ def test_iou_for_closed_shape_uses_all_surface_crossings():
     assert result["status"] == "available"
     assert result["value"] == 1.0
     assert result["closed_solids"] == {"model": "1/1", "reference": "1/1"}
+
+
+def test_stl_vertex_limit_applies_before_expansion(monkeypatch, tmp_path):
+    triangle = struct.pack("<12fH", *([0.0] * 12), 0)
+    binary = tmp_path / "many.stl"
+    binary.write_bytes(b"\0" * 80 + struct.pack("<I", 3) + triangle * 3)
+    monkeypatch.setattr(comparison, "MAX_VERTICES", 8)
+    deadline = comparison._Deadline(10)
+    with pytest.raises(comparison.ComparisonError, match="vertex limit"):
+        comparison._read_stl(binary, deadline)
+
+    ascii_stl = tmp_path / "many_ascii.stl"
+    ascii_stl.write_text("solid x\n" + "vertex 0 0 0\n" * 9 + "endsolid x\n")
+    with pytest.raises(comparison.ComparisonError, match="vertex limit"):
+        comparison._read_stl(ascii_stl, deadline)
+
+
+def test_ascii_ply_polygons_triangulate_compactly(tmp_path):
+    path = tmp_path / "pentagon.ply"
+    path.write_text(
+        "ply\nformat ascii 1.0\nelement vertex 5\nproperty float x\nproperty float y\nproperty float z\n"
+        "element face 1\nproperty list uchar int vertex_indices\nend_header\n"
+        "0 0 0\n1 0 0\n2 1 0\n1 2 0\n0 1 0\n5 0 1 2 3 4\n"
+    )
+    mesh = comparison._read_ply(path, comparison._Deadline(10))
+    assert mesh.faces.tolist() == [[0, 1, 2], [0, 2, 3], [0, 3, 4]]

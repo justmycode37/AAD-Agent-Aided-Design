@@ -8,6 +8,7 @@ missing optional comparison dependency can never turn into a passing check.
 
 from __future__ import annotations
 
+from array import array
 from dataclasses import dataclass
 import io
 import math
@@ -479,7 +480,7 @@ def _read_ply_ascii(payload: bytes, elements: list[dict[str, Any]], deadline: _D
         except (ValueError, OverflowError) as exc:
             raise ComparisonError("PLY contains an invalid vertex coordinate") from exc
     index_property = next(prop for prop in face_properties if prop.get("name") in {"vertex_indices", "vertex_index"} and "item_type" in prop)
-    triangles: list[tuple[int, int, int]] = []
+    triangles = array("i")  # Flat vertex indices: compact, unlike one Python tuple per triangle.
     for face_index in range(face_count):
         if face_index % 4096 == 0:
             deadline.check("ASCII PLY face parsing")
@@ -508,10 +509,11 @@ def _read_ply_ascii(payload: bytes, elements: list[dict[str, Any]], deadline: _D
             raise ComparisonError("PLY face record does not contain a valid polygon")
         if min(polygon) < 0 or max(polygon) >= vertex_count:
             raise ComparisonError("PLY face references a vertex outside the file")
-        triangles.extend((polygon[0], polygon[i], polygon[i + 1]) for i in range(1, len(polygon) - 1))
-        if len(triangles) > MAX_TRIANGLES:
+        for i in range(1, len(polygon) - 1):
+            triangles.extend((polygon[0], polygon[i], polygon[i + 1]))
+        if len(triangles) > MAX_TRIANGLES * 3:
             raise ComparisonError("triangulated PLY exceeds the triangle limit")
-    return TriangleMesh(vertices, np.asarray(triangles, dtype=np.int32), merge_for_closed=False)
+    return TriangleMesh(vertices, np.array(triangles, dtype=np.int32).reshape(-1, 3), merge_for_closed=False)
 
 
 def _read_ply_binary(
@@ -603,7 +605,7 @@ def _read_ply_binary_faces(
     data: bytes, offset: int, properties: list[dict[str, Any]], count: int, endian: str, deadline: _Deadline
 ) -> tuple[Any, int]:
     np = _numpy()
-    triangles: list[tuple[int, int, int]] = []
+    triangles = array("i")  # Flat vertex indices: compact, unlike one Python tuple per triangle.
     for face_index in range(count):
         if face_index % 4096 == 0:
             deadline.check("binary PLY face parsing")
@@ -634,10 +636,11 @@ def _read_ply_binary_faces(
             raise ComparisonError("binary PLY face has no usable vertex-index list")
         if min(polygon) < 0 or max(polygon) > np.iinfo(np.int32).max:
             raise ComparisonError("binary PLY face index is outside the supported range")
-        triangles.extend((polygon[0], polygon[i], polygon[i + 1]) for i in range(1, len(polygon) - 1))
-        if len(triangles) > MAX_TRIANGLES:
+        for i in range(1, len(polygon) - 1):
+            triangles.extend((polygon[0], polygon[i], polygon[i + 1]))
+        if len(triangles) > MAX_TRIANGLES * 3:
             raise ComparisonError("triangulated PLY exceeds the triangle limit")
-    return np.asarray(triangles, dtype=np.int32), offset
+    return np.array(triangles, dtype=np.int32).reshape(-1, 3), offset
 
 
 def _read_stl(path: Path, deadline: _Deadline) -> TriangleMesh:
@@ -649,6 +652,9 @@ def _read_stl(path: Path, deadline: _Deadline) -> TriangleMesh:
     if len(data) >= 84:
         count = struct.unpack_from("<I", data, 80)[0]
         if count <= MAX_TRIANGLES and 84 + count * 50 == len(data):
+            # Each binary triangle stores three vertices, so check before expanding them.
+            if count * 3 > MAX_VERTICES:
+                raise ComparisonError("binary STL exceeds the vertex limit")
             deadline.check("binary STL parsing")
             dtype = np.dtype([("normal", "<f4", (3,)), ("vertices", "<f4", (9,)), ("attribute", "<u2")])
             records = np.frombuffer(data, dtype=dtype, count=count, offset=84)
@@ -680,8 +686,8 @@ def _read_stl_ascii(data: bytes, deadline: _Deadline) -> TriangleMesh:
                 except (ValueError, OverflowError) as exc:
                     raise ComparisonError("ASCII STL contains an invalid vertex") from exc
                 count += 1
-                if count > MAX_TRIANGLES * 3:
-                    raise ComparisonError("ASCII STL exceeds the triangle limit")
+                if count > MAX_VERTICES:
+                    raise ComparisonError("ASCII STL exceeds the vertex limit")
                 if len(values) >= 300_000:
                     vertices_chunks.append(np.asarray(values, dtype=np.float64))
                     values.clear()
