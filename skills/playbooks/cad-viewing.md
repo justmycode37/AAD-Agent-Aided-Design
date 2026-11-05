@@ -23,7 +23,10 @@ additional parts; blank click and Escape clear selection. Camera drags do not
 select. Double-click prepares the part reference for the real chat prompt,
 without a separate request editor. When the host advertises the OpenAI composer
 extension, it appends an unsent `@part` reference to the active draft. Current T3
-HTML chat instead copies the reference for the user to paste with ⌘V/Ctrl+V.
+HTML chat instead copies a readable part name and exact reference for the user
+to paste with ⌘V/Ctrl+V. Copied text uses `AAD part name: URI`, with a trailing
+space for the request. It avoids bare `@name` text, which T3 treats as a file
+mention; native composer items still use the `@name` title.
 If copying is blocked, use the displayed reference's manual copy fallback.
 Nothing automatically sends or edits the model.
 

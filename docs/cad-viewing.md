@@ -19,8 +19,9 @@ Dragging still rotates.
 
 Double-click prepares a part reference for the normal chat prompt. Supported
 ChatGPT Desktop hosts append an unsent `@part` item directly to that prompt.
-Current T3 HTML chat copies the reference: paste with ⌘V/Ctrl+V and type the edit
-request in the main prompt. There is no separate request editor and nothing is
+Current T3 HTML chat copies `AAD part name: URI`: paste with ⌘V/Ctrl+V and type
+the edit request in the main prompt. This avoids a bare `@name` becoming a file
+mention in T3. There is no separate request editor and nothing is
 automatically sent. If the clipboard is blocked, use the displayed reference's
 manual copy fallback.
 

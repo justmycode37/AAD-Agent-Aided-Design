@@ -27,7 +27,8 @@ Know what the user sees:
   Dragging rotates without selecting. Double-click prepares an exact part
   reference for the user's normal chat prompt. Hosts advertising native unsent
   composer insertion receive an `@part` reference there. Other hosts, including
-  current T3 HTML chat, copy the reference for the user to paste with ⌘V/Ctrl+V.
+  current T3 HTML chat, copy a readable part name and exact reference for the user
+  to paste with ⌘V/Ctrl+V.
   There is no separate request editor and nothing automatically sends. If copying
   is blocked, the viewer offers the reference for manual copying.
 - **Local CAD window / CAD standalone export:** native part tree, face/edge
@@ -65,7 +66,9 @@ the user that a same-scene `grid` value changed the display; ask them to use Gri
 
 Inserted and copied references include `aad://part/<project>/<rev>/<scene_id>?path=<encoded-path>`.
 Resolve this against that revision's `scene.parts` and scene hash before editing.
-The `@name` is a display label, not a file or a globally unique selector. Never
+The native `@name` is a display label, not a file or a globally unique selector.
+Copied text uses `AAD part name: URI`, without a bare `@name` that some hosts
+would misinterpret as a file mention. Never
 pass the identity URI as a modeling query; resolve the actual part and its
 modeling selectors first. A newer revision needs reconciliation, even if a part
 has the same name. MCP hosts may also stage selection context, including
