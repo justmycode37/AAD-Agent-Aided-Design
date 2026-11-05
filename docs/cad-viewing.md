@@ -12,6 +12,9 @@ The corner button makes the view bigger. The CAD toolbars, part tree, menus,
 measurement panels, and their keyboard shortcuts are hidden in chat.
 A model with one visible piece disables Pull apart.
 
+Opening a model, choosing a view, Reset, and resizing fit the visible component
+bounds to the current canvas, with room around the edges and title controls.
+
 | Input | Mac | Other desktops |
 | --- | --- | --- |
 | Rotate | Click-drag | Drag |

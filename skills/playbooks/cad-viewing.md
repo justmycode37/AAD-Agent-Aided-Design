@@ -17,6 +17,9 @@ Views menu, and fullscreen. Small white-outlined icons sit beside the title.
 Advanced CAD panels and action shortcuts are hidden. Local windows retain the
 native CAD engine's full toolset; standalone exports can opt into CAD controls.
 
+Opening a scene, selecting a view, Reset, and resizing fit visible component
+bounds to the current canvas, leaving room for the title controls and edges.
+
 On Mac, click-drag rotates, two-finger scroll pans in both directions, pinch
 zooms, and Option-scroll is the zoom fallback. Other desktops scroll or pinch to
 zoom and Shift-drag or right-drag to pan.

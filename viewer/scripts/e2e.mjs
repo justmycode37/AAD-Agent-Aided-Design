@@ -9,6 +9,7 @@ import { openRefHost } from "./ref-host.mjs";
 import { fakeMcp, loadFixture } from "./fake-mcp.mjs";
 import { checkNavigation } from "./navigation-checks.mjs";
 import { concentricFixture, checkExplode, checkExplodedCamera } from "./explode-checks.mjs";
+import { checkFraming } from "./framing-checks.mjs";
 
 const OUT = "test-output";
 mkdirSync(OUT, { recursive: true });
@@ -97,6 +98,23 @@ function assemblyFixture() {
 }
 
 const assembly = assemblyFixture();
+for (const width of [320, 728]) await scenario(`viewport-framing-${width}`, { scene: assembly, width,
+  viewer: { views: [{ id: "side", label: "Side", view: "right", presentation: { projection: "orthographic" } }] } }, async ({ host }) => {
+  const frame = host.frame(), button = name => frame.getByRole("button", { name, exact: true });
+  await checkFraming(frame, check, "initial model");
+  await button("Pull apart").click();
+  await checkFraming(frame, check, "exploded model");
+  await host.page.setViewportSize({ width: width === 320 ? 900 : 300, height: 800 });
+  await host.page.evaluate(width => document.getElementById("f").style.width = `${width}px`, width === 320 ? 880 : 280);
+  await frame.waitForFunction(width => globalThis.__viewer.rendered.controls.domElement.clientWidth === width - 6, width === 320 ? 880 : 280);
+  await checkFraming(frame, check, "resized exploded model");
+  await button("Put together").click();
+  await checkFraming(frame, check, "collapsed model after resize");
+  await button("Views").click(); await frame.getByRole("menuitemradio", { name: "Side", exact: true }).click();
+  await checkFraming(frame, check, "orthographic named view");
+  await button("Reset").click();
+  await checkFraming(frame, check, "reset named view");
+});
 await scenario("trackpad-navigation", { scene: assembly }, async ({ host }) => {
   await checkNavigation({ page: host.page, frame: host.frame(), check });
 });

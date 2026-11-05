@@ -105,6 +105,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
         view!.viewer.setCameraZoom(zoom);
         applyPresentation(view!, { grid: false, explode: false, ...(selected ? selected.presentation : requested.presentation) });
         view!.setAnalysis(selected?.analysis);
+        view!.fit();
       } finally {
         if (keepGrid) { view!.viewer.setGrids([xy, xz, yz]); view!.viewer.setAxes(axes); }
       }

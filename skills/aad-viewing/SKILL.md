@@ -16,7 +16,8 @@ Know what the user sees:
   a wider **Views** button, fullscreen, and orbit/pan/zoom. CAD panels and action
   shortcuts stay hidden. Pull apart fits the separated pieces; Put together
   restores assembled framing. Reset restores the selected view recipe, except
-  the grid.
+  the grid. Opening a scene, choosing a view, Reset, and resizing fit the model
+  to the current canvas with space around its edges and title controls.
 - **Navigation:** on Mac, click-drag rotates, two-finger scroll pans in both
   directions, pinch zooms, and Option-scroll is the zoom fallback. Other desktops
   scroll or pinch to zoom and Shift-drag or right-drag to pan.
