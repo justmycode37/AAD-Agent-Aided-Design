@@ -1,6 +1,6 @@
 // Browser checks for chat part selection: real mouse input against the real engine, GPU picker and shaders.
 //   node scripts/part-selection-checks.mjs   builds its own page, without touching dist/
-// checkPartSelection() also runs in a host page that exposes globalThis.__viewer, __view and
+// The standalone harness exposes globalThis.__viewer, __view and
 // __partSelection = { selection, selections: string[][], references: string[] }.
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
