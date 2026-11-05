@@ -19,6 +19,8 @@ from numbers import Real
 from pathlib import Path
 from typing import Any
 
+from .revision_meta import read_revision_meta
+
 RESULT_MARKER = b"AAD_OPS_RESULT:"
 NOT_READY = "NOT_READY"
 PREPARED_RENDER_FILENAME = "prepared-render.bin"
@@ -81,7 +83,7 @@ def load_context(request: dict[str, Any]) -> Any:
 
     project_dir = Path(request["project_dir"])
     rev_dir = project_dir / ".aad" / "revs" / f"{request['rev']:06d}"
-    meta = json.loads((rev_dir / "meta.json").read_text())
+    meta = read_revision_meta(rev_dir)
     shape = None
     brep = rev_dir / "part.brep"
     if brep.exists():

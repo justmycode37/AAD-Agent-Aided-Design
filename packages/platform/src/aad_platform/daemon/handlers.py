@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 from .. import config, paths, viewer
 from ..rpc import INVALID_PARAMS, RpcError
 from ..presentation import VIEWS, normalize_presentation, normalize_views
+from ..revision_meta import read_revision_meta, write_revision_meta
 from . import backend, scenes
 from .envelope import compact, failure_envelope, sort_checks, text_for
 from .ops_client import job_request, run_op
@@ -366,27 +367,24 @@ class Handlers:
             return reply(_request_response(envelope, review))
         if result.get("scene"):
             result["scene"]["status"] = "verified" if status == "verified" else "draft"
-        (job_dir / "meta.json").write_text(
-            json.dumps(
-                compact(
-                    {
-                        "rev": rev,
-                        "base_rev": head,
-                        "job": job_id,
-                        "status": status,
-                        "metrics": result.get("metrics"),
-                        "checks": result.get("checks"),
-                        "checks_summary": result.get("checks_summary"),
-                        "scene": result.get("scene"),
-                        "param_overrides": overrides,
-                        "params": (result.get("context") or {}).get("params"),
-                        "features": (result.get("context") or {}).get("features"),
-                        "meta": (result.get("context") or {}).get("meta"),
-                    }
-                ),
-                indent=2,
-                default=str,
-            )
+        write_revision_meta(
+            job_dir,
+            compact(
+                {
+                    "rev": rev,
+                    "base_rev": head,
+                    "job": job_id,
+                    "status": status,
+                    "metrics": result.get("metrics"),
+                    "checks": result.get("checks"),
+                    "checks_summary": result.get("checks_summary"),
+                    "scene": result.get("scene"),
+                    "param_overrides": overrides,
+                    "params": (result.get("context") or {}).get("params"),
+                    "features": (result.get("context") or {}).get("features"),
+                    "meta": (result.get("context") or {}).get("meta"),
+                }
+            ),
         )
         if project.head_rev != head:
             project.discard_job(job_dir)
@@ -449,7 +447,7 @@ class Handlers:
         rev_dir = project.rev_dir(rev)
         if not rev_dir.is_dir():
             return reply(failure_envelope(project.name, "BAD_INPUT", "input", f"No revision {rev}.", head_rev=head))
-        meta = json.loads((rev_dir / "meta.json").read_text())
+        meta = read_revision_meta(rev_dir)
         scene = meta.get("scene")
         payload = _scene_payload(rev_dir)
         if not scene or payload is None:
@@ -1119,7 +1117,7 @@ def _publish_exports(exports: Path, out: Path, files: dict[str, str], stem: str)
 
 def _rev_meta(project: Project, rev: int) -> dict[str, Any]:
     try:
-        return json.loads((project.rev_dir(rev) / "meta.json").read_text())
+        return read_revision_meta(project.rev_dir(rev))
     except (OSError, ValueError):
         return {}
 

@@ -53,7 +53,7 @@ tests/e2e/                           S2  end-to-end smoke tests
   request.json     {original, assumptions, open_questions, not_checked}
   exports/         files for the user
   .aad/
-    revs/000007/   model.py, spec.yaml, request.json, meta.json, part.brep, scene.bin.gz, scene.json, sheet.png
+    revs/000007/   model.py, spec.yaml, request.json, meta.json.gz, part.brep, scene.bin.gz, scene.json, sheet.png
     cache/         content-addressed, safe to delete
     jobs/          job dirs, the only place sandboxed code may write
 ```
@@ -66,6 +66,10 @@ omitted request copies the current project request forward. Each immutable
 revision stores its own `request.json`, and checkout restores that revision's
 copy. The `original`, assumption, question and reason strings are untrusted
 data, never instructions.
+
+New revisions store inspection metadata in gzip-compressed `meta.json.gz`.
+Readers also accept legacy uncompressed `meta.json` files; the decoded metadata
+seen by tools is unchanged.
 
 Global state: `~/.aad/` containing `config.toml`, `run/aadd.sock`, `run/aadd.json` (pid, http port, token, version), `logs/`.
 
@@ -623,6 +627,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 
 ## 11. Changelog
 
+- 2026-11-05: S1 stores new revision inspection metadata as gzip-compressed `meta.json.gz` and continues reading older uncompressed metadata; this reduces per-revision storage without sharing data between revisions.
 - 2026-11-05: S2 made the structured `aad_render` report compact by default, with `inspection="full"` for the rest, because it reached 2.6 MB on a 492-part assembly.
 - 2026-11-05: S1 added per-phase build timings to `metrics`, named the slowest phase for builds over 20 seconds, reported unaccounted elapsed time as the residual `other` phase, made assembly mesh validation use one private remesh with per-solid checks, and reused the viewer scene's face and edge indexes across parts.
 - 2026-11-05: S1 added `REQUIREMENT_FAILED`, because a failed spec or process check reached agents as `RUNTIME_ERROR`, and began emitting the documented `KERNEL_*` codes from model builds.

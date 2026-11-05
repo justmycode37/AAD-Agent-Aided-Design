@@ -79,8 +79,9 @@ kernel limits. Units do not convert coordinates. Applied values are in
 `pattern_along`, `exploded`, `overlap_volume` and `motion_clearance`. They return
 real shapes and raise `CadOperationError` rather than return a near miss. An
 `Assembly` assigned to `result` is built as one compound, and its components and
-BOM are stored in the revision's `meta.json`. BREP keeps no names, so post-build
-operations rebuild the tree from that record. `Assembly.bom()` refuses one part
+BOM are stored in the revision's compressed metadata (`meta.json.gz`). BREP
+keeps no names, so post-build operations rebuild the tree from that record.
+`Assembly.bom()` refuses one part
 number on different volumes. `motion_clearance` samples only the poses it is given.
 `sheet_metal` handles one strip with parallel bends, and its allowance is
 `angle * (inner_radius + k_factor * thickness)`.
