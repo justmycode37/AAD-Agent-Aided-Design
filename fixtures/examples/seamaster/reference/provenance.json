@@ -1,0 +1,34 @@
+{
+  "recorded_at_utc": "2026-11-05T17:58:20.935194+00:00",
+  "command": "uv run --locked --all-packages --with shapely==2.2.0 python fixtures/examples/seamaster/build.py --output-dir .aad/examples/seamaster",
+  "platform": {
+    "system": "Darwin",
+    "machine": "arm64",
+    "python": "3.12.10"
+  },
+  "dependencies": {
+    "build123d": "0.13.0",
+    "cadquery-ocp-novtk": "8.0.1.1.0",
+    "ocp-tessellate": "3.6.3",
+    "shapely": "2.2.0",
+    "aad-render": "0.0.1",
+    "aad-design": "0.0.1"
+  },
+  "build_script_sha256": "261b2c55e5d0b9bc9fef1ccf0d9c675c561e2a735f73597ef5223a69924af85c",
+  "recorded_files_sha256": {
+    "inspection.json": "1a7956ae09f9ad7e3a8f0223eaa01f4f2e531c45d20221ccc64240a9bb2e7f7d",
+    "gears.json": "d598351eed6e7836964bc585ea21f3b6cc5373282d544ffff63c4390e72bae50",
+    "export_check.json": "4339dec5097a380365568c161861a1260eae488545284d21f31678503597b2ba"
+  },
+  "omitted_generated_exports_sha256": {
+    "watch.step": "02b63d03521d1c24f143bd2eaa34f2bf2b5718a0d4bbe9176e5859d51b58aff0",
+    "watch.brep": "77a39208006513f762d694ddd5d010b87d5f093b47cb649f9f484dca5d4ded05"
+  },
+  "scene": {
+    "scene_id": "aa1641c524085d412de5a70fa0b72d71a0eb9bac586ad8ff5c0d1c10e7a23706",
+    "triangles": 1192009,
+    "total_bytes": 14340750,
+    "status": "draft"
+  },
+  "scope": "One local draft build; hashes identify these observations, not operational validation or cross-platform byte reproducibility."
+}

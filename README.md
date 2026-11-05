@@ -10,6 +10,10 @@ Pre-release and not yet published. [ARCHITECTURE.md](ARCHITECTURE.md) explains h
 
 Parts, assemblies with a BOM and interference checks, sheet metal with flat patterns, surfaces, direct edits, threads, gears and standard parts, 2D sheets, drawings, and STEP, IGES, STL, OBJ, PLY, 3MF, GLB, DXF, SVG and PDF exchange. [`docs/cad-parity.md`](docs/cad-parity.md) compares this with commercial CAD, including what is still missing. Agents read the guide, playbook `aad.guide.v1`, through `aad_library`, with working code in `workflow.capabilities.v1`. `aad install` also adds the guide as the `aad` skill for Claude Code.
 
+## Example assembly
+
+The [Seamaster-inspired wristwatch](fixtures/examples/seamaster/) includes a closed bracelet, detailed internal mechanism, reproducible Python build, inspection views and sampled check reports. It is a custom draft design, not a validated operating Omega movement.
+
 ## Develop
 
 Requires Python 3.12 and [uv](https://docs.astral.sh/uv/) (`brew install uv`).
