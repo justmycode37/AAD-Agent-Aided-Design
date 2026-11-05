@@ -6,12 +6,21 @@ import asyncio
 import importlib.util
 import json
 import os
+import selectors
 import signal
 import subprocess
 import sys
 import time
 from pathlib import Path
 from typing import Any
+
+from aad_render.render_limits import (
+    MAX_PREPARED_RENDER_BYTES,
+    MAX_RENDER_PAYLOAD_BYTES,
+    MAX_RENDER_RESULT_BYTES,
+    MAX_WORKER_STDERR_BYTES,
+    MAX_WORKER_STDOUT_BYTES,
+)
 
 from ..ops import RESULT_MARKER, _render_result
 
@@ -67,7 +76,17 @@ def _run_worker(request: dict[str, Any], timeout_s: float, sandbox: Any) -> dict
     except (sandbox.SandboxUnavailable, OSError) as exc:
         # Never fall back to an unsandboxed run.
         return _crash("SANDBOX_DENIED", "sandbox", f"The OS sandbox could not start this operation: {exc}")
-    return _communicate_result(process, json.dumps(request, default=str).encode(), timeout_s)
+    result = _communicate_result(
+        process,
+        json.dumps(request, default=str).encode(),
+        timeout_s,
+        stdout_limit=MAX_PREPARED_RENDER_BYTES + 1024 if request.get("op") == "render_prepare" else MAX_WORKER_STDOUT_BYTES,
+        stderr_limit=MAX_WORKER_STDERR_BYTES,
+        failure_phase="render" if request.get("op") in {"render", "render_prepare"} else "crash",
+    )
+    if not result.get("ok") and request.get("op") in {"render", "render_prepare"}:
+        return _as_render_failure(result)
+    return result
 
 
 def _run_mesh_render(request: dict[str, Any], timeout_s: float, sandbox: Any) -> dict[str, Any]:
@@ -76,10 +95,22 @@ def _run_mesh_render(request: dict[str, Any], timeout_s: float, sandbox: Any) ->
     prepare_request = {**request, "op": "render_prepare"}
     prepared_result = _run_worker(prepare_request, timeout_s, sandbox)
     if not prepared_result.get("ok"):
-        return prepared_result
+        return _as_render_failure(prepared_result)
     prepared = prepared_result.get("prepared_render")
     if not isinstance(prepared, dict) or not isinstance(prepared.get("render"), dict):
         return _crash("WORKER_CRASH", "render", "The sandboxed worker returned no prepared mesh payload.")
+    try:
+        input_data = json.dumps(
+            {"render": prepared["render"]}, separators=(",", ":"), allow_nan=False
+        ).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        return _crash("INVALID_RENDER_PAYLOAD", "render", f"The sandboxed worker returned invalid render JSON: {exc}")
+    if len(input_data) > MAX_RENDER_PAYLOAD_BYTES:
+        return _crash(
+            "RENDER_PAYLOAD_TOO_LARGE",
+            "render",
+            f"The prepared render payload exceeds the {MAX_RENDER_PAYLOAD_BYTES}-byte limit.",
+        )
 
     out = Path(request["out_dir"])
     remaining = deadline - time.monotonic()
@@ -101,11 +132,14 @@ def _run_mesh_render(request: dict[str, Any], timeout_s: float, sandbox: Any) ->
         return _crash("WORKER_CRASH", "render", f"The mesh renderer could not start: {exc}")
     rendered_result = _communicate_result(
         process,
-        json.dumps({"render": prepared["render"]}, separators=(",", ":")).encode(),
+        input_data,
         remaining,
+        stdout_limit=MAX_RENDER_RESULT_BYTES + len(RESULT_MARKER) + 1,
+        stderr_limit=MAX_WORKER_STDERR_BYTES,
+        failure_phase="render",
     )
     if not rendered_result.get("ok"):
-        return rendered_result
+        return _as_render_failure(rendered_result)
     rendered = rendered_result.get("rendered")
     if not isinstance(rendered, dict):
         return _crash("WORKER_CRASH", "render", "The mesh renderer returned no image metadata.")
@@ -115,23 +149,158 @@ def _run_mesh_render(request: dict[str, Any], timeout_s: float, sandbox: Any) ->
         paths = finish_render(prepared, rendered, out)
         return {"ok": True, **_render_result(paths)}
     except Exception as exc:
-        return _crash("WORKER_CRASH", "render", f"The render report could not be completed: {exc}")
+        return _crash("RENDER_FAILED", "render", f"The render report could not be completed: {exc}")
+
+
+def _as_render_failure(result: dict[str, Any]) -> dict[str, Any]:
+    """Keep sandbox and timeout failures distinct; report worker failures as render failures."""
+    failure = result.get("failure")
+    if not isinstance(failure, dict):
+        return _crash("WORKER_CRASH", "render", "The render worker failed without a failure report.")
+    if failure.get("phase") not in {"sandbox", "timeout"}:
+        failure = {**failure, "phase": "render"}
+    return {**result, "failure": failure}
 
 
 def _communicate_result(
-    process: subprocess.Popen[bytes], input_data: bytes, timeout_s: float
+    process: subprocess.Popen[bytes],
+    input_data: bytes,
+    timeout_s: float,
+    *,
+    stdout_limit: int = MAX_WORKER_STDOUT_BYTES,
+    stderr_limit: int = MAX_WORKER_STDERR_BYTES,
+    failure_phase: str = "crash",
 ) -> dict[str, Any]:
     try:
-        stdout, stderr = process.communicate(input_data, timeout=timeout_s)
+        if all(getattr(process, name, None) is not None for name in ("stdin", "stdout", "stderr")):
+            stdout, stderr = _bounded_communicate(
+                process,
+                input_data,
+                timeout_s,
+                stdout_limit=stdout_limit,
+                stderr_limit=stderr_limit,
+            )
+        else:
+            # Lightweight process fakes in unit tests keep the historical interface.
+            stdout, stderr = process.communicate(input_data, timeout=timeout_s)
     except subprocess.TimeoutExpired:
         _kill(process)
-        process.communicate()
+        _reap(process)
         return _crash("TIMEOUT", "timeout", f"The operation did not finish within {timeout_s:.0f} s.")
-    for line in reversed(stdout.splitlines()):
-        if line.startswith(RESULT_MARKER):
-            return json.loads(line[len(RESULT_MARKER) :])
+    except _WorkerOutputLimit as exc:
+        _kill(process)
+        _reap(process)
+        return _crash("WORKER_OUTPUT_LIMIT", failure_phase, str(exc))
+    except (OSError, ValueError) as exc:
+        _kill(process)
+        _reap(process)
+        return _crash("WORKER_CRASH", failure_phase, f"Could not read worker output: {exc}")
+    marker_at = stdout.rfind(RESULT_MARKER)
+    while marker_at > 0 and stdout[marker_at - 1] != 10:
+        marker_at = stdout.rfind(RESULT_MARKER, 0, marker_at)
+    if marker_at >= 0:
+        line_start = marker_at + len(RESULT_MARKER)
+        line_end = stdout.find(b"\n", line_start)
+        if line_end < 0:
+            line_end = len(stdout)
+        try:
+            result = json.loads(stdout[line_start:line_end], parse_constant=_reject_json_constant)
+            if isinstance(result, dict):
+                return result
+        except (json.JSONDecodeError, ValueError, UnicodeDecodeError):
+            pass
     detail = stderr.decode(errors="replace").strip().splitlines()[-1:] or ["no output"]
-    return _crash("WORKER_CRASH", "crash", f"The worker exited with code {process.returncode}: {detail[0]}")
+    return _crash("WORKER_CRASH", failure_phase, f"The worker exited with code {process.returncode}: {detail[0]}")
+
+
+class _WorkerOutputLimit(Exception):
+    pass
+
+
+def _bounded_communicate(
+    process: subprocess.Popen[bytes],
+    input_data: bytes,
+    timeout_s: float,
+    *,
+    stdout_limit: int,
+    stderr_limit: int,
+) -> tuple[bytes, bytes]:
+    """Stream subprocess pipes with fixed memory bounds and a shared deadline."""
+    assert process.stdin is not None and process.stdout is not None and process.stderr is not None
+    selector = selectors.DefaultSelector()
+    stdout = bytearray()
+    stderr = bytearray()
+    buffers = {"stdout": (process.stdout, stdout, stdout_limit), "stderr": (process.stderr, stderr, stderr_limit)}
+    deadline = time.monotonic() + timeout_s
+    stdin_fd = process.stdin.fileno()
+    remaining_input = memoryview(input_data)
+    try:
+        os.set_blocking(stdin_fd, False)
+        for name, (stream, _buffer, _limit) in buffers.items():
+            os.set_blocking(stream.fileno(), False)
+            selector.register(stream, selectors.EVENT_READ, name)
+        if remaining_input:
+            selector.register(process.stdin, selectors.EVENT_WRITE, "stdin")
+        else:
+            process.stdin.close()
+
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(process.args, timeout_s)
+            events = selector.select(min(remaining, 0.5))
+            for key, _mask in events:
+                if key.data == "stdin":
+                    try:
+                        written = os.write(stdin_fd, remaining_input[:64 * 1024])
+                    except BlockingIOError:
+                        continue
+                    except BrokenPipeError:
+                        remaining_input = memoryview(b"")
+                        selector.unregister(process.stdin)
+                        process.stdin.close()
+                        continue
+                    remaining_input = remaining_input[written:]
+                    if not remaining_input:
+                        selector.unregister(process.stdin)
+                        process.stdin.close()
+                    continue
+
+                stream, buffer, limit = buffers[key.data]
+                available = limit - len(buffer)
+                chunk = os.read(stream.fileno(), min(64 * 1024, available + 1))
+                if not chunk:
+                    selector.unregister(stream)
+                    stream.close()
+                    continue
+                if len(chunk) > available:
+                    raise _WorkerOutputLimit(f"worker {key.data} exceeded its {limit}-byte output limit")
+                buffer.extend(chunk)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired(process.args, timeout_s)
+        process.wait(timeout=remaining)
+        return bytes(stdout), bytes(stderr)
+    finally:
+        selector.close()
+
+
+def _reject_json_constant(token: str) -> None:
+    raise ValueError(f"non-finite JSON number {token} is not allowed")
+
+
+def _reap(process: subprocess.Popen[bytes]) -> None:
+    try:
+        process.wait(timeout=2.0)
+    except subprocess.TimeoutExpired:
+        pass
+    for name in ("stdin", "stdout", "stderr"):
+        stream = getattr(process, name, None)
+        if stream is not None:
+            try:
+                stream.close()
+            except OSError:
+                pass
 
 
 async def run_op(request: dict[str, Any], *, timeout_s: float = DEFAULT_TIMEOUT_S) -> dict[str, Any]:

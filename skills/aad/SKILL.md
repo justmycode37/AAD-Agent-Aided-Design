@@ -453,6 +453,10 @@ A sliver edge is usually a coincidence between two surfaces; moving one by a sma
 | `measure` | `{a, b}` pairs. Returns minimum distance, closest points, and angle when both have a direction |
 | `inspection` | `summary` (default) or `full`. Summary leaves the per-face, per-edge and visible-selector tables, and legends over 64 entries, in the `inspection.json` and `labels.json` artifacts. `full` returns them inline, which is large on big models |
 
+3D renders are limited to a 384 MiB mesh payload, 8 million vertices, 12 million triangles and
+50,000 labels. A render that exceeds a cap fails in the render phase and leaves the saved revision
+and B-rep unchanged.
+
 The `inspection` report holds exact B-rep facts: mass properties, bounding box, section loops, per-image scale, a `world_to_pixel` matrix for mapping 3D points to pixels, and your `probes` and `measure` answers. With `inspection="full"` or in the artifact, it also has face types and dimensions, edge types and adjacency, and visible selectors. Cylinders distinguish holes from bosses. Edge classes and adjacency are omitted above 2,048 edges, and `edge_classification` says so.
 
 Thickness is a sampled search, not a certified minimum. Heatmaps do not prove manufacturability. Playbook `review.render.v1` is a review checklist.

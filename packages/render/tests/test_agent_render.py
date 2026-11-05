@@ -5,6 +5,7 @@ import math
 import os
 import subprocess
 import sys
+
 import pytest
 from build123d import Box, Cylinder, Polygon, Pos, extrude
 from PIL import Image
@@ -402,6 +403,170 @@ def test_prepared_render_roundtrips_only_render_data_to_mesh_worker(tmp_path, mo
     report = json.loads((tmp_path / "inspection.json").read_text())
     assert report["faces"]
     assert report["images"]["iso.png"]["panes"]
+
+
+def _prepared_mesh_payload(labels="faces"):
+    from aad_render import prepare_render
+
+    prepared = prepare_render(_context(Box(12, 8, 4)), {
+        "views": ["iso"], "size": 64, "labels": labels,
+    })
+    return json.loads(json.dumps(prepared))["render"]
+
+
+def test_forged_picture_path_is_rejected_before_output_or_backend(tmp_path, monkeypatch):
+    import aad_render.agent_render as agent_render
+
+    payload = _prepared_mesh_payload("none")
+    payload["pictures"]["../escape-target/escaped"] = payload["pictures"]["iso"]
+    monkeypatch.setattr(agent_render, "get_backend", lambda _name: pytest.fail("invalid names reach no backend"))
+    output = tmp_path / "output"
+
+    with pytest.raises(ValueError, match="picture name|picture names"):
+        agent_render.render_mesh(payload, output)
+
+    assert not output.exists()
+    assert not (tmp_path / "escape-target" / "escaped.png").exists()
+
+
+def test_output_directory_symlink_is_refused(tmp_path, monkeypatch):
+    import aad_render.agent_render as agent_render
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    marker = outside / "iso.png"
+    marker.write_bytes(b"keep this file")
+    output = tmp_path / "output"
+    output.symlink_to(outside, target_is_directory=True)
+    monkeypatch.setattr(agent_render, "get_backend", lambda _name: pytest.fail("symlink is rejected first"))
+
+    with pytest.raises(ValueError, match="must not be a symlink"):
+        agent_render.render_mesh(_prepared_mesh_payload("none"), output)
+
+    assert marker.read_bytes() == b"keep this file"
+
+
+def test_render_does_not_follow_existing_symlink_file(tmp_path, monkeypatch):
+    import aad_render.agent_render as agent_render
+
+    class CaptureBackend:
+        def render(self, _scene, _camera, *, width, height, style):
+            return Image.new("RGB", (width, height))
+
+    outside = tmp_path / "outside.png"
+    outside.write_bytes(b"keep this file")
+    output = tmp_path / "output"
+    output.mkdir()
+    (output / "iso.png").symlink_to(outside)
+    monkeypatch.setattr(agent_render, "get_backend", lambda _name: CaptureBackend())
+
+    with pytest.raises(ValueError, match="must not be a symlink"):
+        agent_render.render_mesh(_prepared_mesh_payload("none"), output)
+
+    assert outside.read_bytes() == b"keep this file"
+
+
+def test_triangle_indexes_are_checked_before_loading_the_backend(tmp_path, monkeypatch):
+    import aad_render.agent_render as agent_render
+
+    payload = _prepared_mesh_payload("none")
+    payload["scene"]["faces"][0]["triangles"][0][0] = 99_999_999
+    monkeypatch.setattr(agent_render, "get_backend", lambda _name: pytest.fail("invalid triangle reaches no backend"))
+
+    with pytest.raises(ValueError, match="triangle index"):
+        agent_render.render_mesh(payload, tmp_path / "output")
+
+    assert not (tmp_path / "output").exists()
+
+
+@pytest.mark.parametrize("coordinate", [float("nan"), float("inf"), float("-inf")])
+def test_nonfinite_mesh_coordinates_are_rejected(tmp_path, monkeypatch, coordinate):
+    import aad_render.agent_render as agent_render
+
+    payload = _prepared_mesh_payload("none")
+    payload["scene"]["faces"][0]["points"][0][0] = coordinate
+    monkeypatch.setattr(agent_render, "get_backend", lambda _name: pytest.fail("invalid coordinate reaches no backend"))
+
+    with pytest.raises(ValueError):
+        agent_render.render_mesh(payload, tmp_path / "output")
+
+    assert not (tmp_path / "output").exists()
+
+
+def test_forged_picture_size_over_2048_is_rejected(tmp_path, monkeypatch):
+    import aad_render.agent_render as agent_render
+
+    payload = _prepared_mesh_payload("none")
+    payload["pictures"]["iso"]["size"] = 3000
+    monkeypatch.setattr(agent_render, "get_backend", lambda _name: pytest.fail("invalid size reaches no backend"))
+
+    with pytest.raises(ValueError, match="image size"):
+        agent_render.render_mesh(payload, tmp_path / "output")
+
+    assert not (tmp_path / "output").exists()
+
+
+@pytest.mark.parametrize(("limit_name", "message"), [
+    ("MAX_RENDER_VERTICES", "vertices"),
+    ("MAX_RENDER_TRIANGLES", "triangles"),
+])
+def test_scene_geometry_limits_are_checked_before_backend(tmp_path, monkeypatch, limit_name, message):
+    import aad_render.agent_render as agent_render
+    from aad_render import render_limits
+
+    payload = _prepared_mesh_payload("none")
+    monkeypatch.setattr(agent_render, "get_backend", lambda _name: pytest.fail("over-limit scene reaches no backend"))
+    monkeypatch.setattr(render_limits, limit_name, 1)
+
+    with pytest.raises(ValueError, match=message):
+        agent_render.render_mesh(payload, tmp_path / "output")
+
+    assert not (tmp_path / "output").exists()
+
+
+def test_oversized_label_legend_is_rejected_before_any_write(tmp_path, monkeypatch):
+    import aad_render.agent_render as agent_render
+    from aad_render import render_limits
+
+    payload = _prepared_mesh_payload("faces")
+    payload["legend"]["1"]["selector"] = "x" * 200
+    monkeypatch.setattr(render_limits, "MAX_LABELS_JSON_BYTES", 64)
+    monkeypatch.setattr(agent_render, "get_backend", lambda _name: pytest.fail("oversized legend reaches no backend"))
+
+    with pytest.raises(ValueError, match="label legend"):
+        agent_render.render_mesh(payload, tmp_path / "output")
+
+    assert not (tmp_path / "output").exists()
+
+
+def test_label_count_limit_is_enforced_before_backend(tmp_path, monkeypatch):
+    import aad_render.agent_render as agent_render
+    from aad_render import render_limits
+
+    payload = _prepared_mesh_payload("faces")
+    for pane in payload["pictures"]["iso"]["panes"]:
+        pane["drawn"] = []
+    monkeypatch.setattr(render_limits, "MAX_RENDER_LABELS", 1)
+    monkeypatch.setattr(agent_render, "get_backend", lambda _name: pytest.fail("too many labels reach no backend"))
+
+    with pytest.raises(ValueError, match="more than 1 labels"):
+        agent_render.render_mesh(payload, tmp_path / "output")
+
+    assert not (tmp_path / "output").exists()
+
+
+def test_render_payload_byte_limit_is_enforced(tmp_path, monkeypatch):
+    import aad_render.agent_render as agent_render
+    from aad_render import render_limits
+
+    payload = _prepared_mesh_payload("none")
+    monkeypatch.setattr(render_limits, "MAX_RENDER_PAYLOAD_BYTES", 64)
+    monkeypatch.setattr(agent_render, "get_backend", lambda _name: pytest.fail("oversized payload reaches no backend"))
+
+    with pytest.raises(ValueError, match="render payload"):
+        agent_render.render_mesh(payload, tmp_path / "output")
+
+    assert not (tmp_path / "output").exists()
 
 
 def _capture_render(monkeypatch, ctx, req, out):

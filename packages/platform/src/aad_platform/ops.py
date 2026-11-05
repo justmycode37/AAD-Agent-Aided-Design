@@ -12,6 +12,7 @@ import importlib
 import json
 import os
 import shutil
+import stat
 import sys
 from collections.abc import Callable, Mapping
 from numbers import Real
@@ -163,7 +164,21 @@ def op_render_prepare(ctx: Any, args: dict[str, Any], _out: Path) -> dict[str, A
     if ctx.kind == "2d":
         raise ValueError("2D sheet previews do not use the 3D mesh render worker")
     prepare_render = _required("aad_render", "prepare_render", "Agent render preparation")
-    return {"prepared_render": prepare_render(ctx, _render_request(args))}
+    prepared = prepare_render(ctx, _render_request(args))
+    from aad_render.render_limits import (
+        MAX_INSPECTION_JSON_BYTES,
+        MAX_PREPARED_RENDER_BYTES,
+        MAX_RENDER_PAYLOAD_BYTES,
+        json_size_limited,
+    )
+
+    if not isinstance(prepared, dict) or set(prepared) != {"version", "render", "inspection"}:
+        raise ValueError("render preparation returned a malformed bundle")
+    json_size_limited(prepared["render"], MAX_RENDER_PAYLOAD_BYTES, "render payload")
+    json_size_limited(prepared["inspection"], MAX_INSPECTION_JSON_BYTES, "render inspection")
+    # ops.main uses json.dumps with its default whitespace separators.
+    json_size_limited(prepared, MAX_PREPARED_RENDER_BYTES, "prepared render bundle", compact=False)
+    return {"prepared_render": prepared}
 
 
 def _render_request(args: dict[str, Any]) -> Any:
@@ -174,16 +189,45 @@ def _render_request(args: dict[str, Any]) -> Any:
 
 
 def _render_result(paths: list[Path]) -> dict[str, Any]:
+    from aad_render.render_limits import MAX_INSPECTION_JSON_BYTES, MAX_LABELS_JSON_BYTES
+
     artifacts = {path.name: str(path) for path in paths}
     result = {
         "images": [{"path": str(path), "mime": "image/png"} for path in paths if path.suffix == ".png"],
         "artifacts": artifacts,
     }
     if "inspection.json" in artifacts:
-        result["inspection"] = json.loads(Path(artifacts["inspection.json"]).read_text())
+        result["inspection"] = _read_limited_json(Path(artifacts["inspection.json"]), MAX_INSPECTION_JSON_BYTES)
     if "labels.json" in artifacts:
-        result["labels"] = json.loads(Path(artifacts["labels.json"]).read_text())
+        result["labels"] = _read_limited_json(Path(artifacts["labels.json"]), MAX_LABELS_JSON_BYTES)
     return result
+
+
+def _read_limited_json(path: Path, maximum: int) -> Any:
+    """Read a renderer artifact without following symlinks or trusting its length."""
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    if nofollow is None:
+        raise ValueError("safe render artifact reads require O_NOFOLLOW support")
+    fd = os.open(path, os.O_RDONLY | nofollow)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > maximum:
+            raise ValueError(f"render artifact {path.name!r} is not a regular file within its size limit")
+        chunks = bytearray()
+        while len(chunks) <= maximum:
+            chunk = os.read(fd, min(64 * 1024, maximum + 1 - len(chunks)))
+            if not chunk:
+                break
+            chunks.extend(chunk)
+        if len(chunks) > maximum:
+            raise ValueError(f"render artifact {path.name!r} exceeds the {maximum}-byte limit")
+        return json.loads(bytes(chunks), parse_constant=_reject_json_constant)
+    finally:
+        os.close(fd)
+
+
+def _reject_json_constant(token: str) -> None:
+    raise ValueError(f"non-finite JSON number {token} is not allowed")
 
 
 def op_scene(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:

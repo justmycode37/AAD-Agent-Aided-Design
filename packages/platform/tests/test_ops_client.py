@@ -158,3 +158,66 @@ def test_remote_render_remains_refused(tmp_path, monkeypatch, platform):
     )
     assert result["ok"] is False
     assert result["failure"]["code"] == "SANDBOX_DENIED"
+
+
+def test_render_failure_keeps_brep_and_reports_render_phase(tmp_path, monkeypatch):
+    revision = tmp_path / "project" / ".aad" / "revs" / "000001"
+    revision.mkdir(parents=True)
+    brep = revision / "part.brep"
+    brep.write_bytes(b"original BREP")
+    prepared = {
+        "version": 1,
+        "inspection": {},
+        "render": {"version": 1, "request": {}, "scene": {}},
+    }
+    monkeypatch.setattr(ops_client, "_run_worker", lambda *_args: {"ok": True, "prepared_render": prepared})
+    monkeypatch.setattr(sandbox, "environment", lambda _out: {})
+    monkeypatch.setattr(
+        ops_client.subprocess,
+        "Popen",
+        lambda *_args, **_kwargs: _Worker({
+            "ok": False,
+            "failure": {"code": "RUNTIME_ERROR", "phase": "runtime", "message": "renderer failed"},
+        }),
+    )
+
+    result = ops_client._run_mesh_render(
+        {
+            "kind": "part",
+            "project_dir": str(tmp_path / "project"),
+            "rev": 1,
+            "args": {},
+            "out_dir": str(tmp_path / "render-output"),
+        },
+        60.0,
+        sandbox,
+    )
+
+    assert result["ok"] is False
+    assert result["failure"]["phase"] == "render"
+    assert result["failure"]["message"] == "renderer failed"
+    assert brep.read_bytes() == b"original BREP"
+
+
+@pytest.mark.parametrize(("fd", "stream"), [(1, "stdout"), (2, "stderr")])
+def test_parent_caps_worker_pipe_reads(tmp_path, fd, stream):
+    script = f"import os; os.write({fd}, b'x' * 10000)"
+    process = ops_client.subprocess.Popen(
+        [sys.executable, "-c", script],
+        stdin=ops_client.subprocess.PIPE,
+        stdout=ops_client.subprocess.PIPE,
+        stderr=ops_client.subprocess.PIPE,
+        start_new_session=True,
+    )
+
+    result = ops_client._communicate_result(
+        process,
+        b"",
+        10.0,
+        stdout_limit=64,
+        stderr_limit=64,
+    )
+
+    assert result["ok"] is False
+    assert result["failure"]["code"] == "WORKER_OUTPUT_LIMIT"
+    assert stream in result["failure"]["message"]

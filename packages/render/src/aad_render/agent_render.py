@@ -10,7 +10,9 @@ from __future__ import annotations
 import json
 import logging
 import math
+import os
 import re
+import stat
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
@@ -25,6 +27,7 @@ from PIL import Image, ImageDraw, ImageFont
 from . import exact
 from .thickness import EXACT_REFINEMENTS, WallSamples, scene_triangles, visible_from, wall_samples
 from .backends import CameraSpec, Frame, RenderFace, RenderLine, RenderScene, get_backend
+from . import render_limits as _limits
 
 _LOG = logging.getLogger(__name__)
 _VIEWS = {"iso", "front", "back", "left", "right", "top", "bottom"}
@@ -55,6 +58,8 @@ _MEASURE_INK = (176, 28, 112)
 _GRID = (226, 231, 236)
 _GRID_MAJOR = (209, 215, 222)
 _BACKGROUND = (244, 246, 248)
+_ALLOWED_RENDER_VIEWS = _VIEWS | {"sheet", "custom"}
+_OUTPUT_NAMES = {f"{view}.png" for view in _ALLOWED_RENDER_VIEWS} | {"labels.json", "inspection.json"}
 
 Vec3 = tuple[float, float, float]
 
@@ -100,6 +105,99 @@ class _Pane:
     drawn: tuple[int, ...] = ()
 
 
+class _SafeOutputDirectory:
+    """Pin a real output directory and create only known files through its fd."""
+
+    def __init__(self, path: Path):
+        self.requested = Path(path)
+        self.path: Path | None = None
+        self.fd: int | None = None
+
+    def __enter__(self) -> _SafeOutputDirectory:
+        try:
+            try:
+                info = self.requested.lstat()
+            except FileNotFoundError:
+                self.requested.mkdir(parents=True, exist_ok=True)
+                info = self.requested.lstat()
+        except OSError as exc:
+            raise ValueError(f"render output directory is unavailable: {exc}") from exc
+        if stat.S_ISLNK(info.st_mode):
+            raise ValueError("render output directory must not be a symlink")
+        if not stat.S_ISDIR(info.st_mode):
+            raise ValueError("render output path must be a directory")
+
+        resolved = self.requested.resolve(strict=True)
+        nofollow = getattr(os, "O_NOFOLLOW", None)
+        if nofollow is None:
+            raise ValueError("safe render output requires O_NOFOLLOW support")
+        flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | nofollow
+        fd = None
+        try:
+            fd = os.open(self.requested, flags)
+            opened = os.fstat(fd)
+            canonical = os.stat(resolved, follow_symlinks=False)
+            if not stat.S_ISDIR(opened.st_mode) or (opened.st_dev, opened.st_ino) != (
+                canonical.st_dev,
+                canonical.st_ino,
+            ):
+                os.close(fd)
+                fd = None
+                raise ValueError("render output directory changed while it was being opened")
+        except OSError as exc:
+            if fd is not None:
+                os.close(fd)
+            raise ValueError(f"render output directory could not be opened safely: {exc}") from exc
+        assert fd is not None
+        self.path = resolved
+        self.fd = fd
+        return self
+
+    def __exit__(self, _type: Any, _value: Any, _traceback: Any) -> None:
+        if self.fd is not None:
+            os.close(self.fd)
+            self.fd = None
+
+    def write_bytes(self, name: str, data: bytes) -> Path:
+        if self.fd is None or self.path is None:
+            raise RuntimeError("render output directory is not open")
+        if name not in _OUTPUT_NAMES or Path(name).name != name:
+            raise ValueError(f"unsupported render output name {name!r}")
+        max_bytes = (
+            _limits.MAX_LABELS_JSON_BYTES
+            if name == "labels.json"
+            else _limits.MAX_INSPECTION_JSON_BYTES
+            if name == "inspection.json"
+            else _limits.MAX_RENDER_IMAGE_BYTES
+        )
+        if len(data) > max_bytes:
+            raise ValueError(f"{name} exceeds the {max_bytes}-byte render output limit")
+
+        try:
+            existing = os.stat(name, dir_fd=self.fd, follow_symlinks=False)
+        except FileNotFoundError:
+            existing = None
+        if existing is not None:
+            if stat.S_ISLNK(existing.st_mode):
+                raise ValueError(f"render output file {name!r} must not be a symlink")
+            if not stat.S_ISREG(existing.st_mode) or existing.st_nlink != 1:
+                raise ValueError(f"render output file {name!r} is not a private regular file")
+            os.unlink(name, dir_fd=self.fd)
+
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+        fd = os.open(name, flags, 0o600, dir_fd=self.fd)
+        try:
+            view = memoryview(data)
+            while view:
+                written = os.write(fd, view)
+                if written <= 0:
+                    raise OSError("short write while creating render output")
+                view = view[written:]
+        finally:
+            os.close(fd)
+        return self.path / name
+
+
 @dataclass(frozen=True, slots=True)
 class _HeatLegend:
     kind: str
@@ -139,6 +237,10 @@ def prepare_render(ctx: Any, req: Any) -> dict[str, Any]:
     original_edges = list(shape.edges())
     if not original_faces:
         raise ValueError("aad_render needs a non-empty 3D shape with renderable faces")
+    if len(original_faces) > _limits.MAX_RENDER_FACES:
+        raise ValueError(f"render has more than {_limits.MAX_RENDER_FACES} faces")
+    if len(original_edges) > _limits.MAX_RENDER_LINES:
+        raise ValueError(f"render has more than {_limits.MAX_RENDER_LINES} edges")
     classify_edges = len(original_edges) <= _MAX_EXACT_EDGE_CLASSIFICATIONS
     bounds = _shape_bounds(shape)
     diagonal = _bounds_diagonal(bounds)
@@ -239,6 +341,7 @@ def prepare_render(ctx: Any, req: Any) -> dict[str, Any]:
         scene,
         bounds=scene.bounds,
     )
+    _validate_prepared_scene_limits(request, scene, labels, legend)
     pictures = {}
     box = focus["box"] if focus else scene.bounds
     for view in request["views"]:
@@ -333,27 +436,42 @@ def prepare_render(ctx: Any, req: Any) -> dict[str, Any]:
     }
 
 
+def _validate_prepared_scene_limits(
+    request: dict[str, Any], scene: RenderScene, labels: list[_Label], legend: dict[str, Any]
+) -> None:
+    if request["size"] > _limits.MAX_RENDER_SIZE:
+        raise ValueError(f"render size must not exceed {_limits.MAX_RENDER_SIZE} pixels")
+    if len(request["views"]) > _limits.MAX_RENDER_VIEWS:
+        raise ValueError(f"render supports at most {_limits.MAX_RENDER_VIEWS} views per request")
+    if len(scene.faces) > _limits.MAX_RENDER_FACES:
+        raise ValueError(f"render has more than {_limits.MAX_RENDER_FACES} faces")
+    if len(scene.lines) > _limits.MAX_RENDER_LINES:
+        raise ValueError(f"render has more than {_limits.MAX_RENDER_LINES} lines")
+    if len(labels) > _limits.MAX_RENDER_LABELS:
+        raise ValueError(f"render has more than {_limits.MAX_RENDER_LABELS} labels")
+    vertices = sum(len(face.points) for face in scene.faces) + sum(len(line.points) for line in scene.lines)
+    triangles = sum(len(face.triangles) for face in scene.faces)
+    if vertices > _limits.MAX_RENDER_VERTICES:
+        raise ValueError(f"render has more than {_limits.MAX_RENDER_VERTICES} vertices")
+    if triangles > _limits.MAX_RENDER_TRIANGLES:
+        raise ValueError(f"render has more than {_limits.MAX_RENDER_TRIANGLES} triangles")
+    _limits.json_size_limited(legend, _limits.MAX_LABELS_JSON_BYTES, "render label legend")
+
+
 def render_mesh(payload: dict[str, Any], out: Path) -> dict[str, Any]:
     """Render a prepared mesh and return view metadata; this payload contains no B-rep report."""
-    if payload.get("version") != 1:
+    if not isinstance(payload, dict) or payload.get("version") != 1:
         raise ValueError("unsupported prepared render payload version")
-    request = payload["request"]
+    _limits.json_size_limited(payload, _limits.MAX_RENDER_PAYLOAD_BYTES, "render payload")
+    if set(payload) != {"version", "request", "scene", "labels", "legend", "heat_legend", "overlay", "pictures", "clip_box"}:
+        raise ValueError("prepared render payload has unexpected fields")
+    request = _validate_render_request(payload["request"])
+    picture_specs = _validate_picture_specs(request["views"], payload["pictures"])
     scene = _scene_from_payload(payload["scene"])
-    labels = [
-        _Label(
-            number=int(item["number"]),
-            selector=str(item["selector"]),
-            feature=item.get("feature"),
-            kind=str(item["kind"]),
-            index=item.get("index"),
-            anchor=tuple(float(value) for value in item["anchor"]),
-        )
-        for item in payload["labels"]
-    ]
-    legend = payload["legend"]
+    labels, legend = _validate_payload_labels(payload["labels"], payload["legend"], request["labels"])
     raw_heat_legend = payload["heat_legend"]
-    heat_legend = _HeatLegend(**raw_heat_legend) if raw_heat_legend is not None else None
-    raw_overlay = payload["overlay"]
+    heat_legend = _validate_heat_legend(raw_heat_legend)
+    raw_overlay = _validate_overlay(payload["overlay"])
     overlay = _Overlay(
         dimensions=raw_overlay["dimensions"],
         round_faces=raw_overlay["round_faces"],
@@ -361,82 +479,71 @@ def render_mesh(payload: dict[str, Any], out: Path) -> dict[str, Any]:
         measures=raw_overlay["measures"],
         marks=raw_overlay["marks"],
     )
-    pictures = {
-        view: (
-            int(spec["size"]),
-            [
-                _Pane(
-                    view=pane["view"],
-                    camera=CameraSpec(
-                        name=pane["camera"]["name"],
-                        position=tuple(pane["camera"]["position"]),
-                        focal_point=tuple(pane["camera"]["focal_point"]),
-                        view_up=tuple(pane["camera"]["view_up"]),
-                        right=tuple(pane["camera"]["right"]),
-                        up=tuple(pane["camera"]["up"]),
-                        parallel_scale=float(pane["camera"]["parallel_scale"]),
-                        distance=float(pane["camera"]["distance"]),
-                    ),
-                    x=int(pane["x"]),
-                    y=int(pane["y"]),
-                    width=int(pane["width"]),
-                    height=int(pane["height"]),
-                    drawn=tuple(pane["drawn"]),
-                )
-                for pane in spec["panes"]
-            ],
-        )
-        for view, spec in payload["pictures"].items()
-    }
-    clip_box = payload["clip_box"]
-    if clip_box is not None:
-        clip_box = tuple(tuple(float(value) for value in bounds) for bounds in clip_box)
+    clip_box = _validate_clip_box(payload["clip_box"])
+    image_names = [f"{view}.png" for view in request["views"]]
+    label_name = "labels.json" if request["labels"] != "none" else None
+    label_bytes = (
+        (json.dumps(legend, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n").encode("utf-8")
+        if label_name is not None
+        else None
+    )
 
-    output = Path(out)
-    output.mkdir(parents=True, exist_ok=True)
-    backend = get_backend(request["backend"])
-    png_names = []
-    image_reports = {}
-    for view, (size, panes) in pictures.items():
-        image = _draw_picture(backend, scene, view, size, panes, request["style"], labels, heat_legend, overlay, clip_box)
-        path = output / f"{view}.png"
-        _save_png(image, path)
-        png_names.append(path.name)
-        image_reports[path.name] = _image_report(size, panes, scene)
+    with _SafeOutputDirectory(Path(out)) as output:
+        backend = get_backend(request["backend"])
+        image_reports = {}
+        for view in request["views"]:
+            size, panes = picture_specs[view]
+            image = _draw_picture(
+                backend, scene, view, size, panes, request["style"], labels, heat_legend, overlay, clip_box
+            )
+            if not isinstance(image, Image.Image) or image.size != (size, size):
+                raise ValueError(f"renderer returned an invalid {view!r} image")
+            output.write_bytes(f"{view}.png", _png_bytes(image))
+            image_reports[f"{view}.png"] = _image_report(size, panes, scene)
+        if label_name is not None and label_bytes is not None:
+            output.write_bytes(label_name, label_bytes)
 
-    label_name = None
-    if request["labels"] != "none":
-        label_name = "labels.json"
-        label_bytes = (json.dumps(legend, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
-        (output / label_name).write_bytes(label_bytes)
-    return {"images": png_names, "labels": label_name, "image_reports": image_reports}
+    result = {"images": image_names, "labels": label_name, "image_reports": image_reports}
+    _limits.json_size_limited(result, _limits.MAX_RENDER_RESULT_BYTES, "render metadata")
+    return result
 
 
 def finish_render(prepared: dict[str, Any], rendered: dict[str, Any], out: Path) -> list[Path]:
     """Combine sandboxed B-rep inspection with the image visibility reported by VTK."""
-    if prepared.get("version") != 1:
+    if not isinstance(prepared, dict) or prepared.get("version") != 1:
         raise ValueError("unsupported prepared render bundle version")
-    request = prepared["render"]["request"]
+    render_payload = prepared.get("render")
+    if not isinstance(render_payload, dict):
+        raise ValueError("prepared render bundle is missing render data")
+    request = _validate_render_request(render_payload.get("request"))
     image_names = [f"{view}.png" for view in request["views"]]
-    if rendered.get("images") != image_names:
+    if not isinstance(rendered, dict) or set(rendered) != {"images", "labels", "image_reports"}:
+        raise ValueError("the mesh renderer returned malformed metadata")
+    _limits.json_size_limited(rendered, _limits.MAX_RENDER_RESULT_BYTES, "render metadata")
+    if rendered["images"] != image_names:
         raise ValueError("the mesh renderer returned unexpected image names")
     label_name = "labels.json" if request["labels"] != "none" else None
-    if rendered.get("labels") != label_name:
+    if rendered["labels"] != label_name:
         raise ValueError("the mesh renderer returned an unexpected label file")
-    if set(rendered.get("image_reports", {})) != set(image_names):
+    image_reports = rendered["image_reports"]
+    if not isinstance(image_reports, dict) or set(image_reports) != set(image_names):
         raise ValueError("the mesh renderer returned incomplete image visibility metadata")
-    report = dict(prepared["inspection"])
-    report["images"] = rendered["image_reports"]
-    output = Path(out)
-    output.mkdir(parents=True, exist_ok=True)
-    inspection_path = output / "inspection.json"
-    inspection_path.write_bytes(
-        (json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
-    )
-    names = [*image_names, inspection_path.name]
+    raw_report = prepared.get("inspection")
+    if not isinstance(raw_report, dict):
+        raise ValueError("prepared render bundle is missing inspection data")
+    _limits.json_size_limited(raw_report, _limits.MAX_INSPECTION_JSON_BYTES, "render inspection")
+    report = dict(raw_report)
+    report["images"] = image_reports
+    report_bytes = (json.dumps(report, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n").encode("utf-8")
+    if len(report_bytes) > _limits.MAX_INSPECTION_JSON_BYTES:
+        raise ValueError(f"render inspection exceeds {_limits.MAX_INSPECTION_JSON_BYTES} bytes")
+
+    with _SafeOutputDirectory(Path(out)) as output:
+        inspection_path = output.write_bytes("inspection.json", report_bytes)
+        paths = [output.path / name for name in image_names] + [inspection_path]
     if label_name is not None:
-        names.append(label_name)
-    return [output / name for name in names]
+        paths.append(output.path / label_name)
+    return paths
 
 
 def render_prepared(prepared: dict[str, Any], out: Path) -> list[Path]:
@@ -481,41 +588,357 @@ def _scene_to_payload(scene: RenderScene) -> dict[str, Any]:
     }
 
 
-def _scene_from_payload(payload: dict[str, Any]) -> RenderScene:
-    return RenderScene(
-        faces=[
-            RenderFace(
-                index=int(face["index"]),
-                source_index=face["source_index"],
-                feature=face["feature"],
-                points=np.asarray(face["points"], dtype=np.float64),
-                triangles=np.asarray(face["triangles"], dtype=np.int64),
-                normal=tuple(face["normal"]),
-                anchor=tuple(face["anchor"]),
-                section_cap=bool(face["section_cap"]),
-                highlighted=bool(face["highlighted"]),
-                color=tuple(face["color"]),
-                triangle_colors=tuple(tuple(color) for color in face["triangle_colors"]),
+def _require_dict(value: Any, name: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError(f"{name} must be an object")
+    return value
+
+
+def _require_list(value: Any, name: str) -> list[Any]:
+    if not isinstance(value, list):
+        raise ValueError(f"{name} must be an array")
+    return value
+
+
+def _bounded_text(value: Any, name: str, *, maximum: int = _limits.MAX_RENDER_TEXT_LENGTH) -> str:
+    if not isinstance(value, str) or len(value) > maximum:
+        raise ValueError(f"{name} must be a string of at most {maximum} characters")
+    return value
+
+
+def _nonnegative_int(value: Any, name: str, *, maximum: int | None = None) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"{name} must be a non-negative integer")
+    if maximum is not None and value > maximum:
+        raise ValueError(f"{name} exceeds {maximum}")
+    return value
+
+
+def _finite_number(value: Any, name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ValueError(f"{name} must be a finite number")
+    try:
+        if not math.isfinite(value):
+            raise ValueError(f"{name} must be a finite number")
+        return float(value)
+    except (OverflowError, ValueError):
+        raise ValueError(f"{name} must be a finite number") from None
+
+
+def _vec3(value: Any, name: str) -> Vec3:
+    values = _require_list(value, name)
+    if len(values) != 3:
+        raise ValueError(f"{name} must contain exactly three coordinates")
+    return tuple(_finite_number(component, f"{name} coordinate") for component in values)  # type: ignore[return-value]
+
+
+def _rgb(value: Any, name: str) -> tuple[int, int, int]:
+    values = _require_list(value, name)
+    if len(values) != 3:
+        raise ValueError(f"{name} must contain three color components")
+    components = tuple(_nonnegative_int(component, name, maximum=255) for component in values)
+    return components  # type: ignore[return-value]
+
+
+def _optional_index(value: Any, name: str) -> int | None:
+    return None if value is None else _nonnegative_int(value, name)
+
+
+def _validate_render_request(raw: Any) -> dict[str, Any]:
+    request = _require_dict(raw, "render request")
+    if set(request) != {"backend", "views", "style", "labels"}:
+        raise ValueError("render request has unexpected fields")
+    backend = _bounded_text(request["backend"], "render backend", maximum=64)
+    style = request["style"]
+    if not isinstance(style, str) or style not in _STYLES:
+        raise ValueError("render style is not supported")
+    labels = request["labels"]
+    if not isinstance(labels, str) or labels not in _LABELS:
+        raise ValueError("render label mode is not supported")
+    views = _require_list(request["views"], "render views")
+    if not views or len(views) > _limits.MAX_RENDER_VIEWS:
+        raise ValueError(f"render must contain 1 to {_limits.MAX_RENDER_VIEWS} views")
+    checked_views = []
+    for view in views:
+        if not isinstance(view, str) or view not in _ALLOWED_RENDER_VIEWS:
+            raise ValueError(f"unsupported render view {view!r}")
+        if view in checked_views:
+            raise ValueError(f"render view {view!r} is repeated")
+        checked_views.append(view)
+    return {"backend": backend, "views": checked_views, "style": style, "labels": labels}
+
+
+def _validate_picture_specs(views: list[str], raw: Any) -> dict[str, tuple[int, list[_Pane]]]:
+    pictures = _require_dict(raw, "render pictures")
+    for view in pictures:
+        if not isinstance(view, str) or view not in _ALLOWED_RENDER_VIEWS:
+            raise ValueError(f"unsupported render picture name {view!r}")
+    if set(pictures) != set(views):
+        raise ValueError("render picture names must exactly match the requested views")
+
+    picture_specs = {}
+    for view in views:
+        spec = _require_dict(pictures[view], f"picture {view!r}")
+        if set(spec) != {"size", "panes"}:
+            raise ValueError(f"picture {view!r} has unexpected fields")
+        size = spec["size"]
+        if isinstance(size, bool) or not isinstance(size, int) or not 1 <= size <= _limits.MAX_RENDER_SIZE:
+            raise ValueError(f"render image size must be an integer from 1 to {_limits.MAX_RENDER_SIZE} pixels")
+        raw_panes = _require_list(spec["panes"], f"picture {view!r} panes")
+        expected_panes = {"front", "right", "top", "iso"} if view == "sheet" else {view}
+        if not raw_panes or len(raw_panes) > _limits.MAX_RENDER_PANES:
+            raise ValueError(f"picture {view!r} has an invalid pane count")
+        panes = []
+        for raw_pane in raw_panes:
+            pane = _require_dict(raw_pane, "render pane")
+            if set(pane) != {"view", "camera", "x", "y", "width", "height", "drawn"}:
+                raise ValueError("render pane has unexpected fields")
+            pane_view = pane["view"]
+            if not isinstance(pane_view, str) or pane_view not in expected_panes:
+                raise ValueError(f"render pane does not belong to picture {view!r}")
+            camera_data = _require_dict(pane["camera"], "render camera")
+            if set(camera_data) != {"name", "position", "focal_point", "view_up", "right", "up", "parallel_scale", "distance"}:
+                raise ValueError("render camera has unexpected fields")
+            camera = CameraSpec(
+                name=_bounded_text(camera_data["name"], "camera name", maximum=64),
+                position=_vec3(camera_data["position"], "camera position"),
+                focal_point=_vec3(camera_data["focal_point"], "camera focal point"),
+                view_up=_vec3(camera_data["view_up"], "camera view up"),
+                right=_vec3(camera_data["right"], "camera right vector"),
+                up=_vec3(camera_data["up"], "camera up vector"),
+                parallel_scale=_finite_number(camera_data["parallel_scale"], "camera parallel scale"),
+                distance=_finite_number(camera_data["distance"], "camera distance"),
             )
-            for face in payload["faces"]
-        ],
-        lines=[
-            RenderLine(
-                points=tuple(tuple(point) for point in line["points"]),
-                role=line["role"],
-                index=line["index"],
-                source_index=line["source_index"],
-                feature=line["feature"],
-                anchor=tuple(line["anchor"]) if line["anchor"] is not None else None,
-                highlighted=bool(line["highlighted"]),
+            if camera.parallel_scale <= 0 or camera.distance <= 0:
+                raise ValueError("camera scale and distance must be positive")
+            x = _nonnegative_int(pane["x"], "pane x", maximum=size)
+            y = _nonnegative_int(pane["y"], "pane y", maximum=size)
+            width = _nonnegative_int(pane["width"], "pane width", maximum=size)
+            height = _nonnegative_int(pane["height"], "pane height", maximum=size)
+            if width == 0 or height == 0 or x + width > size or y + height > size:
+                raise ValueError("render pane lies outside its image")
+            drawn = _require_list(pane["drawn"], "drawn label numbers")
+            if len(drawn) > _limits.MAX_RENDER_LABELS:
+                raise ValueError("render pane has too many labels")
+            label_numbers = tuple(
+                _nonnegative_int(number, "drawn label number", maximum=_limits.MAX_RENDER_LABELS)
+                for number in drawn
             )
-            for line in payload["lines"]
-        ],
-        bounds=tuple(tuple(bounds) for bounds in payload["bounds"]),
-        units=payload["units"],
-        section_label=payload["section_label"],
-        data_colors=bool(payload["data_colors"]),
+            if any(number == 0 for number in label_numbers):
+                raise ValueError("drawn label numbers must be positive")
+            panes.append(_Pane(pane_view, camera, x, y, width, height, drawn=label_numbers))
+        picture_specs[view] = (size, panes)
+    return picture_specs
+
+
+def _validate_payload_labels(raw_labels: Any, raw_legend: Any, mode: str) -> tuple[list[_Label], dict[str, Any]]:
+    labels_data = _require_list(raw_labels, "render labels")
+    legend = _require_dict(raw_legend, "render label legend")
+    if len(labels_data) > _limits.MAX_RENDER_LABELS or len(legend) > _limits.MAX_RENDER_LABELS:
+        raise ValueError(f"render has more than {_limits.MAX_RENDER_LABELS} labels")
+    _limits.json_size_limited(legend, _limits.MAX_LABELS_JSON_BYTES, "render label legend")
+    if mode == "none":
+        if labels_data or legend:
+            raise ValueError("a render with labels disabled must not contain labels")
+        return [], legend
+    if len(labels_data) != len(legend):
+        raise ValueError("render label list and legend do not match")
+    labels = []
+    for index, raw_item in enumerate(labels_data, start=1):
+        item = _require_dict(raw_item, "render label")
+        if set(item) != {"number", "selector", "feature", "kind", "index", "anchor"}:
+            raise ValueError("render label has unexpected fields")
+        number = _nonnegative_int(item["number"], "render label number", maximum=_limits.MAX_RENDER_LABELS)
+        if number != index:
+            raise ValueError("render label numbers must be sequential")
+        selector = _bounded_text(item["selector"], "render label selector", maximum=512)
+        feature = item["feature"]
+        if feature is not None:
+            feature = _bounded_text(feature, "render label feature")
+        kind = item["kind"]
+        expected_kind = {"faces": "face", "edges": "edge", "features": "feature"}[mode]
+        if kind != expected_kind:
+            raise ValueError("render label kind does not match the requested label mode")
+        entity_index = _optional_index(item["index"], "render label index")
+        if (kind == "feature") != (entity_index is None):
+            raise ValueError("render label has an invalid entity index")
+        anchor = _vec3(item["anchor"], "render label anchor")
+        legend_item = _require_dict(legend.get(str(number)), "render label legend item")
+        expected = {"selector": selector, "feature": feature, "kind": kind, "index": entity_index}
+        if legend_item != expected:
+            raise ValueError("render label legend does not match its label")
+        labels.append(_Label(number, selector, feature, kind, entity_index, anchor))
+    if set(legend) != {str(index) for index in range(1, len(labels) + 1)}:
+        raise ValueError("render label legend has unexpected keys")
+    return labels, legend
+
+
+def _validate_heat_legend(raw: Any) -> _HeatLegend | None:
+    if raw is None:
+        return None
+    value = _require_dict(raw, "render heat legend")
+    if set(value) != {"kind", "minimum", "maximum", "units", "heuristic", "reverse", "limit"}:
+        raise ValueError("render heat legend has unexpected fields")
+    kind = _bounded_text(value["kind"], "render heat legend kind", maximum=128)
+    reverse = value["reverse"]
+    if not isinstance(reverse, bool):
+        raise ValueError("render heat legend reverse flag must be boolean")
+    limit = None if value["limit"] is None else _finite_number(value["limit"], "render heat legend limit")
+    return _HeatLegend(
+        kind=kind,
+        minimum=_finite_number(value["minimum"], "render heat legend minimum"),
+        maximum=_finite_number(value["maximum"], "render heat legend maximum"),
+        units=_bounded_text(value["units"], "render heat legend units", maximum=128),
+        heuristic=_bounded_text(value["heuristic"], "render heat legend description"),
+        reverse=reverse,
+        limit=limit,
     )
+
+
+def _validate_overlay(raw: Any) -> dict[str, Any]:
+    overlay = _require_dict(raw, "render overlay")
+    if set(overlay) != {"dimensions", "round_faces", "probes", "measures", "marks"}:
+        raise ValueError("render overlay has unexpected fields")
+    dimensions = overlay["dimensions"]
+    if not isinstance(dimensions, str) or dimensions not in _DIMENSIONS:
+        raise ValueError("render overlay has an unsupported dimensions mode")
+    result = {"dimensions": dimensions}
+    for name in ("round_faces", "probes", "measures", "marks"):
+        items = _require_list(overlay[name], f"render overlay {name}")
+        cap = _limits.MAX_RENDER_FACES if name == "round_faces" else _limits.MAX_RENDER_ANNOTATIONS
+        if len(items) > cap:
+            raise ValueError(f"render overlay has more than {cap} {name}")
+        result[name] = items
+    return result
+
+
+def _validate_clip_box(raw: Any) -> tuple[Vec3, Vec3] | None:
+    if raw is None:
+        return None
+    bounds = _require_list(raw, "render clip box")
+    if len(bounds) != 2:
+        raise ValueError("render clip box must have two corners")
+    low, high = _vec3(bounds[0], "render clip minimum"), _vec3(bounds[1], "render clip maximum")
+    if any(a > b for a, b in zip(low, high)):
+        raise ValueError("render clip box has reversed bounds")
+    return low, high
+
+
+def _scene_from_payload(payload: dict[str, Any]) -> RenderScene:
+    scene_data = _require_dict(payload, "render scene")
+    if set(scene_data) != {"faces", "lines", "bounds", "units", "section_label", "data_colors"}:
+        raise ValueError("render scene has unexpected fields")
+    raw_faces = _require_list(scene_data["faces"], "render faces")
+    raw_lines = _require_list(scene_data["lines"], "render lines")
+    if len(raw_faces) > _limits.MAX_RENDER_FACES or len(raw_lines) > _limits.MAX_RENDER_LINES:
+        raise ValueError("render scene exceeds its face or line limit")
+    vertex_count = triangle_count = 0
+    for raw_face in raw_faces:
+        face = _require_dict(raw_face, "render face")
+        points = _require_list(face.get("points"), "face points")
+        triangles = _require_list(face.get("triangles"), "face triangles")
+        vertex_count += len(points)
+        triangle_count += len(triangles)
+        if vertex_count > _limits.MAX_RENDER_VERTICES:
+            raise ValueError(f"render has more than {_limits.MAX_RENDER_VERTICES} vertices")
+        if triangle_count > _limits.MAX_RENDER_TRIANGLES:
+            raise ValueError(f"render has more than {_limits.MAX_RENDER_TRIANGLES} triangles")
+    for raw_line in raw_lines:
+        line = _require_dict(raw_line, "render line")
+        points = _require_list(line.get("points"), "line points")
+        vertex_count += len(points)
+        if vertex_count > _limits.MAX_RENDER_VERTICES:
+            raise ValueError(f"render has more than {_limits.MAX_RENDER_VERTICES} vertices")
+
+    faces = []
+    for raw_face in raw_faces:
+        face = _require_dict(raw_face, "render face")
+        if set(face) != {
+            "index", "source_index", "feature", "points", "triangles", "normal", "anchor", "section_cap",
+            "highlighted", "color", "triangle_colors",
+        }:
+            raise ValueError("render face has unexpected fields")
+        face_index = _nonnegative_int(face["index"], "face index", maximum=_limits.MAX_RENDER_FACES - 1)
+        source_index = _optional_index(face["source_index"], "source face index")
+        feature = None if face["feature"] is None else _bounded_text(face["feature"], "face feature")
+        raw_points = _require_list(face["points"], "face points")
+        points = [_vec3(point, "face vertex") for point in raw_points]
+        raw_triangles = _require_list(face["triangles"], "face triangles")
+        triangles = []
+        for raw_triangle in raw_triangles:
+            triangle = _require_list(raw_triangle, "triangle indices")
+            if len(triangle) != 3:
+                raise ValueError("each render triangle must have three indexes")
+            indexes = tuple(_nonnegative_int(value, "triangle index", maximum=max(len(points) - 1, 0)) for value in triangle)
+            if not points or any(value >= len(points) for value in indexes):
+                raise ValueError("triangle index is outside its face vertex array")
+            triangles.append(indexes)
+        raw_colors = _require_list(face["triangle_colors"], "triangle colors")
+        if raw_colors and len(raw_colors) != len(triangles):
+            raise ValueError("render triangle colors must match the triangle count")
+        colors = tuple(_rgb(color, "triangle color") for color in raw_colors)
+        section_cap, highlighted = face["section_cap"], face["highlighted"]
+        if not isinstance(section_cap, bool) or not isinstance(highlighted, bool):
+            raise ValueError("render face flags must be booleans")
+        faces.append(
+            RenderFace(
+                index=face_index,
+                source_index=source_index,
+                feature=feature,
+                points=np.asarray(points, dtype=np.float64),
+                triangles=np.asarray(triangles, dtype=np.int64).reshape(-1, 3),
+                normal=_vec3(face["normal"], "face normal"),
+                anchor=_vec3(face["anchor"], "face anchor"),
+                section_cap=section_cap,
+                highlighted=highlighted,
+                color=_rgb(face["color"], "face color"),
+                triangle_colors=colors,
+            )
+        )
+
+    lines = []
+    allowed_roles = {"edge", "tangent", "seam", "hatch"}
+    for raw_line in raw_lines:
+        line = _require_dict(raw_line, "render line")
+        if set(line) != {"points", "role", "index", "source_index", "feature", "anchor", "highlighted"}:
+            raise ValueError("render line has unexpected fields")
+        points = [_vec3(point, "line point") for point in _require_list(line["points"], "line points")]
+        if len(points) < 2:
+            raise ValueError("render line must have at least two points")
+        role = line["role"]
+        if not isinstance(role, str) or role not in allowed_roles:
+            raise ValueError("render line has an unsupported role")
+        feature = None if line["feature"] is None else _bounded_text(line["feature"], "line feature")
+        anchor = None if line["anchor"] is None else _vec3(line["anchor"], "line anchor")
+        highlighted = line["highlighted"]
+        if not isinstance(highlighted, bool):
+            raise ValueError("render line highlighted flag must be boolean")
+        lines.append(
+            RenderLine(
+                points=tuple(points),
+                role=role,
+                index=_optional_index(line["index"], "line index"),
+                source_index=_optional_index(line["source_index"], "source edge index"),
+                feature=feature,
+                anchor=anchor,
+                highlighted=highlighted,
+            )
+        )
+
+    raw_bounds = _require_list(scene_data["bounds"], "render bounds")
+    if len(raw_bounds) != 2:
+        raise ValueError("render bounds must contain two corners")
+    bounds = (_vec3(raw_bounds[0], "render minimum bounds"), _vec3(raw_bounds[1], "render maximum bounds"))
+    if any(low > high for low, high in zip(*bounds)):
+        raise ValueError("render bounds are reversed")
+    units = _bounded_text(scene_data["units"], "render units", maximum=128)
+    section_label = scene_data["section_label"]
+    if section_label is not None:
+        section_label = _bounded_text(section_label, "render section label")
+    data_colors = scene_data["data_colors"]
+    if not isinstance(data_colors, bool):
+        raise ValueError("render data colors flag must be boolean")
+    return RenderScene(faces, lines, bounds, units, section_label, data_colors)
 
 
 def _json_safe(value: Any) -> Any:
@@ -553,6 +976,8 @@ def _read_request(req: Any) -> dict[str, Any]:
         views = list(raw_views)
     if not views:
         views = ["sheet"]
+    if len(views) > _limits.MAX_RENDER_VIEWS:
+        raise ValueError(f"render supports at most {_limits.MAX_RENDER_VIEWS} views per request")
     normalized_views = []
     for view in views:
         key = str(view).strip().lower()
@@ -577,8 +1002,8 @@ def _read_request(req: Any) -> dict[str, Any]:
     size = _field(req, "size", 1024)
     if size is None:
         size = 1024
-    if isinstance(size, bool) or not isinstance(size, int) or size < 1 or size > 2048:
-        raise ValueError("render size must be an integer between 1 and 2048 pixels")
+    if isinstance(size, bool) or not isinstance(size, int) or size < 1 or size > _limits.MAX_RENDER_SIZE:
+        raise ValueError(f"render size must be an integer between 1 and {_limits.MAX_RENDER_SIZE} pixels")
 
     highlight = _field(req, "highlight", ()) or ()
     if isinstance(highlight, str):
@@ -2718,7 +3143,7 @@ def _expanded_range(minimum: float, maximum: float) -> tuple[float, float]:
     return minimum - margin, maximum + margin
 
 
-def _save_png(image: Image.Image, path: Path) -> None:
+def _png_bytes(image: Image.Image) -> bytes:
     buffer = BytesIO()
     image.convert("RGB").save(
         buffer,
@@ -2726,7 +3151,7 @@ def _save_png(image: Image.Image, path: Path) -> None:
         optimize=False,
         compress_level=9,
     )
-    path.write_bytes(buffer.getvalue())
+    return buffer.getvalue()
 
 
 def _fmt(value: float) -> str:
