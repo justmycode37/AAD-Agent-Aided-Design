@@ -851,7 +851,9 @@ class Handlers:
             return failed
         keys = ("sheet", "views", "dimensions", "style", "title_block", "formats", "notes", "revisions", "bom")
         out = project.path / "exports" / f"{project.name}-r{rev}-drawing"
-        result, _ = await self._op(project, rev, "drawing", {k: params[k] for k in keys if k in params}, out_dir=out)
+        drawing_args = {k: params[k] for k in keys if k in params}
+        drawing_args["_revision_status"] = str(_rev_meta(project, rev).get("status") or "draft")
+        result, _ = await self._op(project, rev, "drawing", drawing_args, out_dir=out)
         if not result.get("ok"):
             return self._op_failed(project, rev, result)
         drawing = result["drawing"]
@@ -868,6 +870,8 @@ class Handlers:
                     "status": _rev_meta(project, rev).get("status", "draft"),
                     "summary": drawing.get("summary") or f"Drew {project.name} rev {rev}: {', '.join(files)}.",
                     "artifacts": files,
+                    "sheet": drawing.get("sheet"),
+                    "views": drawing.get("views") or [],
                     "checks": sort_checks(checks),
                     "failure": drawing.get("failure"),
                 }

@@ -65,13 +65,60 @@ result = asm
     built = call(mcp_process, "aad_build", project="assembly-drawing", source=source, wait_s=WAIT_S)
     assert built["structuredContent"]["ok"], built
 
-    response = call(mcp_process, "aad_drawing", project="assembly-drawing", formats=["svg"])
+    response = call(
+        mcp_process,
+        "aad_drawing",
+        project="assembly-drawing",
+        formats=["svg", "pdf", "png"],
+    )
     result = response["structuredContent"]
     assert not response.get("isError"), response
     assert result["ok"] is True
     assert "3 geometry-derived dimensions" in result["summary"]
     assert "3 BOM rows from assembly children" in result["summary"]
-    assert set(result["artifacts"]) == {"svg"}
+    assert set(result["artifacts"]) == {"svg", "pdf", "png"}
+    assert "DRAFT - UNVERIFIED" in Path(result["artifacts"]["svg"]).read_text(encoding="utf-8")
+    assert all(Path(path).is_file() for path in result["artifacts"].values())
+
+
+def test_unreadable_section_scale_is_rejected_and_real_scale_is_reported(mcp_process: Any, aad_env: dict[str, str]) -> None:
+    initialize(mcp_process)
+    created = call(mcp_process, "aad_new", name="unreadable-section")
+    assert created["structuredContent"]["ok"], created
+    built = call(
+        mcp_process,
+        "aad_build",
+        project="unreadable-section",
+        source="from build123d import Box\nresult = Box(30, 20, 10)\n",
+        wait_s=WAIT_S,
+    )
+    assert built["structuredContent"]["ok"], built
+
+    response = call(
+        mcp_process,
+        "aad_drawing",
+        project="unreadable-section",
+        views=[
+            {"name": "section-a", "kind": "section", "plane": "XY", "offset": 0, "scale": 1e-8},
+        ],
+        dimensions="none",
+        formats=["svg", "pdf", "png"],
+    )
+    result = response["structuredContent"]
+    assert response["isError"] is True
+    assert result["ok"] is False
+    assert result.get("artifacts", {}) == {}
+    assert "preview" not in result
+    failure = next(check for check in result["checks"] if check["id"] == "view_readability")
+    assert failure["status"] == "fail"
+    assert "Increase the view scale" in failure["fix_hint"]
+    section = next(view for view in result["views"] if view["name"] == "section-a")
+    assert section["scale_multiplier"] == pytest.approx(1e-8)
+    assert section["scale"] == pytest.approx(result["sheet"]["scale"] * section["scale_multiplier"])
+    assert section["scale_label"] == "1e-07:1"
+
+    output_dir = Path(aad_env["HOME"]) / "AAD" / "unreadable-section" / "exports" / "unreadable-section-r1-drawing"
+    assert list(output_dir.glob("drawing.*")) == []
 
 
 def test_layout_failure_suppresses_files_and_explains_how_to_retry(mcp_process: Any, aad_env: dict[str, str]) -> None:

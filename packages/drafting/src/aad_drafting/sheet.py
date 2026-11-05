@@ -57,6 +57,7 @@ SHEET_SIZES_MM = {
     "TABLOID": (431.8, 279.4),
 }
 DIMENSION_TEXT_HEIGHT_MM = 3.0
+MIN_READABLE_VIEW_SPAN_MM = 2.5
 
 
 @dataclass(frozen=True)
@@ -98,6 +99,8 @@ def _request_field_is_omitted(request: Any, name: str) -> bool:
 def _drawing_fix_hint(check_id: str) -> str:
     if check_id == "minimum_text_height":
         return "Use a larger sheet or reduce content so all model and drawing text is at least 2.5 mm high."
+    if check_id == "view_readability":
+        return "Increase the view scale multiplier or remove unreadable views, then retry."
     if check_id == "2d.undimensioned_features":
         return (
             "Use dimensions='none' for an intentional geometry-only sheet, or redraw unsupported contours "
@@ -264,7 +267,7 @@ def _normalize_request(req: Any) -> _NormalizedRequest:
     if not isinstance(raw_title_block, Mapping):
         raise ValueError("title_block must be a mapping of field names to text.")
     title_block = {str(key).strip().lower(): str(value) for key, value in raw_title_block.items()}
-    reserved_title_fields = {"units", "sheet", "scale", "style", "projection"}
+    reserved_title_fields = {"units", "sheet", "scale", "style", "projection", "status"}
     conflicting_title_fields = sorted(reserved_title_fields.intersection(title_block))
     if conflicting_title_fields:
         raise ValueError(
@@ -1549,6 +1552,19 @@ def _drawing_checks(
             }
         )
 
+    unreadable_views = {
+        name: max(view.bounds.width, view.bounds.height)
+        for name, view in placed.items()
+        if max(view.bounds.width, view.bounds.height) < MIN_READABLE_VIEW_SPAN_MM - 1e-8
+    }
+    if unreadable_views:
+        add_check(
+            "view_readability",
+            "fail",
+            "One or more requested views are too small to read at the selected physical scale.",
+            "; ".join(f"{name}={span:.6g} mm" for name, span in unreadable_views.items()),
+        )
+
     add_check(
         "layout_fit",
         "pass" if plan.fits else "fail",
@@ -1795,9 +1811,18 @@ def _drawing_checks(
     return checks
 
 
-def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
+def make_drawing(
+    ctx: Any,
+    req: Any,
+    out: str | Path,
+    *,
+    revision_status: str | None = None,
+) -> DrawingResult:
     """Project a structural model context onto a composed drawing sheet."""
     request = _normalize_request(req)
+    if revision_status is not None and revision_status.strip().lower() != "verified":
+        title_block = {**request.title_block, "status": "DRAFT - UNVERIFIED"}
+        request = replace(request, title_block=title_block)
     if context_value(ctx, "kind") == "assembly":
         defaults = {}
         if _request_field_is_omitted(req, "dimensions"):
@@ -1999,6 +2024,8 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
             "hidden_edges": view.projection.hidden_count,
             "kind": view.projection.metadata.get("kind", "orthographic"),
             "scale_multiplier": view.projection.metadata.get("scale", 1.0),
+            "scale": plan.scale * view.projection.metadata.get("scale", 1.0),
+            "scale_label": _scale_label(plan.scale * view.projection.metadata.get("scale", 1.0)),
             "plane": view.projection.metadata.get("plane"),
             "offset": view.projection.metadata.get("offset"),
         }
