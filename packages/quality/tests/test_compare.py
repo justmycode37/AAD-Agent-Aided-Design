@@ -85,7 +85,8 @@ def test_prototype_fixture_scores_and_proper_registration(prototype_meshes):
     ]
     scores = {}
     for name, model, reference, expected in pairs:
-        result = comparison.compare_meshes(model, reference, compute_iou=False)
+        # The 45 s default is a product budget. A slow CI runner must not fail a scoring test on it.
+        result = comparison.compare_meshes(model, reference, compute_iou=False, time_budget_s=120.0)
         scores[name] = result["F@0.1%D"]["F"]
         assert scores[name] == pytest.approx(expected, abs=0.01), name
         assert result["det_R"] == pytest.approx(1.0, abs=1e-5), name
