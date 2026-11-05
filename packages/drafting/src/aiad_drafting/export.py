@@ -233,6 +233,8 @@ def write_svg(path: Path, width_mm: float, height_mm: float, entities: list[Prim
         )
         if entity.dimension_id is not None:
             label.set("data-dimension-id", entity.dimension_id)
+        if abs(entity.rotation) > 1e-12:
+            label.set("transform", f"rotate({_fmt(-entity.rotation)} {_fmt(x)} {_fmt(height_mm-y)})")
         label.text = entity.text or ""
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -269,9 +271,10 @@ def write_dxf(path: Path, width_mm: float, height_mm: float, entities: list[Prim
     document.header["$MEASUREMENT"] = 1
     document.header["$LUNITS"] = 2
     document.header["$LUPREC"] = 2
-    if "AIAD_HIDDEN" not in document.linetypes:
+    # Some CAD readers recognize conventional names instead of custom patterns.
+    if "HIDDEN" not in document.linetypes:
         document.linetypes.new(
-            "AIAD_HIDDEN",
+            "HIDDEN",
             dxfattribs={"description": "AIAD hidden edges", "pattern": [2.3, 1.4, -0.9]},
         )
 
@@ -300,7 +303,7 @@ def write_dxf(path: Path, width_mm: float, height_mm: float, entities: list[Prim
             "lineweight": max(9, min(50, int(entity.width * 100))),
         }
         if entity.dash:
-            attributes["linetype"] = "AIAD_HIDDEN"
+            attributes["linetype"] = "HIDDEN"
 
         if entity.kind == "line":
             modelspace.add_line(entity.points[0], entity.points[1], dxfattribs=attributes)
@@ -532,8 +535,27 @@ def write_png(path: Path, width_mm: float, height_mm: float, entities: list[Prim
                 x_px -= advance/2
             elif entity.align == "right":
                 x_px -= advance
-            draw.text((round(x_px),height_px-round(y*raster_scale)),value,
-                      font=font,fill="#111111",anchor="ls")
+            if abs(entity.rotation) <= 1e-12:
+                draw.text((round(x_px),height_px-round(y*raster_scale)),value,
+                          font=font,fill="#111111",anchor="ls")
+            elif value:
+                # Render a tight glyph tile, then rotate its baseline anchor
+                # with the tile. A square sized from string width would use
+                # excessive memory for long annotations.
+                offset = x_px - x*raster_scale
+                left, top, right, bottom = font.getbbox(value, anchor="ls")
+                x0, y0 = math.floor(left+offset)-2, math.floor(top)-2
+                x1, y1 = math.ceil(right+offset)+2, math.ceil(bottom)+2
+                tile = Image.new("RGBA", (max(1,x1-x0),max(1,y1-y0)), (0,0,0,0))
+                ImageDraw.Draw(tile).text((-x0+offset,-y0), value, font=font,
+                                         fill="#111111", anchor="ls")
+                rotated = tile.rotate(entity.rotation, resample=Image.Resampling.BICUBIC, expand=True)
+                phi = math.radians(entity.rotation)
+                dx, dy = -x0-tile.width/2, -y0-tile.height/2
+                anchor_x = rotated.width/2 + dx*math.cos(phi) + dy*math.sin(phi)
+                anchor_y = rotated.height/2 - dx*math.sin(phi) + dy*math.cos(phi)
+                point = (round(x*raster_scale-anchor_x), round(height_px-y*raster_scale-anchor_y))
+                image.paste(rotated, point, rotated)
 
 
     path.parent.mkdir(parents=True, exist_ok=True)

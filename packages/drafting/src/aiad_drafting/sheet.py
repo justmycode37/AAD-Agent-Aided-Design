@@ -301,7 +301,14 @@ def _normalize_request(req: Any) -> _NormalizedRequest:
     )
 
 
+def _display_precision(value: float, precision: int) -> int:
+    if value != 0 and round(float(value), precision) == 0:
+        return max(precision, 1 - math.floor(math.log10(abs(value))))
+    return precision
+
+
 def _format_number(value: float, precision: int) -> str:
+    precision = _display_precision(value, precision)
     rounded = round(float(value), precision)
     if precision == 0:
         return f"{rounded:.0f}"
@@ -325,6 +332,9 @@ def _dimension_record(
     holes: tuple[int, ...] = (),
 ) -> dict[str, Any]:
     numeric_value = float(value)
+    precision = _display_precision(numeric_value, precision)
+    if tolerance is not None:
+        precision = _display_precision(tolerance, precision)
     label = _format_number(numeric_value, precision)
     if tolerance is not None:
         label = f"{label} +/- {_format_number(tolerance, precision)}"
@@ -628,7 +638,7 @@ def _emit_view_geometry(entities: list[Primitive], placed: _PlacedView) -> None:
     projection = placed.projection
     hatches = set(projection.metadata.get("hatch_curves", ()))
     for curve in projection.curves:
-        layer = "HATCH" if curve in hatches else "HIDDEN" if curve.hidden else "VISIBLE"
+        layer = curve.layer or ("HATCH" if curve in hatches else "HIDDEN" if curve.hidden else "VISIBLE")
         dash = curve.hidden
         if curve.kind == "line":
             points = [_sheet_point(placed, point) for point in curve.points]
@@ -726,11 +736,15 @@ def _draw_overall_dimensions(
         for dimension in dimensions
         if dimension["kind"] == "overall"
     }
-    front = placed.get("front")
+    front = placed.get("front") or (placed.get("top") if by_axis.get("x", {}).get("planar") else None)
     top = placed.get("top")
     if front and "x" in by_axis:
-        bounds = front.bounds
-        y_dim = bounds.ymin - 12.0
+        bounds = _measurement_bounds(front)
+        if by_axis["x"].get("planar"):
+            from .layout import _view_padding
+            y_dim = front.bounds.ymin - _view_padding("top", dimensions)[1] + 4.0
+        else:
+            y_dim = bounds.ymin - 12.0
         entities.append(line(bounds.xmin, bounds.ymin, bounds.xmin, y_dim - 1, "DIMENSIONS", 0.12))
         entities.append(line(bounds.xmax, bounds.ymin, bounds.xmax, y_dim - 1, "DIMENSIONS", 0.12))
         label = by_axis["x"]["display"]
@@ -755,7 +769,7 @@ def _draw_overall_dimensions(
         entities.append(text(by_axis["z"]["display"], x_dim + 2.2, (bounds.ymin + bounds.ymax) / 2 - 1, 2.8, "DIMENSIONS", dimension_id=by_axis["z"]["id"]))
 
     if top and "y" in by_axis:
-        bounds = top.bounds
+        bounds = _measurement_bounds(top)
         has_y_ordinates = any(
             dimension["kind"] == "hole_coordinate" and dimension["axis"] == "y"
             or dimension["kind"] == "hole_spacing" and dimension["axis"] == "y"
@@ -764,7 +778,7 @@ def _draw_overall_dimensions(
         from .layout import _view_padding
         left_reserve=_view_padding("top",dimensions)[0]
         label_width=text_width_mm(by_axis["y"]["display"],2.8)
-        x_dim=bounds.xmin-left_reserve+label_width+3.0
+        x_dim=top.bounds.xmin-left_reserve+label_width+3.0
         entities.append(line(bounds.xmin,bounds.ymin,x_dim-1,bounds.ymin,"DIMENSIONS",0.12))
         entities.append(line(bounds.xmin,bounds.ymax,x_dim-1,bounds.ymax,"DIMENSIONS",0.12))
         _dimension_line(entities,(x_dim,bounds.ymin),(x_dim,bounds.ymax),style)
@@ -792,6 +806,15 @@ def _ordinate_count_prefix(dimension: dict[str, Any]) -> str:
     return f"{count}X " if count > 1 else ""
 
 
+def _measurement_bounds(view: _PlacedView) -> ProjectedBounds:
+    model_bounds = view.projection.metadata.get("dimension_bounds")
+    if model_bounds is None:
+        return view.bounds
+    low = _sheet_point(view, model_bounds[:2])
+    high = _sheet_point(view, model_bounds[2:])
+    return ProjectedBounds(low[0], low[1], high[0], high[1])
+
+
 def _draw_hole_dimensions(
     entities: list[Primitive],
     placed: dict[str, _PlacedView],
@@ -810,6 +833,7 @@ def _draw_hole_dimensions(
 
     top_view = top.projection
     left, bottom = top.bounds.xmin, top.bounds.ymin
+    datum_left, datum_bottom = _measurement_bounds(top).xmin, _measurement_bounds(top).ymin
     x_dimensions = sorted(
         (dimension for dimension in dimensions if dimension["kind"] == "hole_coordinate" and dimension["axis"] == "x"),
         key=lambda dimension: dimension["value"],
@@ -849,8 +873,8 @@ def _draw_hole_dimensions(
         entities.append(text(label, station_x, baseline_y - 3.2, 2.6, "DIMENSIONS", "center", dimension_id=dimension["id"]))
     for row, stations in enumerate(x_rows):
         baseline_y = bottom - 8.0 - 4.5 * row
-        entities.append(line(left, baseline_y, max([left, *(station for station, _ in stations)]), baseline_y, "DIMENSIONS", 0.16))
-        entities.append(circle((left, baseline_y), 0.6, "DIMENSIONS", 0.16))
+        entities.append(line(datum_left, baseline_y, max([datum_left, *(station for station, _ in stations)]), baseline_y, "DIMENSIONS", 0.16))
+        entities.append(circle((datum_left, baseline_y), 0.6, "DIMENSIONS", 0.16))
 
     y_lanes: list[list[tuple[float, float]]] = []
     y_stations: list[tuple[dict[str, Any], float, str, int]] = []
@@ -933,8 +957,8 @@ def _draw_hole_dimensions(
         station_ys = [station_y for _, station_y, _, assigned_lane in y_stations if assigned_lane == lane]
         baseline_x = left - 13.0 - lane * lane_step
         if station_ys:
-            entities.append(line(baseline_x, min(station_ys), baseline_x, max(station_ys), "DIMENSIONS", 0.16))
-            entities.append(circle((baseline_x, top.bounds.ymin), 0.6, "DIMENSIONS", 0.16))
+            entities.append(line(baseline_x, min(datum_bottom, *station_ys), baseline_x, max(datum_bottom, *station_ys), "DIMENSIONS", 0.16))
+            entities.append(circle((baseline_x, datum_bottom), 0.6, "DIMENSIONS", 0.16))
 
     x_spacings = [d for d in dimensions if d["kind"] == "hole_spacing" and d["axis"] == "x"]
     x_coordinate_lanes = max((row for _, _, _, row in x_stations), default=-1) + 1
@@ -1106,8 +1130,39 @@ def _view_markers(entities, shape, placed, request):
             nx, ny = -dy/length, dx/length
             for x,y in (start,end):
                 entities.append(line(x,y,x+3*nx,y+3*ny,layer="SECTION_MARKERS",width=0.3))
-            entities.append(text(spec.label or spec.name.upper(), start[0]-3, start[1]+4,
-                                 2.6, "SECTION_MARKERS", "right"))
+            label = spec.label or spec.name.upper()
+            width, height = SHEET_SIZES_MM[request.sheet]
+            candidates = [
+                text(label, x, y, 2.6, "SECTION_MARKERS", align)
+                for x, y, align in (
+                    (start[0]-3, start[1]+4, "right"),
+                    (end[0]+3, end[1]+4, "left"),
+                    (start[0]+3, start[1]+7, "left"),
+                    (end[0]-3, end[1]+7, "right"),
+                    (start[0]+3, start[1]+10, "left"),
+                    (end[0]-3, end[1]+10, "right"),
+                    (start[0]+3, start[1]+14, "left"),
+                    (end[0]-3, end[1]+14, "right"),
+                    (start[0]+3, start[1]-7, "left"),
+                    (end[0]-3, end[1]-7, "right"),
+                )
+            ]
+            selected = None
+            for candidate in candidates:
+                rectangle = text_bounds(candidate)
+                if (rectangle.xmin < MARGIN_MM or rectangle.xmax > width-MARGIN_MM or
+                    rectangle.ymin < MARGIN_MM or rectangle.ymax > height-MARGIN_MM):
+                    continue
+                if any(primitive_intersects_rect(entity, rectangle) for entity in entities if entity.kind != "text"):
+                    continue
+                if any(rectangle.intersects(other, .15) for entity in entities if entity.kind == "text"
+                       and (other := text_bounds(entity)) is not None):
+                    continue
+                selected = candidate
+                break
+            # Retain a visible label if no candidate fits; drawing checks report
+            # its collision instead of silently omitting the section identity.
+            entities.append(selected or candidates[0])
         elif spec.kind == "detail":
             parent = placed.get(spec.parent or "front")
             if parent is None:
@@ -1401,15 +1456,20 @@ def _drawing_checks(
 def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
     """Project a structural model context onto a composed drawing sheet."""
     request = _normalize_request(req)
-    shape = context_shape(ctx)
+    planar = None
+    if context_value(ctx, "kind") == "2d" or (context_value(ctx, "sheet") is not None and context_value(ctx, "shape") is None):
+        from .drawing2d import prepare
+        planar = prepare(ctx, request)
+        request = planar["request"]
+    shape = planar["shape"] if planar else context_shape(ctx)
     units = context_units(ctx)
-    bounds = shape_bounds(shape)
+    bounds = planar["bounds"] if planar else shape_bounds(shape)
     if min(bounds.size) < -1e-9 or max(bounds.size) <= 1e-9:
         raise ValueError("The supplied shape has an empty or invalid bounding box.")
-    holes = through_holes(shape, bounds)
-    dimensions = _make_dimensions(request.dimensions, bounds, holes, units)
+    holes = planar["holes"] if planar else through_holes(shape, bounds)
+    dimensions = planar["dimensions"] if planar else _make_dimensions(request.dimensions, bounds, holes, units)
     cylinder_rows=[]
-    if request.dimensions == "auto":
+    if request.dimensions == "auto" and not planar:
         from .features import cylindrical_schedule
         cylinder_rows, cylinder_dimensions=cylindrical_schedule(shape,bounds,holes,units)
         dimensions.extend(cylinder_dimensions)
@@ -1436,7 +1496,7 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
             view = replace(view, direction=direction, up=up)
         resolved.append(view)
     request = replace(request, views=tuple(resolved))
-    projections = tuple(project_drawing_view(shape, view) for view in request.views)
+    projections = (planar["projection"],) if planar else tuple(project_drawing_view(shape, view) for view in request.views)
     page_width, page_height = SHEET_SIZES_MM[request.sheet]
     unit_factor = UNIT_TO_MM[units]
     scale_label = "1:1"
@@ -1456,6 +1516,7 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
             style=request.style,
             scale_label=scale_label,
             cylinders=cylinder_rows,
+            profiles=planar["profiles"] if planar else (),
         )
         plan = pack_views(
             projections,
@@ -1479,21 +1540,18 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
     for name, view in placed.items():
         first_entity = len(entities)
         _emit_view_geometry(entities, view)
+        if planar:
+            from .drawing2d import emit_labels
+            emit_labels(entities, planar, view)
         view_geometry[name] = entities[first_entity:]
-    marker_start = len(entities)
-    _view_markers(entities, shape, placed, request)
-    marker_geometry = [entity for entity in entities[marker_start:] if entity.kind != "text"]
-    if marker_geometry:
-        view_geometry["_markers"] = marker_geometry
-    _view_label_entities(entities, placed, request, view_geometry, page_width, page_height)
     for dimension in dimensions:
         if dimension["kind"] != "overall":
             continue
         first=len(entities)
         related=[dimension,*[d for d in dimensions if d["kind"] != "overall"]]
         _draw_overall_dimensions(entities, placed, related, request.style)
-        owner="front" if dimension["axis"] in {"x","z"} else "top"
-        entities[first:]=[replace(e,view_name=owner) for e in entities[first:]]
+        owner="top" if planar else "front" if dimension["axis"] in {"x","z"} else "top"
+        entities[first:]=[replace(e,view_name=owner, dimension_id=e.dimension_id or dimension["id"]) for e in entities[first:]]
     first_hole_entity=len(entities)
     hole_leader_ids = _draw_hole_dimensions(
         entities,
@@ -1507,6 +1565,12 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
         page_height,
     )
     entities[first_hole_entity:]=[replace(e,view_name="top") for e in entities[first_hole_entity:]]
+    marker_start = len(entities)
+    _view_markers(entities, shape, placed, request)
+    marker_geometry = [entity for entity in entities[marker_start:] if entity.kind != "text"]
+    if marker_geometry:
+        view_geometry["_markers"] = marker_geometry
+    _view_label_entities(entities, placed, request, view_geometry, page_width, page_height)
     entities.extend(auxiliary.entities)
     checks = _drawing_checks(
         entities,
@@ -1520,6 +1584,8 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
         hole_leader_ids,
         bom,
     )
+    if planar:
+        checks.extend(planar["checks"])
 
     output_dir = Path(out)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -1564,7 +1630,7 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
         }
         for name, view in placed.items()
     ]
-    all_passed = all(check["status"] in {"pass", "warn"} for check in checks)
+    all_passed = all(check["status"] in {"pass", "warn", "skip"} for check in checks)
     scale_text = _scale_label(plan.scale)
     format_summary = ", ".join(
         (*[format_name for format_name in request.formats if format_name != "png"], "png preview")
@@ -1602,6 +1668,8 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
             "layout_fits": plan.fits,
             "hole_count": len(holes),
             "bom_item_count": len(bom),
+            "kind": "2d" if planar else "3d",
+            **({"source_geometry_status": planar["geometry_status"]} if planar else {}),
         },
         views=view_results,
         ok=all_passed,

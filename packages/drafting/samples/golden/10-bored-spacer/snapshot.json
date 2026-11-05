@@ -1,0 +1,198 @@
+{
+  "bom": [],
+  "category": "turned",
+  "checks": [
+    {
+      "id": "layout_fit",
+      "status": "pass"
+    },
+    {
+      "id": "sheet_margins",
+      "status": "pass"
+    },
+    {
+      "id": "text_margins",
+      "status": "pass"
+    },
+    {
+      "id": "title_block_bounds",
+      "status": "pass"
+    },
+    {
+      "id": "title_block_text_overflow",
+      "status": "pass"
+    },
+    {
+      "id": "schedule_bounds",
+      "status": "pass"
+    },
+    {
+      "id": "schedule_text_overflow",
+      "status": "pass"
+    },
+    {
+      "id": "view_view_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "view_auxiliary_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "dimension_coverage",
+      "status": "pass"
+    },
+    {
+      "id": "dimension_sources",
+      "status": "pass"
+    },
+    {
+      "id": "hole_leader_coverage",
+      "status": "pass"
+    },
+    {
+      "id": "dimension_text_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "text_view_geometry_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "dimension_view_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "hole_leader_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "table_rule_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "minimum_text_height",
+      "status": "pass"
+    },
+    {
+      "id": "bom_quantities",
+      "status": "pass"
+    }
+  ],
+  "dimensions": [
+    {
+      "axis": "x",
+      "count": null,
+      "display": "32",
+      "id": "overall.x.32.",
+      "kind": "overall",
+      "unit": "mm",
+      "value": 32.0
+    },
+    {
+      "axis": "y",
+      "count": null,
+      "display": "32",
+      "id": "overall.y.32.",
+      "kind": "overall",
+      "unit": "mm",
+      "value": 32.0
+    },
+    {
+      "axis": "z",
+      "count": null,
+      "display": "20",
+      "id": "overall.z.20.",
+      "kind": "overall",
+      "unit": "mm",
+      "value": 20.0
+    },
+    {
+      "axis": null,
+      "count": 1,
+      "display": "10",
+      "id": "hole_diameter.value.10.0",
+      "kind": "hole_diameter",
+      "unit": "mm",
+      "value": 10.0
+    },
+    {
+      "axis": "x",
+      "count": 1,
+      "display": "16",
+      "id": "hole_coordinate.x.16.0",
+      "kind": "hole_coordinate",
+      "unit": "mm",
+      "value": 16.0
+    },
+    {
+      "axis": "y",
+      "count": 1,
+      "display": "16",
+      "id": "hole_coordinate.y.16.0",
+      "kind": "hole_coordinate",
+      "unit": "mm",
+      "value": 16.0
+    },
+    {
+      "axis": "Z",
+      "count": null,
+      "display": "DIA 32",
+      "id": "cylinder.2.size",
+      "kind": "cylinder_size",
+      "unit": "mm",
+      "value": 32.0
+    },
+    {
+      "axis": "Z",
+      "count": null,
+      "display": "0",
+      "id": "cylinder.2.from",
+      "kind": "cylinder_from",
+      "unit": "mm",
+      "value": 0.0
+    },
+    {
+      "axis": "Z",
+      "count": null,
+      "display": "20",
+      "id": "cylinder.2.to",
+      "kind": "cylinder_to",
+      "unit": "mm",
+      "value": 20.0
+    },
+    {
+      "axis": "Z",
+      "count": null,
+      "display": "20",
+      "id": "cylinder.2.length",
+      "kind": "cylinder_length",
+      "unit": "mm",
+      "value": 20.0
+    }
+  ],
+  "hole_count": 1,
+  "name": "10-bored-spacer",
+  "sheet": "A3",
+  "units": "mm",
+  "views": [
+    {
+      "hidden_edges": 4,
+      "kind": "orthographic",
+      "name": "front",
+      "visible_edges": 4
+    },
+    {
+      "hidden_edges": 0,
+      "kind": "orthographic",
+      "name": "top",
+      "visible_edges": 2
+    },
+    {
+      "hidden_edges": 7,
+      "kind": "orthographic",
+      "name": "iso",
+      "visible_edges": 11
+    }
+  ]
+}

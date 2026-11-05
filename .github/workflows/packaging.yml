@@ -1,0 +1,51 @@
+name: Packaging smoke
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: packaging-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  UV_PYTHON: "3.12"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  installed-wheel:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15-intel, ubuntu-latest]
+    name: Installed wheel (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+      - name: Install graphics and sandbox runtime
+        if: runner.os == 'Linux'
+        run: bash .github/scripts/setup_linux_runtime.sh
+      - name: Confirm packaging runner architecture
+        run: |
+          python3 - <<'PY'
+          import platform
+          import sys
+
+          expected = "x86_64"
+          actual = platform.machine().lower()
+          if actual != expected:
+              raise SystemExit(f"Expected {expected} packaging runner, got {actual}")
+          print(f"Packaging smoke runner: {sys.platform} {actual}")
+          PY
+      - name: Check lock file
+        run: uv lock --check
+      - name: Build local wheels and test an isolated uv tool install
+        run: uv run --no-project --python 3.12 --script .github/scripts/packaging_smoke.py

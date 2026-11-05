@@ -51,6 +51,8 @@ def viewer_mode(client: dict[str, Any] | None) -> str:
     setting = config.get("viewer")
     if setting == "off":
         return "none"
+    if os.environ.get("AIAD_REMOTE"):  # A window would open on the server, not on the user's machine.
+        return "inline"
     if setting != "auto":
         return setting
     # A host that advertises MCP Apps renders inline. Real-host results are in docs/host-matrix.md.
@@ -273,7 +275,14 @@ class Handlers:
             )
             envelope["checks"] = sort_checks(compact(result.get("checks") or []))
             envelope["checks_summary"] = result.get("checks_summary")
-            project.discard_job(job_dir)
+            if (job_dir / "part.brep").is_file():
+                # A built candidate is evidence for the fix. The head, source and spec stay as they were.
+                project.retain_failed_job(job_dir, job_id, compact(envelope))
+                envelope["job"] = job_id
+                envelope["artifacts"] = {"part.brep": str(job_dir / "part.brep")}
+                envelope["next"] = [f"Inspect the failed candidate with aiad_history action='job' job='{job_id}'."]
+            else:
+                project.discard_job(job_dir)
             return reply(compact(envelope))
         if result.get("scene") is None:
             brep = job_dir / "part.brep"
@@ -406,7 +415,9 @@ class Handlers:
         if mode != "window":
             return {"mode": mode}
         window = await self._ensure_window()
-        if client is not None and not client.get("suppress_browser"):
+        # Nothing appears on the user's screen unless they asked for windows. Under `auto` a host
+        # without inline support gets the URL in the result, and the agent can offer it.
+        if client is not None and not client.get("suppress_browser") and config.get("viewer") == "window":
             await asyncio.to_thread(window.open_once, project)
         return {"mode": "window", "url": window.url(project)}
 
@@ -427,6 +438,12 @@ class Handlers:
         if action == "job":
             job = self._jobs.get(params.get("job", ""))
             if job is None:
+                # In-memory job state ends with the daemon. Retained candidates stay on disk.
+                retained = None
+                if params.get("project"):
+                    retained = open_project(params["project"], params.get("client")).retained_job(params.get("job", ""))
+                if retained is not None:
+                    return reply(retained)
                 return reply(failure_envelope(params.get("project", ""), "BAD_INPUT", "input", f"Unknown job {params.get('job')!r}."))
             if job.task.done():
                 return job.task.result()
@@ -678,7 +695,10 @@ class Handlers:
         rev, failed = self._rev_or_failure(project, params)
         if failed:
             return failed
-        keys = ("views", "style", "section", "labels", "heatmap", "highlight", "size")
+        keys = (
+            "views", "style", "section", "labels", "heatmap", "highlight", "size",
+            "camera", "focus", "dimensions", "probes", "measure", "heatmap_range", "min_wall", "direction",
+        )
         result, _ = await self._op(project, rev, "render", {k: params[k] for k in keys if k in params})
         if not result.get("ok"):
             return self._op_failed(project, rev, result)
@@ -690,7 +710,9 @@ class Handlers:
                 "rev": rev,
                 "status": _rev_meta(project, rev).get("status", "draft"),
                 "summary": f"Rendered {len(images)} image(s) of {project.name} rev {rev}.",
-                "artifacts": {Path(i["path"]).name: i["path"] for i in images},
+                "artifacts": result.get("artifacts") or {Path(i["path"]).name: i["path"] for i in images},
+                "inspection": result.get("inspection"),
+                "labels": result.get("labels"),
             },
             images,
         )
@@ -778,6 +800,9 @@ class Handlers:
     async def aiad_import(self, params: dict[str, Any]) -> dict[str, Any]:
         name = params.get("project") or params.get("name") or Path(params.get("path", "import")).stem
         path = Path(params.get("path", "")).expanduser()
+        if os.environ.get("AIAD_REMOTE") and not path.resolve().is_relative_to(Path.home().resolve()):
+            # In remote mode, `path` is on the server, so it must stay inside this user's home.
+            return reply(failure_envelope(name, "IMPORT_FAILED", "input", "Remote import reads only from your own AIAD home."))
         if not path.is_file():
             return reply(failure_envelope(name, "IMPORT_FAILED", "input", f"No file at {path}."))
         project = open_project(params["project"], params.get("client")) if params.get("project") else create_project(name, client=params.get("client"))
@@ -837,7 +862,7 @@ class Handlers:
         structured = build.get("structured") or {}
         if not structured.get("ok") or structured.get("status") == "running":
             return build
-        return await self.aiad_show({"project": params.get("project", ""), "rev": structured.get("rev")})
+        return await self.aiad_show({"project": params.get("project", ""), "rev": structured.get("rev"), "client": params.get("client")})
 
     async def aiad_pick_info(self, params: dict[str, Any]) -> dict[str, Any]:
         project = open_project(params.get("project", ""), params.get("client"))
@@ -974,5 +999,5 @@ def _scene_payload(rev_dir: Path) -> Path | None:
 
 def _next_hints(status: str) -> list[str]:
     if status == "verified":
-        return ["Review with aiad_render, then aiad_show for the user."]
+        return ["Review with aiad_render. Call aiad_show only if the user asks to see the part."]
     return ["Add requirements to spec.yaml to prove the part. draft means not proven.", "Review with aiad_render."]

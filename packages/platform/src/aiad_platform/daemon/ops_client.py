@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import json
 import os
+import signal
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -12,30 +15,57 @@ from typing import Any
 from ..ops import RESULT_MARKER
 
 DEFAULT_TIMEOUT_S = 120.0
+# VTK aborts inside macOS Seatbelt, which denies its graphics access (issue #56). These ops read a
+# BREP the sandboxed worker wrote and run no model code, with a clean environment and no secrets.
+# That leaves OCCT's BREP parser outside the sandbox, so remote mode refuses them.
+NEEDS_GRAPHICS = frozenset({"render"})
 
 
-async def run_op(request: dict[str, Any], *, timeout_s: float = DEFAULT_TIMEOUT_S) -> dict[str, Any]:
-    process = await asyncio.create_subprocess_exec(
-        sys.executable,
-        "-m",
-        "aiad_platform.ops",
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        start_new_session=True,
-    )
+def _package_roots() -> list[Path]:
+    """Editable installs import from each package's src dir, which Python must be able to list."""
+    roots = []
+    for name in ("aiad_platform", "aiad_render", "aiad_drafting", "aiad_quality"):
+        spec = importlib.util.find_spec(name)
+        if spec is not None and spec.origin is not None:
+            roots.append(Path(spec.origin).parents[1])
+    return roots
+
+
+def _run_sandboxed(request: dict[str, Any], timeout_s: float) -> dict[str, Any]:
+    """Blocking. One kernel process inside the OS sandbox, killed with its descendants on timeout."""
     try:
-        stdout, stderr = await asyncio.wait_for(
-            process.communicate(json.dumps(request, default=str).encode()), timeout_s
-        )
-    except TimeoutError:
+        from aiad.engine import sandbox
+    except ImportError as exc:
+        return _crash("WORKER_CRASH", "crash", f"The AIAD engine is not installed: {exc}. Run aiad doctor.")
+    out = Path(request["out_dir"])
+    out.mkdir(parents=True, exist_ok=True)
+    reads = [*(Path(path) for path in request.get("read_paths", [])), *_package_roots()]
+    argv = [sys.executable, "-m", "aiad_platform.ops"]
+    try:
+        if request.get("op") in NEEDS_GRAPHICS:
+            if os.environ.get("AIAD_REMOTE"):
+                raise sandbox.SandboxUnavailable("rendering needs graphics access that remote mode does not grant")
+            process = subprocess.Popen(
+                argv,
+                cwd=out,
+                env=sandbox.environment(out),
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                start_new_session=True,
+                close_fds=True,
+            )
+        else:
+            process = sandbox.popen(argv, out, read_paths=reads)
+    except (sandbox.SandboxUnavailable, OSError) as exc:
+        # Never fall back to an unsandboxed run.
+        return _crash("SANDBOX_DENIED", "sandbox", f"The OS sandbox could not start this operation: {exc}")
+    try:
+        stdout, stderr = process.communicate(json.dumps(request, default=str).encode(), timeout=timeout_s)
+    except subprocess.TimeoutExpired:
         _kill(process)
-        await process.wait()
+        process.communicate()
         return _crash("TIMEOUT", "timeout", f"The operation did not finish within {timeout_s:.0f} s.")
-    except asyncio.CancelledError:
-        _kill(process)
-        await process.wait()
-        raise
     for line in reversed(stdout.splitlines()):
         if line.startswith(RESULT_MARKER):
             return json.loads(line[len(RESULT_MARKER) :])
@@ -43,9 +73,13 @@ async def run_op(request: dict[str, Any], *, timeout_s: float = DEFAULT_TIMEOUT_
     return _crash("WORKER_CRASH", "crash", f"The worker exited with code {process.returncode}: {detail[0]}")
 
 
-def _kill(process: asyncio.subprocess.Process) -> None:
+async def run_op(request: dict[str, Any], *, timeout_s: float = DEFAULT_TIMEOUT_S) -> dict[str, Any]:
+    return await asyncio.to_thread(_run_sandboxed, request, timeout_s)
+
+
+def _kill(process: subprocess.Popen[bytes]) -> None:
     try:
-        os.killpg(process.pid, 9)
+        os.killpg(process.pid, signal.SIGKILL)
     except ProcessLookupError:
         pass
 
@@ -67,4 +101,11 @@ def job_request(project: Any, rev: int, op: str, args: dict[str, Any], out_dir: 
         "process": meta.get("process"),
         "args": args,
         "out_dir": str(out_dir),
+        "read_paths": [str(project.path / ".aiad" / "revs"), *_extra_reads(args)],
     }
+
+
+def _extra_reads(args: dict[str, Any]) -> list[str]:
+    """Import reads one staged file, and nothing else outside the revisions."""
+    path = args.get("path")
+    return [str(path)] if path else []

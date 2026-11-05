@@ -56,8 +56,24 @@ def _plain(value: Any) -> Any:
     return str(value)
 
 
+def _feature(item: dict[str, Any]) -> Any:
+    """Rebuild FeatureInfo with real Entity records, so selectors keep named ownership."""
+    from aiad.engine.types import Entity, FeatureInfo
+
+    known = {f.name for f in dataclasses.fields(FeatureInfo)}
+    entity_fields = {f.name for f in dataclasses.fields(Entity)}
+    values = {k: v for k, v in item.items() if k in known}
+    for key in ("faces", "edges", "vertices"):
+        if key in values:
+            values[key] = [
+                Entity(**{k: v for k, v in entity.items() if k in entity_fields}) if isinstance(entity, dict) else entity
+                for entity in values[key]
+            ]
+    return FeatureInfo(**values)
+
+
 def load_context(request: dict[str, Any]) -> Any:
-    from aiad.engine.types import FeatureInfo, ModelContext
+    from aiad.engine.types import ModelContext
 
     project_dir = Path(request["project_dir"])
     rev_dir = project_dir / ".aiad" / "revs" / f"{request['rev']:06d}"
@@ -73,10 +89,7 @@ def load_context(request: dict[str, Any]) -> Any:
         from .specs import parse_spec
 
         spec = parse_spec((rev_dir / "spec.yaml").read_text())
-    features = []
-    for item in meta.get("features") or []:
-        known = {f.name for f in dataclasses.fields(FeatureInfo)}
-        features.append(FeatureInfo(**{k: v for k, v in item.items() if k in known}))
+    features = [_feature(item) for item in meta.get("features") or []]
     return ModelContext(
         project_dir=project_dir,
         rev=request["rev"],
@@ -101,7 +114,16 @@ def op_render(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
     known = {f.name for f in dataclasses.fields(RenderRequest)}
     request = RenderRequest(**{k: v for k, v in args.items() if k in known and v is not None})
     paths = render(ctx, request, out)
-    return {"images": [{"path": str(path), "mime": "image/png"} for path in paths]}
+    artifacts = {path.name: str(path) for path in paths}
+    result = {
+        "images": [{"path": str(path), "mime": "image/png"} for path in paths if path.suffix == ".png"],
+        "artifacts": artifacts,
+    }
+    if "inspection.json" in artifacts:
+        result["inspection"] = json.loads(Path(artifacts["inspection.json"]).read_text())
+    if "labels.json" in artifacts:
+        result["labels"] = json.loads(Path(artifacts["labels.json"]).read_text())
+    return result
 
 
 def op_scene(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:

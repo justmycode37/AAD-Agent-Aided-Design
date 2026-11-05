@@ -11,9 +11,22 @@ from importlib import import_module
 from types import ModuleType
 from typing import Any
 
-from ._runtime import params
+from ._runtime import Param, params
+from .engine.select import SelectorError, entity_shape
+from .modeling import edge, feature, face, meta, part, vertex
 
-_HELPER_EXPORTS = {"params"}
+_HELPER_EXPORTS = {
+    "Param",
+    "SelectorError",
+    "edge",
+    "entity_shape",
+    "feature",
+    "face",
+    "meta",
+    "params",
+    "part",
+    "vertex",
+}
 _BUILD123D_MODULE: ModuleType | None = None
 
 

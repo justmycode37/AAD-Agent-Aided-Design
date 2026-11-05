@@ -21,7 +21,7 @@ MARGIN_MM = 10.0
 TITLE_BLOCK_WIDTH_MM = 80.0
 MIN_TEXT_HEIGHT_MM = 2.5
 VIEW_GAP_MM = 5.0
-TEXT_LINE_MM = 3.5
+TEXT_LINE_MM = 4.0
 
 
 @dataclass(frozen=True)
@@ -92,6 +92,7 @@ def _font_at_size(size: int) -> Any:
     return _font(size)
 
 
+@lru_cache(maxsize=4096)
 def _text_metrics(value: str, height: float) -> tuple[float, float, float, float, float]:
     """Return advance, glyph left/right, ascent, and descent in sheet mm.
 
@@ -126,6 +127,13 @@ def _text_metrics(value: str, height: float) -> tuple[float, float, float, float
         descent=max(descent,-pdf_descent)
     except (ImportError, KeyError, ValueError):
         pass
+    # DXF TEXT height is a cap height; raster/vector fonts commonly interpret
+    # it as an em size. Reserve a conservative CAD stroke-font envelope too,
+    # so font substitution in an independent CAD reader does not put glyphs
+    # through table rules. This is layout space, never a geometry measurement.
+    advance = advance * 1.55 + len(value) * height * 0.05
+    ascent = max(ascent, height)
+    descent = max(descent, height * 0.35)
     right = max(right, advance)
     return advance, min(0.0, left), right, ascent, descent
 
@@ -206,7 +214,7 @@ def wrap_text(value: str, width_mm: float, height_mm: float = MIN_TEXT_HEIGHT_MM
 def hole_callout_text(dimension: Mapping[str, Any]) -> str:
     count = dimension.get("count") or 1
     prefix = f"{count}X " if count > 1 else ""
-    return f"{prefix}DIA {dimension['display']} THRU"
+    return f"{prefix}DIA {dimension['display']}" + (" THRU" if dimension.get("through", True) else "")
 
 
 def ordinate_count_prefix(dimension: Mapping[str, Any]) -> str:
@@ -280,6 +288,8 @@ def _view_padding(name: str, dimensions: Sequence[Mapping[str, Any]]) -> tuple[f
                 right,
                 27.0 + max(text_width_mm(hole_callout_text(d), 2.8) for d in diameter_dims),
             )
+        if any(d.get("planar") and d.get("kind") == "overall" and d.get("axis") == "x" for d in dimensions):
+            bottom = max(17.0, bottom + 17.0)
         return left, bottom, right, top
 
     return left, bottom, right, top
@@ -834,6 +844,7 @@ def compose_auxiliary_layout(
     style: str,
     scale_label: str,
     cylinders=(),
+    profiles=(),
 ) -> AuxiliaryLayout:
     """Create a complete, wrapped title block and requested schedule tables."""
     title_width = min(TITLE_BLOCK_WIDTH_MM, width - 2 * MARGIN_MM)
@@ -848,7 +859,7 @@ def compose_auxiliary_layout(
     title_bounds = Rect(title_x0, title_y0, title_x0 + title_width, title_y0 + title_height)
     entities: list[Primitive] = []
     _draw_rect(entities, title_bounds, "TITLE")
-    cursor = title_bounds.ymax - 2.3
+    cursor = title_bounds.ymax - 3.0
     for index, (_, lines) in enumerate(title_lines):
         for line_index, value in enumerate(lines):
             entities.append(
@@ -856,7 +867,7 @@ def compose_auxiliary_layout(
             )
         cursor -= len(lines) * TEXT_LINE_MM + 0.9
         if index + 1 < len(title_lines):
-            entities.append(line(title_x0, cursor + 2.2, title_x0 + title_width, cursor + 2.2, "TITLE", 0.12))
+            entities.append(line(title_x0, cursor + 2.9, title_x0 + title_width, cursor + 2.9, "TITLE", 0.12))
 
     schedule_sections: list[tuple[str, str, Any]] = []
     if notes:
@@ -868,6 +879,8 @@ def compose_auxiliary_layout(
         schedule_sections.append(("table", "BILL OF MATERIALS", list(bom)))
     if cylinders:
         schedule_sections.append(("table", "CYLINDRICAL FEATURES - STATIONS AND CENTERS FROM MINIMUM BOUNDS",list(cylinders)))
+    if profiles:
+        schedule_sections.append(("table", "PLANAR FEATURES - X/Y FROM MINIMUM CUT BOUNDS; ANGLE OF LONG AXIS", list(profiles)))
 
     schedule_bounds: Rect | None = None
     if schedule_sections:
@@ -881,8 +894,14 @@ def compose_auxiliary_layout(
                 body_height = sum(max(3.4, len(row) * TEXT_LINE_MM + 1.0) for row in rows)
                 section_heights.append(5.0 + body_height + 1.5)
                 table_specs.append(None)
+            elif _.startswith("PLANAR FEATURES"):
+                widths = [(schedule_width - 2) * fraction for fraction in (.12, .16, .13, .13, .15, .16, .15)]
+                headers = ("FEATURE", "KIND", "X", "Y", "WIDTH", "LENGTH", "ANGLE")
+                rows = [[str(row[key]) for key in ("feature", "kind", "x", "y", "width", "length", "angle")] for row in data]
+                section_heights.append(5 + _table_rows(headers, rows, widths)[1] + 1.5)
+                table_specs.append((headers, rows, widths, [row["dimension_ids"] for row in data]))
             elif _.startswith("CYLINDRICAL FEATURES"):
-                widths=[(schedule_width-2)*fraction for fraction in (0.10,0.12,0.08,0.24,0.15,0.15,0.16)]
+                widths=[(schedule_width-2)*fraction for fraction in (0.18,0.13,0.08,0.23,0.11,0.11,0.16)]
                 rows=[[str(row[key]) for key in ("surface","size","axis","center","from","to","length")] for row in data]
                 headers=("SURFACE","SIZE","AXIS","CENTER PERP.","FROM","TO","LENGTH")
                 section_heights.append(5.0+_table_rows(headers,rows,widths)[1]+1.5)
@@ -897,7 +916,7 @@ def compose_auxiliary_layout(
                 section_heights.append(5.0 + body_height + 1.5)
                 table_specs.append((("REV", "DATE", "DESCRIPTION", "BY"), rows, widths))
             else:
-                widths = [10.0, 28.0, max(20.0, schedule_width - 54.0), 14.0]
+                widths = [14.0, 28.0, max(20.0, schedule_width - 58.0), 14.0]
                 rows = [
                     [str(row.get("item", "")), str(row.get("part_number", "")), str(row.get("description", "")), str(row.get("quantity", ""))]
                     for row in data

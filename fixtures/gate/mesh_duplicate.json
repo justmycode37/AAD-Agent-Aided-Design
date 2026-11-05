@@ -1,0 +1,5 @@
+{
+  "name": "one triangle duplicated with reversed winding",
+  "vertices": [[0, 0, 0], [1, 0, 0], [0, 1, 0]],
+  "triangles": [[0, 1, 2], [0, 2, 1]]
+}

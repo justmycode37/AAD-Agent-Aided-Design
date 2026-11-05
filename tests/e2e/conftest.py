@@ -28,6 +28,7 @@ class McpProcess:
             stderr=subprocess.PIPE,
             env=env,
             text=True,
+            encoding="utf-8",
         )
         self._next_id = 1
 

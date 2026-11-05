@@ -1,0 +1,186 @@
+{
+  "bom": [],
+  "category": "plate",
+  "checks": [
+    {
+      "id": "layout_fit",
+      "status": "pass"
+    },
+    {
+      "id": "sheet_margins",
+      "status": "pass"
+    },
+    {
+      "id": "text_margins",
+      "status": "pass"
+    },
+    {
+      "id": "title_block_bounds",
+      "status": "pass"
+    },
+    {
+      "id": "title_block_text_overflow",
+      "status": "pass"
+    },
+    {
+      "id": "schedule_bounds",
+      "status": "pass"
+    },
+    {
+      "id": "schedule_text_overflow",
+      "status": "pass"
+    },
+    {
+      "id": "view_view_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "view_auxiliary_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "dimension_coverage",
+      "status": "pass"
+    },
+    {
+      "id": "dimension_sources",
+      "status": "pass"
+    },
+    {
+      "id": "hole_leader_coverage",
+      "status": "pass"
+    },
+    {
+      "id": "dimension_text_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "text_view_geometry_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "dimension_view_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "hole_leader_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "table_rule_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "minimum_text_height",
+      "status": "pass"
+    },
+    {
+      "id": "bom_quantities",
+      "status": "pass"
+    }
+  ],
+  "dimensions": [
+    {
+      "axis": "x",
+      "count": null,
+      "display": "80",
+      "id": "overall.x.80.",
+      "kind": "overall",
+      "unit": "mm",
+      "value": 80.0
+    },
+    {
+      "axis": "y",
+      "count": null,
+      "display": "50",
+      "id": "overall.y.50.",
+      "kind": "overall",
+      "unit": "mm",
+      "value": 50.0
+    },
+    {
+      "axis": "z",
+      "count": null,
+      "display": "6",
+      "id": "overall.z.6.",
+      "kind": "overall",
+      "unit": "mm",
+      "value": 6.0
+    },
+    {
+      "axis": null,
+      "count": 4,
+      "display": "6",
+      "id": "hole_diameter.value.6.0,1,2,3",
+      "kind": "hole_diameter",
+      "unit": "mm",
+      "value": 6.0
+    },
+    {
+      "axis": "x",
+      "count": 2,
+      "display": "13",
+      "id": "hole_coordinate.x.13.0,2",
+      "kind": "hole_coordinate",
+      "unit": "mm",
+      "value": 13.0
+    },
+    {
+      "axis": "x",
+      "count": 2,
+      "display": "63",
+      "id": "hole_coordinate.x.63.1,3",
+      "kind": "hole_coordinate",
+      "unit": "mm",
+      "value": 63.0
+    },
+    {
+      "axis": "y",
+      "count": 2,
+      "display": "10",
+      "id": "hole_coordinate.y.10.0,1",
+      "kind": "hole_coordinate",
+      "unit": "mm",
+      "value": 10.0
+    },
+    {
+      "axis": "y",
+      "count": 2,
+      "display": "43",
+      "id": "hole_coordinate.y.43.2,3",
+      "kind": "hole_coordinate",
+      "unit": "mm",
+      "value": 43.0
+    }
+  ],
+  "hole_count": 4,
+  "name": "06-asymmetric-plate",
+  "sheet": "LETTER",
+  "units": "mm",
+  "views": [
+    {
+      "hidden_edges": 8,
+      "kind": "orthographic",
+      "name": "front",
+      "visible_edges": 4
+    },
+    {
+      "hidden_edges": 0,
+      "kind": "orthographic",
+      "name": "top",
+      "visible_edges": 8
+    },
+    {
+      "hidden_edges": 18,
+      "kind": "orthographic",
+      "name": "right",
+      "visible_edges": 4
+    },
+    {
+      "hidden_edges": 27,
+      "kind": "orthographic",
+      "name": "iso",
+      "visible_edges": 21
+    }
+  ]
+}

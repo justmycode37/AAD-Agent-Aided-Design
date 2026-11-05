@@ -1,0 +1,275 @@
+{
+  "bom": [],
+  "category": "laser",
+  "checks": [
+    {
+      "id": "layout_fit",
+      "status": "pass"
+    },
+    {
+      "id": "sheet_margins",
+      "status": "pass"
+    },
+    {
+      "id": "text_margins",
+      "status": "pass"
+    },
+    {
+      "id": "title_block_bounds",
+      "status": "pass"
+    },
+    {
+      "id": "title_block_text_overflow",
+      "status": "pass"
+    },
+    {
+      "id": "schedule_bounds",
+      "status": "pass"
+    },
+    {
+      "id": "schedule_text_overflow",
+      "status": "pass"
+    },
+    {
+      "id": "view_view_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "view_auxiliary_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "dimension_coverage",
+      "status": "pass"
+    },
+    {
+      "id": "dimension_sources",
+      "status": "pass"
+    },
+    {
+      "id": "hole_leader_coverage",
+      "status": "pass"
+    },
+    {
+      "id": "dimension_text_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "text_view_geometry_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "dimension_view_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "hole_leader_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "table_rule_collisions",
+      "status": "pass"
+    },
+    {
+      "id": "minimum_text_height",
+      "status": "pass"
+    },
+    {
+      "id": "bom_quantities",
+      "status": "pass"
+    },
+    {
+      "id": "2d.input",
+      "status": "pass"
+    },
+    {
+      "id": "2d.closed_contours",
+      "status": "pass"
+    },
+    {
+      "id": "2d.self_intersections",
+      "status": "pass"
+    },
+    {
+      "id": "2d.overlaps",
+      "status": "pass"
+    },
+    {
+      "id": "2d.contour_intersections",
+      "status": "pass"
+    },
+    {
+      "id": "2d.measurement",
+      "status": "pass"
+    },
+    {
+      "id": "2d.laser.limits",
+      "status": "skip"
+    },
+    {
+      "id": "2d.laser.kerf",
+      "status": "skip"
+    },
+    {
+      "id": "2d.laser.circular_openings",
+      "status": "skip"
+    },
+    {
+      "id": "2d.laser.min_slot",
+      "status": "skip"
+    },
+    {
+      "id": "2d.undimensioned_features",
+      "status": "pass"
+    }
+  ],
+  "dimensions": [
+    {
+      "axis": "x",
+      "count": null,
+      "display": "120",
+      "id": "overall.x.120.",
+      "kind": "overall",
+      "unit": "mm",
+      "value": 120.0
+    },
+    {
+      "axis": "y",
+      "count": null,
+      "display": "40",
+      "id": "overall.y.40.",
+      "kind": "overall",
+      "unit": "mm",
+      "value": 40.0
+    },
+    {
+      "axis": "x",
+      "count": null,
+      "display": "60",
+      "id": "profile.contour-1.x",
+      "kind": "profile_parameter",
+      "unit": "mm",
+      "value": 60.0
+    },
+    {
+      "axis": "y",
+      "count": null,
+      "display": "20",
+      "id": "profile.contour-1.y",
+      "kind": "profile_parameter",
+      "unit": "mm",
+      "value": 20.0
+    },
+    {
+      "axis": "width",
+      "count": null,
+      "display": "40",
+      "id": "profile.contour-1.width",
+      "kind": "profile_parameter",
+      "unit": "mm",
+      "value": 40.0
+    },
+    {
+      "axis": "length",
+      "count": null,
+      "display": "120",
+      "id": "profile.contour-1.length",
+      "kind": "profile_parameter",
+      "unit": "mm",
+      "value": 120.0
+    },
+    {
+      "axis": "angle",
+      "count": null,
+      "display": "0",
+      "id": "profile.contour-1.angle",
+      "kind": "profile_parameter",
+      "unit": "deg",
+      "value": 0.0
+    },
+    {
+      "axis": "x",
+      "count": null,
+      "display": "40",
+      "id": "profile.fold1.edge0.x",
+      "kind": "profile_parameter",
+      "unit": "mm",
+      "value": 40.0
+    },
+    {
+      "axis": "y",
+      "count": null,
+      "display": "20",
+      "id": "profile.fold1.edge0.y",
+      "kind": "profile_parameter",
+      "unit": "mm",
+      "value": 20.0
+    },
+    {
+      "axis": "length",
+      "count": null,
+      "display": "40",
+      "id": "profile.fold1.edge0.length",
+      "kind": "profile_parameter",
+      "unit": "mm",
+      "value": 40.0
+    },
+    {
+      "axis": "angle",
+      "count": null,
+      "display": "90",
+      "id": "profile.fold1.edge0.angle",
+      "kind": "profile_parameter",
+      "unit": "deg",
+      "value": 90.0
+    },
+    {
+      "axis": "x",
+      "count": null,
+      "display": "80",
+      "id": "profile.fold2.edge0.x",
+      "kind": "profile_parameter",
+      "unit": "mm",
+      "value": 80.0
+    },
+    {
+      "axis": "y",
+      "count": null,
+      "display": "20",
+      "id": "profile.fold2.edge0.y",
+      "kind": "profile_parameter",
+      "unit": "mm",
+      "value": 20.0
+    },
+    {
+      "axis": "length",
+      "count": null,
+      "display": "40",
+      "id": "profile.fold2.edge0.length",
+      "kind": "profile_parameter",
+      "unit": "mm",
+      "value": 40.0
+    },
+    {
+      "axis": "angle",
+      "count": null,
+      "display": "90",
+      "id": "profile.fold2.edge0.angle",
+      "kind": "profile_parameter",
+      "unit": "deg",
+      "value": 90.0
+    }
+  ],
+  "hole_count": 0,
+  "name": "04-scored-strip",
+  "sheet": "TABLOID",
+  "units": "mm",
+  "views": [
+    {
+      "hidden_edges": 0,
+      "kind": "planar",
+      "name": "top",
+      "visible_edges": 6
+    }
+  ]
+}

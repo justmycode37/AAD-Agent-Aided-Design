@@ -25,9 +25,13 @@ jobs:
       viewer: ${{ steps.discover.outputs.viewer }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v10.3.3
       - name: Lock file is current
         run: uv lock --check
+      - name: Check CI test selection
+        run: python3 -m unittest discover -s .github/scripts -p "test_*.py"
       - id: discover
         run: python3 .github/scripts/discover.py
 
@@ -37,7 +41,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: [macos-15-intel, ubuntu-latest]
         package: ${{ fromJSON(needs.discover.outputs.packages) }}
     name: ${{ matrix.package.dir }} (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -47,9 +51,9 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
-      - name: Install headless graphics runtime
+      - name: Install graphics and sandbox runtime
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libosmesa6
+        run: bash .github/scripts/setup_linux_runtime.sh
       - name: Run package tests
         run: >-
           uv run --locked --package "${{ matrix.package.name }}" --all-extras
@@ -58,24 +62,53 @@ jobs:
 
   e2e:
     needs: discover
-    if: needs.discover.outputs.e2e == 'true'
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: [macos-15-intel, ubuntu-latest]
     name: e2e smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    # Includes cold workspace installation and every selected package on Intel Macs.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
-      - name: Install headless graphics runtime
+      - name: Install graphics and sandbox runtime
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libosmesa6
-      - name: Run smoke test
-        run: uv run --locked --all-packages --all-extras python -m pytest tests/e2e
+        run: bash .github/scripts/setup_linux_runtime.sh
+      - name: Run integrated workspace and smoke tests
+        env:
+          AIAD_TEST_PACKAGES: ${{ needs.discover.outputs.packages }}
+        run: |
+          uv run --locked --all-packages --all-extras python - <<'PY'
+          import json
+          import os
+          import subprocess
+          import sys
+
+          packages = json.loads(os.environ["AIAD_TEST_PACKAGES"])
+          tests = [f"packages/{package['dir']}/tests" for package in packages]
+          raise SystemExit(subprocess.call([sys.executable, "-m", "pytest", *tests, "tests/e2e"]))
+          PY
+
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+      - name: Check standalone harness lock file
+        run: uv lock --project evals/benchmark/harness --check
+      - name: Run offline harness and SDK controls
+        run: >-
+          uv run --locked --project evals/benchmark/harness --with pytest-timeout
+          python -m pytest evals/benchmark/tests/test_agent_loop.py evals/benchmark/tests/test_provider_sdk.py
+      - name: Run statistics and native corpus controls
+        run: >-
+          uv run --locked --all-packages --all-extras python -m pytest
+          evals/benchmark/tests/test_statistics.py evals/benchmark/tests/test_corpus.py
 
   viewer:
     needs: discover
@@ -98,7 +131,7 @@ jobs:
   # One stable check name that covers the dynamic matrix, including skipped legs.
   ci-ok:
     if: always()
-    needs: [discover, packages, e2e, viewer]
+    needs: [discover, packages, e2e, viewer, benchmark]
     runs-on: ubuntu-latest
     steps:
       - name: All required jobs passed or were skipped
@@ -106,7 +139,9 @@ jobs:
           echo '${{ toJSON(needs) }}' | python3 -c '
           import json, sys
           needs = json.load(sys.stdin)
-          bad = {k: v["result"] for k, v in needs.items() if v["result"] not in ("success", "skipped")}
+          required = {"discover", "e2e", "benchmark"}
+          bad = {k: v["result"] for k, v in needs.items()
+                 if v["result"] != "success" and (k in required or v["result"] != "skipped")}
           print("results:", {k: v["result"] for k, v in needs.items()})
           sys.exit(f"failed: {bad}" if bad else 0)
           '

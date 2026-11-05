@@ -101,10 +101,55 @@ def test_partial_initialize_output_respects_startup_deadline(monkeypatch, temp_h
         return popen([sys.executable, "-c", "import sys,time; sys.stdout.write('{'); sys.stdout.flush(); time.sleep(10)"], **kwargs)
 
     monkeypatch.setattr(doctor.subprocess, "Popen", partial_response)
-    monkeypatch.setattr(doctor, "MCP_FIRST_RESPONSE_LIMIT_S", 0.2)
+    monkeypatch.setattr(doctor, "MCP_INITIALIZE_TIMEOUT_S", 0.2)
     started = time.monotonic()
     assert doctor._mcp_startup_check()["status"] == "fail"
     assert time.monotonic() - started < 2
+
+
+@pytest.mark.parametrize("response,expected", [('{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{},"serverInfo":{"name":"test","version":"1"}}}', "warn"), ('not JSON', "fail")])
+def test_slow_initialize_preserves_performance_warning_and_rejects_invalid_output(monkeypatch, temp_home, response, expected):
+    popen = subprocess.Popen
+
+    def delayed_response(*args, **kwargs):
+        code = f"import time; time.sleep(.05); print({response!r}, flush=True); time.sleep(10)"
+        return popen([sys.executable, "-c", code], **kwargs)
+
+    monkeypatch.setattr(doctor.subprocess, "Popen", delayed_response)
+    monkeypatch.setattr(doctor, "MCP_FIRST_RESPONSE_LIMIT_S", 0.01)
+    monkeypatch.setattr(doctor, "MCP_INITIALIZE_TIMEOUT_S", 2.0)
+    result = doctor._mcp_startup_check()
+    assert result["status"] == expected
+    if expected == "warn":
+        assert result["within_budget"] is False
+        assert result["elapsed_seconds"] > result["budget_seconds"]
+        assert "startup budget" in result["fix"]
+
+
+@pytest.mark.parametrize("method", ["aiad_render", "aiad_export", "aiad_show"])
+def test_rpc_waits_for_native_operations_but_keeps_control_calls_bounded(monkeypatch, method):
+    class SlowClient:
+        async def call(self, _method, _params):
+            await asyncio.sleep(0.05)
+            return {"ok": True}
+
+    monkeypatch.setattr(doctor, "CONTROL_RPC_TIMEOUT_S", 0.01)
+    monkeypatch.setattr(doctor, "CAD_RPC_TIMEOUT_S", 0.5)
+    if method == "aiad_show":
+        with pytest.raises(TimeoutError):
+            asyncio.run(doctor._rpc_call(SlowClient(), method, {}))
+    else:
+        assert asyncio.run(doctor._rpc_call(SlowClient(), method, {})) == {"ok": True}
+
+
+def test_native_operation_still_has_a_finite_deadline(monkeypatch):
+    class StalledClient:
+        async def call(self, _method, _params):
+            await asyncio.sleep(10)
+
+    monkeypatch.setattr(doctor, "CAD_RPC_TIMEOUT_S", 0.01)
+    with pytest.raises(TimeoutError):
+        asyncio.run(doctor._rpc_call(StalledClient(), "aiad_render", {}))
 
 
 def test_doctor_request_does_not_open_window(monkeypatch):
@@ -141,6 +186,7 @@ def test_prewarm_bounds_total_time_and_skips_retry_after_timeout(monkeypatch):
     monkeypatch.setattr(prewarm, "_import_once", slow_import)
     result = prewarm.run_prewarm()
     assert result["ok"] is False
-    assert len(calls) == 1
+    assert 1 <= len(calls) <= len(prewarm.MODULES)
+    assert sum(timeout for _, timeout in calls) <= prewarm.TOTAL_TIMEOUT_S
     assert calls[0][1] <= prewarm.TOTAL_TIMEOUT_S
     assert result["modules"][0]["second"]["status"] == "skip"

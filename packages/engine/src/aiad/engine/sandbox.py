@@ -15,19 +15,30 @@ import shutil
 import subprocess
 import sys
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .memory import AddressSpaceBudget
 
 
 class SandboxUnavailable(RuntimeError):
     """No supported OS boundary could be constructed; do not run the command."""
 
 
-def popen(args: Sequence[str], job_dir: Path, *, read_paths: Sequence[Path] = (), text: bool = False) -> subprocess.Popen:
+def popen(args: Sequence[str], job_dir: Path, *, read_paths: Sequence[Path] = (), text: bool = False,
+          address_space: AddressSpaceBudget | None = None) -> subprocess.Popen:
     """Launch with the OS policy, sanitized environment, private cwd and pipes.
 
     There is deliberately no caller-provided environment or shell argument.
-    The owner must enforce a timeout, memory budget and descendant cleanup.
+    The owner must enforce a timeout and descendant cleanup. address_space is
+    an explicit per-process virtual-address ceiling, not a resident budget.
     """
     job = _job_path(job_dir)
+    if address_space is not None:
+        from .memory import _bootstrap_argv
+        args = list(args)
+        _validate_argv(args)  # Validate the original as well as the wrapper.
+        args = _bootstrap_argv(args, address_space, job)
     argv = command(args, job, read_paths=read_paths)
     return subprocess.Popen(
         argv, cwd=job, env=environment(job), close_fds=True,
@@ -87,8 +98,7 @@ def command(args: Sequence[str], job_dir: Path, *, read_paths: Sequence[Path] = 
     The macOS policy denies creating subprocesses. Linux permits processes
     inside an isolated PID namespace, which dies with its supervising bwrap.
     """
-    if not args or any(not isinstance(arg, str) or "\0" in arg for arg in args):
-        raise ValueError("sandbox command must be a nonempty argv without NUL characters")
+    _validate_argv(args)
     job = _job_path(job_dir)
     reads = runtime_reads(read_paths)
     if any(path == Path("/") for path in reads):
@@ -125,6 +135,11 @@ def macos_profile(job_dir: Path, read_paths: Sequence[Path]) -> str:
     # JSON string escaping covers the SBPL string syntax for these paths.
     quoted = lambda path: json.dumps(str(path), ensure_ascii=False)
     reads = " ".join(f"(subpath {quoted(Path(path).resolve())})" for path in read_paths)
+    # FileFinder lists sys.path directories before opening a package. Permit
+    # that directory itself, without granting reads of unrelated siblings.
+    package_parents = {Path(path).resolve().parent for path in read_paths
+                       if (Path(path) / "__init__.py").is_file()}
+    search_dirs = " ".join(f"(literal {quoted(path)})" for path in sorted(package_parents, key=str))
     return "\n".join([
         "(version 1)",
         "(deny default)",
@@ -133,11 +148,16 @@ def macos_profile(job_dir: Path, read_paths: Sequence[Path]) -> str:
         "(allow sysctl-read)",
         "(allow file-read-metadata)",
         "(allow file-read* (literal \"/\") (literal \"/dev/null\") (literal \"/dev/random\") (literal \"/dev/urandom\"))",
-        f"(allow file-read* (subpath {quoted(job)}) {reads})",
+        f"(allow file-read* (subpath {quoted(job)}) {reads} {search_dirs})",
         f"(allow file-write* (subpath {quoted(job)}))",
         # stdin/stdout/stderr are inherited pipes. No network or Mach service
         # access is granted; process-fork is intentionally absent.
     ])
+
+
+def _validate_argv(args: Sequence[str]) -> None:
+    if not args or any(not isinstance(arg, str) or "\0" in arg for arg in args):
+        raise ValueError("sandbox command must be a nonempty argv without NUL characters")
 
 
 def _job_path(job_dir: Path) -> Path:
