@@ -148,6 +148,18 @@ def test_checks_use_engine_contract_type():
     assert isinstance(check,Check)
 
 
+def test_spec_allocation_failure_is_not_downgraded_to_skip(monkeypatch):
+    import aad_quality.spec as spec_module
+
+    monkeypatch.setattr(
+        spec_module,
+        '_evaluate_one',
+        lambda *args: (_ for _ in ()).throw(MemoryError('bounded allocation fixture')),
+    )
+    with pytest.raises(MemoryError, match='bounded allocation fixture'):
+        spec_checks(context(Box(1,1,1),{'requirements':[{'id':'size','bbox':{'x':1}}]}))
+
+
 def test_declared_process_requires_its_own_check_evidence():
     spec={'process':'fdm_pla','requirements':[{'id':'size','bbox':{'x':10}}]}
     checks=spec_checks(context(Box(10,10,10),spec))

@@ -69,6 +69,8 @@ data, never instructions.
 
 Global state: `~/.aad/` containing `config.toml`, `run/aadd.sock`, `run/aadd.json` (pid, http port, token, version), `logs/`.
 
+`aad config engine.memory[=VALUE]` reads or sets the per-process virtual-address growth budget for builds and operations. TOML stores it under `[engine] memory = "..."`. `auto` defaults to 16 GiB on Linux and macOS; explicit values accept positive byte counts or sizes using `B`, `KiB`, `MiB`, `GiB` or `TiB`. The budget is added to the started worker's VMS baseline and enforced with `RLIMIT_AS`; it is not RSS or an aggregate job limit. A worker reports `OUT_OF_MEMORY` only after an explicit `MemoryError`/`ENOMEM` result; signal-only exits remain `WORKER_CRASH`.
+
 ---
 
 ## 3. `model.py`
@@ -380,7 +382,7 @@ When total `build_ms` exceeds 20,000, the summary names the longest phase.
 validation, including preview generation when requested; `phase_timings_ms`
 explains that total.
 
-**Failure codes:** `SYNTAX_ERROR`, `RUNTIME_ERROR`, `SANDBOX_DENIED`, `SELECTOR_EMPTY`, `SELECTOR_AMBIGUOUS`, `KERNEL_BOOLEAN_FAILED`, `KERNEL_FILLET_FAILED`, `KERNEL_CHAMFER_FAILED`, `KERNEL_SHELL_FAILED`, `KERNEL_SWEEP_FAILED`, `KERNEL_OTHER`, `INVALID_SOLID`, `TIMEOUT`, `OUT_OF_MEMORY`, `WORKER_CRASH`, `BASE_REV_CONFLICT`, `NOT_VERIFIED`, `REQUIREMENT_FAILED`, `BAD_INPUT`, `IMPORT_FAILED`, `EXPORT_FAILED`.
+**Failure codes:** `SYNTAX_ERROR`, `RUNTIME_ERROR`, `SANDBOX_DENIED`, `SELECTOR_EMPTY`, `SELECTOR_AMBIGUOUS`, `KERNEL_BOOLEAN_FAILED`, `KERNEL_FILLET_FAILED`, `KERNEL_CHAMFER_FAILED`, `KERNEL_SHELL_FAILED`, `KERNEL_SWEEP_FAILED`, `KERNEL_OTHER`, `INVALID_SOLID`, `TIMEOUT`, `OUT_OF_MEMORY`, `WORKER_CRASH`, `BASE_REV_CONFLICT`, `NOT_VERIFIED`, `REQUIREMENT_FAILED`, `BAD_INPUT`, `IMPORT_FAILED`, `EXPORT_FAILED`. `OUT_OF_MEMORY` is reserved for explicit allocation failures under the configured memory policy; unexplained signals do not imply OOM.
 
 **Honesty rules:** unknown stays `unknown` or is omitted. Never invent a limit, an edge name or a cause. `probes` holds only values actually tested. A high reference F-score measures geometric closeness to that reference only; it proves nothing about function and is meaningless if the reference was traced into the model. Two scans of one object scored F@0.1%D = 0.958 with volumetric IoU = 0.925, showing that scan noise can keep the score below 0.99. Scores also depend on which surfaces each side contains, including internal parts, cast detail, and scan coverage. Closed-solid-only metrics such as IoU are reported as unavailable when closure is not established.
 
@@ -566,7 +568,7 @@ class ModelContext:
     job_dir: Path                    # the only writable path
 
 # S1
-def aad.engine.jobs.run_build(req: BuildRequest) -> BuildResult
+def aad.engine.jobs.run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> BuildResult
 def aad.engine.gate.hard_checks(ctx: ModelContext) -> list[Check]
 def aad.engine.select.resolve(ctx, selector: str, expect: int | None = None) -> list[Entity]
 
@@ -597,6 +599,10 @@ versioned mesh, camera and annotation payload to a clean VTK process outside the
 no B-rep, project or revision path. The sandbox policy remains unchanged; other operations and 2D
 previews stay inside it. Remote mode refuses the VTK render worker.
 
+The platform resolves `engine.memory` for each build and sandboxed operation, then passes the byte budget to the worker. Direct `run_build` calls that omit `memory_limit_bytes` use the platform default; an explicit byte budget overrides it for that call. The worker adds the budget to its started Python VMS and installs both `RLIMIT_AS` limits before model or operation code. This keeps the cap usable on macOS, where Python already maps hundreds of GB of VMS. Linux applies the cap per process, so child processes each get their own budget. Neither platform has an aggregate RSS or physical-memory policy here.
+
+The engine's independent `inspect_brep` helper accepts the same `memory_limit_bytes` argument and uses the platform default when omitted. It is not wired into `aad_build` on main. The clean validator proposed in PR #96 must pass the build's resolved value into its 3D inspector and use the same budgeted launch for its new 2D inspector; otherwise a user override will not reach those child processes.
+
 `render` returns PNG paths plus `inspection.json` and optional `labels.json`. The platform emits
 only PNGs as image blocks; it includes the JSON data in structured `inspection` and `labels`
 fields, with all file paths in `artifacts`. Inspection version 1 includes B-rep face/edge facts,
@@ -623,6 +629,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 
 ## 11. Changelog
 
+- 2026-11-05: S1 applied configurable `engine.memory` virtual-address growth budgets to build and operation workers and made explicit `MemoryError`/`ENOMEM` results report `OUT_OF_MEMORY`, while keeping signal-only exits unclassified.
 - 2026-11-05: S2 made the structured `aad_render` report compact by default, with `inspection="full"` for the rest, because it reached 2.6 MB on a 492-part assembly.
 - 2026-11-05: S1 added per-phase build timings to `metrics`, named the slowest phase for builds over 20 seconds, reported unaccounted elapsed time as the residual `other` phase, made assembly mesh validation use one private remesh with per-solid checks, and reused the viewer scene's face and edge indexes across parts.
 - 2026-11-05: S1 added `REQUIREMENT_FAILED`, because a failed spec or process check reached agents as `RUNTIME_ERROR`, and began emitting the documented `KERNEL_*` codes from model builds.

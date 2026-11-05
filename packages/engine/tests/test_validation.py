@@ -13,7 +13,7 @@ import time
 import unittest
 from unittest.mock import Mock, patch
 
-from aad.engine import sandbox, validation
+from aad.engine import memory, sandbox, validation
 from aad.engine.types import Check
 from aad.engine.validation import inspect_brep
 
@@ -177,6 +177,26 @@ class GeometryInspectionTests(unittest.TestCase):
                 launch.assert_called_once()
             self.assertEqual((evidence.failure.code, evidence.failure.phase), ('SANDBOX_DENIED', 'sandbox'))
             self.assertIn('fixture missing boundary', evidence.failure.kernel_message)
+
+    @unittest.skipUnless(sys.platform == 'darwin' or sys.platform.startswith('linux'), 'RLIMIT_AS policy is unsupported')
+    def test_clean_brep_worker_receives_the_configured_memory_budget(self):
+        memory_limit = 64 * 1024 ** 2
+        with tempfile.TemporaryDirectory(prefix='aad-inspect-memory-') as temporary:
+            path = Path(temporary) / 'part.brep'
+            path.write_bytes(b'fixture')
+            with patch.object(sandbox, 'popen', side_effect=sandbox.SandboxUnavailable('fixture missing boundary')) as launch:
+                evidence = inspect_brep(
+                    path,
+                    candidate_dir=temporary,
+                    kind='part',
+                    units='mm',
+                    memory_limit_bytes=memory_limit,
+                )
+            self.assertEqual((evidence.failure.code, evidence.failure.phase), ('SANDBOX_DENIED', 'sandbox'))
+            self.assertEqual(
+                launch.call_args.kwargs['address_space'],
+                memory.bootstrap_address_space_budget(memory_limit),
+            )
 
     def test_native_exit_and_hang_are_bounded_without_invented_causes(self):
         cases = [('import os; os.write(2,b"native inspection fixture"); os._exit(23)', 5, 'WORKER_CRASH'),

@@ -126,6 +126,18 @@ def test_failed_evaluator_cannot_hide_as_optional_warning(monkeypatch):
     assert check['level']=='error' and check['status']=='skip'
 
 
+def test_process_allocation_failure_is_not_downgraded_to_skip(monkeypatch):
+    import aad_quality.process as process
+
+    monkeypatch.setattr(
+        process,
+        '_additive_checks',
+        lambda *args: (_ for _ in ()).throw(MemoryError('bounded allocation fixture')),
+    )
+    with pytest.raises(MemoryError, match='bounded allocation fixture'):
+        process_checks(context(Box(1,1,1),'fdm_pla'))
+
+
 def test_no_surface_samples_is_unknown(monkeypatch):
     monkeypatch.setattr(process_geometry,'_surface_samples_for_face',lambda *args: [])
     check=by_id(context(Box(1,1,1),'fdm_pla',{'level':'error'}))['process.fdm_pla.overhang']

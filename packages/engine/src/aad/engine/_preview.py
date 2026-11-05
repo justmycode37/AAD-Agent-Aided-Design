@@ -13,7 +13,7 @@ import subprocess
 import sys
 import tempfile
 
-from . import sandbox
+from . import memory, sandbox
 from .types import BuildResult, Check
 
 _MARKER = b"AAD_PREVIEW_RESULT:"
@@ -21,11 +21,18 @@ _TIMEOUT_S = 10.0  # Optional-work budget, not a renderer capability limit.
 _SOURCE_ROOT = Path(__file__).resolve().parents[2]
 _BOOTSTRAP = (
     "import sys; sys.path.insert(0, sys.argv.pop(1)); "
+    "from aad.engine.memory import install_worker_memory_budget; "
+    "install_worker_memory_budget(int(sys.argv.pop(1))); "
     "from aad.engine._preview import main; main()"
 )
 
 
-def add_preview(result: BuildResult, *, timeout_s: float) -> None:
+def add_preview(
+    result: BuildResult,
+    *,
+    timeout_s: float,
+    memory_limit_bytes: int | None = None,
+) -> None:
     """Add private PNGs or a warning while retaining all geometry and checks."""
     from .jobs import _canonical_artifact, _check_from_wire, _decode, _drain_killed_worker, _kill_worker
 
@@ -48,9 +55,11 @@ def add_preview(result: BuildResult, *, timeout_s: float) -> None:
             context = asdict(result.context)
             context.update(shape=None, sheet=None, job_dir=str(preview_job))
             payload = json.dumps({"context": context, "brep": str(brep)}, default=str, allow_nan=False).encode() + b"\n"
+            limit_bytes = memory.memory_budget_bytes(memory_limit_bytes)
+            startup_limit = memory.bootstrap_address_space_budget(limit_bytes)
             process = sandbox.popen(
-                [sys.executable, "-I", "-B", "-c", _BOOTSTRAP, str(_SOURCE_ROOT)],
-                preview_job, read_paths=(brep,),
+                [sys.executable, "-I", "-B", "-c", _BOOTSTRAP, str(_SOURCE_ROOT), str(limit_bytes)],
+                preview_job, read_paths=(brep,), address_space=startup_limit,
             )
             try:
                 stdout, stderr = process.communicate(input=payload, timeout=budget_s)

@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from functools import cache
 import os
 from pathlib import Path
+import re
 import sys
 import time
 from typing import TYPE_CHECKING
@@ -32,6 +33,136 @@ class AddressSpaceBudget:
         # sys.maxsize is RLIM_INFINITY on the tested 64-bit Mac, not a cap.
         if not 0 < self.bytes < sys.maxsize:
             raise ValueError(f"address-space bytes must be between 1 and {sys.maxsize - 1}")
+
+
+_GIB = 1024 ** 3
+_TIB = 1024 ** 4
+SETUP_FAILURE_MARKER = b"AAD_MEMORY_SETUP_FAILURE:"
+_SIZE_PATTERN = re.compile(r"[ \t]*([0-9]+)[ \t]*(B|KiB|MiB|GiB|TiB)?[ \t]*", re.IGNORECASE)
+_SIZE_MULTIPLIERS = {"b": 1, "kib": 1024, "mib": 1024 ** 2, "gib": _GIB, "tib": _TIB}
+
+
+def default_memory_budget_bytes() -> int:
+    """Return a per-worker virtual-address growth budget for large CAD jobs."""
+    if sys.platform == "darwin":
+        return 16 * _GIB
+    if sys.platform.startswith("linux"):
+        return 16 * _GIB
+    raise AddressSpaceUnavailable(f"Address-space policy is unsupported on {sys.platform}")
+
+
+def memory_budget_bytes(value: str | int | None = None) -> int:
+    """Resolve ``auto`` or a byte count/size setting to additional VAS bytes."""
+    if value is None or value == "auto":
+        return default_memory_budget_bytes()
+    if type(value) is int:
+        AddressSpaceBudget(value)
+        return value
+    if not isinstance(value, str):
+        raise TypeError("memory limit must be 'auto', an integer byte count, or a byte-size string")
+    match = _SIZE_PATTERN.fullmatch(value)
+    if match is None:
+        raise ValueError("memory limit must be 'auto', a positive byte count, or a positive size using B, KiB, MiB, GiB or TiB")
+    amount = int(match.group(1))
+    unit = (match.group(2) or "B").lower()
+    result = amount * _SIZE_MULTIPLIERS[unit]
+    AddressSpaceBudget(result)
+    return result
+
+
+def bootstrap_address_space_budget(memory_limit_bytes: int) -> AddressSpaceBudget:
+    """Return a temporary absolute ceiling high enough to start a worker Python."""
+    AddressSpaceBudget(memory_limit_bytes)
+    return AddressSpaceBudget(min(sys.maxsize - 1, max(2 * _TIB, memory_limit_bytes + _TIB)))
+
+
+def install_worker_memory_budget(memory_limit_bytes: int) -> None:
+    """Install a budget relative to the started worker's existing VMS.
+
+    This must run inside the worker after Python starts and before model or
+    operation code. Relative VMS accounting lets macOS use useful limits even
+    though its Python process maps hundreds of GB before loading CAD code.
+    """
+    try:
+        AddressSpaceBudget(memory_limit_bytes)
+        resource = _address_resource()
+        current_virtual = _process_virtual_bytes()
+        ceiling = min(sys.maxsize - 1, current_virtual + memory_limit_bytes)
+        inherited = resource.getrlimit(resource.RLIMIT_AS)
+        finite_inherited = [value for value in inherited if value != resource.RLIM_INFINITY]
+        if finite_inherited:
+            ceiling = min(ceiling, *finite_inherited)
+        if ceiling <= current_virtual:
+            raise AddressSpaceUnavailable(
+                f"The inherited address-space ceiling {ceiling} bytes is not above the worker's current VMS {current_virtual} bytes"
+            )
+        expected = (ceiling, ceiling)
+        resource.setrlimit(resource.RLIMIT_AS, expected)
+        actual = resource.getrlimit(resource.RLIMIT_AS)
+        if actual != expected:
+            raise AddressSpaceSetupError(f"RLIMIT_AS readback: expected {expected!r}, got {actual!r}")
+    except BaseException as exc:
+        _write_setup_failure_marker(exc)
+        raise
+
+
+def _process_virtual_bytes() -> int:
+    if sys.platform == "darwin":
+        return _read_mac_memory(os.getpid())[1]
+    if sys.platform.startswith("linux"):
+        fields = Path("/proc/self/statm").read_text(encoding="ascii").split()
+        if not fields:
+            raise AddressSpaceUnavailable("/proc/self/statm returned no virtual-size field")
+        return int(fields[0]) * int(os.sysconf("SC_PAGE_SIZE"))
+    raise AddressSpaceUnavailable(f"Address-space accounting is unsupported on {sys.platform}")
+
+
+def _write_setup_failure_marker(exc: BaseException) -> None:
+    diagnostic = f"{type(exc).__name__}: {exc}".encode("utf-8", errors="backslashreplace")
+    try:
+        os.write(1, SETUP_FAILURE_MARKER + diagnostic + b"\n")
+    except OSError:
+        pass
+
+
+def is_memory_exhaustion(exc: BaseException) -> bool:
+    """Identify explicit allocation failures without guessing from process exit."""
+    import errno
+
+    pending = [exc]
+    visited: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in visited:
+            continue
+        visited.add(id(current))
+        if isinstance(current, MemoryError):
+            return True
+        if isinstance(current, OSError) and current.errno == errno.ENOMEM:
+            return True
+        if isinstance(current, BaseExceptionGroup):
+            pending.extend(current.exceptions)
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+        if current.__context__ is not None:
+            pending.append(current.__context__)
+    return False
+
+
+def is_memory_exhaustion_output(output: bytes | str) -> bool:
+    """Recognize startup diagnostics for explicit allocation failure.
+
+    A killed worker with no such diagnostic remains WORKER_CRASH; signal-only
+    exits are not enough to claim OOM.
+    """
+    text = output.decode(errors="replace") if isinstance(output, bytes) else output
+    folded = text.casefold()
+    return "memoryerror" in folded or "cannot allocate memory" in folded or "out of memory" in folded
+
+
+def has_setup_failure_marker(output: bytes | str) -> bool:
+    data = output.encode() if isinstance(output, str) else output
+    return any(line.startswith(SETUP_FAILURE_MARKER) for line in data.splitlines())
 
 
 class AddressSpaceUnavailable(RuntimeError):
@@ -188,4 +319,10 @@ def sample_process_memory(process: subprocess.Popen) -> ProcessMemorySample | No
 
 
 if __name__ == "__main__":
-    _exec_address_space(AddressSpaceBudget(int(sys.argv[1])), sys.argv[2:])
+    try:
+        _exec_address_space(AddressSpaceBudget(int(sys.argv[1])), sys.argv[2:])
+    except BaseException as exc:
+        # The parent can distinguish a failed policy install from a model
+        # crash; this trusted bootstrap writes before any model code runs.
+        _write_setup_failure_marker(exc)
+        raise

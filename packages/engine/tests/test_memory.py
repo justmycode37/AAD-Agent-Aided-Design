@@ -22,6 +22,30 @@ TIB = 1024 ** 4  # Installation/inheritance test only; no such allocation.
 
 
 class AddressSpacePolicyTests(unittest.TestCase):
+    def test_size_settings_and_platform_defaults(self) -> None:
+        self.assertEqual(memory.memory_budget_bytes("32MiB"), 32 * MIB)
+        self.assertEqual(memory.memory_budget_bytes("4096"), 4096)
+        with patch.object(memory.sys, "platform", "linux"):
+            self.assertEqual(memory.memory_budget_bytes("auto"), 16 * 1024 ** 3)
+        with patch.object(memory.sys, "platform", "darwin"):
+            self.assertEqual(memory.memory_budget_bytes("auto"), 16 * 1024 ** 3)
+        for value in ("", "0", "-2GiB", "2GB", "forever", str(sys.maxsize)):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                memory.memory_budget_bytes(value)
+        with self.assertRaises(TypeError):
+            memory.memory_budget_bytes(True)
+
+    def test_allocation_failures_are_distinguished_from_unknown_exits(self) -> None:
+        failure = OSError(errno.ENOMEM, "cannot allocate memory")
+        wrapped = RuntimeError("kernel wrapper")
+        wrapped.__cause__ = failure
+        self.assertTrue(memory.is_memory_exhaustion(MemoryError("bounded allocation")))
+        self.assertTrue(memory.is_memory_exhaustion(failure))
+        self.assertTrue(memory.is_memory_exhaustion(wrapped))
+        self.assertFalse(memory.is_memory_exhaustion(RuntimeError("unexplained exit")))
+        self.assertFalse(memory.is_memory_exhaustion_output("signal 9"))
+        self.assertTrue(memory.is_memory_exhaustion_output("MemoryError: allocation failed"))
+
     def test_bytes_are_positive_finite_representable_integers(self) -> None:
         for value in (True, False, 1.0, '1024', None, object()):
             with self.subTest(value=value), self.assertRaises(TypeError):
@@ -440,7 +464,7 @@ os.execv({sys.executable!r}, {wrapped!r})
                 self.assertNotEqual(result.returncode, 0)
                 self.assertFalse((self.job / 'target-entered').exists())
                 self.assertIn('ValueError: current limit exceeds maximum limit', result.stderr)
-                self.assertEqual(result.stdout, '')
+                self.assertTrue(memory.has_setup_failure_marker(result.stdout))
 
     def test_native_capped_mmap_survives_exec_and_bounded_no_cap_control(self) -> None:
         capped = self.records(self.finish(self.launch([str(self.native), 'exec'], reads=(self.native,))))
@@ -488,6 +512,33 @@ for size in ({8 * MIB}, {96 * MIB}):
                             errno=None if kind == 'bytearray' else errno.ENOMEM))
                     else:
                         self.assertEqual(records[1], dict(bytes=96 * MIB, ok=True))
+
+    def test_worker_budget_is_relative_to_current_vms_and_rejects_bounded_allocation(self) -> None:
+        source_root = Path(memory.__file__).resolve().parents[2]
+        source = f'''import json, mmap, resource, sys
+sys.path.insert(0, {str(source_root)!r})
+from aad.engine.memory import install_worker_memory_budget
+install_worker_memory_budget({32 * MIB})
+limits = resource.getrlimit(resource.RLIMIT_AS)
+results = []
+for size in ({8 * MIB}, {96 * MIB}):
+    try:
+        block = mmap.mmap(-1, size, flags=mmap.MAP_PRIVATE | mmap.MAP_ANON)
+        block[0] = 1
+    except (MemoryError, OSError) as exc:
+        results.append(dict(bytes=size, ok=False, errno=getattr(exc, 'errno', None)))
+    else:
+        block.close()
+        results.append(dict(bytes=size, ok=True))
+print(json.dumps(dict(limits=limits, results=results)))
+'''
+        records = self.records(self.python(source))
+        record = records[0]
+        self.assertEqual(record["results"], [
+            dict(bytes=8 * MIB, ok=True),
+            dict(bytes=96 * MIB, ok=False, errno=errno.ENOMEM),
+        ])
+        self.assertEqual(record["limits"][0], record["limits"][1])
 
     @unittest.skipUnless(sys.platform == 'darwin', 'native libproc accounting and C ABI are Mac-only')
     def test_mac_sdk_abi_raw_errors_and_current_memory_sampling(self) -> None:

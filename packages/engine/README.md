@@ -89,11 +89,13 @@ not add one. See [sandbox.md](sandbox.md) for the boundary and its tests.
 - Jobs use one sandboxed subprocess each, with a bounded timeout and
   process-group/pipe cleanup, including pipes held after the leader exits.
   Native launcher diagnostics are retained as sandbox failures; unexplained
-  worker exits stay crashes, without inferring OOM or a kernel cause.
-  A warm worker pool, memory budgets and a revision store remain required.
-- S2's trusted post-build operations still need to adopt this launcher under
-  [issue #21](https://github.com/justmycode37/AAD-Agent-Aided-Design/issues/21).
-  Linux package/e2e CI must install bubblewrap under
+  worker exits stay crashes, without inferring OOM or a kernel cause. Explicit
+  `MemoryError`/`ENOMEM` results use `OUT_OF_MEMORY`. `engine.memory` applies
+  a 16 GiB per-process virtual-address growth budget on Linux and macOS by
+  default. It adds to the worker's started-Python VMS and is enforced with
+  `RLIMIT_AS`; it is not an aggregate resident-memory ceiling.
+  A warm worker pool and revision store remain required.
+- Linux package/e2e CI must install bubblewrap under
   [issue #50](https://github.com/justmycode37/AAD-Agent-Aided-Design/issues/50);
   public Linux build tests are not skipped when that dependency is absent.
 - Units are carried as request metadata. The model's numeric coordinates are

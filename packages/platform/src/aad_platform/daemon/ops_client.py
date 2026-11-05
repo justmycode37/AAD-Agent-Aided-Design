@@ -23,6 +23,7 @@ from aad_render.render_limits import (
     MAX_WORKER_STDOUT_BYTES,
 )
 
+from .. import config
 from ..ops import PREPARED_RENDER_FILENAME, RESULT_MARKER, _render_result
 
 DEFAULT_TIMEOUT_S = 120.0
@@ -53,48 +54,75 @@ def _package_roots() -> list[Path]:
 def _run_sandboxed(request: dict[str, Any], timeout_s: float) -> dict[str, Any]:
     """Blocking post-build operation; only the final VTK renderer runs outside the OS sandbox."""
     try:
-        from aad.engine import sandbox
+        from aad.engine import memory, sandbox
     except ImportError as exc:
         return _crash("WORKER_CRASH", "crash", f"The AAD engine is not installed: {exc}. Run aad doctor.")
+
+    try:
+        memory_limit_bytes = config.engine_memory_limit_bytes()
+    except (memory.AddressSpaceUnavailable, TypeError, ValueError) as exc:
+        return _crash(
+            "SANDBOX_DENIED",
+            "sandbox",
+            f"The configured engine.memory policy could not be resolved: {exc}",
+        )
 
     if request.get("op") == "render":
         if os.environ.get("AAD_REMOTE"):
             return _crash("SANDBOX_DENIED", "sandbox", "rendering needs a local graphics worker that remote mode does not grant")
         if request.get("kind", "part") != "2d":
-            return _run_mesh_render(request, timeout_s, sandbox)
+            return _run_mesh_render(request, timeout_s, sandbox, memory, memory_limit_bytes)
 
-    return _run_worker(request, timeout_s, sandbox)
+    return _run_worker(request, timeout_s, sandbox, memory, memory_limit_bytes)
 
 
-def _run_worker(request: dict[str, Any], timeout_s: float, sandbox: Any) -> dict[str, Any]:
-    """Run an operation under the unchanged OS policy, with the usual timeout and kill behavior."""
+def _run_worker(
+    request: dict[str, Any],
+    timeout_s: float,
+    sandbox: Any,
+    memory: Any,
+    memory_limit_bytes: int | None,
+) -> dict[str, Any]:
+    """Run a sandboxed operation with its configured per-process memory budget."""
     out = Path(request["out_dir"])
     out.mkdir(parents=True, exist_ok=True)
     reads = [*(Path(path) for path in request.get("read_paths", [])), *_package_roots()]
     argv = [sys.executable, "-m", "aad_platform.ops"]
     try:
-        process = sandbox.popen(argv, out, read_paths=reads)
-    except (sandbox.SandboxUnavailable, OSError) as exc:
+        startup_limit = (
+            memory.bootstrap_address_space_budget(memory_limit_bytes)
+            if memory_limit_bytes is not None
+            else None
+        )
+        process = sandbox.popen(argv, out, read_paths=reads, address_space=startup_limit)
+    except (sandbox.SandboxUnavailable, memory.AddressSpaceUnavailable, OSError) as exc:
         # Never fall back to an unsandboxed run.
-        return _crash("SANDBOX_DENIED", "sandbox", f"The OS sandbox could not start this operation: {exc}")
+        return _crash("SANDBOX_DENIED", "sandbox", f"The operation's sandbox or memory limit could not start: {exc}")
     result = _communicate_result(
         process,
-        json.dumps(request, default=str).encode(),
+        json.dumps({**request, "memory_limit_bytes": memory_limit_bytes}, default=str).encode(),
         timeout_s,
         stdout_limit=MAX_PREPARED_RENDER_BYTES + 1024 if request.get("op") == "render_prepare" else MAX_WORKER_STDOUT_BYTES,
         stderr_limit=MAX_WORKER_STDERR_BYTES,
         failure_phase="render" if request.get("op") in {"render", "render_prepare"} else "crash",
+        memory=memory,
     )
     if not result.get("ok") and request.get("op") in {"render", "render_prepare"}:
         return _as_render_failure(result)
     return result
 
 
-def _run_mesh_render(request: dict[str, Any], timeout_s: float, sandbox: Any) -> dict[str, Any]:
+def _run_mesh_render(
+    request: dict[str, Any],
+    timeout_s: float,
+    sandbox: Any,
+    memory: Any,
+    memory_limit_bytes: int | None,
+) -> dict[str, Any]:
     """Parse the B-rep under the OS sandbox, then give a clean VTK worker render data only."""
     deadline = time.monotonic() + timeout_s
     prepare_request = {**request, "op": "render_prepare"}
-    prepared_result = _run_worker(prepare_request, timeout_s, sandbox)
+    prepared_result = _run_worker(prepare_request, timeout_s, sandbox, memory, memory_limit_bytes)
     out = Path(request["out_dir"])
     payload_path = out / PREPARED_RENDER_FILENAME
     if not prepared_result.get("ok"):
@@ -124,8 +152,16 @@ def _run_mesh_render(request: dict[str, Any], timeout_s: float, sandbox: Any) ->
     remaining = deadline - time.monotonic()
     if remaining <= 0:
         return _crash("TIMEOUT", "timeout", f"The operation did not finish within {timeout_s:.0f} s.")
+    if memory_limit_bytes is None:
+        return _crash(
+            "SANDBOX_DENIED",
+            "sandbox",
+            "The clean mesh renderer requires a supported engine.memory address-space policy.",
+        )
     argv = [sys.executable, "-m", "aad_platform.render_mesh", str(out)]
     try:
+        startup_limit = memory.bootstrap_address_space_budget(memory_limit_bytes)
+        argv = memory._bootstrap_argv(argv, startup_limit, out)
         process = subprocess.Popen(
             argv,
             cwd=out,
@@ -136,8 +172,8 @@ def _run_mesh_render(request: dict[str, Any], timeout_s: float, sandbox: Any) ->
             start_new_session=True,
             close_fds=True,
         )
-    except OSError as exc:
-        return _crash("WORKER_CRASH", "render", f"The mesh renderer could not start: {exc}")
+    except (memory.AddressSpaceUnavailable, OSError) as exc:
+        return _crash("SANDBOX_DENIED", "sandbox", f"The mesh renderer's memory limit could not start: {exc}")
     rendered_result = _communicate_result(
         process,
         input_data,
@@ -145,6 +181,7 @@ def _run_mesh_render(request: dict[str, Any], timeout_s: float, sandbox: Any) ->
         stdout_limit=MAX_RENDER_RESULT_BYTES + len(RESULT_MARKER) + 1,
         stderr_limit=MAX_WORKER_STDERR_BYTES,
         failure_phase="render",
+        memory=memory,
     )
     if not rendered_result.get("ok"):
         return _as_render_failure(rendered_result)
@@ -195,7 +232,7 @@ def _as_render_failure(result: dict[str, Any]) -> dict[str, Any]:
     failure = result.get("failure")
     if not isinstance(failure, dict):
         return _crash("WORKER_CRASH", "render", "The render worker failed without a failure report.")
-    if failure.get("phase") not in {"sandbox", "timeout"}:
+    if failure.get("phase") not in {"sandbox", "timeout", "oom"}:
         failure = {**failure, "phase": "render"}
     return {**result, "failure": failure}
 
@@ -208,6 +245,7 @@ def _communicate_result(
     stdout_limit: int = MAX_WORKER_STDOUT_BYTES,
     stderr_limit: int = MAX_WORKER_STDERR_BYTES,
     failure_phase: str = "crash",
+    memory: Any | None = None,
 ) -> dict[str, Any]:
     try:
         if all(getattr(process, name, None) is not None for name in ("stdin", "stdout", "stderr")):
@@ -247,6 +285,13 @@ def _communicate_result(
                 return result
         except (json.JSONDecodeError, ValueError, UnicodeDecodeError):
             pass
+    if memory is not None:
+        if memory.has_setup_failure_marker(stdout) or memory.has_setup_failure_marker(stderr):
+            detail = stderr.decode(errors="replace").strip().splitlines()[-1:] or ["no setup diagnostic"]
+            return _crash("SANDBOX_DENIED", "sandbox", f"The configured engine.memory limit could not be installed; the operation did not run. {detail[0]}")
+        if memory.is_memory_exhaustion_output(stderr):
+            detail = stderr.decode(errors="replace").strip().splitlines()[-1:] or ["allocation failed during worker startup"]
+            return _crash("OUT_OF_MEMORY", "oom", f"The operation worker could not allocate memory under engine.memory. {detail[0]}")
     detail = stderr.decode(errors="replace").strip().splitlines()[-1:] or ["no output"]
     return _crash("WORKER_CRASH", failure_phase, f"The worker exited with code {process.returncode}: {detail[0]}")
 

@@ -9,8 +9,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from aad_drafting import Entity2D, sheet2d
-from aad_drafting.validation2d import checks, measurement_evidence
+from aad_drafting import Entity2D, Sheet2D, sheet2d
+from aad_drafting.validation2d import _context_sheet, checks, measurement_evidence
 
 
 def context(sheet, *, units=None, process=None):
@@ -56,6 +56,15 @@ def test_validation_import_does_not_load_the_cad_kernel():
     env = dict(os.environ)
     env["PYTHONPATH"] = str(package_src)
     subprocess.run([sys.executable, "-c", code], check=True, env=env)
+
+
+def test_validation_rethrows_memory_error_from_sheet_serialization():
+    class FailingSheet:
+        def to_dict(self):
+            raise MemoryError("bounded allocation fixture")
+
+    with pytest.raises(MemoryError, match="bounded allocation fixture"):
+        _context_sheet(SimpleNamespace(sheet=FailingSheet(), units="mm"))
 
 
 def test_nested_true_circle_contours_report_only_odd_depth_interior_holes():

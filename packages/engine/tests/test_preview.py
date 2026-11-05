@@ -112,11 +112,14 @@ result = Box(2, 3, 4)
             result = self._result(root)
             original_metrics = dict(result.metrics)
 
-            def launch(argv, job, *, read_paths):
+            def launch(argv, job, *, read_paths, address_space):
                 self.assertEqual(Path(job).parent, root)
                 self.assertNotEqual(Path(job), root)
                 self.assertEqual(tuple(read_paths), (root / 'part.brep',))
                 self.assertIn('-I', argv)
+                self.assertEqual(address_space.bytes, _preview.memory.bootstrap_address_space_budget(
+                    _preview.memory.default_memory_budget_bytes()
+                ).bytes)
                 process = Mock(returncode=0)
                 process.poll.return_value = 0
 
