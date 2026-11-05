@@ -61,3 +61,25 @@ result = shape
     assert not scene_failures, scene_failures
     shown = call("aad_show", project="custom-shape-scene")
     assert shown.get("scene", {}).get("format") == "tcv-5", shown
+
+
+def test_cyclic_shape_material_metadata_generates_a_scene_over_stdio(mcp_process):
+    call = _start_client(mcp_process)
+    created = call("aad_new", name="cyclic-shape-scene", kind="part")
+    assert created["ok"], created
+    source = """from aad import *
+shape = Box(10, 10, 10)
+material = {"name": "custom"}
+material["cycle"] = material
+shape._material = material
+result = shape
+"""
+    built = call("aad_build", project="cyclic-shape-scene", source=source, wait_s=200)
+    assert built["ok"], built
+    scene_failures = [
+        check for check in built.get("checks", [])
+        if check["id"] == "scene_generation_failed"
+    ]
+    assert not scene_failures, scene_failures
+    shown = call("aad_show", project="cyclic-shape-scene")
+    assert shown.get("scene", {}).get("format") == "tcv-5", shown

@@ -358,7 +358,7 @@ class _NumpyEncoder(json.JSONEncoder):
         return super().default(value)
 
 
-def _scene_json_value(value: Any) -> Any:
+def _scene_json_value(value: Any, _active: set[int] | None = None) -> Any:
     """Keep scene data JSON-safe while dropping opaque shape metadata.
 
     ``ocp-tessellate`` copies shape materials and other attributes into its
@@ -378,34 +378,42 @@ def _scene_json_value(value: Any) -> Any:
         np = None
     if np is not None:
         if isinstance(value, np.generic):
-            return _scene_json_value(value.item())
+            return _scene_json_value(value.item(), _active)
         if isinstance(value, np.ndarray):
-            return _scene_json_value(value.tolist())
+            return _scene_json_value(value.tolist(), _active)
 
-    if isinstance(value, Mapping):
-        result: dict[str, Any] = {}
-        for key, item in value.items():
-            if isinstance(key, str):
-                json_key = key
-            elif isinstance(key, (bool, int, float)):
-                json_key = str(key)
-            else:
-                continue
-            safe_item = _scene_json_value(item)
-            if safe_item is not _DROP_FROM_SCENE:
-                result[json_key] = safe_item
-        return result
+    if isinstance(value, (Mapping, list, tuple)):
+        active = _active if _active is not None else set()
+        identity = id(value)
+        if identity in active:
+            return _DROP_FROM_SCENE
+        active.add(identity)
+        try:
+            if isinstance(value, Mapping):
+                result: dict[str, Any] = {}
+                for key, item in value.items():
+                    if isinstance(key, str):
+                        json_key = key
+                    elif isinstance(key, (bool, int, float)):
+                        json_key = str(key)
+                    else:
+                        continue
+                    safe_item = _scene_json_value(item, active)
+                    if safe_item is not _DROP_FROM_SCENE:
+                        result[json_key] = safe_item
+                return result
 
-    if isinstance(value, (list, tuple)):
-        result = []
-        for item in value:
-            safe_item = _scene_json_value(item)
-            if safe_item is _DROP_FROM_SCENE:
-                # A list can be geometry or metadata. Let the containing
-                # mapping drop it rather than changing a geometry sequence.
-                return _DROP_FROM_SCENE
-            result.append(safe_item)
-        return result
+            result = []
+            for item in value:
+                safe_item = _scene_json_value(item, active)
+                if safe_item is _DROP_FROM_SCENE:
+                    # A list can be geometry or metadata. Let the containing
+                    # mapping drop it rather than changing a geometry sequence.
+                    return _DROP_FROM_SCENE
+                result.append(safe_item)
+            return result
+        finally:
+            active.remove(identity)
 
     return _DROP_FROM_SCENE
 
@@ -554,7 +562,13 @@ def _write_single_scene(ctx: Any, out: Path) -> tuple[Any, dict[str, Any]]:
     shapes["feature_map"] = feature_map
     # TCV 5.1.3 directly decodes this instance/reference form in Viewer.render.
     # ocp_tessellate emits Float32 geometry; no extra decimal rounding is used.
-    binary_tree = numpy_to_buffer_json({"instances": meshed, "shapes": shapes})
+    # Clean the shape tree before ocp-tessellate recursively walks it. This
+    # tree contains display metadata, while mesh arrays stay in `meshed` and
+    # retain the binary-buffer encoding.
+    safe_shapes = _scene_json_value(shapes)
+    if not isinstance(safe_shapes, dict):
+        raise TypeError("scene shape tree is not JSON-compatible")
+    binary_tree = numpy_to_buffer_json({"instances": meshed, "shapes": safe_shapes})
     safe_tree = _scene_json_value(binary_tree)
     if not isinstance(safe_tree, dict):
         raise TypeError("scene tree is not JSON-compatible")

@@ -348,3 +348,15 @@ def test_opaque_shape_material_metadata_is_dropped(tmp_path):
 
     part = _shape_tree(_payload(tmp_path))["parts"][0]
     assert "material" not in part
+
+
+def test_cyclic_shape_material_metadata_is_dropped(tmp_path):
+    shape = Box(1, 1, 1)
+    material = {"name": "custom"}
+    material["cycle"] = material
+    shape._material = material
+
+    make_scene(_context(shape), tmp_path)
+
+    part = _shape_tree(_payload(tmp_path))["parts"][0]
+    assert part["material"] == {"name": "custom"}
