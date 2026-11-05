@@ -85,6 +85,12 @@ with part("bracket") as bp:
         fillet(edge(feature="plate", where="parallel_z", expect=4), radius=2.0)
 ```
 
+The wildcard modeling API also exports `gear_profile`, `gear_solid`,
+`gear_center_distance`, `helix_angle_for_center_distance`, `gear_mesh_phase`,
+and `tapered_bevel_standin`. Their angles are in degrees; gear module is the
+normal module. Geometry assumptions and limits are documented in
+`packages/engine/modeling.md`.
+
 - `params()` declares every adjustable number; overrides come from tools. A param may be a `Param(value, min, max, unit)` so that sliders get ranges.
 - `feature(name)` must be unique. It records created and modified faces and edges, source lines and dependencies.
 - `face()`, `edge()`, `vertex()` resolve semantically. `expect=n` turns a count mismatch into a `SELECTOR_AMBIGUOUS` or `SELECTOR_EMPTY` failure with candidates.
@@ -482,6 +488,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 
 ## 11. Changelog
 
+- 2026-11-05: S1 added the first-party gear helpers to the `from aad import *` modeling API, with degree-based angles and normal module.
 - 2026-11-05: Added optional `timeout_s` to `aad_build` in section 5, because the fixed 60 second kill limit stopped a full gearbox assembly that needed about 80 seconds.
 - 2026-11-05: S2/S3 added optional agent-controlled viewer presentations to `aad_show` and its result, following the user’s request for simple user controls and detailed views prepared through chat.
 - 2026-11-05: S2/S3 added optional `presentation.inside` to describe a real interior view and conditionally expose an inside/outside button, at the user's request.

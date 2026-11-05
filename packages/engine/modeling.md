@@ -5,6 +5,52 @@
 [The named mount fixture](../../fixtures/models/named_mount.py) builds a Box,
 four through holes, and four real fillets with the pinned kernel.
 
+## Gear profiles and solids
+
+`gear_profile(teeth, module, ...)` returns a transverse involute section as a
+build123d `Face`; `gear_solid(teeth, module, width, ...)` extrudes it along +Z.
+Angles are degrees, `module` is the normal module, and `pressure_angle` is the
+normal pressure angle. `hand="right"` and `hand="left"` set the twist sign.
+The defaults are a 20° pressure angle, 1.0 addendum, and 1.25 dedendum.
+`profile_shift` is in normal-module units, `backlash` is a circular tooth
+thickness reduction per gear in model units, and `bore` is a through-bore
+diameter. `internal=True` makes a ring gear; `rim_thickness` sets its outer
+wall. Internal gear cutter interference is not checked.
+
+`gear_center_distance(module, z1, z2, helix_angle)` and
+`helix_angle_for_center_distance(...)` use nominal pitch cylinders. Set
+`internal=True` for a ring as gear 2; profile-shift center correction is not
+included. `gear_mesh_phase(z1, z2, centerline_angle=0, phase1=0)` returns the
+tooth-grid phase for gear 2 in degrees. External helical pairs need opposite
+hands.
+
+```python
+from aad import *
+
+a = gear_center_distance(2.5, 13, 48, 31)
+phase = gear_mesh_phase(13, 48)
+pinion = gear_solid(13, 2.5, 8, helix_angle=31, hand="right", backlash=0.05)
+wheel = gear_solid(48, 2.5, 8, helix_angle=31, hand="left", backlash=0.05,
+                   phase=phase, x=a)
+```
+
+This verified pair has a nominal center distance of 88.956 mm and phase
+183.75°. It has zero intersection volume at that distance; moving the wheel
+0.5 mm closer produces 5.245 mm³ of overlap across the full 8 mm face. The
+0.05 mm reduction on each gear gives about 0.10 mm circular backlash.
+
+The involute flanks are interpolating B-splines, sampled with a 0.005 mm
+profile tolerance. For a 40-tooth spur gear at module 1, 2.5, and 6, the
+measured same-radius deviation from the analytic involute was at most
+0.00073 mm; profile tests also compare pitch, base, tip, and root tooth
+thickness with analytic values. A radial root connector and circular root arc
+close the flank; there is no trochoidal root fillet. The default rack-undercut
+check warns when the virtual tooth count is below its limit; use
+`undercut="error"` to stop. `tapered_bevel_standin(...)` makes a tapered spur
+loft for visual layout only. It is not a true bevel, beveloid, spiral-bevel,
+or hypoid flank form. No gear API here checks strength, contact stress, noise,
+life, or manufacturing tolerances.
+
 Declare adjustable values in one `params()` call per build. Values may be
 finite numbers, strings, or nested tuples/lists of those values. Overrides
 must preserve the declaration's structure and scalar types; numeric int/float
