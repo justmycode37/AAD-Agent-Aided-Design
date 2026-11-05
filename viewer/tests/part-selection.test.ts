@@ -580,11 +580,10 @@ it("names a part from its path", () => {
 });
 
 describe("soft highlight shader", () => {
-  it("blends in the requested bands and keeps authored edge width", () => {
-    expect(SELECTED_TINT).toBeGreaterThanOrEqual(0.18);
-    expect(SELECTED_TINT).toBeLessThanOrEqual(0.24);
-    expect(HOVER_TINT).toBeGreaterThanOrEqual(0.08);
-    expect(HOVER_TINT).toBeLessThanOrEqual(0.12);
+  it("keeps selection stronger than hover while retaining the base color and edge width", () => {
+    expect(HOVER_TINT).toBeGreaterThan(0);
+    expect(SELECTED_TINT).toBeGreaterThan(HOVER_TINT);
+    expect(SELECTED_TINT).toBeLessThan(0.5);
     const shader = { vertexShader: "", fragmentShader: "" };
     shader.fragmentShader = "diffuseColor.rgb = uHighlightSelectedColor; else diffuseColor.rgb = uHighlightHoverColor;";
     shader.vertexShader = "uint hlEdgeState = highlightState();\n  offset *= (x ? 5.0 : (y ? 3.0 : linewidth));\nrest";

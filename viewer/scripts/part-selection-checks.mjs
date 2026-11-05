@@ -216,8 +216,8 @@ export async function checkPartSelection({ page, frame, check, offset = { x: 0, 
   await move([1, 1]);
   const selectedYellow = await pixel(yellowPoint);
   const hoverStep = distance(hoverYellow, idleYellow), selectedStep = distance(selectedYellow, idleYellow);
-  check(hoverStep >= 2 && hoverStep <= 30, `${label}: hover is a faint tint`, `${idleYellow} -> ${hoverYellow}, step ${hoverStep}`);
-  check(selectedStep > hoverStep && selectedStep <= 60, `${label}: selection is a soft tint, stronger than hover`, `${idleYellow} -> ${selectedYellow}, step ${selectedStep}`);
+  check(hoverStep >= 8 && hoverStep <= 45, `${label}: hover is clearly visible while retaining the part color`, `${idleYellow} -> ${hoverYellow}, step ${hoverStep}`);
+  check(selectedStep > hoverStep && selectedStep <= 85, `${label}: selection is a soft tint, stronger than hover`, `${idleYellow} -> ${selectedYellow}, step ${selectedStep}`);
   check(channelOrder(selectedYellow) === channelOrder(idleYellow) && selectedYellow[0] > selectedYellow[2] + 60, `${label}: a selected yellow part stays yellow`, `${selectedYellow}`);
   await page.screenshot({ path: "test-output/part-selection-soft-yellow.png" }).catch(() => {});
 
@@ -233,7 +233,7 @@ export async function checkPartSelection({ page, frame, check, offset = { x: 0, 
   check(Math.abs(selectedStats.drawn - idleStats.drawn) <= idleStats.drawn * 0.02, `${label}: a selection does not thicken outlines or change the drawn shape`, `${idleStats.drawn} -> ${selectedStats.drawn}`);
   const shaders = await compiledShaders(frame, MIDDLE);
   check(shaders.length >= 2 && shaders.some(s => s.line) && shaders.some(s => !s.line), `${label}: the part's face and edge materials are compiled`, `${shaders.length}`);
-  check(shaders.every(s => s.key.includes("aad-soft-highlight") && /pow\(diffuseColor\.rgb, [^;]*, 0\.22\)/.test(s.fragment) && /pow\(diffuseColor\.rgb, [^;]*, 0\.10\)/.test(s.fragment) && !s.fragment.includes("diffuseColor.rgb = uHighlight")), `${label}: compiled shaders blend 22% selected and 10% hover, and never replace the color`);
+  check(shaders.every(s => s.key.includes("aad-soft-highlight") && (s.fragment.match(/diffuseColor\.rgb = pow\(mix\(pow\(diffuseColor\.rgb,/g)?.length === 2) && !s.fragment.includes("diffuseColor.rgb = uHighlight")), `${label}: compiled shaders blend both highlights with the original color`);
   check(shaders.filter(s => s.line).every(s => s.vertex.includes("offset *= linewidth;") && !s.vertex.includes("hlEdgeState")), `${label}: compiled edges keep their authored width`);
 
   // A second click on a selected part deselects it, from any of its faces.

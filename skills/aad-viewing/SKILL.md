@@ -21,8 +21,8 @@ Know what the user sees:
 - **Navigation:** on Mac, click-drag rotates, two-finger scroll pans in both
   directions, pinch zooms, and Option-scroll is the zoom fallback. Other desktops
   scroll or pinch to zoom and Shift-drag or right-drag to pan.
-- **Parts:** hover softly highlights the whole part while retaining its material
-  and detail. Click selects; click the selected part again to deselect.
+- **Parts:** hover highlights the whole part with a soft blue tint; selection
+  uses a stronger blue tint while retaining material and detail. Click selects; click the selected part again to deselect.
   Shift-click toggles additional parts; blank click or Escape clears selection.
   Dragging rotates without selecting. Hosts advertising native unsent composer
   insertion also support double-clicking a part to add an `@part` reference to

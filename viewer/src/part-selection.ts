@@ -11,10 +11,10 @@ const DOUBLE_SIDE = 2;
 
 /**
  * How far a part's own color moves toward the tint, before lighting. The blend is done in display-like
- * gamma: in linear color, 22% of a light tint repaints a color's dark channels and turns yellow to peach.
+ * gamma so a light tint keeps the part's own hue in darker color channels.
  */
-export const SELECTED_TINT = 0.22;
-export const HOVER_TINT = 0.1;
+export const SELECTED_TINT = 0.34;
+export const HOVER_TINT = 0.18;
 /** The engine's selection blue, lifted toward white, so the tint still shows on a blue part. */
 const TINT_LIFT = 0.35;
 const SOFT_CACHE_KEY = ":aad-soft-highlight";
