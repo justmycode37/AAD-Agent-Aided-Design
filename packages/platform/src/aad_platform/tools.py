@@ -434,6 +434,8 @@ INSTRUCTIONS = (
     "the user asks to see the part. Report the status honestly: draft means built but not proven, verified means the hard gate "
     "and every error-level requirement passed. Chat users see orbit/zoom, explode, grid, reset, fullscreen and a Views menu; "
     "agents supply named views with aad_show.views. Full CAD controls remain in the local window. "
+    "Use the packaged AAD viewer; HTML-only hosts use aad_platform.viewer.bundle. Never hand-write "
+    "a replacement Three.js viewer or silently use a legacy stub. Repair a missing/outdated runtime. "
     "Before saying AAD cannot do something, check that guide. Playbook workflow.capabilities.v1 has working code for "
     "assemblies, sheet metal, surfaces, direct edits, standard parts and 2D. "
     "Default to physical realism: model interiors, functional components, attachments and power/control paths "
