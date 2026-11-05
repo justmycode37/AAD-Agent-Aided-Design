@@ -125,13 +125,16 @@ def render(ctx: Any, req: Any, out: Path) -> list[Path]:
     pixels, which faces each view shows, exact section outlines, and the answers to ``probes``,
     ``measure`` and thickness requests. See this package's README for the request fields.
     """
+    return render_prepared(prepare_render(ctx, req), out)
+
+
+def prepare_render(ctx: Any, req: Any) -> dict[str, Any]:
+    """Prepare exact inspection and a JSON-safe mesh payload without opening VTK."""
     request = _read_request(req)
     shape = _field(ctx, "shape", None)
     if shape is None:
         raise ValueError("aad_render needs a 3D context with ctx.shape")
 
-    output = Path(out)
-    output.mkdir(parents=True, exist_ok=True)
     original_faces = list(shape.faces())
     original_edges = list(shape.edges())
     if not original_faces:
@@ -236,8 +239,6 @@ def render(ctx: Any, req: Any, out: Path) -> list[Path]:
         scene,
         bounds=scene.bounds,
     )
-    backend = get_backend(request["backend"])
-    result_paths: list[Path] = []
     pictures = {}
     box = focus["box"] if focus else scene.bounds
     for view in request["views"]:
@@ -259,27 +260,278 @@ def render(ctx: Any, req: Any, out: Path) -> list[Path]:
         report["measurements"] = overlay.measures
 
     report["images"] = {}
+    render_state = {
+        "version": 1,
+        "request": {
+            "backend": request["backend"],
+            "views": request["views"],
+            "style": request["style"],
+            "labels": request["labels"],
+        },
+        "scene": _scene_to_payload(scene),
+        "labels": [
+            {
+                "number": label.number,
+                "selector": label.selector,
+                "feature": label.feature,
+                "kind": label.kind,
+                "index": label.index,
+                "anchor": list(label.anchor),
+            }
+            for label in labels
+        ],
+        "legend": legend,
+        "heat_legend": None if heat_legend is None else {
+            "kind": heat_legend.kind,
+            "minimum": heat_legend.minimum,
+            "maximum": heat_legend.maximum,
+            "units": heat_legend.units,
+            "heuristic": heat_legend.heuristic,
+            "reverse": heat_legend.reverse,
+            "limit": heat_legend.limit,
+        },
+        "overlay": {
+            "dimensions": overlay.dimensions,
+            "round_faces": overlay.round_faces,
+            "probes": overlay.probes,
+            "measures": overlay.measures,
+            "marks": overlay.marks,
+        },
+        "pictures": {
+            view: {
+                "size": size,
+                "panes": [
+                    {
+                        "view": pane.view,
+                        "camera": {
+                            "name": pane.camera.name,
+                            "position": list(pane.camera.position),
+                            "focal_point": list(pane.camera.focal_point),
+                            "view_up": list(pane.camera.view_up),
+                            "right": list(pane.camera.right),
+                            "up": list(pane.camera.up),
+                            "parallel_scale": pane.camera.parallel_scale,
+                            "distance": pane.camera.distance,
+                        },
+                        "x": pane.x,
+                        "y": pane.y,
+                        "width": pane.width,
+                        "height": pane.height,
+                        "drawn": list(pane.drawn),
+                    }
+                    for pane in panes
+                ],
+            }
+            for view, (size, panes) in pictures.items()
+        },
+        "clip_box": clip_box,
+    }
+    return {
+        "version": 1,
+        "render": _json_safe(render_state),
+        "inspection": _json_safe(report),
+    }
+
+
+def render_mesh(payload: dict[str, Any], out: Path) -> dict[str, Any]:
+    """Render a prepared mesh and return view metadata; this payload contains no B-rep report."""
+    if payload.get("version") != 1:
+        raise ValueError("unsupported prepared render payload version")
+    request = payload["request"]
+    scene = _scene_from_payload(payload["scene"])
+    labels = [
+        _Label(
+            number=int(item["number"]),
+            selector=str(item["selector"]),
+            feature=item.get("feature"),
+            kind=str(item["kind"]),
+            index=item.get("index"),
+            anchor=tuple(float(value) for value in item["anchor"]),
+        )
+        for item in payload["labels"]
+    ]
+    legend = payload["legend"]
+    raw_heat_legend = payload["heat_legend"]
+    heat_legend = _HeatLegend(**raw_heat_legend) if raw_heat_legend is not None else None
+    raw_overlay = payload["overlay"]
+    overlay = _Overlay(
+        dimensions=raw_overlay["dimensions"],
+        round_faces=raw_overlay["round_faces"],
+        probes=raw_overlay["probes"],
+        measures=raw_overlay["measures"],
+        marks=raw_overlay["marks"],
+    )
+    pictures = {
+        view: (
+            int(spec["size"]),
+            [
+                _Pane(
+                    view=pane["view"],
+                    camera=CameraSpec(
+                        name=pane["camera"]["name"],
+                        position=tuple(pane["camera"]["position"]),
+                        focal_point=tuple(pane["camera"]["focal_point"]),
+                        view_up=tuple(pane["camera"]["view_up"]),
+                        right=tuple(pane["camera"]["right"]),
+                        up=tuple(pane["camera"]["up"]),
+                        parallel_scale=float(pane["camera"]["parallel_scale"]),
+                        distance=float(pane["camera"]["distance"]),
+                    ),
+                    x=int(pane["x"]),
+                    y=int(pane["y"]),
+                    width=int(pane["width"]),
+                    height=int(pane["height"]),
+                    drawn=tuple(pane["drawn"]),
+                )
+                for pane in spec["panes"]
+            ],
+        )
+        for view, spec in payload["pictures"].items()
+    }
+    clip_box = payload["clip_box"]
+    if clip_box is not None:
+        clip_box = tuple(tuple(float(value) for value in bounds) for bounds in clip_box)
+
+    output = Path(out)
+    output.mkdir(parents=True, exist_ok=True)
+    backend = get_backend(request["backend"])
+    png_names = []
+    image_reports = {}
     for view, (size, panes) in pictures.items():
         image = _draw_picture(backend, scene, view, size, panes, request["style"], labels, heat_legend, overlay, clip_box)
         path = output / f"{view}.png"
         _save_png(image, path)
-        result_paths.append(path)
-        report["images"][path.name] = _image_report(size, panes, scene)
+        png_names.append(path.name)
+        image_reports[path.name] = _image_report(size, panes, scene)
 
+    label_name = None
+    if request["labels"] != "none":
+        label_name = "labels.json"
+        label_bytes = (json.dumps(legend, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+        (output / label_name).write_bytes(label_bytes)
+    return {"images": png_names, "labels": label_name, "image_reports": image_reports}
+
+
+def finish_render(prepared: dict[str, Any], rendered: dict[str, Any], out: Path) -> list[Path]:
+    """Combine sandboxed B-rep inspection with the image visibility reported by VTK."""
+    if prepared.get("version") != 1:
+        raise ValueError("unsupported prepared render bundle version")
+    request = prepared["render"]["request"]
+    image_names = [f"{view}.png" for view in request["views"]]
+    if rendered.get("images") != image_names:
+        raise ValueError("the mesh renderer returned unexpected image names")
+    label_name = "labels.json" if request["labels"] != "none" else None
+    if rendered.get("labels") != label_name:
+        raise ValueError("the mesh renderer returned an unexpected label file")
+    if set(rendered.get("image_reports", {})) != set(image_names):
+        raise ValueError("the mesh renderer returned incomplete image visibility metadata")
+    report = dict(prepared["inspection"])
+    report["images"] = rendered["image_reports"]
+    output = Path(out)
+    output.mkdir(parents=True, exist_ok=True)
     inspection_path = output / "inspection.json"
     inspection_path.write_bytes(
         (json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
     )
-    result_paths.append(inspection_path)
+    names = [*image_names, inspection_path.name]
+    if label_name is not None:
+        names.append(label_name)
+    return [output / name for name in names]
 
-    if request["labels"] != "none":
-        legend_path = output / "labels.json"
-        legend_bytes = (json.dumps(legend, sort_keys=True, separators=(",", ":")) + "\n").encode(
-            "utf-8"
-        )
-        legend_path.write_bytes(legend_bytes)
-        result_paths.append(legend_path)
-    return result_paths
+
+def render_prepared(prepared: dict[str, Any], out: Path) -> list[Path]:
+    """Render and finalize a JSON bundle produced by :func:`prepare_render`."""
+    return finish_render(prepared, render_mesh(prepared["render"], out), out)
+
+
+def _scene_to_payload(scene: RenderScene) -> dict[str, Any]:
+    return {
+        "faces": [
+            {
+                "index": face.index,
+                "source_index": face.source_index,
+                "feature": face.feature,
+                "points": np.asarray(face.points).tolist(),
+                "triangles": np.asarray(face.triangles).tolist(),
+                "normal": list(face.normal),
+                "anchor": list(face.anchor),
+                "section_cap": face.section_cap,
+                "highlighted": face.highlighted,
+                "color": list(face.color),
+                "triangle_colors": [list(color) for color in face.triangle_colors],
+            }
+            for face in scene.faces
+        ],
+        "lines": [
+            {
+                "points": [list(point) for point in line.points],
+                "role": line.role,
+                "index": line.index,
+                "source_index": line.source_index,
+                "feature": line.feature,
+                "anchor": list(line.anchor) if line.anchor is not None else None,
+                "highlighted": line.highlighted,
+            }
+            for line in scene.lines
+        ],
+        "bounds": [[*scene.bounds[0]], [*scene.bounds[1]]],
+        "units": scene.units,
+        "section_label": scene.section_label,
+        "data_colors": scene.data_colors,
+    }
+
+
+def _scene_from_payload(payload: dict[str, Any]) -> RenderScene:
+    return RenderScene(
+        faces=[
+            RenderFace(
+                index=int(face["index"]),
+                source_index=face["source_index"],
+                feature=face["feature"],
+                points=np.asarray(face["points"], dtype=np.float64),
+                triangles=np.asarray(face["triangles"], dtype=np.int64),
+                normal=tuple(face["normal"]),
+                anchor=tuple(face["anchor"]),
+                section_cap=bool(face["section_cap"]),
+                highlighted=bool(face["highlighted"]),
+                color=tuple(face["color"]),
+                triangle_colors=tuple(tuple(color) for color in face["triangle_colors"]),
+            )
+            for face in payload["faces"]
+        ],
+        lines=[
+            RenderLine(
+                points=tuple(tuple(point) for point in line["points"]),
+                role=line["role"],
+                index=line["index"],
+                source_index=line["source_index"],
+                feature=line["feature"],
+                anchor=tuple(line["anchor"]) if line["anchor"] is not None else None,
+                highlighted=bool(line["highlighted"]),
+            )
+            for line in payload["lines"]
+        ],
+        bounds=tuple(tuple(bounds) for bounds in payload["bounds"]),
+        units=payload["units"],
+        section_label=payload["section_label"],
+        data_colors=bool(payload["data_colors"]),
+    )
+
+
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, np.ndarray):
+        return _json_safe(value.tolist())
+    if isinstance(value, np.generic):
+        return _json_safe(value.item())
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, tuple | list):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if value is None or isinstance(value, str | int | float | bool):
+        return value
+    raise TypeError(f"render payload contains non-JSON value {type(value).__name__}")
 
 
 def _topology(shape: Any) -> exact.Topology | None:

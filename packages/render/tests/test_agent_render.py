@@ -380,6 +380,30 @@ def test_linux_without_display_uses_osmesa_when_installed(monkeypatch):
     assert os.environ["VTK_DEFAULT_OPENGL_WINDOW"] == "vtkOSOpenGLRenderWindow"
 
 
+def test_prepared_render_roundtrips_only_render_data_to_mesh_worker(tmp_path, monkeypatch):
+    import aad_render.agent_render as agent_render
+    from aad_render import finish_render, prepare_render, render_mesh
+
+    class CaptureBackend:
+        def render(self, _scene, _camera, *, width, height, style):
+            return Image.new("RGB", (width, height))
+
+    monkeypatch.setattr(agent_render, "get_backend", lambda _name: pytest.fail("preparation must not load VTK"))
+    prepared = prepare_render(_context(Box(12, 8, 4)), {"views": ["iso"], "size": 128})
+    prepared = json.loads(json.dumps(prepared))
+    assert "inspection" not in prepared["render"]
+    assert all(key not in prepared["render"] for key in ("project_dir", "rev", "brep", "shape"))
+
+    monkeypatch.setattr(agent_render, "get_backend", lambda _name: CaptureBackend())
+    rendered = render_mesh(prepared["render"], tmp_path)
+    paths = finish_render(prepared, rendered, tmp_path)
+
+    assert [path.name for path in paths] == ["iso.png", "inspection.json"]
+    report = json.loads((tmp_path / "inspection.json").read_text())
+    assert report["faces"]
+    assert report["images"]["iso.png"]["panes"]
+
+
 def _capture_render(monkeypatch, ctx, req, out):
     from aad_render import agent_render
 

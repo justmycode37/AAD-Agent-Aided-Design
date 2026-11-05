@@ -153,11 +153,27 @@ def op_render(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
     if ctx.kind == "2d":
         return _sheet_preview(ctx, out)
     render = _required("aad_render", "render", "Agent rendering")
+    request = _render_request(args)
+    paths = render(ctx, request, out)
+    return _render_result(paths)
+
+
+def op_render_prepare(ctx: Any, args: dict[str, Any], _out: Path) -> dict[str, Any]:
+    """Prepare 3D render data while the B-rep is still inside the sandbox."""
+    if ctx.kind == "2d":
+        raise ValueError("2D sheet previews do not use the macOS mesh render worker")
+    prepare_render = _required("aad_render", "prepare_render", "Agent render preparation")
+    return {"prepared_render": prepare_render(ctx, _render_request(args))}
+
+
+def _render_request(args: dict[str, Any]) -> Any:
     from aad.engine.types import RenderRequest
 
     known = {f.name for f in dataclasses.fields(RenderRequest)}
-    request = RenderRequest(**{k: v for k, v in args.items() if k in known and v is not None})
-    paths = render(ctx, request, out)
+    return RenderRequest(**{k: v for k, v in args.items() if k in known and v is not None})
+
+
+def _render_result(paths: list[Path]) -> dict[str, Any]:
     artifacts = {path.name: str(path) for path in paths}
     result = {
         "images": [{"path": str(path), "mime": "image/png"} for path in paths if path.suffix == ".png"],
@@ -528,6 +544,7 @@ def op_library(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
 
 OPS: dict[str, Callable[[Any, dict[str, Any], Path], dict[str, Any]]] = {
     "render": op_render,
+    "render_prepare": op_render_prepare,
     "scene": op_scene,
     "drawing": op_drawing,
     "check": op_check,

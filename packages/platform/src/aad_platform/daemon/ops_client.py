@@ -9,16 +9,13 @@ import os
 import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
-from ..ops import RESULT_MARKER
+from ..ops import RESULT_MARKER, _render_result
 
 DEFAULT_TIMEOUT_S = 120.0
-# VTK aborts inside macOS Seatbelt, which denies its graphics access (issue #56). These ops read a
-# BREP the sandboxed worker wrote and run no model code, with a clean environment and no secrets.
-# That leaves OCCT's BREP parser outside the sandbox, so remote mode refuses them.
-NEEDS_GRAPHICS = frozenset({"render"})
 
 
 def _package_roots() -> list[Path]:
@@ -44,36 +41,88 @@ def _package_roots() -> list[Path]:
 
 
 def _run_sandboxed(request: dict[str, Any], timeout_s: float) -> dict[str, Any]:
-    """Blocking. One kernel process inside the OS sandbox, killed with its descendants on timeout."""
+    """Blocking post-build operation; only the final macOS VTK renderer runs outside Seatbelt."""
     try:
         from aad.engine import sandbox
     except ImportError as exc:
         return _crash("WORKER_CRASH", "crash", f"The AAD engine is not installed: {exc}. Run aad doctor.")
+
+    if request.get("op") == "render":
+        if os.environ.get("AAD_REMOTE"):
+            return _crash("SANDBOX_DENIED", "sandbox", "rendering needs a local graphics worker that remote mode does not grant")
+        if sys.platform == "darwin" and request.get("kind", "part") != "2d":
+            return _run_macos_mesh_render(request, timeout_s, sandbox)
+
+    return _run_worker(request, timeout_s, sandbox)
+
+
+def _run_worker(request: dict[str, Any], timeout_s: float, sandbox: Any) -> dict[str, Any]:
+    """Run an operation under the unchanged OS policy, with the usual timeout and kill behavior."""
     out = Path(request["out_dir"])
     out.mkdir(parents=True, exist_ok=True)
     reads = [*(Path(path) for path in request.get("read_paths", [])), *_package_roots()]
     argv = [sys.executable, "-m", "aad_platform.ops"]
     try:
-        if request.get("op") in NEEDS_GRAPHICS:
-            if os.environ.get("AAD_REMOTE"):
-                raise sandbox.SandboxUnavailable("rendering needs graphics access that remote mode does not grant")
-            process = subprocess.Popen(
-                argv,
-                cwd=out,
-                env=sandbox.environment(out),
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                start_new_session=True,
-                close_fds=True,
-            )
-        else:
-            process = sandbox.popen(argv, out, read_paths=reads)
+        process = sandbox.popen(argv, out, read_paths=reads)
     except (sandbox.SandboxUnavailable, OSError) as exc:
         # Never fall back to an unsandboxed run.
         return _crash("SANDBOX_DENIED", "sandbox", f"The OS sandbox could not start this operation: {exc}")
+    return _communicate_result(process, json.dumps(request, default=str).encode(), timeout_s)
+
+
+def _run_macos_mesh_render(request: dict[str, Any], timeout_s: float, sandbox: Any) -> dict[str, Any]:
+    """Parse the B-rep under Seatbelt, then give a clean VTK worker render data only."""
+    deadline = time.monotonic() + timeout_s
+    prepare_request = {**request, "op": "render_prepare"}
+    prepared_result = _run_worker(prepare_request, timeout_s, sandbox)
+    if not prepared_result.get("ok"):
+        return prepared_result
+    prepared = prepared_result.get("prepared_render")
+    if not isinstance(prepared, dict) or not isinstance(prepared.get("render"), dict):
+        return _crash("WORKER_CRASH", "render", "The sandboxed worker returned no prepared mesh payload.")
+
+    out = Path(request["out_dir"])
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        return _crash("TIMEOUT", "timeout", f"The operation did not finish within {timeout_s:.0f} s.")
+    argv = [sys.executable, "-m", "aad_platform.render_mesh", str(out)]
     try:
-        stdout, stderr = process.communicate(json.dumps(request, default=str).encode(), timeout=timeout_s)
+        process = subprocess.Popen(
+            argv,
+            cwd=out,
+            env=sandbox.environment(out),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
+            close_fds=True,
+        )
+    except OSError as exc:
+        return _crash("WORKER_CRASH", "render", f"The mesh renderer could not start: {exc}")
+    rendered_result = _communicate_result(
+        process,
+        json.dumps({"render": prepared["render"]}, separators=(",", ":")).encode(),
+        remaining,
+    )
+    if not rendered_result.get("ok"):
+        return rendered_result
+    rendered = rendered_result.get("rendered")
+    if not isinstance(rendered, dict):
+        return _crash("WORKER_CRASH", "render", "The mesh renderer returned no image metadata.")
+    try:
+        from aad_render import finish_render
+
+        paths = finish_render(prepared, rendered, out)
+        return {"ok": True, **_render_result(paths)}
+    except Exception as exc:
+        return _crash("WORKER_CRASH", "render", f"The render report could not be completed: {exc}")
+
+
+def _communicate_result(
+    process: subprocess.Popen[bytes], input_data: bytes, timeout_s: float
+) -> dict[str, Any]:
+    try:
+        stdout, stderr = process.communicate(input_data, timeout=timeout_s)
     except subprocess.TimeoutExpired:
         _kill(process)
         process.communicate()
