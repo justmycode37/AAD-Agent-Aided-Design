@@ -315,7 +315,8 @@ type Envelope = {
   metrics?: {
     units: "mm"|"in", bbox: [number, number, number], volume?: number, area?: number,
     center_of_mass?: [number, number, number], mass_g?: number,
-    solids: number, faces: number, edges: number, valid: boolean, build_ms: number
+    solids: number, faces: number, edges: number, valid: boolean, build_ms: number,
+    phase_timings_ms?: Record<string, number>
   },
   checks?: Check[],                 // failures and warnings first, passes collapsed to counts
   checks_summary?: { pass: number, fail: number, warn: number, skip: number },
@@ -366,6 +367,17 @@ type Failure = {
   last_good_rev?: number
 }
 ```
+
+Build results may include `metrics.phase_timings_ms`, with elapsed milliseconds
+for `model`, `write`, every `gate.<check-id>`, `spec`, `process`, `scene`, and
+`render`. `gate.2d` is used for 2D checks. The parent adds
+`worker_startup_and_transport` for elapsed time outside the worker phases,
+including worker launch, protocol exchange, and parent-side validation. Phases
+that do not run may be absent; skipped hard-gate checks have a zero duration.
+When total `build_ms` exceeds 20,000, the summary names the longest phase.
+`metrics.build_ms` is total wall time from worker launch through parent-side
+validation, including preview generation when requested; `phase_timings_ms`
+explains that total.
 
 **Failure codes:** `SYNTAX_ERROR`, `RUNTIME_ERROR`, `SANDBOX_DENIED`, `SELECTOR_EMPTY`, `SELECTOR_AMBIGUOUS`, `KERNEL_BOOLEAN_FAILED`, `KERNEL_FILLET_FAILED`, `KERNEL_CHAMFER_FAILED`, `KERNEL_SHELL_FAILED`, `KERNEL_SWEEP_FAILED`, `KERNEL_OTHER`, `INVALID_SOLID`, `TIMEOUT`, `OUT_OF_MEMORY`, `WORKER_CRASH`, `BASE_REV_CONFLICT`, `NOT_VERIFIED`, `REQUIREMENT_FAILED`, `BAD_INPUT`, `IMPORT_FAILED`, `EXPORT_FAILED`.
 
@@ -611,6 +623,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 ## 11. Changelog
 
 - 2026-11-05: S2 made the structured `aad_render` report compact by default, with `inspection="full"` for the rest, because it reached 2.6 MB on a 492-part assembly.
+- 2026-11-05: S1 added per-phase build timings to `metrics`, named the slowest phase for builds over 20 seconds, and made assembly mesh validation use one private remesh with per-solid checks.
 - 2026-11-05: S1 added `REQUIREMENT_FAILED`, because a failed spec or process check reached agents as `RUNTIME_ERROR`, and began emitting the documented `KERNEL_*` codes from model builds.
 - 2026-11-05: S3 added validated per-part viewer material overrides and an offline studio environment to `aad_show` and HTML bundle presentations; these settings change display only and preserve scene bytes.
 - 2026-11-05: S2/S5 added additive request capture in git-friendly `request.json`, per-revision request snapshots and checkout, `covers` trace links with honest request review (no semantic coverage percentage), and spec angle/position/fit evidence. Requirement-structure errors that survive YAML parsing remain error-level skips; successful builds may commit them as draft revisions. Symmetry passes only with exact planar face/edge mirror equality plus zero measured difference; a zero-volume boolean alone is inconclusive. Sampled wall thickness still cannot prove a global minimum and remains `skip` without a violation.

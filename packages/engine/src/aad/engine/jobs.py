@@ -177,13 +177,43 @@ def run_build(req: BuildRequest) -> BuildResult:
             stderr=_decode(stderr_bytes),
         )
 
+    preview_started = time.perf_counter()
     if request.preview and "part.brep" in result.artifacts:
         from ._preview import add_preview
 
         remaining_s = max(0.0, request.timeout_s - (time.perf_counter() - started))
         add_preview(result, timeout_s=remaining_s)
-    result.build_ms = _elapsed_ms(started)
+    elapsed_ms = _elapsed_ms(started)
+    result.build_ms = elapsed_ms
+    _finish_phase_timings(result, elapsed_ms, preview_ms=_elapsed_ms(preview_started) if request.preview else 0.0)
     return result
+
+
+def _finish_phase_timings(result: BuildResult, elapsed_ms: float, *, preview_ms: float = 0.0) -> None:
+    timings = result.metrics.get("phase_timings_ms")
+    if not isinstance(timings, dict) or any(
+        not isinstance(name, str)
+        or isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(float(value))
+        or value < 0
+        for name, value in timings.items()
+    ):
+        return
+    normalized = {name: float(value) for name, value in timings.items()}
+    if preview_ms > 0:
+        normalized["render"] = normalized.get("render", 0.0) + preview_ms
+    accounted_ms = sum(normalized.values())
+    normalized["worker_startup_and_transport"] = max(0.0, elapsed_ms - accounted_ms)
+    normalized = {name: round(milliseconds, 3) for name, milliseconds in normalized.items()}
+    result.metrics["build_ms"] = elapsed_ms
+    result.metrics["phase_timings_ms"] = normalized
+    if result.context is not None:
+        result.context.metrics["build_ms"] = elapsed_ms
+        result.context.metrics["phase_timings_ms"] = normalized
+    if elapsed_ms > 20_000 and normalized:
+        slowest, milliseconds = max(normalized.items(), key=lambda item: item[1])
+        result.summary = f"{result.summary} Slowest phase: {slowest} ({milliseconds / 1000:.1f} s)."
 
 
 def _coerce_request(req: BuildRequest | Mapping[str, Any]) -> BuildRequest:

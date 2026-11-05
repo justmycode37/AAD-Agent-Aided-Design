@@ -11,7 +11,7 @@ from math import dist, floor, fsum, hypot, isfinite
 from operator import index as integer_index
 from pathlib import Path
 import tempfile
-from time import monotonic
+from time import monotonic, perf_counter
 from typing import Any
 
 from .types import Check, ModelContext
@@ -58,51 +58,80 @@ def hard_checks(
     Length, area, and volume thresholds use millimetres regardless of the
     project's declared units.
     """
+    checks, _ = _hard_checks(ctx, tolerances)
+    return checks
+
+
+def _hard_checks_with_timings(
+    ctx: ModelContext,
+    tolerances: GateTolerances | Mapping[str, float] | None = None,
+) -> tuple[list[Check], dict[str, float]]:
+    """Return hard checks and their individual elapsed times for build results."""
+    timings: dict[str, float] = {}
+    checks, _ = _hard_checks(ctx, tolerances, timings)
+    return checks, timings
+
+
+def _hard_checks(
+    ctx: ModelContext,
+    tolerances: GateTolerances | Mapping[str, float] | None = None,
+    timings: dict[str, float] | None = None,
+) -> tuple[list[Check], dict[str, float]]:
     config, config_error = _normalize_tolerances(tolerances)
     checks: list[Check] = []
     if ctx.shape is None:
-        checks.append(
-            _check(
+        checks.append(_timed_gate_check(
+            timings, "shape_present", lambda: _check(
                 "shape_present",
                 "fail",
                 "The model did not produce a B-rep shape.",
                 expected="a non-empty B-rep shape",
                 actual="no shape",
-            )
-        )
+            ),
+        ))
         if config_error is not None:
-            checks.append(_tolerance_error(config_error))
+            checks.append(_timed_gate_check(
+                timings, "gate_tolerances", lambda: _tolerance_error(config_error),
+            ))
         checks.extend(_unavailable_geometry_checks("ctx.shape is None"))
-        return checks
+        return checks, _complete_gate_timings(checks, timings)
 
-    checks.append(
-        _check(
+    checks.append(_timed_gate_check(
+        timings, "shape_present", lambda: _check(
             "shape_present",
             "pass",
             "A shape object is available for the hard checks.",
             expected="a B-rep shape object",
             actual=type(ctx.shape).__name__,
-        )
-    )
+        ),
+    ))
     if config_error is not None:
-        checks.append(_tolerance_error(config_error))
+        checks.append(_timed_gate_check(
+            timings, "gate_tolerances", lambda: _tolerance_error(config_error),
+        ))
 
     unit_scale = _LENGTH_TO_MM.get(ctx.units) if isinstance(ctx.units, str) else None
     if unit_scale is None:
-        checks.append(
-            _check(
+        checks.append(_timed_gate_check(
+            timings, "gate_units", lambda: _check(
                 "gate_units",
                 "fail",
                 "The configured geometric thresholds cannot be interpreted for this unit system.",
                 expected="ctx.units is 'mm' or 'in'",
                 actual=repr(ctx.units),
-            )
-        )
+            ),
+        ))
 
-    checks.append(_brep_validity_check(ctx.shape))
-    solid_check, multiple_solids_check = _solid_count_checks(ctx.shape, ctx.kind)
+    checks.append(_timed_gate_check(
+        timings, "brep_valid", lambda: _brep_validity_check(ctx.shape),
+    ))
+    solid_check, multiple_solids_check = _timed_gate_check(
+        timings, "solid_count", lambda: _solid_count_checks(ctx.shape, ctx.kind),
+    )
     checks.append(solid_check)
-    checks.append(_closed_shell_check(ctx.shape))
+    checks.append(_timed_gate_check(
+        timings, "closed_shells", lambda: _closed_shell_check(ctx.shape),
+    ))
     if multiple_solids_check is not None:
         checks.append(multiple_solids_check)
 
@@ -113,15 +142,41 @@ def hard_checks(
     )
     if unavailable_reason is not None:
         checks.extend(_unavailable_tolerance_checks(unavailable_reason))
-        return checks
+        return checks, _complete_gate_timings(checks, timings)
 
     assert config is not None
     assert unit_scale is not None
-    checks.append(_edge_quality_check(ctx.shape, config, unit_scale))
-    checks.append(_face_quality_check(ctx.shape, config, unit_scale))
-    checks.append(_step_volume_check(ctx, config, unit_scale))
-    checks.append(_mesh_watertight_check(ctx.shape, config, unit_scale, ctx.kind))
-    return checks
+    checks.append(_timed_gate_check(
+        timings, "edge_quality", lambda: _edge_quality_check(ctx.shape, config, unit_scale),
+    ))
+    checks.append(_timed_gate_check(
+        timings, "face_quality", lambda: _face_quality_check(ctx.shape, config, unit_scale),
+    ))
+    checks.append(_timed_gate_check(
+        timings, "step_volume_drift", lambda: _step_volume_check(ctx, config, unit_scale),
+    ))
+    checks.append(_timed_gate_check(
+        timings, "mesh_watertight", lambda: _mesh_watertight_check(ctx.shape, config, unit_scale, ctx.kind),
+    ))
+    return checks, _complete_gate_timings(checks, timings)
+
+
+def _timed_gate_check(timings: dict[str, float] | None, check_id: str, operation: Any) -> Any:
+    if timings is None:
+        return operation()
+    started = perf_counter()
+    try:
+        return operation()
+    finally:
+        timings[f"gate.{check_id}"] = (perf_counter() - started) * 1000
+
+
+def _complete_gate_timings(checks: list[Check], timings: dict[str, float] | None) -> dict[str, float]:
+    if timings is None:
+        return {}
+    for check in checks:
+        timings.setdefault(f"gate.{check.id}", 0.0)
+    return timings
 
 
 def _normalize_tolerances(
@@ -1024,7 +1079,25 @@ def _mesh_watertight_check(shape: Any, tolerance: GateTolerances, unit_scale: fl
         return _skip("mesh_watertight", f"solid enumeration raised {_exception_text(exc)}")
     if bodies is None:
         return _shape_watertight_check(shape, tolerance, unit_scale)
-    results = [_shape_watertight_check(body, tolerance, unit_scale) for body in bodies]
+    try:
+        meshes = _fresh_mesh_arrays_by_solid(
+            shape,
+            tolerance.mesh_deflection_mm / unit_scale,
+            tolerance.mesh_angular_deflection_rad,
+        )
+        if len(meshes) != len(bodies):
+            raise ValueError("assembly copy produced a different number of solids")
+        results = [
+            _check_mesh_arrays(vertices, triangles, tolerance, unit_scale)
+            for vertices, triangles in meshes
+        ]
+        # A failing or unavailable batched result is checked again through the
+        # original per-body path. That keeps unusual OCCT assembly topologies on
+        # the established behavior, while the common valid case meshes once.
+        if any(result.status != "pass" for result in results):
+            results = [_shape_watertight_check(body, tolerance, unit_scale) for body in bodies]
+    except Exception:
+        results = [_shape_watertight_check(body, tolerance, unit_scale) for body in bodies]
     worst = next(
         (result for status in ("fail", "skip") for result in results if result.status == status),
         results[0],
@@ -1066,16 +1139,48 @@ def _shape_watertight_check(shape: Any, tolerance: GateTolerances, unit_scale: f
 
 def _fresh_mesh_arrays(shape: Any, linear_deflection: float, angular_deflection: float) -> tuple[list, list]:
     """Mesh private native topology with absolute deflection and no cached mesh."""
-    from OCP.BRep import BRep_Tool
+    copied = _fresh_meshed_copy(shape, linear_deflection, angular_deflection)
+    return _triangulation_arrays(copied)
+
+
+def _fresh_mesh_arrays_by_solid(
+    shape: Any, linear_deflection: float, angular_deflection: float
+) -> list[tuple[list, list]]:
+    """Mesh an assembly copy once and return isolated triangle arrays per solid."""
+    from OCP.TopAbs import TopAbs_FACE, TopAbs_SOLID
+    from OCP.TopoDS import TopoDS_Iterator
+
+    copied = _fresh_meshed_copy(shape, linear_deflection, angular_deflection)
+    arrays: list[tuple[list, list]] = []
+
+    def visit(item: Any, solid_index: int | None = None) -> None:
+        shape_type = item.ShapeType()
+        if shape_type == TopAbs_SOLID:
+            arrays.append(([], []))
+            solid_index = len(arrays) - 1
+        elif shape_type == TopAbs_FACE:
+            if solid_index is None:
+                raise ValueError("an assembly face is not contained in a solid")
+            _append_face_triangles(item, *arrays[solid_index])
+            return
+
+        children = TopoDS_Iterator(item, True, True)
+        while children.More():
+            visit(children.Value(), solid_index)
+            children.Next()
+
+    visit(copied)
+    return arrays
+
+
+def _fresh_meshed_copy(shape: Any, linear_deflection: float, angular_deflection: float) -> Any:
+    """Copy and remesh native topology once without using or changing source meshes."""
     from OCP.BRepBuilderAPI import BRepBuilderAPI_Copy
     from OCP.BRepMesh import BRepMesh_IncrementalMesh
     from OCP.BRepTools import BRepTools
-    from OCP.TopAbs import TopAbs_FACE, TopAbs_REVERSED
-    from OCP.TopExp import TopExp_Explorer
-    from OCP.TopLoc import TopLoc_Location
-    from OCP.TopoDS import TopoDS
 
-    copier = BRepBuilderAPI_Copy(shape.wrapped, False, False)
+    wrapped = getattr(shape, "wrapped", shape)
+    copier = BRepBuilderAPI_Copy(wrapped, False, False)
     if not copier.IsDone():
         raise ValueError("native topology could not be copied for meshing")
     copied = copier.Shape()
@@ -1083,28 +1188,43 @@ def _fresh_mesh_arrays(shape: Any, linear_deflection: float, angular_deflection:
     mesher = BRepMesh_IncrementalMesh(copied, linear_deflection, False, angular_deflection, False)
     if not mesher.IsDone():
         raise ValueError("absolute native meshing did not complete")
+    return copied
+
+
+def _triangulation_arrays(shape: Any) -> tuple[list, list]:
+    """Extract oriented triangle data from a fresh, already-meshed topology."""
+    from OCP.TopAbs import TopAbs_FACE
+    from OCP.TopExp import TopExp_Explorer
 
     vertices: list[tuple[float, float, float]] = []
     triangles: list[tuple[int, int, int]] = []
-    explorer = TopExp_Explorer(copied, TopAbs_FACE)
+    explorer = TopExp_Explorer(shape, TopAbs_FACE)
     while explorer.More():
-        face = TopoDS.Face(explorer.Current())
-        location = TopLoc_Location()
-        mesh = BRep_Tool.Triangulation_s(face, location)
-        if mesh is None:
-            raise ValueError("a face has no triangulation after native meshing")
-        offset = len(vertices)
-        transform = location.Transformation()
-        for index in range(1, mesh.NbNodes() + 1):
-            point = mesh.Node(index).Transformed(transform)
-            vertices.append((point.X(), point.Y(), point.Z()))
-        for triangle in mesh.Triangles():
-            indices = (triangle.Value(1), triangle.Value(2), triangle.Value(3))
-            if face.Orientation() == TopAbs_REVERSED:
-                indices = (indices[0], indices[2], indices[1])
-            triangles.append(tuple(index + offset - 1 for index in indices))
+        _append_face_triangles(explorer.Current(), vertices, triangles)
         explorer.Next()
     return vertices, triangles
+
+
+def _append_face_triangles(face_shape: Any, vertices: list, triangles: list) -> None:
+    from OCP.BRep import BRep_Tool
+    from OCP.TopAbs import TopAbs_REVERSED
+    from OCP.TopLoc import TopLoc_Location
+    from OCP.TopoDS import TopoDS
+
+    face = TopoDS.Face(face_shape)
+    location = TopLoc_Location()
+    mesh = BRep_Tool.Triangulation_s(face, location)
+    if mesh is None:
+        raise ValueError("a face has no triangulation after native meshing")
+    offset = len(vertices)
+    transform = location.Transformation()
+    for index in range(1, mesh.NbNodes() + 1):
+        vertices.append(tuple(mesh.Node(index).Transformed(transform).Coord()))
+    for triangle in mesh.Triangles():
+        indices = triangle.Get()
+        if face.Orientation() == TopAbs_REVERSED:
+            indices = (indices[0], indices[2], indices[1])
+        triangles.append(tuple(index + offset - 1 for index in indices))
 
 
 def _check_mesh_arrays(

@@ -390,7 +390,7 @@ None of them covers everything their name suggests: no slicer analysis, fixtures
 Every tool returns a short text summary plus structured data:
 
 - **`status`:** `failed`, `draft` or `verified`. Today every successful build is `draft`, because no independent validator is connected yet. Never call a draft verified.
-- **`metrics`:** bbox, volume, area, center of mass, solids, faces, edges, validity, build time.
+- **`metrics`:** bbox, volume, area, center of mass, solids, faces, edges, validity, total wall build time, and `phase_timings_ms` in milliseconds. Timings include the model, every hard-gate check, spec, process, scene, render, write, and worker startup/transport phases. A build over 20 seconds names the slowest phase in its summary.
 - **`checks` and `checks_summary`:** failures and warnings first, passes collapsed into counts. Each check has `id`, `suite`, `level`, `status` (`pass`, `fail`, `warn`, `skip`), `message`, `expected`, `actual`, and sometimes `fix_hint` and `assumptions`. Read the skips, because a skip means something was not proven.
 - **`request` and `request_review`:** `aad_build` and `aad_inspect(what="summary")` report requirement IDs without `covers` links, open questions and `not_checked` items. The inspect summary also returns the revision's captured wording and notes. Links do not establish meaning; no coverage percentage is calculated.
 - **`failure`:** `code`, `phase`, `message`, `kernel_message`, and often `line`, `selector`, `candidates`, `probes`, `repair` and `last_good_rev`.
@@ -409,7 +409,7 @@ Every build runs these checks. A failure fails the build, with `HARD_GATE_FAILED
 | `edge_quality` | An edge is degenerate or at most 0.01 mm long. The zero-length pole of a sphere or cone is expected and reported as `surface_pole_edges` |
 | `face_quality` | A face is under 0.001 mm² or 0.001 mm wide |
 | `step_volume_drift` | Volume changes on STEP round trip by more than 1e-6 relative. Usually a self-intersecting profile |
-| `mesh_watertight` | A mesh does not close. In an assembly each body is checked alone |
+| `mesh_watertight` | A mesh does not close. An assembly uses one private remesh, then checks each body's triangle arrays separately |
 
 A sliver edge is usually a coincidence between two surfaces; moving one by a small amount clears it. `multiple_solids` is a warning that is normal for an assembly.
 
@@ -730,7 +730,8 @@ Say so plainly rather than working around it silently.
 - **The viewer cannot edit the model directly.** Sliders and a separate Ask editor are not built. Part selection and exact references work as described above; native composer insertion depends on advertised host support, and stays unavailable on unsupported hosts.
 - **Windows has no sandbox,** so builds refuse to run there.
 - **Each job starts a new process with no shared cache,** and no memory limit is enforced.
-- **Out of scope:** CAM and toolpaths, FEA and CFD, advanced surfacing, PMI and GD&T, assemblies of thousands of parts, PDM and PLM, native formats such as SLDPRT, F3D or DWG.
+- **Large-assembly performance is not validated beyond the published benchmarks.** A synthetic 1,500-box assembly completed a direct model-plus-hard-gate run in 33–45 s on the benchmark machine; scene generation can add substantial time. Allow for this when choosing `timeout_s`.
+- **Out of scope:** CAM and toolpaths, FEA and CFD, advanced surfacing, PMI and GD&T, several-thousand-part assemblies without a representative performance check, PDM and PLM, native formats such as SLDPRT, F3D or DWG.
 
 ## Honesty rules
 
