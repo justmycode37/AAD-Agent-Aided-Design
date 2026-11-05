@@ -377,7 +377,7 @@ class Handlers:
                 for name in ("model.py", "part.brep", "sheet.json")
                 if (project.rev_dir(rev) / name).exists()
             },
-            next=_next_hints(status),
+            next=_next_hints(status, result.get("checks") or []),
         )
         await self._notify_window(project, rev, envelope, result.get("scene"))
         return reply(compact(envelope))
@@ -1057,7 +1057,19 @@ def _scene_payload(rev_dir: Path) -> Path | None:
     return None
 
 
-def _next_hints(status: str) -> list[str]:
+def _next_hints(status: str, checks: list[dict[str, Any]]) -> list[str]:
     if status == "verified":
         return ["Review with aad_render. Call aad_show only if the user asks to see the part."]
-    return ["Add requirements to spec.yaml to prove the part. draft means not proven.", "Review with aad_render."]
+    if any(check.get("id") in {"requirements_not_provided", "spec:empty"} for check in checks):
+        first = "Add requirements to spec.yaml to check the part against the request. draft means not proven."
+    else:
+        skipped = [
+            str(check.get("id")) for check in checks
+            if check.get("level") == "error" and check.get("status") == "skip" and not str(check.get("id", "")).startswith("worker_")
+        ]
+        first = (
+            f"These error-level checks did not run: {', '.join(skipped[:5])}. Report them as not proven."
+            if skipped
+            else "The supplied requirements passed, but no independent validator is connected, so draft still means not proven."
+        )
+    return [first, "Review with aad_render."]
