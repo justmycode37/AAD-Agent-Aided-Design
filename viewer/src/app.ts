@@ -1,4 +1,4 @@
-import { gunzipToText, readScene } from "./loader";
+import { gunzipToText, paintLoading, readScene } from "./loader";
 import type { Envelope, Transport, NamedView, PartReference, SceneManifest } from "./transport/types";
 import { mountCad3d, type Cad3dView } from "./viewer3d";
 import { applyPresentation } from "./presentation";
@@ -51,7 +51,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
         </div>
         <div class="aad-part-label" hidden></div>
         <button class="aad-expand" type="button" data-control="fullscreen" aria-label="Make bigger" title="Make bigger" hidden>${icon('<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>')}</button>
-        <div class="aad-progress" role="status">Opening your model…<progress max="100" value="0"></progress></div>
+        <div class="aad-progress" role="progressbar" aria-label="Loading model" aria-valuemin="0" aria-valuemax="100" data-indeterminate><span></span></div>
         <div class="aad-reference" role="status" hidden></div>
         <div class="aad-analysis" hidden><div class="aad-analysis-title"></div><div class="aad-analysis-ramp"></div><div class="aad-analysis-range"></div><div class="aad-analysis-source"></div></div>
       </div>
@@ -59,6 +59,18 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
       <p class="aad-error" role="alert" hidden></p>
     </section>`;
   const q = <T extends HTMLElement>(s: string) => root.querySelector(s) as T;
+  const loadingProgress = (fraction?: number) => {
+    const bar = q(".aad-progress");
+    bar.toggleAttribute("data-indeterminate", fraction === undefined);
+    bar.setAttribute("aria-label", fraction === undefined ? "Preparing model" : "Loading model");
+    if (fraction === undefined) {
+      bar.removeAttribute("aria-valuenow");
+      bar.querySelector<HTMLElement>("span")!.style.removeProperty("transform");
+    } else {
+      bar.setAttribute("aria-valuenow", String(Math.round(fraction * 100)));
+      bar.querySelector<HTMLElement>("span")!.style.transform = `scaleX(${fraction})`;
+    }
+  };
   const control = <T extends HTMLElement>(name: string) => q<T>(`[data-control="${name}"]`);
   q(".aad-frame").dataset.theme = resolvedTheme(transport);
   q(".aad-frame").dataset.controls = transport.controls ?? "simple";
@@ -309,17 +321,23 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
     if (nextScene.format !== "tcv-5") throw new Error(`Unsupported scene format ${nextScene.format}`);
     q<HTMLFieldSetElement>(".aad-toolbar").disabled = true;
     q(".aad-progress").hidden = false; q(".aad-error").hidden = true;
+    loadingProgress(0);
+    await paintLoading();
     const started = performance.now();
     const { bytes, stats } = await readScene(nextScene.scene_id, nextScene.total_bytes, transport.readChunk.bind(transport), (done, total) => {
-      q<HTMLProgressElement>("progress").value = 100 * done / total;
+      loadingProgress(done / total);
     });
-    const readAt = performance.now(); const text = await gunzipToText(bytes); const shapes = JSON.parse(text);
+    const readAt = performance.now();
+    loadingProgress();
+    await paintLoading();
+    const text = await gunzipToText(bytes); const shapes = JSON.parse(text);
     const triangles = triangleCount(shapes);
     if (nextScene.triangles !== undefined && triangles !== nextScene.triangles) throw new Error(`Expected ${nextScene.triangles} triangles, got ${triangles}`);
     const parsedAt = performance.now(); unsubscribe(); selection?.dispose(); selection = undefined; view?.dispose(); q(".aad-cad").replaceChildren();
     updateManifest(nextScene); stageSelection([]);
     selectedId = "original";
     scenePresented = false;
+    await paintLoading();
     const bounds = q(".aad-cad").getBoundingClientRect();
     view = mountCad3d(q(".aad-cad"), shapes, { width: bounds.width, height: bounds.height, theme: resolvedTheme(transport), view: env.viewer?.view, controls: transport.controls });
     (globalThis as { __viewer?: unknown }).__viewer = view.viewer;
@@ -333,6 +351,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
     diagnostics.shownScene = nextScene.scene_id; diagnostics.triangles = triangles; diagnostics.verified = true;
     diagnostics.load = stats; diagnostics.rawBytes = text.length;
     diagnostics.ms = { read: readAt - started, parse: parsedAt - readAt, mount: performance.now() - parsedAt, sinceToolResult: performance.now() - started };
+    await paintLoading();
     diagnostics.loads++; diagnostics.state = "ready";
     q(".aad-progress").hidden = true; q<HTMLFieldSetElement>(".aad-toolbar").disabled = false;
     size();

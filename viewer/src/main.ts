@@ -1,3 +1,4 @@
+import { paintLoading } from "./loader";
 import { diagnostics, runApp } from "./app";
 import { McpTransport } from "./transport/mcp";
 import { BundledTransport, type BundledScene, EmbeddedTransport, type EmbeddedScene, type WindowConfig, WindowTransport } from "./transport/page";
@@ -11,8 +12,8 @@ declare global {
 }
 
 async function transport() {
-  if (window.__AAD_EMBEDDED_SCENE__) return new BundledTransport(window.__AAD_EMBEDDED_SCENE__);
-  if (window.__AAD_EMBEDDED__) return new EmbeddedTransport(window.__AAD_EMBEDDED__);
+  if (window.__AAD_EMBEDDED_SCENE__) { await paintLoading(); return new BundledTransport(window.__AAD_EMBEDDED_SCENE__); }
+  if (window.__AAD_EMBEDDED__) { await paintLoading(); return new EmbeddedTransport(window.__AAD_EMBEDDED__); }
   if (window.__AAD_WINDOW__) return new WindowTransport(window.__AAD_WINDOW__);
   const mcp = new McpTransport();
   await mcp.connect();
