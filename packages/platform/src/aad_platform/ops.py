@@ -161,7 +161,7 @@ def op_render(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
 def op_render_prepare(ctx: Any, args: dict[str, Any], _out: Path) -> dict[str, Any]:
     """Prepare 3D render data while the B-rep is still inside the sandbox."""
     if ctx.kind == "2d":
-        raise ValueError("2D sheet previews do not use the macOS mesh render worker")
+        raise ValueError("2D sheet previews do not use the 3D mesh render worker")
     prepare_render = _required("aad_render", "prepare_render", "Agent render preparation")
     return {"prepared_render": prepare_render(ctx, _render_request(args))}
 

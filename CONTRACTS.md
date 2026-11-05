@@ -560,7 +560,7 @@ def aad.engine.select.resolve(ctx, selector: str, expect: int | None = None) -> 
 # S3
 def aad_render.make_scene(ctx: ModelContext, out: Path, compare: ModelContext | None = None) -> SceneManifest
 def aad_render.render(ctx: ModelContext, req: RenderRequest, out: Path) -> list[Path]
-# macOS render transport; prepare_render never imports VTK, and render_mesh receives no B-rep/report.
+# Local 3D render transport; prepare_render never imports VTK, and render_mesh receives no B-rep/report.
 def aad_render.prepare_render(ctx: ModelContext, req: RenderRequest) -> dict  # versioned render payload + inspection
 def aad_render.render_mesh(payload: dict, out: Path) -> dict  # PNG names + image visibility metadata
 def aad_render.finish_render(prepared: dict, rendered: dict, out: Path) -> list[Path]
@@ -578,11 +578,11 @@ def aad_quality.library(action: str, **kw) -> dict
 
 **Worker pipeline:** run `model.py` → `hard_checks` → `spec_checks` → `process_checks` (or `aad_drafting.checks` for 2D) → `make_scene` → optional `render` → return `BuildResult`. A failure in an optional step becomes a `warn` check, and must never discard a built revision.
 
-For local macOS `aad_render`, the `render_prepare` operation loads the revision B-rep and computes
-exact inspection under Seatbelt. The platform passes the renderer only the versioned mesh, camera
-and annotation payload to a clean VTK process; it passes no B-rep, project or revision path. The
-Seatbelt policy remains unchanged, and other operations and 2D previews stay inside it. Remote
-mode refuses the VTK render worker.
+For local macOS and Linux 3D `aad_render`, the `render_prepare` operation loads the revision B-rep
+and computes exact inspection inside the OS sandbox. The platform passes the renderer only the
+versioned mesh, camera and annotation payload to a clean VTK process outside the sandbox; it passes
+no B-rep, project or revision path. The sandbox policy remains unchanged; other operations and 2D
+previews stay inside it. Remote mode refuses the VTK render worker.
 
 `render` returns PNG paths plus `inspection.json` and optional `labels.json`. The platform emits
 only PNGs as image blocks; it includes the JSON data in structured `inspection` and `labels`
@@ -617,7 +617,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 - 2026-11-05: S3 specified chunked lossless HTML scene assets with chunk/total byte-count and scene-hash verification and explicit missing-chunk errors.
 - 2026-11-05: S2/S5 added heading-based `aad.guide.v1` retrieval: the library returns a short core by default and the complete single-source guide on `section: "all"`.
 - 2026-11-05: S3 specified whole-part toggle selection, subtle highlighting, exact scene-scoped references, negotiated selection context and capability-gated unsent composer insertion; unsupported hosts keep local selection without a clipboard workflow, and server editing routes remain reserved.
-- 2026-11-05: S1/S3 keep macOS B-rep parsing and exact inspection under Seatbelt, passing a JSON mesh/view payload to a clean VTK worker because the graphics framework aborts inside Seatbelt.
+- 2026-11-05: S1/S3 keep local 3D B-rep parsing and exact inspection under the OS sandbox, passing a JSON mesh/view payload to a clean VTK worker because graphics initialization fails inside the sandbox.
 - 2026-11-05: Replaced `PLAN.md` with `ARCHITECTURE.md` at the user's request. Scope, sector and milestone text remains in git history.
 - 2026-11-05: S5 added rigid reference-model comparison as a spec requirement and sandboxed CLI operation, with explicit geometric-only evidence limits.
 - 2026-11-05: S1/S3/S5 added an opt-in interference spec requirement with a reported mm³ threshold, bounded pair details and explicit unknowns, and documented the render edge-classification cap so large assemblies can render without dropping B-rep curve facts.

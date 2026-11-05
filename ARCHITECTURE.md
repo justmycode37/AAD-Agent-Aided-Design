@@ -54,7 +54,7 @@ Kernel versions are pinned in `packages/engine/pyproject.toml`.
 6. A successful build becomes an immutable revision on disk. A failure never moves the head revision; a built candidate that failed a check is kept for inspection.
 7. The agent gets a short text summary, plus an image only when requested.
 
-Later operations such as render, check, measure, query, export, drawing and compare run in their own process through `aad_platform.ops`, against a stored revision. Check, measure, query, export, drawing and compare always use the OS sandbox. On local macOS, 3D render first loads the B-rep and computes inspection data inside that sandbox, then sends a versioned mesh and view payload to a clean one-shot VTK process. The VTK process receives no project, revision or B-rep path. The sandbox policy is unchanged; 2D previews and all other operations still run entirely inside it. Remote mode continues to refuse render.
+Later operations such as render, check, measure, query, export, drawing and compare run in their own process through `aad_platform.ops`, against a stored revision. Check, measure, query, export, drawing and compare always use the OS sandbox. On local macOS and Linux 3D render, the worker loads the B-rep and computes inspection data inside that sandbox, then sends a versioned mesh and view payload to a clean one-shot VTK process outside it. The VTK process receives no project, revision or B-rep path. The sandbox policy is unchanged; 2D previews and all other operations still run entirely inside it. Remote mode continues to refuse render.
 
 ### Status
 

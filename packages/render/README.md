@@ -26,15 +26,15 @@ of the same part measured 281 ms. Reproduce with
 uses geometry nothing has seen, because repeating a part measures OCCT's and ocp-tessellate's mesh caches. `make_scene`
 clears ocp-tessellate's cache itself, so a reloaded revision gets the same bytes and feature map as the first build.
 
-`make_scene` runs in a kernel worker; `render` does too outside local macOS. `import aad_render`
-stays cheap; kernel and renderer imports happen on first use.
+`make_scene` runs in a kernel worker; `render` does too, with 3D VTK drawing in a separate one-shot
+worker. `import aad_render` stays cheap; kernel and renderer imports happen on first use.
 
-On local macOS, a 3D `render` operation parses the B-rep and computes its inspection report in the
-Seatbelt worker. It serializes only the tessellated render scene and the view/annotation inputs to a
-one-shot VTK process, which writes the PNGs and returns pixel visibility metadata. The VTK process
-does not receive a project, revision or B-rep path. Check, measure, query, export, drawing and 2D
-preview operations continue to run under the normal sandbox policy; remote mode still refuses
-rendering.
+On local macOS and Linux installs, a 3D `render` operation parses the B-rep and computes its
+inspection report in the OS-sandboxed worker. It serializes only the tessellated render scene and
+the view/annotation inputs to a one-shot VTK process outside the sandbox; that process writes the
+PNGs and returns pixel visibility metadata. The VTK process does not receive a project, revision or
+B-rep path. Check, measure, query, export, drawing and 2D preview operations continue to run under
+the normal sandbox policy; remote mode still refuses rendering.
 
 The transport helpers `prepare_render(ctx, req)`, `render_mesh(payload, out)`, and
 `finish_render(prepared, rendered, out)` split exact preparation from VTK rendering. They exchange

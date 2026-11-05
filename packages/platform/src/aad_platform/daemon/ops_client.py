@@ -41,7 +41,7 @@ def _package_roots() -> list[Path]:
 
 
 def _run_sandboxed(request: dict[str, Any], timeout_s: float) -> dict[str, Any]:
-    """Blocking post-build operation; only the final macOS VTK renderer runs outside Seatbelt."""
+    """Blocking post-build operation; only the final VTK renderer runs outside the OS sandbox."""
     try:
         from aad.engine import sandbox
     except ImportError as exc:
@@ -50,8 +50,8 @@ def _run_sandboxed(request: dict[str, Any], timeout_s: float) -> dict[str, Any]:
     if request.get("op") == "render":
         if os.environ.get("AAD_REMOTE"):
             return _crash("SANDBOX_DENIED", "sandbox", "rendering needs a local graphics worker that remote mode does not grant")
-        if sys.platform == "darwin" and request.get("kind", "part") != "2d":
-            return _run_macos_mesh_render(request, timeout_s, sandbox)
+        if request.get("kind", "part") != "2d":
+            return _run_mesh_render(request, timeout_s, sandbox)
 
     return _run_worker(request, timeout_s, sandbox)
 
@@ -70,8 +70,8 @@ def _run_worker(request: dict[str, Any], timeout_s: float, sandbox: Any) -> dict
     return _communicate_result(process, json.dumps(request, default=str).encode(), timeout_s)
 
 
-def _run_macos_mesh_render(request: dict[str, Any], timeout_s: float, sandbox: Any) -> dict[str, Any]:
-    """Parse the B-rep under Seatbelt, then give a clean VTK worker render data only."""
+def _run_mesh_render(request: dict[str, Any], timeout_s: float, sandbox: Any) -> dict[str, Any]:
+    """Parse the B-rep under the OS sandbox, then give a clean VTK worker render data only."""
     deadline = time.monotonic() + timeout_s
     prepare_request = {**request, "op": "render_prepare"}
     prepared_result = _run_worker(prepare_request, timeout_s, sandbox)

@@ -23,8 +23,9 @@ class _Worker:
         return RESULT_MARKER + json.dumps(self.result).encode() + b"\n", b""
 
 
-def test_macos_render_prepares_brep_in_sandbox_and_sends_render_payload_to_vtk(tmp_path, monkeypatch):
-    monkeypatch.setattr(ops_client.sys, "platform", "darwin")
+@pytest.mark.parametrize("platform", ["darwin", "linux"])
+def test_render_prepares_brep_in_sandbox_and_sends_render_payload_to_vtk(tmp_path, monkeypatch, platform):
+    monkeypatch.setattr(ops_client.sys, "platform", platform)
     monkeypatch.delenv("AAD_REMOTE", raising=False)
     prepared = {
         "version": 1,
@@ -78,8 +79,11 @@ def test_macos_render_prepares_brep_in_sandbox_and_sends_render_payload_to_vtk(t
     assert not {"project_dir", "rev", "read_paths", "brep"} & set(mesh_request)
 
 
-@pytest.mark.skipif(sys.platform != "darwin", reason="macOS Seatbelt render path")
-def test_macos_render_parses_a_real_brep_under_seatbelt_and_writes_pngs(tmp_path):
+@pytest.mark.skipif(
+    sys.platform != "darwin" and not sys.platform.startswith("linux"),
+    reason="OS sandbox render path",
+)
+def test_3d_render_parses_a_real_brep_under_sandbox_and_writes_pngs(tmp_path):
     from build123d import Box, export_brep
     from PIL import Image
 
@@ -113,8 +117,9 @@ def test_macos_render_parses_a_real_brep_under_seatbelt_and_writes_pngs(tmp_path
 
 
 @pytest.mark.parametrize(("op", "kind"), [("check", "part"), ("render", "2d")])
-def test_macos_non_vtk_operations_still_use_sandbox(tmp_path, monkeypatch, op, kind):
-    monkeypatch.setattr(ops_client.sys, "platform", "darwin")
+@pytest.mark.parametrize("platform", ["darwin", "linux"])
+def test_non_vtk_operations_still_use_sandbox(tmp_path, monkeypatch, op, kind, platform):
+    monkeypatch.setattr(ops_client.sys, "platform", platform)
     monkeypatch.delenv("AAD_REMOTE", raising=False)
     worker = _Worker({"ok": True, "checked": True})
     sandbox_calls = []
@@ -142,8 +147,9 @@ def test_macos_non_vtk_operations_still_use_sandbox(tmp_path, monkeypatch, op, k
     assert sandbox_calls
 
 
-def test_remote_render_remains_refused(tmp_path, monkeypatch):
-    monkeypatch.setattr(ops_client.sys, "platform", "darwin")
+@pytest.mark.parametrize("platform", ["darwin", "linux"])
+def test_remote_render_remains_refused(tmp_path, monkeypatch, platform):
+    monkeypatch.setattr(ops_client.sys, "platform", platform)
     monkeypatch.setenv("AAD_REMOTE", "1")
     monkeypatch.setattr(sandbox, "popen", lambda *_a, **_k: pytest.fail("remote render must be refused"))
     result = ops_client._run_sandboxed(
