@@ -178,7 +178,19 @@ def _eval_sheet_requirement(req_id: str, level: str, req: dict[str, Any], unit: 
             fix_hint="Adjust the cut contours or update the required area.", selector="filled 2D cut area")
     if field == "holes":
         body = req["holes"]
+        if body.get("through", True) is False:
+            raise geometry.UnsupportedGeometry("2D sheets have no depth evidence to evaluate holes.through: false")
         circles = [e for e in sheet.entities.values() if e.layer == "cut" and e.kind == "circle" and e.closed]
+        for index, first in enumerate(circles):
+            first_center = sheet.points[first.points[0]]
+            for second in circles[index + 1:]:
+                second_center = sheet.points[second.points[0]]
+                center_distance = math.hypot(first_center.x - second_center.x, first_center.y - second_center.y)
+                if (center_distance + min(first.radius, second.radius)
+                        < max(first.radius, second.radius) - 1e-8):
+                    raise geometry.UnsupportedGeometry(
+                        f"nested circular cut contours {first.name!r} and {second.name!r} have ambiguous void/island topology"
+                    )
         count = body.get("count")
         diameter = _range(body["diameter"], unit=unit, path=("requirements", req_id, "holes", "diameter")) if "diameter" in body else None
         matching = [e for e in circles if diameter is None or _within(2 * e.radius * factor, diameter)]

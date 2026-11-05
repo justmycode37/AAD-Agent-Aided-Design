@@ -162,6 +162,39 @@ def test_2d_hole_mismatch_fails_and_unsupported_type_skips(mcp_process: Any) -> 
     assert checks["mass"]["status"] == "skip" and "no supported 2D meaning" in checks["mass"]["message"]
 
 
+def test_2d_holes_through_false_skips_without_depth_evidence(mcp_process: Any) -> None:
+    initialize(mcp_process)
+    spec = "requirements:\n  - id: holes\n    holes: {count: 1, through: false}\n"
+    ok(call(mcp_process, "aad_new", name="blind", kind="2d", units="mm", spec=spec))
+    source = "from aad_drafting import sheet2d\ns=sheet2d('p'); s.rectangle('outline', 80, 40); s.circle('h1', (10,10), 2.5)\n"
+    result = call(mcp_process, "aad_build", project="blind", source=source, wait_s=WAIT_S)["structuredContent"]
+    check = next(item for item in result["checks"] if item["id"] == "holes")
+    assert result["ok"] and result["status"] == "draft"
+    assert check["status"] == "skip" and "no depth evidence" in check["message"]
+
+
+def test_2d_nested_circular_contours_skip_hole_count(mcp_process: Any) -> None:
+    initialize(mcp_process)
+    spec = "requirements:\n  - id: holes\n    holes: {count: 2}\n"
+    ok(call(mcp_process, "aad_new", name="nested", kind="2d", units="mm", spec=spec))
+    source = "from aad_drafting import sheet2d\ns=sheet2d('p'); s.rectangle('outline', 100, 100); s.circle('outer', (50,50), 20); s.circle('inner', (50,50), 10)\n"
+    result = call(mcp_process, "aad_build", project="nested", source=source, wait_s=WAIT_S)["structuredContent"]
+    check = next(item for item in result["checks"] if item["id"] == "holes")
+    assert result["ok"] and check["status"] == "skip"
+    assert "nested circular cut contours" in check["message"] and "void/island topology" in check["message"]
+
+
+def test_2d_skip_is_reflected_in_build_summary(mcp_process: Any) -> None:
+    initialize(mcp_process)
+    spec = "requirements:\n  - id: material\n    material_at_point: {point: [5, 5, 0], expected: solid}\n"
+    ok(call(mcp_process, "aad_new", name="material-skip", kind="2d", units="mm", spec=spec))
+    source = "from aad_drafting import sheet2d\nsheet2d('p').rectangle('outline', 20, 20)\n"
+    result = call(mcp_process, "aad_build", project="material-skip", source=source, wait_s=WAIT_S)["structuredContent"]
+    check = next(item for item in result["checks"] if item["id"] == "material")
+    assert result["ok"] and result["status"] == "draft" and check["status"] == "skip"
+    assert "skipped checks" in result["summary"] and "passed its 2D checks" not in result["summary"]
+
+
 @pytest.mark.parametrize("source", [
     "from aad_drafting import sheet2d\nsheet2d('p')\n",
     "from aad_drafting import sheet2d\nsheet2d('p').line('l', (0, 0), (5, 5), layer='score')\n",

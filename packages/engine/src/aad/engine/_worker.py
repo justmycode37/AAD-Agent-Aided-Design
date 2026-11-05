@@ -545,10 +545,16 @@ def _finish_sheet(
                             message="Scene generation failed; the saved sheet was retained.",
                             actual=f"{type(exc).__name__}: {exc}"))
     failing = next((c for c in checks if c.level == "error" and c.status == "fail"), None)
+    if failing is not None:
+        summary = f"2D check {failing.id} failed: {failing.message}"
+    elif any(c.status in {"skip", "warn"} for c in checks):
+        summary = "The sheet built with warnings or skipped checks; it remains draft."
+    else:
+        summary = "The sheet built and its available 2D checks passed; it remains draft."
     result = BuildResult(
         ok=failing is None,
         status="draft" if failing is None else "failed",
-        summary="The sheet built and passed its 2D checks." if failing is None else f"2D check {failing.id} failed: {failing.message}",
+        summary=summary,
         context=context,
         checks=checks,
         metrics=context.metrics,
