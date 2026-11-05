@@ -15,7 +15,7 @@ Translate explicit user requirements into unique, measurable spec entries. Keep 
 
 ## Model with the API that exists
 
-The current AAD model namespace adds params() and re-exports build123d. It does not implement the planned AAD part(), feature(), face(feature=...), edge(feature=...), or assembly() helpers. Ordinary scripts currently produce one implicit main feature. Use build123d and params(); do not copy the planned helper example as executable code.
+`from aad import *` re-exports build123d and adds `params()`, `meta()`, `part()`, `feature()`, the `face()`, `edge()` and `vertex()` selectors, and gear helpers. Plain build123d also works, as below, and lands in one implicit feature. Name features when you expect to edit the part. Assembly helpers are not implemented. The full guide is playbook `aad.guide.v1`.
 
     from aad import *
 
@@ -42,6 +42,6 @@ This is a geometry smoke example, not a manufacturing recommendation. Coordinate
 
 Create a project with a spec, build, inspect the returned checks and failure location, render views or sections, and compare them with the original prompt. Make a targeted edit and rebuild. Use aad_show for a reviewed revision, then export only with its actual status and checks stated.
 
-The current M0 hard gate includes an error-level hard_gate_incomplete result, and the worker does not trust a model-process verified claim. Expect draft output until a trusted complete gate exists. Valid B-rep, matching spec values, and a complete-looking model do not establish that the spec captured the user's full intent.
+The worker does not trust a model-process verified claim, and no independent validator is connected yet, so a successful build is `draft`. Valid B-rep, matching spec values, and a complete-looking model do not establish that the spec captured the user's full intent.
 
 Sources: [build123d 0.13.0 release](https://github.com/gumyr/build123d/releases/tag/v0.13.0), [BuildPart 0.13.0 documentation](https://build123d.readthedocs.io/en/stable/build_part.html).

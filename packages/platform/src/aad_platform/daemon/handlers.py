@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import difflib
 import json
-import math
 import logging
 import os
 import shutil
@@ -39,10 +38,10 @@ def _build_timeout(value: Any) -> float:
     """The worker's kill limit. Large assemblies may ask for more, up to a hard ceiling."""
     if value is None:
         return BUILD_TIMEOUT_S
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not value > 0:
         raise ValueError("timeout_s must be a positive number of seconds.")
     if value > MAX_BUILD_TIMEOUT_S:
-        raise ValueError(f"timeout_s {value:g} is over the {MAX_BUILD_TIMEOUT_S:g} second limit.")
+        raise ValueError(f"timeout_s is over the {MAX_BUILD_TIMEOUT_S:g} second limit.")
     return float(value)
 
 
@@ -889,7 +888,10 @@ class Handlers:
                 message = f"Not implemented in this install. {message}"
             return reply(failure_envelope("", "BAD_INPUT" if failure.get("code") == "NOT_READY" else failure.get("code", "RUNTIME_ERROR"), failure.get("phase", "runtime"), message))
         data = result["library"]
-        return {"structured": {"ok": True, "project": "", "status": "draft", "summary": "Library result.", "library": data}, "text": json.dumps(data, default=str)[:6000]}
+        item = data.get("item") if isinstance(data, dict) else None
+        # A fetched guide must reach the model whole, including hosts that only pass on the text.
+        text = item["text"] if isinstance(item, dict) and isinstance(item.get("text"), str) else json.dumps(data, default=str)[:6000]
+        return {"structured": {"ok": True, "project": "", "status": "draft", "summary": "Library result.", "library": data}, "text": text}
 
     async def aad_set_param(self, params: dict[str, Any]) -> dict[str, Any]:
         build = await self.aad_build(

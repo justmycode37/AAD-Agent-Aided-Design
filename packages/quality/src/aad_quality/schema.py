@@ -101,6 +101,12 @@ class SpecIssue:
     requirement_index: int | None = None
 
 
+REQUIREMENT_TYPES = frozenset({
+    "bbox", "solids", "holes", "min_wall", "clearance", "mass_g", "symmetric",
+    "measure", "material_at_point", "interference", "matches_reference",
+})
+
+
 class SpecValidationError(ValueError):
     """Invalid or unsafe spec input, with parsed data when parsing succeeded."""
 
@@ -319,13 +325,7 @@ def _validate_requirement(req: dict[str, Any], index: int, units: str) -> list[S
         issues.append(SpecIssue("level must be 'error' or 'warn'", path + ("level",), index))
 
     type_fields = [key for key in req if key not in {"id", "level"}]
-    known = [
-        key for key in type_fields
-        if key in {
-            "bbox", "solids", "holes", "min_wall", "clearance", "mass_g", "symmetric",
-            "measure", "material_at_point", "interference", "matches_reference",
-        }
-    ]
+    known = [key for key in type_fields if key in REQUIREMENT_TYPES]
     if not known:
         # Unknown types are deliberately retained so the evaluator can emit a skip.
         return issues

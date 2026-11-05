@@ -9,7 +9,7 @@ These interfaces let five threads work in parallel without talking to each other
 ## 1. Repository and ownership
 
 ```
-PLAN.md, CONTRACTS.md                shared; edit only per the rule above
+ARCHITECTURE.md, CONTRACTS.md        shared; edit only per the rule above
 pyproject.toml, README.md, .github/  S2 (uv workspace root, CI)
 uv.lock                              generated; any sector may regenerate it
 docs/                                each sector's own named files
@@ -243,7 +243,7 @@ aad_file_read({ project, path: string, offset: number, length?: number })
 { "uri": "ui://aad/viewer", "mimeType": "text/html;profile=mcp-app", "text": "<single-file html>" }
 ```
 
-Always register these. Do not gate on the host's capability advert (PLAN D9). Omit `_meta.ui.csp` so that the strict default applies.
+Always register these. Do not gate on the host's capability advert. Omit `_meta.ui.csp` so that the strict default applies.
 
 ---
 
@@ -338,7 +338,7 @@ type SceneManifest = {
 
 ## 8. Viewer behavior
 
-The viewer only displays (`PLAN.md` D17). Native CAD picking and mesh measurement
+The viewer only displays. Native CAD picking and mesh measurement
 are local inspection features; model-editing sliders, Ask/review tools, and
 server selection integration are not built. `Selection`, `aad_set_param`,
 `aad_pick_info` and `POST /context` stay reserved.
@@ -504,6 +504,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 
 ## 11. Changelog
 
+- 2026-11-05: Replaced `PLAN.md` with `ARCHITECTURE.md` at the user's request. Scope, sector and milestone text remains in git history.
 - 2026-11-05: S5 added rigid reference-model comparison as a spec requirement and sandboxed CLI operation, with explicit geometric-only evidence limits.
 - 2026-11-05: S1/S3/S5 added an opt-in interference spec requirement with a reported mm³ threshold, bounded pair details and explicit unknowns, and documented the render edge-classification cap so large assemblies can render without dropping B-rep curve facts.
 - 2026-11-05: S1 added the first-party gear helpers to the `from aad import *` modeling API, with degree-based angles and normal module.

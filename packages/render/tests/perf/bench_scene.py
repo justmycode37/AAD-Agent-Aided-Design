@@ -1,4 +1,4 @@
-"""Warm make_scene timing against the 300 ms budget (PLAN section 9) for parts of at most 200 faces.
+"""Warm make_scene timing against the 300 ms budget for parts of at most 200 faces.
 
 Run with:
     uv run --locked --package aad-render --all-extras \

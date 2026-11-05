@@ -19,7 +19,7 @@ machine (load average about 4.5):
 | Plate, 60 counterbores | 190 | 30,748 | 388 KB | 329–350 ms | 365–488 ms | 29–70 ms |
 | Plate, 96 counterbores | 298 | 49,036 | 612 KB | 617–625 ms | 678–733 ms | 29–57 ms |
 
-Ranges are two runs of the benchmark. The budget is 300 ms for at most 200 faces (`PLAN.md` section 9). A typical part is far
+Ranges are two runs of the benchmark. The budget is 300 ms for at most 200 faces (a project target). A typical part is far
 inside it. A hole-heavy part near the 200-face limit misses it by about 10–15% at the median under this load; an earlier run
 of the same part measured 281 ms. Reproduce with
 `uv run --locked --package aad-render --all-extras python packages/render/tests/perf/bench_scene.py --repeat 20`. Each run

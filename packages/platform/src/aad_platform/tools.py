@@ -417,7 +417,7 @@ for _tool in TOOLS:
 TOOL_NAMES = frozenset(tool["name"] for tool in TOOLS)
 
 INSTRUCTIONS = (
-    "AAD is CAD for agents. Workflow: aad_new with a spec, write model.py, aad_build, read the "
+    "AAD is CAD for agents. Fetch the full guide once with aad_library action get, kind playbook, id aad.guide.v1. Workflow: aad_new with a spec, write model.py, aad_build, read the "
     "numbers and failures, review with aad_render, and aad_export for files. Call aad_show only when "
     "the user asks to see the part. Report the status honestly: draft means built but not proven, verified means the hard gate "
     "and every error-level requirement passed. Chat users see orbit/zoom, explode, grid, reset, fullscreen and a Views menu; "

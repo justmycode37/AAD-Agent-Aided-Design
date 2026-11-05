@@ -11,6 +11,7 @@ from typing import Any
 import yaml
 
 KINDS = ("part", "material", "playbook", "api")
+GUIDE_ID = "aad.guide.v1"
 _SEARCH_LIMIT = 5
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
 
@@ -85,6 +86,12 @@ def _playbooks() -> list[dict[str, Any]]:
         entries.append({"id": entry_id, "title": title, "tags": tags,
                         "summary": "Unmeasured candidate guidance; request the entry to read its assumptions.",
                         "candidate_status": "unmeasured", "text": body.strip()})
+    # The main skill file is also the library's guide, for hosts that only have the MCP tools.
+    guide = _guidance_root().joinpath("aad/SKILL.md").read_text(encoding="utf-8")
+    entries.append({"id": GUIDE_ID, "title": "AAD guide: every tool, model.py, spec.yaml and current limits",
+                    "tags": ["guide", "tools", "workflow", "overview", "capabilities", "limits"],
+                    "summary": "Start here. How to use all of AAD, and what does not work yet.",
+                    "candidate_status": "unmeasured", "text": guide.split("\n---\n", 1)[1].strip()})
     return entries
 
 

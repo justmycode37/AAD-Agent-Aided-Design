@@ -214,7 +214,7 @@ class CorpusContractTests(unittest.TestCase):
             validate_corpus(malformed)
 
     def test_rejects_traversal_absolute_and_escaping_symlink_assets(self) -> None:
-        for unsafe in ("assets/../PLAN.md", "/etc/passwd", "C:\\outside.stl"):
+        for unsafe in ("assets/../README.md", "/etc/passwd", "C:\\outside.stl"):
             bad_path = copy.deepcopy(self.corpus)
             stage = next(task for task in bad_path["tasks"] if task["id"] == "part_fan_carrier_001")["stages"][0]
             stage["input_assets"][0]["path"] = unsafe
@@ -222,7 +222,7 @@ class CorpusContractTests(unittest.TestCase):
                 validate_corpus(bad_path)
 
         link_path = ASSETS_DIR / f".escaping-link-{os.getpid()}.stl"
-        target = REPOSITORY / "PLAN.md"
+        target = REPOSITORY / "README.md"
         try:
             link_path.symlink_to(target)
             bad_link = copy.deepcopy(self.corpus)

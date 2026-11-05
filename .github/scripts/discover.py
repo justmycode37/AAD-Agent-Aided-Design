@@ -41,7 +41,7 @@ def main() -> int:
     root = Path(__file__).resolve().parents[2]
     changed = changed_files(root)
     # Only these files are documentation, not packaged runtime assets/playbooks.
-    docs = {"README.md", "PLAN.md", "CONTRACTS.md"}
+    docs = {"README.md", "ARCHITECTURE.md", "CONTRACTS.md"}
     relevant = None if changed is None else [
         path for path in changed if path not in docs and not path.startswith("docs/")
     ]
