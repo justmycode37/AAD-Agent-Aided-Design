@@ -451,7 +451,6 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
             requirements = requirements if isinstance(requirements, list) else []
             requirement_results = _requirement_results(requirements, evidence.checks)
             error_requirement_ids = [item["id"] for item in requirement_results if item["level"] == "error"]
-            advisory_ids = [item["id"] for item in requirement_results if item["level"] == "warn"]
             missing_or_unrun = [item for item in requirement_results if item["status"] == "skip"]
             incorrect_error = [item for item in requirement_results
                                if item["level"] == "error" and item["status"] not in {"pass", "not_applicable"}]
