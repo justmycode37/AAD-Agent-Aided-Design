@@ -107,6 +107,11 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+compare = [
+    { name = "numpy" },
+    { name = "scipy" },
+    { name = "vtk" },
+]
 geometry = [
     { name = "build123d" },
     { name = "cadquery-ocp-novtk" },
@@ -121,9 +126,12 @@ requires-dist = [
     { name = "bd-warehouse", marker = "extra == 'parts'", specifier = "==0.4.0" },
     { name = "build123d", marker = "extra == 'geometry'", specifier = "==0.13.0" },
     { name = "cadquery-ocp-novtk", marker = "extra == 'geometry'", specifier = "==8.0.1.1.0" },
+    { name = "numpy", marker = "extra == 'compare'", specifier = ">=2,<3" },
     { name = "pyyaml", specifier = ">=6.0.3,<7" },
+    { name = "scipy", marker = "extra == 'compare'", specifier = ">=1.14,<2" },
+    { name = "vtk", marker = "extra == 'compare'", specifier = "==9.7.1" },
 ]
-provides-extras = ["geometry", "parts"]
+provides-extras = ["geometry", "parts", "compare"]
 
 [[package]]
 name = "aad-render"

@@ -15,6 +15,7 @@ aad-engine = { workspace = true }
 [project.optional-dependencies]
 geometry = ["build123d==0.13.0", "cadquery-ocp-novtk==8.0.1.1.0"]
 parts = ["bd_warehouse==0.4.0"]
+compare = ["numpy>=2,<3", "scipy>=1.14,<2", "vtk==9.7.1"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/aad_quality"]
