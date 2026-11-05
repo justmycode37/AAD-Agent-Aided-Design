@@ -57,7 +57,7 @@ def resize_mask(m, L):
     return (cv2.resize(m.astype(np.uint8) * 255, (W, H), interpolation=cv2.INTER_AREA) > 127), W, H
 
 def fit(S, name, mask, V, seed, init=None):
-    rng = np.random.default_rng(seed); ext = V.max(0) - V.min(0); D = np.linalg.norm(ext)
+    ext = V.max(0) - V.min(0); D = np.linalg.norm(ext)
     low, W0, H0 = resize_mask(mask, 200); ys, xs = np.where(low); bw = max(xs.max() - xs.min(), ys.max() - ys.min()); u0, v0 = xs.mean() / W0, ys.mean() / H0
     s0 = np.log(bw / (D * .9) / W0)
     def f(p, m, W, H): return 1 - iou(S.render(p, W, H), m)

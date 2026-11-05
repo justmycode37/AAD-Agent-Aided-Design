@@ -3,7 +3,7 @@ import sys, numpy as np, cv2
 from scipy import ndimage as ndi
 I, O = sys.argv[1], sys.argv[2]
 def white(p, thr=236, sat=22):
-    im = cv2.imread(p); h = im.shape[:2]
+    im = cv2.imread(p)
     g = im.astype(int); m = ~((g.min(2) >= thr) & (g.max(2) - g.min(2) <= sat))
     return im, m
 def largest(m):

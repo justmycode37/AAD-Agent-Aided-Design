@@ -1,7 +1,5 @@
 """Confined writers must not follow a directory swapped by another process."""
 import os
-from pathlib import Path
-
 import pytest
 
 from aad_drafting import export_2d, make_scene

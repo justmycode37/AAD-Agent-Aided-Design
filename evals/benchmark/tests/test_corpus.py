@@ -8,8 +8,6 @@ import subprocess
 import sys
 import unittest
 from collections import Counter
-from pathlib import Path
-
 from evals.benchmark.corpus.loader import (
     ASSETS_DIR,
     CORPUS_DIR,

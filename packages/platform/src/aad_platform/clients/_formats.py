@@ -369,7 +369,7 @@ def _jsonc_replace_member(text: str, member: _JsonMember, value: Any, *, unit: s
 
 
 def _jsonc_remove_member(text: str, opening: int, member: _JsonMember) -> str:
-    clean = _jsonc_clean(text)
+    _jsonc_clean(text)
     members = _jsonc_object_members(text, opening)
     if len(members) == 1:
         start = member.key_start
@@ -535,7 +535,7 @@ def _yaml_entry_bounds(lines: list[str], block_start: int, block_end: int, child
 
 
 def _yaml_set_block(definition: _ClientDefinition, text: str, entry: dict[str, Any]) -> str:
-    document = parse_document(definition, text)
+    parse_document(definition, text)
     lines = text.splitlines(keepends=True)
     newline = "\r\n" if "\r\n" in text else "\n"
     ext = _yaml_top_extensions(lines)

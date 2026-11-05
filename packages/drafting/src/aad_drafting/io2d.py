@@ -10,7 +10,6 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 import io
-import json
 import math
 import os
 from pathlib import Path
@@ -744,7 +743,6 @@ def _svg_string(
 
 
 def _ellipse_dxf_parameters(entity: _Entity) -> tuple[tuple[float, float], float, float, float]:
-    center = entity.points[0]
     rx, ry = float(entity.metadata["rx"]), float(entity.metadata["ry"])
     rotation = math.radians(float(entity.metadata.get("rotation_deg", 0.0)))
     if rx >= ry:

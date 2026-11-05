@@ -10,7 +10,7 @@ from pathlib import Path
 import stat
 import time
 from types import SimpleNamespace
-from typing import Any, Mapping, Sequence
+from typing import Any, Sequence
 
 import pytest
 
@@ -292,8 +292,6 @@ def test_mock_observation_keeps_image_and_omits_scene_mesh() -> None:
 
 
 def json_text(value: Any) -> str:
-    import json
-
     return json.dumps(value, sort_keys=True)
 
 

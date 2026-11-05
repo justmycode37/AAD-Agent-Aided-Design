@@ -59,7 +59,6 @@ def hull_section(ri, ro, dxo, z, d):
     if z <= 14: circles += [(d[f'l{i}_x'], d[f'l{i}_y'] - CY, d[f'l{i}_r']) for i in range(1, 6)]
     # Support function sampled densely, then ray intersect through the convex hull.
     ang = 2 * np.pi * np.arange(180) / 180; pts = np.vstack([np.c_[c[0] + c[2] * np.cos(ang), c[1] + c[2] * np.sin(ang)] for c in circles])
-    pa = np.arctan2(pts[:, 1], pts[:, 0]); pr = np.hypot(pts[:, 0], pts[:, 1])
     hull = cv2.convexHull(pts.astype(np.float32))[:, 0, :].astype(float)
     a, b = hull, np.roll(hull, -1, 0); e = b - a
     for k in range(N):
@@ -176,7 +175,7 @@ def main():
             m, W, H = M[n]; best = (1e9, cams[n])
             starts = [cams[n]] + [np.r_[(Rn.from_rotvec(cams[n][:3]) * Rn.from_euler('xyz', d, degrees=True)).as_rotvec(), cams[n][3:]] for d in ([12, 0, 0], [-12, 0, 0], [0, 12, 0], [0, -12, 0], [0, 0, 12], [0, 0, -12])]
             for p0 in starts:
-                r = minimize(lambda p: 1 - iou(ren.render(p, W, H, c), m), p0, method='Powell', options={'maxfev': 220, 'xtol': 1e-3, 'ftol': 1e-4, 'direc': np.diag([.05, .05, .05, .01, .01, .02, .2])})
+                r = minimize(lambda p, W=W, H=H, m=m: 1 - iou(ren.render(p, W, H, c), m), p0, method='Powell', options={'maxfev': 220, 'xtol': 1e-3, 'ftol': 1e-4, 'direc': np.diag([.05, .05, .05, .01, .01, .02, .2])})
                 if r.fun < best[0]: best = (r.fun, r.x)
             cams[n] = best[1]
     if 'seed' not in init: pass

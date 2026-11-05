@@ -75,7 +75,7 @@ def _motors() -> list[Record]:
     for name, x, y, z in (("TEC1-12706", 40, 40, 3.9), ("TEC1-12710", 40, 40, 3.9), ("TEC1-12703", 40, 40, 3.9)):
         out.append(_rec(f"thermal.peltier.{name}", "thermal", "Peltier thermoelectric module", f"{name} Peltier module", f"{name}: {x} x {y} x {z} mm 12 V thermoelectric cooler.", f"peltier thermoelectric cooler tec {name}", source_type="common_trade_part", designation=name, dimensions_mm={"x": x, "y": y, "z": z}, envelope=_box(x, y, z)))
     for x, y, z in ((8.5, 8.5, 2.5), (9, 9, 5), (20, 20, 6), (40, 40, 11), (60, 60, 10)):
-        out.append(_rec(f"thermal.heatsink.{x:g}x{y:g}x{z:g}", "thermal", "Aluminium finned heatsink", f"{x:g} x {y:g} x {z:g} mm heatsink", f"Stock adhesive or screw-mount finned aluminium heatsink.", f"heatsink thermal aluminium fins {x:g}x{y:g}", source_type="generic_series", dimensions_mm={"x": x, "y": y, "z": z}, envelope=_box(x, y, z)))
+        out.append(_rec(f"thermal.heatsink.{x:g}x{y:g}x{z:g}", "thermal", "Aluminium finned heatsink", f"{x:g} x {y:g} x {z:g} mm heatsink", "Stock adhesive or screw-mount finned aluminium heatsink.", f"heatsink thermal aluminium fins {x:g}x{y:g}", source_type="generic_series", dimensions_mm={"x": x, "y": y, "z": z}, envelope=_box(x, y, z)))
     return out
 
 

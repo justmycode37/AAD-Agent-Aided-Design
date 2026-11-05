@@ -7,8 +7,6 @@ from .security import safe_observation, safe_tool_text, to_plain
 from .types import (
     FinishReceipt,
     InputTokenEstimate,
-    MCPObservation,
-    ObservationBlock,
     ProviderToolCall,
     ProviderTurn,
     PublicStageProjection,

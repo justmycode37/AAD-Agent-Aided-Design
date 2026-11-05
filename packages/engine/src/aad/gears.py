@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from importlib import import_module
-from math import acos, atan, cos, degrees, hypot, isfinite, pi, radians, sin, sqrt, tan
+from math import acos, atan, cos, degrees, isfinite, pi, radians, sin, sqrt, tan
 from typing import Any, Literal
 import warnings
 

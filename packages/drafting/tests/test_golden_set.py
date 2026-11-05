@@ -3,10 +3,8 @@ import hashlib
 import json
 import math
 import os
-from pathlib import Path
 import subprocess
 import sys
-from types import SimpleNamespace
 
 import ezdxf
 import pytest

@@ -4,8 +4,6 @@ from types import SimpleNamespace
 
 import pytest
 from build123d import Align, Box, Cylinder, Pos, RectangleRounded, extrude, Compound, Rot
-import math
-
 from aad_quality._checks import record
 from aad_quality.process import process_checks
 from aad_quality import process_geometry

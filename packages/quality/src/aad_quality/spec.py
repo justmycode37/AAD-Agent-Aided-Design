@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 import importlib
 import math
 import re

@@ -444,7 +444,7 @@ def _write_single_scene(ctx: Any, out: Path) -> tuple[Any, dict[str, Any]]:
     features = getattr(ctx, "features", None)
     face_features = _feature_names(features, "faces", len(engine_faces))
     edge_features = _feature_names(features, "edges", len(engine_edges))
-    kernel = kernel_of(_wrapped(shape))
+    kernel_of(_wrapped(shape))
 
     source_by_path = {
         leaf["id"]: leaf

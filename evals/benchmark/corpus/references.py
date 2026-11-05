@@ -131,7 +131,7 @@ def slotted_rail(
     slot_centers_mm: Sequence[Sequence[float]],
 ) -> Any:
     """Plate with rounded slots whose long axis is X."""
-    c = _cad()
+    _cad()
     shape = _box_from_base(width_mm, depth_mm, thickness_mm)
     straight = slot_length_mm - slot_width_mm
     for x, y in slot_centers_mm:
@@ -267,7 +267,7 @@ def step_bushing(
     counterbore_diameter_mm: float,
     counterbore_depth_mm: float,
 ) -> Any:
-    c = _cad()
+    _cad()
     total = body_length_mm + shoulder_length_mm
     body = _cylinder(body_diameter_mm, body_length_mm, z=body_length_mm / 2)
     shoulder = _cylinder(
@@ -389,7 +389,7 @@ def hose_adapter(
     bore_diameter_mm: float,
     end_length_mm: float,
 ) -> Any:
-    c = _cad()
+    _cad()
     middle_length = length_mm - 2 * end_length_mm
     left = _cylinder(left_diameter_mm, end_length_mm, z=end_length_mm / 2)
     middle = _cylinder(middle_diameter_mm, middle_length, z=end_length_mm + middle_length / 2)
@@ -561,7 +561,7 @@ def pulley(
     hub_length_mm: float,
     bore_diameter_mm: float,
 ) -> Any:
-    c = _cad()
+    _cad()
     wheel = _cylinder(outer_diameter_mm, thickness_mm, z=thickness_mm / 2)
     hub = _cylinder(hub_diameter_mm, hub_length_mm, z=thickness_mm + hub_length_mm / 2)
     shape = wheel + hub
@@ -578,7 +578,6 @@ def fan_carrier(
 ) -> Any:
     inner_w = fan_width_mm + 2 * clearance_mm
     inner_d = fan_depth_mm + 2 * clearance_mm
-    outer_w = inner_w + 2 * rail_thickness_mm
     outer_d = inner_d + 2 * rail_thickness_mm
     total_h = fan_height_mm + rail_thickness_mm
     rails = [
