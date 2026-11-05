@@ -339,10 +339,16 @@ type SceneManifest = {
 
 ## 8. Viewer behavior
 
-The viewer only displays. Native CAD picking and mesh measurement
-are local inspection features; model-editing sliders, Ask/review tools, and
-server selection integration are not built. `Selection`, `aad_set_param`,
-`aad_pick_info` and `POST /context` stay reserved.
+The viewer only displays. Chat supports whole-part hover and click selection;
+clicking an already selected part deselects it. Highlighting preserves the
+part's material and visible detail. Double-click prepares an exact part reference
+for the user's real chat prompt: append an unsent draft item only when the host
+advertises a draft-insertion capability; otherwise leave prompt insertion
+unavailable. Do not offer a clipboard workflow, open a separate editor, or
+automatically send a message.
+Native CAD picking and mesh measurement remain local inspection tools.
+Model-editing sliders, `aad_set_param`, `aad_pick_info`, and `POST /context` stay
+reserved.
 
 **User controls:** pull apart/put together, XYZ grid, reset to the agent-prepared
 view, fullscreen, and a wider Views menu beside the small title-row icons. In
@@ -398,6 +404,7 @@ all native capabilities, and analysis provenance requirements.
 ```ts
 interface Transport {
   readonly controls?: "simple"|"cad";
+  readonly caps: { fullscreen: boolean, modelContext?: boolean, composerReferences?: boolean };
   getInitialResult(): Promise<Envelope>;
   readChunk(sceneId: string, offset: number, length: number): Promise<Chunk>;
   callTool(name: string, args: object): Promise<Envelope>;
@@ -405,6 +412,8 @@ interface Transport {
   sendMessage(text: string): Promise<void>;      // hidden if the host lacks it
   requestFullscreen(): Promise<void>;            // only from a user gesture
   onUpdate(cb: (e: Envelope) => void): void;     // new revisions, window mode
+  stageSelection?(references: PartReference[]): Promise<void>; // negotiated MCP context only
+  insertPartReference?(reference: PartReference): Promise<void>; // negotiated unsent active-composer append only
 }
 ```
 
@@ -418,6 +427,8 @@ interface Transport {
 **Selection sent to the model:**
 
 ```ts
+type PartReference = { project: string, rev: number, scene_id: string,
+                       path: string, name: string, mention: string };
 type Selection = { project: string, rev: number, kind: "face"|"edge"|"vertex"|"part",
                    selector: string, feature?: string,
                    geometry: { type: string, center?: number[], normal?: number[],
@@ -425,6 +436,23 @@ type Selection = { project: string, rev: number, kind: "face"|"edge"|"vertex"|"p
 ```
 
 `ui/update-model-context` carries a short text description plus `structuredContent: { selection: Selection[] }`. Each update replaces the last.
+
+Chat part selection uses this channel only when the host advertises it. A part's
+`selector` is an identity URI, `aad://part/<project>/<rev>/<scene_id>?path=<path>`,
+with project/path percent-encoded. Resolve it against the exact saved scene
+before choosing modeling selectors; mention labels alone do not identify parts
+and are not file paths. The native composer item retains its `@name` title.
+HTML-only hosts without a draft API keep selection local and leave prompt
+insertion unavailable.
+On hosts advertising `experimental["openai/message"]`, `ui/message` may append a
+titled text reference to the active composer with
+`_meta: {"openai/message": {target: "active", send: false}}`. Gate this extension
+before calling; ordinary `ui/message` can send immediately and is not a fallback.
+Host rejection reports failure without a clipboard or sending fallback.
+The viewer never promises composer focus or insertion on unsupported hosts.
+Selection context is cleared on deselection or a new scene/revision. Large
+selections may be bounded with explicit `selectedCount` and `omittedCount`;
+omitted references must be obtained before acting on those parts.
 
 **Local window:** `GET http://127.0.0.1:<port>/p/<project>?token=<token>`; the daemon sends WebSocket updates on `/ws`. Tokens come from `~/.aad/run/aadd.json`. The daemon rejects a missing token or a foreign `Origin`.
 
@@ -505,6 +533,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 
 ## 11. Changelog
 
+- 2026-11-05: S3 specified whole-part toggle selection, subtle highlighting, exact scene-scoped references, negotiated selection context and capability-gated unsent composer insertion; unsupported hosts keep local selection without a clipboard workflow, and server editing routes remain reserved.
 - 2026-11-05: Replaced `PLAN.md` with `ARCHITECTURE.md` at the user's request. Scope, sector and milestone text remains in git history.
 - 2026-11-05: S5 added rigid reference-model comparison as a spec requirement and sandboxed CLI operation, with explicit geometric-only evidence limits.
 - 2026-11-05: S1/S3/S5 added an opt-in interference spec requirement with a reported mm³ threshold, bounded pair details and explicit unknowns, and documented the render edge-classification cap so large assemblies can render without dropping B-rep curve facts.
