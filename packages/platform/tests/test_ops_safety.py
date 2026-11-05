@@ -34,6 +34,32 @@ def test_rejects_symlinked_project_directories(project, tmp_path):
         asyncio.run(Handlers().aad_file_read({"project": "p", "path": "secret"}))
 
 
+def test_verified_export_needs_no_unverified_flag_or_suffix(project, tmp_path, monkeypatch):
+    revision = project.rev_dir(1)
+    revision.mkdir(parents=True)
+    (revision / "meta.json").write_text('{"status":"verified"}')
+    meta = project.meta()
+    meta["head_rev"] = 1
+    project.write_meta(meta)
+    recorded = {}
+
+    async def fake_op(_self, _project, _rev, _op, args, **_kwargs):
+        recorded.update(args)
+        out = tmp_path / "op-output"
+        out.mkdir()
+        source = out / "model.step"
+        source.write_text("step")
+        return {"ok": True, "files": {"step": str(source)}}, out
+
+    monkeypatch.setattr(Handlers, "_op", fake_op)
+    response = asyncio.run(Handlers().aad_export({"project": "p", "formats": ["step"]}))
+    envelope = response["structured"]
+    assert envelope["ok"] and envelope["status"] == "verified"
+    assert "allow_unverified" not in recorded
+    assert Path(envelope["artifacts"]["step"]).name == "p-r1.step"
+    assert "UNVERIFIED" not in envelope["artifacts"]["step"]
+
+
 def test_import_replaces_destination_symlink_without_following_it(project, tmp_path, monkeypatch):
     outside = tmp_path / "outside.step"
     outside.write_text("keep")

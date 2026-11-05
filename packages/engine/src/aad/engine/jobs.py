@@ -195,7 +195,8 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
     try:
         result = _result_from_wire(response, job_dir=job_dir, elapsed_ms=elapsed_ms, process_stderr=_decode(stderr_bytes))
         result = _constrain_worker_evidence(result, job_dir, project_dir, kind=request.kind,
-                                            spec=request.spec, process=request.process)
+                                            spec=request.spec, process=request.process, units=request.units,
+                                            timeout_s=max(0.1, request.timeout_s - (time.perf_counter() - started)))
     except (KeyError, TypeError, ValueError, AttributeError) as exc:
         return _failed(
             Failure(
@@ -344,11 +345,12 @@ def _private_artifact(path: Path, job_dir: Path) -> bool:
 
 def _detail_counts(checks: list[Check]) -> dict[str, int]:
     return {status: sum(c.status == status for c in checks)
-            for status in ("pass", "fail", "warn", "skip")}
+            for status in ("pass", "fail", "warn", "skip", "not_applicable")}
 
 
 def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: Path, *, kind: str = "part",
-                               spec: Mapping[str, Any] | None = None, process: str | None = None) -> BuildResult:
+                               spec: Mapping[str, Any] | None = None, process: str | None = None,
+                               units: str = "mm", timeout_s: float = 60.0) -> BuildResult:
     # A model's pipe result is not a trusted validation receipt.
     # A sheet has no B-rep body: its source record is the artifact that must exist.
     required = "sheet.json" if kind == "2d" else "part.brep"
@@ -410,7 +412,8 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
             import json
             import yaml
             from .validation import inspect_brep
-            project = json.loads((project_dir / "project.json").read_text())
+            project_path = project_dir / "project.json"
+            project = json.loads(project_path.read_text()) if project_path.is_file() else {}
             spec_path = project_dir / "spec.yaml"
             saved_spec = yaml.safe_load(spec_path.read_text()) if spec_path.is_file() else {}
             trusted_spec = dict(spec) if isinstance(spec, Mapping) else saved_spec
@@ -418,31 +421,38 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
                 trusted_spec = {}
             trusted_process = process if process is not None else project.get("process")
             evidence = inspect_brep(part, candidate_dir=job_dir, kind=kind,
-                                    units=project.get("units", "mm"), spec=trusted_spec,
-                                    process=trusted_process)
-            result.checks = [c for c in result.checks if c.id != "worker_verification_unattested"]
-            result.checks.extend(evidence.checks)
+                                    units=project.get("units", units), spec=trusted_spec,
+                                    process=trusted_process, timeout_s=timeout_s)
+            parent_warnings = [c for c in result.checks if c.level == "warn"]
+            result.checks = [*evidence.checks, *parent_warnings]
             requirements = trusted_spec.get("requirements") or []
             required_checks = [c for c in evidence.checks if c.suite in {"spec", "process"} and c.level == "error"]
+            independent_failure = next((c for c in evidence.checks if c.level == "error" and c.status == "fail"), None)
+            if independent_failure is not None:
+                result.ok, result.status = False, "failed"
+                result.failure = Failure(code="NOT_VERIFIED", phase="validate", feature=independent_failure.feature or "unknown",
+                    message=f"Independent validation failed error-level check {independent_failure.id!r}.")
+                result.summary = result.failure.message
             if (evidence.ok and requirements and required_checks
-                    and all(c.status == "pass" for c in required_checks)
+                    and independent_failure is None
+                    and all(c.status in {"pass", "not_applicable"} for c in required_checks)
                     and not any(c.level == "error" and c.status in {"fail", "skip"} for c in evidence.checks)):
                 result.status = "verified"
                 result.requirements_proven = True
                 result.summary = "The saved BREP passed independent geometry and requirement checks."
-            else:
+            elif independent_failure is None:
                 result.status = "draft"
-                if not any(c.id == "worker_verification_unattested" for c in result.checks):
-                    result.checks.append(Check(id="worker_verification_unattested", suite="hard", level="error", status="skip",
-                        message="Independent evidence did not prove every error-level requirement."))
-            result.metrics.update(evidence.metrics)
-        except Exception:
+                result.checks.append(Check(id="worker_verification_unattested", suite="hard", level="error", status="skip",
+                    message="Independent evidence did not prove every error-level requirement."))
+            result.metrics = dict(evidence.metrics)
+        except Exception as exc:
             result.status = "draft"
             result.checks.append(Check(id="trusted_validation_unavailable", suite="hard", level="error", status="skip",
-                message="Independent validation could not be completed."))
-    result.checks_summary = _detail_counts(result.checks)
+                message="Independent validation could not be completed.", actual=f"{type(exc).__name__}: {exc}"))
+    detail_counts = _detail_counts(result.checks)
+    result.checks_summary = {status: detail_counts[status] for status in detail_counts}
     if result.scene is not None:
-        result.scene.status = result.status
+        result.scene.status = "verified" if result.status == "verified" else "draft"
         result.scene.compare = None
         result.scene.checks_summary = dict(result.checks_summary)
     return result
@@ -532,7 +542,7 @@ def _result_from_wire(
     if not isinstance(summary_data, dict):
         raise ValueError("checks_summary must be an object")
     summary = {}
-    for status in ("pass", "fail", "warn", "skip"):
+    for status in ("pass", "fail", "warn", "skip", "not_applicable"):
         count = summary_data.get(status, 0)
         if isinstance(count, bool) or not isinstance(count, int) or count < 0:
             raise ValueError("checks_summary counts must be non-negative integers")
@@ -576,7 +586,7 @@ def _check_from_wire(item: dict[str, Any]) -> Check:
         raise ValueError("check must be an object")
     if item.get("suite", "hard") not in ("hard", "spec", "process", "interference", "2d"):
         raise ValueError("check has an unsupported suite")
-    if item.get("level", "warn") not in ("error", "warn") or item.get("status", "skip") not in ("pass", "fail", "warn", "skip"):
+    if item.get("level", "warn") not in ("error", "warn") or item.get("status", "skip") not in ("pass", "fail", "warn", "skip", "not_applicable"):
         raise ValueError("check has an unsupported level or status")
     if not isinstance(item.get("id"), str) or not item["id"]:
         raise ValueError("check requires a nonempty string ID")

@@ -22,7 +22,7 @@ class Sheet2D(Protocol):
 
 CheckSuite = Literal["hard", "spec", "process", "interference", "2d"]
 CheckLevel = Literal["error", "warn"]
-CheckStatus = Literal["pass", "fail", "warn", "skip"]
+CheckStatus = Literal["pass", "fail", "warn", "skip", "not_applicable"]
 BuildStatus = Literal["failed", "draft", "verified"]
 FailurePhase = Literal[
     "input",

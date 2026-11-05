@@ -1060,10 +1060,12 @@ def _coverage_checked(ctx: Any, process: str, settings: dict[str, Any], checks: 
             if process == 'cnc_3axis' and data['id'] in {
                 'process.cnc_3axis.hole_approach_probe',
                 'process.cnc_3axis.fixed_axis_access',
-                'process.cnc_3axis.internal_radius',
             }:
                 data.update(status='pass', message='A native rectangular solid has no holes or internal corners to screen.',
                     actual='0 internal bores and 0 internal corners on the recognized six-face rectangular solid')
+            elif process == 'cnc_3axis' and data['id'] == 'process.cnc_3axis.internal_radius':
+                data.update(status='not_applicable', message='No internal corner exists on the recognized six-face rectangular solid.',
+                    actual='0 internal corners on the recognized six-face rectangular solid')
         if reason:
             data['status'] = 'skip'
             data['message'] = 'Process screen has partial evidence: ' + reason + '.'

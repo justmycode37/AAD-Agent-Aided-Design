@@ -45,8 +45,11 @@ class GeometryInspectionTests(unittest.TestCase):
             self.assertEqual(path.read_bytes(), snapshot.read_bytes())
             self.assertEqual(evidence.snapshot_sha256, hashlib.sha256(snapshot.read_bytes()).hexdigest())
             record = {'protocol': 1, 'snapshot_sha256': evidence.snapshot_sha256,
+                      'spec_sha256': evidence.spec_sha256, 'kernel_versions': evidence.kernel_versions,
                       'inputs': {'kind': 'part', 'units': 'mm', 'spec': {'requirements': [{'id': 'fit'}]}}}
             self.assertEqual(evidence.input_sha256, hashlib.sha256(validation._canonical_json(record)).hexdigest())
+            self.assertEqual(evidence.spec_sha256, hashlib.sha256(validation._canonical_json({'requirements': [{'id': 'fit'}]})).hexdigest())
+            self.assertIn('build123d', evidence.kernel_versions)
 
     def test_nested_assembly_uses_all_solids_and_explicit_coordinate_units(self):
         import build123d as bd

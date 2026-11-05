@@ -43,7 +43,7 @@ def failure_envelope(
 
 def sort_checks(checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Failures and warnings first. Passes are collapsed into checks_summary."""
-    order = {"fail": 0, "warn": 1, "skip": 2}
+    order = {"fail": 0, "warn": 1, "skip": 2, "not_applicable": 3}
     kept = [c for c in checks if c.get("status") != "pass"]
     return sorted(kept, key=lambda c: order.get(c.get("status", ""), 3))
 
@@ -73,7 +73,7 @@ def text_for(envelope: dict[str, Any]) -> str:
     if summary:
         lines.append(
             "Checks: "
-            + ", ".join(f"{summary.get(key, 0)} {key}" for key in ("pass", "fail", "warn", "skip"))
+            + ", ".join(f"{summary.get(key, 0)} {key}" for key in ("pass", "fail", "warn", "skip", "not_applicable"))
         )
     for check in (envelope.get("checks") or [])[:5]:
         if check.get("status") in ("fail", "warn"):

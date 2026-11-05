@@ -73,6 +73,7 @@ What a CAD package such as SolidWorks, Fusion or NX does, and how an agent does 
 | STEP AP214/AP242, BREP, STL, 3MF, GLB, DXF, SVG, PDF export | Existing | `aad_export` |
 | IGES, OBJ, PLY export | Added | `aad_export` |
 | Standalone viewer export | Added | `viewer_html` used to fail as not installed |
+| Independent verification | Added | A sandboxed parent validator checks saved BREP, hard gate, spec and process evidence; worker feature records are not trusted |
 | STEP, BREP, STL import | Existing | `aad_import` |
 | Using an imported file in a model | Added | `asset()`: the sandbox had no way to read it before |
 | IGES import | Added | `aad_import`, `asset()` |
@@ -85,6 +86,6 @@ PDM, PLM and collaboration are out of scope. Interactive picking and sliders sta
 
 ## Known limits in what exists
 
-- **Status stays `draft`.** The worker cannot attest its own verification and no trusted validator is wired, so `aad_export` needs `allow_unverified` for every revision.
+- **Verification is conservative.** A sandboxed parent-side validator checks the saved BREP and spec without running model code or trusting worker metrics and feature records. No-requirement builds and requirements that need untrusted feature metadata remain `draft`. Error-level `skip` blocks verification; `not_applicable` means the check's subject is independently known to be absent. `min_wall` and `symmetric` remain disproof-only.
 - **2D requirements are unproven.** Spec requirements are not evaluated on sheets yet.
 - **Standard parts use simple threads** unless a record says otherwise, so thread fit needs its own check.

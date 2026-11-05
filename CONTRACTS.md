@@ -308,6 +308,8 @@ Always register these. Do not gate on the host's capability advert. Omit `_meta.
 
 `content[0]` is text that makes sense alone, around 200 tokens. It holds status, the key numbers, failed checks and the next step. Images go in `content` only when requested. `structuredContent` holds this envelope, and it must stay small: no meshes, no base64.
 
+Check status `not_applicable` means the evaluator independently established that the check's subject is absent. It is different from `skip`: skipped and unknown error-level checks remain unproven and block `verified`; `not_applicable` does not. Warn-level checks, including `render_not_requested`, do not block verification. `checks_summary.not_applicable` is additive and optional for older clients.
+
 ```ts
 type Envelope = {
   ok: boolean, project: string, rev?: number, base_rev?: number, head_rev?: number,
@@ -321,7 +323,7 @@ type Envelope = {
     phase_timings_ms?: Record<string, number>
   },
   checks?: Check[],                 // failures and warnings first, passes collapsed to counts
-  checks_summary?: { pass: number, fail: number, warn: number, skip: number },
+  checks_summary?: { pass: number, fail: number, warn: number, skip: number, not_applicable?: number },
   failure?: Failure,
   artifacts?: Record<string, string>,  // aad://<project>/<rev>/<name>, plus file paths for exports
   scene?: SceneManifest,               // aad_show, aad_set_param
@@ -352,7 +354,7 @@ type Envelope = {
 
 type Check = {
   id: string, suite: "hard"|"spec"|"process"|"interference"|"2d",
-  level: "error"|"warn", status: "pass"|"fail"|"warn"|"skip",
+  level: "error"|"warn", status: "pass"|"fail"|"warn"|"skip"|"not_applicable",
   message: string, expected?: string, actual?: string,
   feature?: string, selector?: string, heuristic?: boolean, assumptions?: string, fix_hint?: string
 }
@@ -402,7 +404,7 @@ type SceneManifest = {
   total_bytes: number, triangles?: number,
   parts: { path: string, name: string, feature?: string, color?: string }[],
   params?: { name: string, value: number|string, min?: number, max?: number, unit?: string }[],
-  checks_summary?: { pass: number, fail: number, warn: number, skip: number },
+  checks_summary?: { pass: number, fail: number, warn: number, skip: number, not_applicable?: number },
   failed_features?: string[],
   status: "draft"|"verified",
   compare?: SceneManifest
@@ -637,6 +639,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 - 2026-11-05: S2/S5 added additive request capture in git-friendly `request.json`, per-revision request snapshots and checkout, `covers` trace links with honest request review (no semantic coverage percentage), and spec angle/position/fit evidence. Requirement-structure errors that survive YAML parsing remain error-level skips; successful builds may commit them as draft revisions. Symmetry passes only with exact planar face/edge mirror equality plus zero measured difference; a zero-volume boolean alone is inconclusive. Sampled wall thickness still cannot prove a global minimum and remains `skip` without a violation.
 - 2026-11-05: S3 specified chunked lossless HTML scene assets with chunk/total byte-count and scene-hash verification and explicit missing-chunk errors.
 - 2026-11-05: S2/S5 added heading-based `aad.guide.v1` retrieval: the library returns a short core by default and the complete single-source guide on `section: "all"`.
+- 2026-11-05: S1 added the additive `not_applicable` check outcome and optional summary count. It means the check subject is proven absent; `skip` remains unknown and blocks verification at error level.
 - 2026-11-05: S3 specified whole-part toggle selection, subtle highlighting, exact scene-scoped references, negotiated selection context and capability-gated unsent composer insertion; unsupported hosts keep local selection without a clipboard workflow, and server editing routes remain reserved.
 - 2026-11-05: S1/S3 keep local 3D B-rep parsing and exact inspection under the OS sandbox, passing a JSON mesh/view payload to a clean VTK worker because graphics initialization fails inside the sandbox.
 - 2026-11-05: Replaced `PLAN.md` with `ARCHITECTURE.md` at the user's request. Scope, sector and milestone text remains in git history.

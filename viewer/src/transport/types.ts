@@ -15,7 +15,7 @@ export interface SceneManifest {
   total_bytes: number;
   triangles?: number;
   parts: { path: string; name: string; feature?: string; color?: string }[];
-  checks_summary?: { pass: number; fail: number; warn: number; skip: number };
+  checks_summary?: { pass: number; fail: number; warn: number; skip: number; not_applicable?: number };
   status: "draft" | "verified";
 }
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import hashlib
+from importlib import metadata as importlib_metadata
 import json
 import math
 import os
@@ -43,6 +44,8 @@ class GeometryEvidence:
     failure: Failure | None = None
     snapshot_sha256: str | None = None
     input_sha256: str | None = None
+    spec_sha256: str | None = None
+    kernel_versions: dict[str, str] = field(default_factory=dict)
     inspection_dir: Path | None = None
     stdout: str = ""
     stderr: str = ""
@@ -88,6 +91,14 @@ def inspect_brep(
         _json_value(declared)
         # Detach caller mutations before hashing or giving inputs to the child.
         declared = json.loads(_canonical_json(declared))
+        result.spec_sha256 = hashlib.sha256(_canonical_json(declared["spec"])).hexdigest()
+        versions = {}
+        for distribution in ("build123d", "cadquery-ocp-novtk"):
+            try:
+                versions[distribution] = importlib_metadata.version(distribution)
+            except importlib_metadata.PackageNotFoundError:
+                versions[distribution] = "unavailable"
+        result.kernel_versions = versions
         candidate = Path(candidate_dir).resolve(strict=True)
         path = Path(brep_path).absolute()
         resolved = path.resolve(strict=True)
@@ -115,7 +126,8 @@ def inspect_brep(
             if (after.st_size, after.st_mtime_ns, after.st_ctime_ns) != (opened.st_size, opened.st_mtime_ns, opened.st_ctime_ns):
                 raise ValueError("BREP changed while snapshotting")
         result.snapshot_sha256 = digest.hexdigest()
-        record = {"protocol": 1, "snapshot_sha256": result.snapshot_sha256, "inputs": declared}
+        record = {"protocol": 1, "snapshot_sha256": result.snapshot_sha256,
+                  "spec_sha256": result.spec_sha256, "kernel_versions": versions, "inputs": declared}
         result.input_sha256 = hashlib.sha256(_canonical_json(record)).hexdigest()
         nonce = secrets.token_hex(24)
         payload = {"record": record, "input_sha256": result.input_sha256, "nonce": nonce}

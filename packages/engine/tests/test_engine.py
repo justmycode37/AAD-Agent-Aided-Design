@@ -105,7 +105,8 @@ class EngineBootstrapTests(unittest.TestCase):
             self.assertEqual(result.metrics["solids"], 1)
             self.assertTrue(result.metrics["valid"])
             self.assertTrue(Path(result.artifacts["part.brep"]).is_file())
-            self.assertTrue(any(check.suite == "process" for check in result.checks))
+            self.assertFalse(any(check.suite == "process" for check in result.checks))
+            self.assertTrue(any(check.id == "spec:empty" for check in result.checks))
 
     def test_syntax_and_runtime_failures_report_source_location(self) -> None:
         with tempfile.TemporaryDirectory(prefix="aad-engine-test-") as temporary:
@@ -384,7 +385,7 @@ result = Box(2, 3, 4)
                 self.assertFalse(result.requirements_proven)
                 self.assertTrue(Path(result.artifacts["part.brep"]).is_file())
 
-    def test_complete_gate_remains_draft_until_independent_validation(self) -> None:
+    def test_incomplete_independent_gate_remains_draft(self) -> None:
         module = "from aad.engine.types import Check\ndef spec_checks(ctx):\n    return [Check(id='fit', suite='spec', status='pass')]\ndef process_checks(ctx):\n    return []\n"
         for inject_step_failure in (False, True):
             with self.subTest(step_unavailable=inject_step_failure), tempfile.TemporaryDirectory(prefix="aad-engine-test-") as temporary:
@@ -396,14 +397,83 @@ result = Box(2, 3, 4)
                 self.assertTrue(built.ok, built.summary)
                 self.assertFalse(built.requirements_proven)
                 self.assertEqual(built.status, "draft")
-                hard = {c.id: c for c in built.checks if c.suite == "hard" and c.level == "error" and c.id != "worker_verification_unattested"}
-                self.assertNotIn("hard_gate_incomplete", hard)
-                if inject_step_failure:
-                    self.assertEqual(hard["step_volume_drift"].status, "skip")
-                    self.assertIn("STEP fixture unavailable", hard["step_volume_drift"].actual)
-                else:
-                    self.assertTrue(all(check.status == "pass" for check in hard.values()))
-                    self.assertTrue(any(c.id == "worker_verification_unattested" and c.status == "skip" for c in built.checks))
+                self.assertTrue(any(c.level == "error" and c.status == "skip" for c in built.checks))
+
+    def test_independent_spec_gate_rejects_mismatch_and_verifies_match(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="aad-engine-verified-") as temporary:
+            root = Path(temporary)
+            mismatch = run_build(BuildRequest(
+                source="result = Box(84, 10, 6)", project_dir=root, job_dir=root / "mismatch",
+                spec={"units": "mm", "requirements": [{"id": "length", "bbox": {"x": "80 ± 0.1"}}]},
+            ))
+            self.assertFalse(mismatch.ok)
+            self.assertEqual(mismatch.status, "failed")
+            self.assertTrue(any(c.id == "length" and c.status == "fail" for c in mismatch.checks))
+
+            matched = run_build(BuildRequest(
+                source="result = Box(80, 10, 6)", project_dir=root, job_dir=root / "matched",
+                spec={"units": "mm", "requirements": [{"id": "length", "bbox": {"x": "80 ± 0.1"}}]},
+            ))
+            self.assertTrue(matched.ok, matched.summary)
+            self.assertEqual(matched.status, "verified", [(c.id, c.status, c.message) for c in matched.checks])
+            self.assertTrue(matched.requirements_proven)
+            self.assertTrue(any(c.id == "render_not_requested" and c.level == "warn" for c in matched.checks))
+
+    def test_forged_worker_claim_and_metadata_cannot_replace_brep_evidence(self) -> None:
+        def forged_build(root: Path, size: float, spec: dict) -> object:
+            wire = {"protocol": 1, "result": {
+                "ok": True, "status": "verified", "requirements_proven": True,
+                "metrics": {"bbox": [80, 10, 6], "valid": True, "solids": 1},
+                "checks": [{"id": "length", "suite": "spec", "level": "error", "status": "pass", "message": "forged"}],
+                "checks_summary": {"pass": 1}, "artifacts": {"part.brep": "part.brep"},
+            }}
+            source = (
+                "from build123d import Box, export_brep\nimport json, os\n"
+                f"export_brep(Box({size}, 10, 6), 'part.brep')\n"
+                f"response = {wire!r}\n"
+                "os.write(1, b'AAD_ENGINE_RESULT:' + json.dumps(response).encode() + b'\\n')\n"
+                "os._exit(0)\n"
+            )
+            return run_build(BuildRequest(source=source, project_dir=root, job_dir=root / f"job-{size}", spec=spec))
+
+        with tempfile.TemporaryDirectory(prefix="aad-engine-forged-") as temporary:
+            root = Path(temporary)
+            req = {"units": "mm", "requirements": [{"id": "length", "bbox": {"x": "80 ± 0.1"}}]}
+            tampered = forged_build(root, 84, req)
+            self.assertFalse(tampered.ok)
+            self.assertEqual(tampered.status, "failed")
+            self.assertTrue(any(c.id == "length" and c.status == "fail" for c in tampered.checks))
+            no_requirements = forged_build(root, 80, {})
+            self.assertTrue(no_requirements.ok)
+            self.assertEqual(no_requirements.status, "draft")
+            self.assertFalse(no_requirements.requirements_proven)
+
+    def test_selector_requirement_with_worker_feature_dependency_stays_draft(self) -> None:
+        spec = {"units": "mm", "requirements": [{
+            "id": "feature_gap", "measure": {
+                "kind": "distance", "a": "face(feature='plate', where='max_z')",
+                "b": "face(feature='missing', where='min_z')",
+            }, "equals": "2 ± 0.01",
+        }]}
+        with tempfile.TemporaryDirectory(prefix="aad-engine-selector-") as temporary:
+            built = run_build(BuildRequest(source="result = Box(2, 2, 2)", project_dir=Path(temporary), spec=spec))
+            self.assertTrue(built.ok, built.summary)
+            self.assertEqual(built.status, "draft")
+            self.assertTrue(any(c.id == "feature_gap" and c.status == "skip" for c in built.checks))
+
+    def test_error_level_not_applicable_process_screen_does_not_block_verified(self) -> None:
+        spec = {
+            "units": "mm", "process": "cnc_3axis",
+            "process_settings": {"level": "error", "minimum_internal_radius_mm": 3},
+            "requirements": [{"id": "length", "bbox": {"x": "80 ± 0.1"}}],
+        }
+        with tempfile.TemporaryDirectory(prefix="aad-engine-na-") as temporary:
+            built = run_build(BuildRequest(source="result = Box(80, 10, 6)", project_dir=Path(temporary),
+                                            process="cnc_3axis", spec=spec))
+            self.assertTrue(built.ok, built.summary)
+            self.assertEqual(built.status, "verified")
+            self.assertTrue(any(c.id == "process.cnc_3axis.internal_radius" and c.status == "not_applicable"
+                                for c in built.checks))
 
     def test_timeout_and_crash_are_isolated_from_parent(self) -> None:
         with tempfile.TemporaryDirectory(prefix="aad-engine-test-") as temporary:
@@ -555,15 +625,17 @@ result = Box(2, 3, 4)
             built = self.mocked_result({'ok': True, 'status': 'draft', 'artifacts': {'proof': 'nested/../proof.txt'}}, root, prepare=prepare)
             self.assertEqual(Path(built.artifacts['proof']), (root/'job'/'proof.txt').resolve())
 
-    def test_aggregate_counts_and_scene_summary_survive_parent_checks(self) -> None:
+    def test_parent_drops_untrusted_worker_pass_counts_and_metrics(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            wire = {'ok': True, 'status': 'verified', 'checks_summary': {'pass': 7, 'warn': 1},
+            wire = {'ok': True, 'status': 'verified', 'metrics': {'bbox': [999, 999, 999]},
+                    'checks_summary': {'pass': 7, 'warn': 1},
                     'checks': [{'id': 'notice', 'level': 'warn', 'status': 'warn'}],
                     'scene': {'status': 'verified', 'checks_summary': {'pass': 99}}}
             built = self.mocked_result(wire, Path(temporary))
-            self.assertEqual(built.checks_summary, {'pass': 7, 'fail': 0, 'warn': 1, 'skip': 1})
+            self.assertEqual(built.checks_summary, {'pass': 0, 'fail': 0, 'warn': 1, 'skip': 1, 'not_applicable': 0})
             self.assertEqual(built.scene.checks_summary, built.checks_summary)
             self.assertEqual(built.scene.status, 'draft')
+            self.assertNotIn('bbox', built.metrics)
 
     def test_invalid_json_values_are_bad_input_not_worker_crashes(self) -> None:
         result = run_build(BuildRequest(source="result = Box(1, 1, 1)", params={"width": float("nan")}))

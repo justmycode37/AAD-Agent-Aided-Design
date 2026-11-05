@@ -801,7 +801,7 @@ class Handlers:
         if not result.get("ok"):
             return self._op_failed(project, rev, result)
         checks = result["checks"]
-        summary = {key: sum(c.get("status") == key for c in checks) for key in ("pass", "fail", "warn", "skip")}
+        summary = {key: sum(c.get("status") == key for c in checks) for key in ("pass", "fail", "warn", "skip", "not_applicable")}
         return reply(
             compact(
                 {
