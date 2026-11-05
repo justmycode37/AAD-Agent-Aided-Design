@@ -96,8 +96,8 @@ Thirteen model-visible tools, defined in `aad_platform/tools.py`:
 | `aad_show` | Show the part when the user asks; the only tool with a UI |
 | `aad_drawing` | Create a drawing from 3D or from a 2D model |
 | `aad_history` | List, diff, checkout, branch, job status |
-| `aad_import` | Bring in STEP, BREP, STL, DXF or SVG |
-| `aad_export` | STEP, STL, 3MF, GLB, BREP, DXF, SVG, PDF |
+| `aad_import` | Bring in STEP, IGES, BREP, STL, DXF or SVG |
+| `aad_export` | STEP, IGES, STL, OBJ, PLY, 3MF, GLB, BREP, DXF, SVG, PDF, standalone viewer HTML |
 | `aad_library` | Standard parts, materials, playbooks and API docs on demand |
 
 Four app-only tools are for the viewer: `aad_scene_read`, `aad_set_param`, `aad_pick_info` and `aad_file_read`. Only `aad_scene_read` is needed to display a part.
@@ -139,7 +139,5 @@ The guide agents read is `skills/aad/SKILL.md`, which `aad_library` also serves 
 - Use of the content-addressed cache in `aad.engine.cache` by the daemon.
 - The independent validator in the build path, so `verified` is not reachable.
 - A sandbox on Windows, so builds fail there with `SANDBOX_DENIED`.
-- Builds of `kind="2d"` projects. The 2D model code exists in `aad_drafting`, but the worker builds 3D only. `aad_drawing` works from a 3D revision.
-- `aad_measure` for mass and thickness, and the `viewer_html` export. These are declared in the tool schemas but return an error.
-- An `asset()` API for general project files in `model.py`.
-- Named assembly helpers. Assemblies are plain build123d compounds in a project of kind `assembly`.
+- Spec requirements on `kind="2d"` sheets. Sheets build and run their 2D checks, but a spec is not evaluated on them, so they stay `draft`.
+- A global mate solver. Assemblies place parts explicitly with `assembly()` and `at=`.

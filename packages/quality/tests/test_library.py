@@ -143,6 +143,8 @@ def test_published_core_example_builds_the_requested_geometry():
     text = _guidance_root().joinpath('playbooks/core-workflow.md').read_text(encoding='utf-8')
     source = '\n'.join(line[4:] for line in text.splitlines() if line.startswith('    '))
     assert 'result = bracket.part' in source
+    from aad._runtime import configure_params
+    configure_params({})  # params() is per build; another test may have run a model in this process.
     namespace = {}
     exec(compile(source, 'core-workflow.md', 'exec'), namespace)
     shape = namespace['result']
