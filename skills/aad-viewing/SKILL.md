@@ -46,9 +46,9 @@ A slim loading bar appears during startup and model loading. It tracks received
 bytes, stays active during geometry preparation, and disappears when ready.
 There is no visible loading text or percentage; reduced motion is respected.
 
-Grid planes, origin and extent stay anchored in world coordinates while the
-camera moves. Only tick density changes with zoom, with hysteresis to prevent
-flicker near thresholds. Labels retain their native axis orientation; overlapping
+Grid planes and origin stay anchored in world coordinates while the camera
+moves. Drawing coverage expands and tick intervals grow as you zoom out,
+including beyond the original model bounds. Hysteresis prevents interval flicker. Labels retain their native axis orientation; overlapping
 or offscreen labels are hidden, reserving space for the title and XYZ marker.
 
 Hovering a part shows a muted `Part name · #number` line beneath the title.
