@@ -105,6 +105,42 @@ def test_error_level_selector_skip_stays_draft(tmp_path):
     assert any(check.id == 'feature_gap' and check.status == 'skip' for check in result.checks)
 
 
+def test_feature_bound_position_stays_unproven_without_worker_feature_records(tmp_path):
+    spec = {'units': 'mm', 'requirements': [{
+        'id': 'web_position',
+        'position': {'selector': "face(feature='web', where='max_z')", 'target': [0, 0, 3], 'tolerance': 0.05},
+    }]}
+    result = run_build(BuildRequest(
+        source='from build123d import Box\nresult = Box(10, 8, 4)\n',
+        project_dir=tmp_path, job_dir=tmp_path / 'feature-position', spec=spec, timeout_s=60,
+    ))
+    assert result.ok and result.status == 'draft'
+    check = next(check for check in result.checks if check.id == 'web_position')
+    assert check.status == 'skip'
+    assert 'feature' in check.message.lower() or 'selector' in check.message.lower()
+
+
+def test_named_body_fit_stays_unproven_without_brep_component_names(tmp_path):
+    source = (
+        'from aad import assembly\nfrom build123d import Box, Pos\n'
+        'parts = assembly("fit-test")\n'
+        'parts.add("shaft", Box(10, 2, 2))\n'
+        'parts.add("bearing", Box(10, 4, 4), at=Pos(0, 3, 0))\n'
+        'result = parts\n'
+    )
+    spec = {'units': 'mm', 'requirements': [{
+        'id': 'shaft_bearing_fit', 'fit': {'a': 'shaft', 'b': 'bearing', 'clearance': {'min': 0.1, 'max': 0.2}},
+    }]}
+    result = run_build(BuildRequest(
+        source=source, project_dir=tmp_path, job_dir=tmp_path / 'named-fit',
+        kind='assembly', spec=spec, timeout_s=60,
+    ))
+    assert result.ok and result.status == 'draft'
+    check = next(check for check in result.checks if check.id == 'shaft_bearing_fit')
+    assert check.status == 'skip'
+    assert 'names are not preserved' in check.message
+
+
 def test_sandboxed_worker_can_place_catalog_parts_and_check_a_component_list(tmp_path):
     source = (
         "from aad_quality.components import make_envelope\n"

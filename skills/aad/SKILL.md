@@ -406,6 +406,7 @@ Every build runs these checks. A failure fails the build, with `HARD_GATE_FAILED
 
 | Check | Fails when |
 |---|---|
+| `scene_coordinate_range` | A coordinate is non-finite or its absolute world position exceeds 100,000 mm. At that bound, Float32 spacing is about 0.0078 mm, below the 0.01 mm edge tolerance |
 | `brep_valid` | The kernel reports an invalid shape |
 | `closed_shells` | A shell is open |
 | `solid_count` | A `part` is not exactly one solid, or an `assembly` has none |
@@ -588,7 +589,7 @@ Files land in `exports/<project>-r<rev>-drawing/`. `notes` is a list of strings,
 - `schema` or `step_schema`: `AP214` (default) or `AP242`.
 - `step_volume_tolerance`: allowed volume drift when writing STEP.
 
-Drafts need `allow_unverified`. Their files get `-UNVERIFIED` in the name, and you must tell the user. A saved revision is rechecked before export; changed BREP, spec, kernel version or scene means it is treated as draft, and the response explains why. Verified revisions with intact receipts export without this flag and without the suffix. A build without requirements remains draft, so it still needs the flag.
+Drafts need `allow_unverified`. Their files get `-UNVERIFIED` in the name, and you must tell the user. A saved revision is rechecked before export; changed BREP, spec, kernel version, scene, metrics, checks or proven requirement IDs means it is treated as draft, and the response explains why. A 3D revision without its complete clean scene cannot be verified. Verified revisions with intact receipts export without this flag and without the suffix. A build without requirements remains draft, so it still needs the flag.
 
 **Import** is described under `aad_import`.
 
@@ -727,7 +728,7 @@ These exist in the packages but have no MCP tool. Use them only if you can run P
 
 Say so plainly rather than working around it silently.
 
-- **Some checks cannot establish a positive result.** `min_wall` and `symmetric` can only disprove, so a build stays `draft` when either is skipped. Selector-based measurements that require worker feature records also stay unproven; the validator does not trust model-written selector metadata.
+- **Some checks cannot establish a positive result.** `min_wall` and `symmetric` can only disprove, so a build stays `draft` when either is skipped. Feature-bound `position` and named-body `fit` also stay unproven when they need model-written feature records or component names. Component labels do not survive saved BREP import, and the validator does not trust worker metadata as a name-to-body map. The build-time automatic assembly-interference pass is recomputed from saved BREP with a 15-second budget and is advisory; an incomplete result is not proof of clearance. Geometry-only automatic assembly checks must be registered with the trusted validator hook; the worker's check results are discarded. Use `aad_check suites: ["interference"]` for a dedicated interference check, which may still report unknown pairs.
 - **Spec requirements are not evaluated on 2D sheets.**
 - **No global mate solver, general sheet metal unfolding, Class-A surfacing, or weldment, mold and harness tools.**
 - **A sampled `min_wall` cannot prove a global minimum.** It can fail on a local sampled shortfall, but without one it stays `skip`.

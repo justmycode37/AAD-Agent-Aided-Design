@@ -105,6 +105,12 @@ def test_scene_indexes_feature_topology_once_for_all_parts(tmp_path, monkeypatch
     assert calls == 2
 
 
+def test_scene_rejects_float32_overflow_geometry_before_writing_json(tmp_path):
+    with pytest.raises((ValueError, OverflowError), match="finite|overflow|Float32|float32"):
+        make_scene(_context(Box(1e39, 4, 2)), tmp_path)
+    assert not (tmp_path / "scene.bin.gz").exists()
+
+
 def test_feature_map_matches_engine_topology_indices(tmp_path):
     # A Boolean cut gives both planar and cylindrical faces and tests the
     # actual entity geometry instead of assuming traversal indices line up.

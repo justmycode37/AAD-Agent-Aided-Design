@@ -9,6 +9,7 @@ import json
 import math
 from pathlib import Path
 import sys
+import time
 
 from .validation import _MARKER, _canonical_json, _file_digest, _json_value
 
@@ -32,7 +33,7 @@ def main() -> None:
         try:
             import build123d as bd
             from OCP.BRepCheck import BRepCheck_Analyzer
-            from .gate import hard_checks
+            from .gate import hard_checks, validator_geometry_checks
             from .types import Check, ModelContext
             try:
                 from aad_quality import spec_checks, process_checks
@@ -71,6 +72,7 @@ def main() -> None:
                                spec=record["inputs"]["spec"], process=record["inputs"].get("process"),
                                shape=shape, metrics=metrics, job_dir=Path.cwd())
             checks = hard_checks(ctx)
+            checks += validator_geometry_checks(ctx)
             if spec_checks is not None and process_checks is not None:
                 checks += spec_checks(ctx)
                 checks += process_checks(ctx)
@@ -86,6 +88,28 @@ def main() -> None:
             if not metrics["valid"] or (ctx.kind == "part" and len(solids) != 1) or any(c.level == "error" and c.status == "fail" for c in checks):
                 raise ValueError("independently loaded geometry failed native validity, body-count or hard checks")
             wire["ok"] = True
+            if payload.get("render_scene") is True:
+                scene_started = time.perf_counter()
+                try:
+                    from aad_render import make_scene
+
+                    ctx.project = payload["scene_project"]
+                    ctx.rev = payload["scene_rev"]
+                    ctx.status = "draft"
+                    ctx.checks_summary = {
+                        status: sum(check.status == status for check in checks)
+                        for status in ("pass", "fail", "warn", "skip", "not_applicable")
+                    }
+                    scene_dir = Path.cwd() / "scene"
+                    manifest = make_scene(ctx, scene_dir)
+                    scene_bytes = (scene_dir / "scene.bin.gz").read_bytes()
+                    if hashlib.sha256(scene_bytes).hexdigest() != manifest.scene_id or len(scene_bytes) != manifest.total_bytes:
+                        raise ValueError("scene manifest does not match the rendered scene bytes")
+                    wire["scene"] = asdict(manifest)
+                except Exception as exc:
+                    wire["scene_error"] = f"{type(exc).__name__}: {exc}"
+                finally:
+                    wire["scene_elapsed_ms"] = (time.perf_counter() - scene_started) * 1000
         except Exception as exc:
             wire["failure"] = {"code": "INVALID_SOLID", "phase": "validate", "feature": "unknown",
                                "message": "The BREP could not pass independent geometry inspection.",

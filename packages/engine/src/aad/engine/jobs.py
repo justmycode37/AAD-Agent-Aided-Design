@@ -49,9 +49,11 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
     """Build a model in a new subprocess and return its checks and artifacts.
 
     The worker receives one JSON request on stdin and returns one marked JSON
-    record on stdout. Every model process uses the OS sandbox launcher and
-    installs its address-space growth budget before importing worker/kernel
-    code; an unavailable boundary fails closed.
+    record on stdout. The model process installs its address-space growth budget
+    before importing worker/kernel code. After it exits, a separate trusted
+    process reloads the saved BREP, validates it, and creates the viewer scene
+    from that same loaded snapshot under the same configured memory budget.
+    Unsupported sandbox or memory boundaries fail closed.
     """
     try:
         request = _coerce_request(req)
@@ -201,7 +203,8 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
         result.build_ms = elapsed_ms
         result = _constrain_worker_evidence(result, job_dir, project_dir, kind=request.kind,
                                             spec=request.spec, process=request.process, units=request.units,
-                                            rev=request.rev, timeout_s=_VALIDATION_TIMEOUT_S)
+                                            rev=request.rev, timeout_s=_VALIDATION_TIMEOUT_S,
+                                            memory_limit_bytes=memory_limit_bytes)
     except (KeyError, TypeError, ValueError, AttributeError) as exc:
         return _failed(
             Failure(
@@ -217,47 +220,6 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
             stderr=_decode(stderr_bytes),
         )
 
-    if result.ok and request.kind in {"part", "assembly"} and "part.brep" in result.artifacts:
-        scene_started = time.perf_counter()
-        try:
-            from .scene import render_brep_scene
-
-            result.scene = render_brep_scene(
-                result.artifacts["part.brep"],
-                candidate_dir=job_dir,
-                project=project_dir.name,
-                rev=request.rev,
-                kind=request.kind,
-                units=request.units,
-                status=result.status,
-                metrics=result.metrics,
-                checks_summary=result.checks_summary,
-                expected_brep_sha256=(result.verification_receipt or {}).get("brep_sha256"),
-                timeout_s=120.0,
-            )
-            if result.verification_receipt is not None and result.scene is not None:
-                result.verification_receipt["scene_id"] = result.scene.scene_id
-        except Exception as exc:
-            if result.status == "verified":
-                # A verified BREP remains usable in engine-only installs that
-                # do not include the optional viewer renderer. No scene is
-                # published or attested in this case.
-                if result.verification_receipt is not None:
-                    result.verification_receipt["scene_id"] = None
-                result.summary += " Clean viewer scene unavailable; no scene was published."
-            result.checks.append(
-                Check(
-                    id="scene_generation_failed",
-                    suite="hard",
-                    level="warn",
-                    status="warn",
-                    message="A clean scene could not be generated from the validated BREP.",
-                    actual=f"{type(exc).__name__}: {exc}",
-                )
-            )
-            result.checks_summary = _detail_counts(result.checks)
-        finally:
-            result.metrics["scene_ms"] = _elapsed_ms(scene_started)
     preview_started = time.perf_counter()
     if request.preview and "part.brep" in result.artifacts:
         from ._preview import add_preview
@@ -400,7 +362,8 @@ def _detail_counts(checks: list[Check]) -> dict[str, int]:
 
 def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: Path, *, kind: str = "part",
                                spec: Mapping[str, Any] | None = None, process: str | None = None,
-                               units: str = "mm", rev: int = 0, timeout_s: float = _VALIDATION_TIMEOUT_S) -> BuildResult:
+                               units: str = "mm", rev: int = 0, timeout_s: float = _VALIDATION_TIMEOUT_S,
+                               memory_limit_bytes: int | None = None) -> BuildResult:
     # A model's pipe result is not a trusted validation receipt.
     worker_claimed_verified = result.status == "verified"
     result.checks = []
@@ -408,6 +371,7 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
     if kind != "2d":
         result.metrics = {}
         result.scene = None
+        _remove_candidate_scene(job_dir / "scene")
     # A sheet has no B-rep body: its source record is the artifact that must exist.
     required = "sheet.json" if kind == "2d" else "part.brep"
     part = _canonical_artifact(job_dir / required, job_dir)
@@ -468,9 +432,19 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
             if not isinstance(trusted_spec, dict):
                 trusted_spec = {}
             trusted_process = process if process is not None else project.get("process")
-            evidence = inspect_brep(part, candidate_dir=job_dir, kind=kind,
-                                    units=project.get("units", units), spec=trusted_spec,
-                                    process=trusted_process, timeout_s=timeout_s)
+            evidence = inspect_brep(
+                part,
+                candidate_dir=job_dir,
+                kind=kind,
+                units=project.get("units", units),
+                spec=trusted_spec,
+                process=trusted_process,
+                timeout_s=timeout_s,
+                memory_limit_bytes=memory_limit_bytes,
+                render_scene=True,
+                project=project.get("name") or project_dir.name,
+                rev=rev,
+            )
             parent_checks = [check for check in result.checks if check.id == "worker_artifacts_rejected"]
             result.checks = [*evidence.checks, *parent_checks]
             requirements = trusted_spec.get("requirements") or []
@@ -493,7 +467,13 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
                 result.summary = f"The model built successfully, but independent validation ran out of time after {evidence.elapsed_ms / 1000:.1f} seconds. The revision was retained as draft; rerun `aad_build` to try validation again."
             elif independent_failure is not None:
                 result.ok, result.status = False, "failed"
-                result.failure = Failure(code="NOT_VERIFIED", phase="validate", feature=independent_failure.feature or "unknown",
+                if independent_failure.suite == "hard":
+                    failure_code = "HARD_GATE_FAILED"
+                elif independent_failure.suite in {"spec", "process"}:
+                    failure_code = "REQUIREMENT_FAILED"
+                else:
+                    failure_code = "NOT_VERIFIED"
+                result.failure = Failure(code=failure_code, phase="validate", feature=independent_failure.feature or "unknown",
                     message=f"Independent validation failed error-level check {independent_failure.id!r}.")
                 result.summary = result.failure.message
             elif evidence.failure is not None and evidence.failure.code == "INVALID_SOLID":
@@ -559,11 +539,26 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
                         result.summary = f"The model built, but requirements were not fully proven ({missing_ids}); it remains draft."
                     else:
                         result.summary = "The model built, but independent evidence did not prove the required checks; it remains draft."
+            if evidence.ok:
+                try:
+                    if evidence.scene is not None:
+                        result.scene = _publish_inspection_scene(evidence, job_dir)
+                    if result.scene is None:
+                        raise RuntimeError(evidence.scene_error or "the clean validator returned no scene")
+                    if result.verification_receipt is not None:
+                        result.verification_receipt["scene_id"] = result.scene.scene_id
+                except Exception as exc:
+                    reason = evidence.scene_error or f"{type(exc).__name__}: {exc}"
+                    _mark_scene_failure(result, reason, job_dir)
             result.metrics.setdefault("validation_ms", evidence.elapsed_ms)
+            result.metrics["scene_ms"] = evidence.scene_elapsed_ms
+            result.metrics["validation_only_ms"] = max(0.0, evidence.elapsed_ms - evidence.scene_elapsed_ms)
         except Exception as exc:
             result.status = "draft"
             result.requirements_proven = False
             result.verification_receipt = None
+            result.scene = None
+            _remove_candidate_scene(job_dir / "scene")
             result.checks.append(Check(id="trusted_validation_unavailable", suite="hard", level="error", status="skip",
                 message="Independent validation could not be completed.", actual=f"{type(exc).__name__}: {exc}"))
     if evidence is not None and evidence.inspection_dir is not None:
@@ -574,7 +569,59 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
         result.scene.status = "verified" if result.status == "verified" else "draft"
         result.scene.compare = None
         result.scene.checks_summary = dict(result.checks_summary)
+        try:
+            _write_scene_status(result.scene, job_dir)
+        except Exception as exc:
+            _mark_scene_failure(result, f"{type(exc).__name__}: {exc}", job_dir)
     return result
+
+
+def _remove_candidate_scene(path: Path) -> None:
+    """Discard any scene created by the untrusted model before validator output is published."""
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return
+    if stat.S_ISDIR(info.st_mode):
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+
+
+def _publish_inspection_scene(evidence: Any, job_dir: Path) -> SceneManifest:
+    if evidence.scene is None or evidence.scene_dir is None:
+        raise ValueError("the clean validator returned no complete scene")
+    source = evidence.scene_dir
+    target = job_dir / "scene"
+    _remove_candidate_scene(target)
+    os.replace(source, target)
+    return evidence.scene
+
+
+def _write_scene_status(scene: SceneManifest, job_dir: Path) -> None:
+    path = job_dir / "scene" / "scene.json"
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if value.get("scene_id") != scene.scene_id:
+        raise ValueError("the saved clean scene manifest changed before publication")
+    value["status"] = scene.status
+    value["checks_summary"] = scene.checks_summary
+    path.write_text(json.dumps(value, sort_keys=True, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+
+
+def _mark_scene_failure(result: BuildResult, reason: str, job_dir: Path) -> None:
+    _remove_candidate_scene(job_dir / "scene")
+    result.scene = None
+    result.status = "draft"
+    result.requirements_proven = False
+    result.verification_receipt = None
+    result.checks = [check for check in result.checks if check.id != "scene_generation_failed"]
+    result.checks.append(Check(
+        id="scene_generation_failed", suite="hard", level="error", status="skip",
+        message="The saved BREP passed geometry validation, but the clean viewer scene could not be generated; the revision remains draft.",
+        actual=str(reason)[:1000],
+    ))
+    result.checks_summary = _detail_counts(result.checks)
+    result.summary = f"The BREP was retained, but clean scene generation failed ({reason}); the revision remains draft."
 
 
 def _requirement_results(requirements: list[Any], checks: list[Check]) -> list[dict[str, str]]:

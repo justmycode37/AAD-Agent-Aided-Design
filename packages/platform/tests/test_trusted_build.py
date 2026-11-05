@@ -54,6 +54,24 @@ def test_independent_assembly_reports_multiple_solids_once(tmp_path):
     assert multiple_solids[0].status == "warn"
 
 
+def test_validator_recomputes_geometry_only_interference_from_saved_brep(tmp_path):
+    result = run_build(BuildRequest(
+        source=(
+            "from build123d import Box, Compound, Pos\n"
+            "result = Compound(children=[Box(2, 2, 2), Pos(1, 0, 0) * Box(2, 2, 2)])\n"
+        ),
+        project_dir=tmp_path,
+        job_dir=tmp_path / "overlap",
+        kind="assembly",
+        spec={"units": "mm", "requirements": [{"id": "bodies", "solids": 2}]},
+    ))
+    assert result.ok and result.status == "verified", result.summary
+    check = next(check for check in result.checks if check.id == "interference_pairs")
+    assert check.suite == "interference" and check.level == "warn" and check.status == "warn"
+    assert "Independent build interference warning" in check.message
+    assert '"confirmed_overlapping_pairs":1' in check.actual
+
+
 def test_validator_timeout_keeps_built_revision_metrics_and_rerun_message(tmp_path):
     metrics = {
         "units": "mm", "bbox": [10.0, 4.0, 2.0], "volume": 80.0, "area": 136.0,
@@ -80,3 +98,22 @@ def test_validator_timeout_keeps_built_revision_metrics_and_rerun_message(tmp_pa
     assert "ran out of time" in result.summary and "rerun `aad_build`" in result.summary
     assert any(check.id == "trusted_validation_timeout" and check.status == "skip" for check in result.checks)
     assert result.artifacts["part.brep"]
+
+
+def test_trusted_validator_receives_the_build_memory_budget(tmp_path):
+    memory_limit = 4 * 1024 ** 3
+    evidence = GeometryEvidence(
+        failure=Failure(code="TIMEOUT", phase="timeout", message="validator timed out"),
+    )
+    with patch("aad.engine.validation.inspect_brep", return_value=evidence) as inspect:
+        result = run_build(
+            BuildRequest(
+                source="from build123d import Box\nresult = Box(2, 3, 4)\n",
+                project_dir=tmp_path,
+                job_dir=tmp_path / "budgeted-validator",
+                spec={"requirements": [{"id": "body", "solids": 1}]},
+            ),
+            memory_limit_bytes=memory_limit,
+        )
+    assert result.ok and result.status == "draft"
+    assert inspect.call_args.kwargs["memory_limit_bytes"] == memory_limit

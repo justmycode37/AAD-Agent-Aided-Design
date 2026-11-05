@@ -91,21 +91,91 @@ def test_committed_build_receipt_is_rechecked_for_inspect_and_export(project, tm
     assert "UNVERIFIED" not in exported["artifacts"]["step"]
 
 
-@pytest.mark.parametrize("tamper", ["spec", "brep"])
+def test_warn_only_requirement_stays_verified_after_receipt_compaction(project):
+    result = asyncio.run(Handlers().aad_build({
+        "project": "p",
+        "source": "from build123d import Box\nresult = Box(10, 8, 4)\n",
+        "spec": "units: mm\nrequirements:\n  - {id: advisory_size, level: warn, bbox: {x: 8}}\n",
+    }))
+    envelope = result["structured"]
+    assert envelope["ok"] and envelope["status"] == "verified", envelope.get("summary")
+    assert any(check["id"] == "advisory_size" and check["status"] == "warn" for check in envelope["checks"])
+    meta = json.loads(project.rev_dir(1).joinpath("meta.json").read_text())
+    receipt = meta["verification_receipt"]
+    assert "proven_error_requirement_ids" not in receipt
+    assert handlers._rev_meta(project, 1)["status"] == "verified"
+    inspected = asyncio.run(Handlers().aad_inspect({"project": "p", "what": "summary"}))["structured"]
+    assert inspected["status"] == "verified"
+
+
+def test_verified_dry_run_returns_draft_without_crashing(project):
+    result = asyncio.run(Handlers().aad_build({
+        "project": "p",
+        "source": "from build123d import Box\nresult = Box(10, 8, 4)\n",
+        "spec": "requirements: [{id: body, solids: 1}]\n",
+        "dry_run": True,
+    }))
+    envelope = result["structured"]
+    assert envelope["ok"] and envelope["status"] == "draft"
+    assert "no revision was saved" in envelope["summary"]
+    assert envelope["next"]
+    assert project.head_rev is None
+
+
+def test_clean_scene_failure_keeps_brep_draft_and_non_exportable(project, monkeypatch):
+    from aad.engine import validation
+
+    def scene_failure(evidence, _wire, **_kwargs):
+        evidence.scene_error = "RuntimeError: clean scene renderer exited with status 42"
+
+    monkeypatch.setattr(validation, "_accept_scene", scene_failure)
+    result = asyncio.run(Handlers().aad_build({
+        "project": "p",
+        "source": "from build123d import Box\nresult = Box(10, 8, 4)\n",
+        "spec": "requirements: [{id: body, solids: 1}]\n",
+    }))
+    envelope = result["structured"]
+    assert envelope["ok"] and envelope["status"] == "draft", envelope.get("summary")
+    assert "scene generation failed" in envelope["summary"]
+    assert "status 42" in envelope["summary"]
+    check = next(check for check in envelope["checks"] if check["id"] == "scene_generation_failed")
+    assert check["status"] == "skip" and check["level"] == "error"
+    revision = project.rev_dir(1)
+    assert (revision / "part.brep").is_file()
+    assert handlers._rev_meta(project, 1)["status"] == "draft"
+    exported = asyncio.run(Handlers().aad_export({"project": "p", "formats": ["step"]}))["structured"]
+    assert not exported["ok"] and exported["failure"]["code"] == "NOT_VERIFIED"
+
+
+@pytest.mark.parametrize("tamper", ["spec", "brep", "metrics", "checks", "proven", "scene"])
 def test_modified_verified_revision_is_downgraded_before_export(project, tmp_path, monkeypatch, tamper):
     revision = _write_verified_revision(project)
     if tamper == "spec":
         (revision / "spec.yaml").write_text("requirements: [{id: altered, solids: 1}]\n")
-    else:
+    elif tamper == "brep":
         (revision / "part.brep").write_bytes(b"swapped BREP")
+    else:
+        meta_path = revision / "meta.json"
+        meta = json.loads(meta_path.read_text())
+        if tamper == "metrics":
+            meta["metrics"]["bbox"][0] = 999
+        elif tamper == "checks":
+            meta["checks"][0]["message"] = "edited evidence"
+        elif tamper == "proven":
+            meta["verification_receipt"]["proven_requirement_ids"] = ["forged"]
+        else:
+            meta["scene"] = None
+            meta["verification_receipt"]["scene_id"] = None
+            (revision / "scene.bin.gz").unlink()
+        meta_path.write_text(json.dumps(meta))
 
     from aad_platform.daemon.handlers import _rev_meta
     checked = _rev_meta(project, 1)
     assert checked["status"] == "draft"
-    assert "hash" in checked["verification_invalid_reason"]
+    assert any(word in checked["verification_invalid_reason"] for word in ("hash", "match"))
     inspected = asyncio.run(Handlers().aad_inspect({"project": "p", "what": "summary"}))["structured"]
     assert inspected["status"] == "draft"
-    assert "hash" in inspected["summary"]
+    assert any(word in inspected["summary"] for word in ("hash", "receipt"))
 
     response = asyncio.run(Handlers().aad_export({"project": "p", "formats": ["step"]}))
     envelope = response["structured"]
@@ -130,7 +200,7 @@ def test_modified_verified_revision_is_downgraded_before_export(project, tmp_pat
     }))["structured"]
     assert exported["ok"] and exported["status"] == "draft"
     assert recorded["stem"] == "p-r1-UNVERIFIED"
-    assert "no longer matches" in exported["summary"]
+    assert "no longer match" in exported["summary"]
 
 
 def _write_verified_revision(project):
@@ -162,6 +232,15 @@ def _write_verified_revision(project):
         "proven_requirement_ids": ["body"],
         "proven_error_requirement_ids": ["body"],
     }
+    metrics = {
+        "units": "mm", "bbox": [10.0, 8.0, 4.0], "volume": 320.0,
+        "solids": 1, "faces": 6, "edges": 12, "valid": True, "build_ms": 1.0,
+    }
+    checks = [{
+        "id": "body", "suite": "spec", "level": "error", "status": "pass",
+        "message": "Solid-count requirement passed.", "expected": "1", "actual": "1",
+    }]
+    checks_summary = {"pass": 1, "fail": 0, "warn": 0, "skip": 0, "not_applicable": 0}
     receipt = {
         "rev": 1,
         "kind": "part",
@@ -176,10 +255,13 @@ def _write_verified_revision(project):
         "claims_sha256": digest(canonical(claims)),
         "scene_id": digest(scene),
     }
-    (revision / "meta.json").write_text(json.dumps({
+    meta = {
         "rev": 1, "status": "verified", "verification_receipt": receipt,
+        "metrics": metrics, "checks": checks, "checks_summary": checks_summary,
         "scene": {"scene_id": receipt["scene_id"]},
-    }))
+    }
+    receipt["revision_evidence_sha256"] = handlers._verification_evidence_hash(meta, receipt)
+    (revision / "meta.json").write_text(json.dumps(meta))
     meta = project.meta()
     meta["head_rev"] = 1
     project.write_meta(meta)

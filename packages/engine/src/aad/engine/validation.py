@@ -19,13 +19,15 @@ from typing import Any
 
 from . import memory, sandbox
 from .jobs import _check_from_wire, _decode, _drain_killed_worker, _failure_from_wire, _kill_worker
-from .types import Check, Failure
+from .types import Check, Failure, SceneManifest
 
 _MARKER = b"AAD_GEOMETRY_EVIDENCE:"
 _METRICS_MARKER = b"AAD_GEOMETRY_METRICS:"
 _SOURCE_ROOT = Path(__file__).resolve().parents[2]
 _BOOTSTRAP = (
-    "import sys; sys.path.insert(0, sys.argv.pop(1)); "
+    "import sys; sys.path.insert(0, sys.argv.pop(1)); _limit=sys.argv.pop(1); "
+    "from aad.engine.memory import install_worker_memory_budget; "
+    "install_worker_memory_budget(int(_limit)) if _limit != '-' else None; "
     "from aad.engine._validation_worker import main; main()"
 )
 
@@ -42,6 +44,10 @@ class GeometryEvidence:
     ok: bool = False
     metrics: dict[str, Any] = field(default_factory=dict)
     checks: list[Check] = field(default_factory=list)
+    scene: SceneManifest | None = None
+    scene_dir: Path | None = None
+    scene_error: str | None = None
+    scene_elapsed_ms: float = 0.0
     failure: Failure | None = None
     snapshot_sha256: str | None = None
     input_sha256: str | None = None
@@ -58,6 +64,8 @@ def inspect_brep(
     units: str, timeout_s: float = 60.0, spec: dict[str, Any] | None = None,
     memory_limit_bytes: int | None = None,
     process: str | None = None,
+    render_scene: bool = False,
+    project: str = "dev", rev: int = 0,
 ) -> GeometryEvidence:
     """Snapshot then inspect a BREP after its model process has fully exited.
 
@@ -89,6 +97,12 @@ def inspect_brep(
             declared["process"] = process
         if not isinstance(declared["spec"], dict):
             raise ValueError("spec must be a plain JSON object")
+        if not isinstance(render_scene, bool):
+            raise ValueError("render_scene must be boolean")
+        if not isinstance(project, str) or not project.strip():
+            raise ValueError("project must be non-empty text")
+        if isinstance(rev, bool) or not isinstance(rev, int) or rev < 0:
+            raise ValueError("rev must be a non-negative integer")
         _json_value(declared)
         # Detach caller mutations before hashing or giving inputs to the child.
         declared = json.loads(_canonical_json(declared))
@@ -131,7 +145,14 @@ def inspect_brep(
                   "spec_sha256": result.spec_sha256, "kernel_versions": versions, "inputs": declared}
         result.input_sha256 = hashlib.sha256(_canonical_json(record)).hexdigest()
         nonce = secrets.token_hex(24)
-        payload = {"record": record, "input_sha256": result.input_sha256, "nonce": nonce}
+        payload = {
+            "record": record,
+            "input_sha256": result.input_sha256,
+            "nonce": nonce,
+            "render_scene": render_scene,
+            "scene_project": project,
+            "scene_rev": rev,
+        }
         phase = "sandbox"
         _remaining(deadline)
         startup_limit = (
@@ -140,7 +161,8 @@ def inspect_brep(
             else None
         )
         child = sandbox.popen(
-            [sys.executable, "-I", "-B", "-c", _BOOTSTRAP, str(_SOURCE_ROOT)],
+            [sys.executable, "-I", "-B", "-c", _BOOTSTRAP, str(_SOURCE_ROOT),
+             str(memory_limit_bytes) if memory_limit_bytes is not None else "-"],
             result.inspection_dir,
             address_space=startup_limit,
         )
@@ -175,6 +197,8 @@ def inspect_brep(
             if _file_digest(snapshot, deadline) != result.snapshot_sha256:
                 raise ValueError("BREP snapshot changed during inspection")
             _accept_response(result, wire, units, kind)
+            if render_scene:
+                _accept_scene(result, wire, project=project, rev=rev, units=units)
             _remaining(deadline)
     except subprocess.TimeoutExpired as exc:
         stdout = exc.output or b""
@@ -238,7 +262,7 @@ def _accept_response(result: GeometryEvidence, wire: dict, units: str, kind: str
     if not isinstance(checks, list) or any(not isinstance(c, dict) or not {"id", "suite", "level", "status", "message"} <= c.keys() for c in checks):
         raise ValueError("inspection checks must contain complete check objects")
     decoded = [_check_from_wire(c) for c in checks]
-    if any(c.suite not in {"hard", "spec", "process"} for c in decoded) or len({(c.suite, c.id) for c in decoded}) != len(decoded):
+    if any(c.suite not in {"hard", "spec", "process", "interference"} for c in decoded) or len({(c.suite, c.id) for c in decoded}) != len(decoded):
         raise ValueError("inspection checks must be unique recognized checks")
     failure = wire.get("failure")
     if failure is not None and (not isinstance(failure, dict) or failure.get("code") != "INVALID_SOLID" or failure.get("phase") != "validate" or not isinstance(failure.get("message"), str)):
@@ -249,6 +273,64 @@ def _accept_response(result: GeometryEvidence, wire: dict, units: str, kind: str
         raise ValueError("failed inspection requires a failure")
     result.ok, result.metrics, result.checks = wire["ok"], metrics, decoded
     result.failure = _failure_from_wire(failure) if failure is not None else None
+
+
+def _accept_scene(
+    result: GeometryEvidence,
+    wire: dict[str, Any],
+    *,
+    project: str,
+    rev: int,
+    units: str,
+) -> None:
+    """Accept a clean scene only when its manifest and bytes match the validated snapshot."""
+    raw_elapsed = wire.get("scene_elapsed_ms", 0.0)
+    if isinstance(raw_elapsed, bool) or not isinstance(raw_elapsed, (int, float)) or not math.isfinite(raw_elapsed) or raw_elapsed < 0:
+        result.scene_error = "The clean scene renderer returned an invalid phase duration."
+        return
+    result.scene_elapsed_ms = float(raw_elapsed)
+    scene_error = wire.get("scene_error")
+    raw_manifest = wire.get("scene")
+    if scene_error is not None:
+        result.scene_error = str(scene_error)[:1000] if isinstance(scene_error, str) else "The clean scene renderer returned a malformed error."
+        return
+    if not isinstance(raw_manifest, dict):
+        result.scene_error = "The clean scene renderer returned no manifest."
+        return
+    try:
+        manifest = SceneManifest(**raw_manifest)
+        if (
+            len(manifest.scene_id) != 64
+            or any(char not in "0123456789abcdef" for char in manifest.scene_id)
+            or manifest.project != project or manifest.rev != rev
+            or manifest.kind != "3d" or manifest.units != units
+            or manifest.format != "tcv-5" or manifest.encoding != "gzip"
+            or manifest.total_bytes <= 0 or not manifest.parts
+        ):
+            raise ValueError("the scene manifest is incomplete or inconsistent")
+        if result.inspection_dir is None:
+            raise ValueError("the validation snapshot directory is unavailable")
+        scene_dir = result.inspection_dir / "scene"
+        if scene_dir.is_symlink() or not scene_dir.is_dir():
+            raise ValueError("the clean scene directory is missing or unsafe")
+        payload = scene_dir / "scene.bin.gz"
+        if payload.is_symlink() or not payload.is_file():
+            raise ValueError("the clean scene bytes are missing or unsafe")
+        data = payload.read_bytes()
+        if len(data) != manifest.total_bytes or hashlib.sha256(data).hexdigest() != manifest.scene_id:
+            raise ValueError("the clean scene bytes do not match the manifest digest")
+        manifest_path = scene_dir / "scene.json"
+        if manifest_path.is_symlink() or not manifest_path.is_file():
+            raise ValueError("the clean scene manifest file is missing or unsafe")
+        saved_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        _json_value(saved_manifest)
+        for key in ("scene_id", "project", "rev", "kind", "format", "encoding", "units", "bbox", "total_bytes", "triangles", "parts"):
+            if saved_manifest.get(key) != getattr(manifest, key):
+                raise ValueError(f"the clean scene manifest field {key!r} does not match the validator response")
+        result.scene = manifest
+        result.scene_dir = scene_dir
+    except Exception as exc:
+        result.scene_error = f"{type(exc).__name__}: {exc}"[:1000]
 
 
 def _validated_metrics(value: Any, units: str) -> dict[str, Any]:

@@ -736,7 +736,10 @@ def _fit_operand(ctx: Any, name_or_selector: str) -> Any:
     assembly = (getattr(ctx, "meta", None) or {}).get("assembly")
     names = assembly.get("components") if isinstance(assembly, dict) else None
     if not isinstance(names, list) or shape is None:
-        raise UnsupportedGeometry(f"named body {name_or_selector!r} is not available; use an assembly component name or selector")
+        raise UnsupportedGeometry(
+            f"named body {name_or_selector!r} cannot be independently identified from the saved BREP; "
+            "assembly component names are not preserved in its geometry"
+        )
     try:
         children = list(shape)
     except Exception as exc:

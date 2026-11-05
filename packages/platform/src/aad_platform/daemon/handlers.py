@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import difflib
+import hashlib
 import json
 import logging
 import os
@@ -331,17 +332,25 @@ class Handlers:
                 lead_hint=lead_hint,
             )
             return reply(_request_response(envelope, review))
-        if result.get("scene") is None:
-            brep = job_dir / "part.brep"
-            if brep.exists():
-                try:
-                    result["scene"] = await asyncio.to_thread(
-                        backend.stub_scene, brep, job_dir / "scene", project.name, rev, meta.get("units", "mm")
-                    )
-                except Exception as exc:
-                    log.warning("stub scene failed: %s", exc)
-                    _add_warn(result, "scene_generation_failed", f"Scene generation failed: {exc}")
         status = result.get("status", "draft")
+        if status == "verified" and result.get("scene") is None:
+            reason = "the clean validator returned no scene"
+            status = "draft"
+            result["status"] = status
+            result["verification_receipt"] = None
+            result["summary"] = f"The BREP was retained, but clean scene generation failed ({reason}); the revision remains draft."
+            checks = result.get("checks") if isinstance(result.get("checks"), list) else []
+            checks = [check for check in checks if check.get("id") != "scene_generation_failed"]
+            checks.append({
+                "id": "scene_generation_failed", "suite": "hard", "level": "error", "status": "skip",
+                "message": "The saved BREP passed geometry validation, but the clean viewer scene could not be generated; the revision remains draft.",
+                "actual": reason,
+            })
+            result["checks"] = checks
+            result["checks_summary"] = {
+                name: sum(check.get("status") == name for check in checks)
+                for name in ("pass", "fail", "warn", "skip", "not_applicable")
+            }
         envelope: dict[str, Any] = {
             "ok": True,
             "project": project.name,
@@ -359,9 +368,9 @@ class Handlers:
             if status == "verified":
                 # A dry run has no immutable revision to carry its receipt.
                 # Keep the useful result but do not advertise durable status.
+                status = "draft"
                 envelope["status"] = "draft"
                 envelope["summary"] = "Independent checks passed, but no revision was saved; the result remains draft."
-                envelope["next"] = _next_hints("draft")
             envelope["summary"] = f"Dry run of {project.name}: {envelope['summary']}"
             envelope["next"] = request_next_hints(
                 request_data,
@@ -372,29 +381,27 @@ class Handlers:
             return reply(_request_response(envelope, review))
         if result.get("scene"):
             result["scene"]["status"] = "verified" if status == "verified" else "draft"
-        (job_dir / "meta.json").write_text(
-            json.dumps(
-                compact(
-                    {
-                        "rev": rev,
-                        "base_rev": head,
-                        "job": job_id,
-                        "status": status,
-                        "metrics": result.get("metrics"),
-                        "checks": result.get("checks"),
-                        "checks_summary": result.get("checks_summary"),
-                        "scene": result.get("scene"),
-                        "verification_receipt": result.get("verification_receipt"),
-                        "param_overrides": overrides,
-                        "params": (result.get("context") or {}).get("params"),
-                        "features": (result.get("context") or {}).get("features"),
-                        "meta": (result.get("context") or {}).get("meta"),
-                    }
-                ),
-                indent=2,
-                default=str,
-            )
+        revision_metadata = compact(
+            {
+                "rev": rev,
+                "base_rev": head,
+                "job": job_id,
+                "status": status,
+                "metrics": result.get("metrics"),
+                "checks": result.get("checks"),
+                "checks_summary": result.get("checks_summary"),
+                "scene": result.get("scene"),
+                "verification_receipt": result.get("verification_receipt"),
+                "param_overrides": overrides,
+                "params": (result.get("context") or {}).get("params"),
+                "features": (result.get("context") or {}).get("features"),
+                "meta": (result.get("context") or {}).get("meta"),
+            }
         )
+        receipt = revision_metadata.get("verification_receipt")
+        if status == "verified" and isinstance(receipt, dict):
+            receipt["revision_evidence_sha256"] = _verification_evidence_hash(revision_metadata, receipt)
+        (job_dir / "meta.json").write_text(json.dumps(revision_metadata, indent=2, default=str))
         if project.head_rev != head:
             project.discard_job(job_dir)
             return reply(
@@ -1210,11 +1217,13 @@ def _verification_receipt_error(project: Project, rev: int, meta: dict[str, Any]
         }
         if hashlib.sha256(_canonical_json(validation_record)).hexdigest() != receipt.get("validation_input_sha256"):
             return "The validation input hash no longer matches this revision's BREP, spec, kernel and settings; this revision is treated as draft."
-        claims = {key: receipt.get(key) for key in (
+        claims = {key: receipt.get(key) or [] for key in (
             "requirement_results", "proven_error_requirement_ids", "proven_requirement_ids",
         )}
         if hashlib.sha256(_canonical_json(claims)).hexdigest() != receipt.get("claims_sha256"):
             return "The recorded requirement outcomes no longer match their integrity hash; this revision is treated as draft."
+        if _verification_evidence_hash(meta, receipt) != receipt.get("revision_evidence_sha256"):
+            return "The saved metrics, checks or proven requirement IDs no longer match their verification receipt; this revision is treated as draft."
 
         scene = meta.get("scene")
         scene_path = _scene_payload(rev_dir)
@@ -1235,6 +1244,22 @@ def _verification_receipt_error(project: Project, rev: int, meta: dict[str, Any]
 
 def _canonical_json(value: Any) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
+
+
+def _verification_evidence_hash(meta: dict[str, Any], receipt: dict[str, Any]) -> str:
+    evidence = compact(
+        {
+            "metrics": meta.get("metrics"),
+            "checks": meta.get("checks"),
+            "checks_summary": meta.get("checks_summary"),
+            "scene": meta.get("scene"),
+            "requirement_results": receipt.get("requirement_results"),
+            "proven_error_requirement_ids": receipt.get("proven_error_requirement_ids"),
+            "proven_requirement_ids": receipt.get("proven_requirement_ids"),
+            "scene_id": receipt.get("scene_id"),
+        }
+    )
+    return hashlib.sha256(_canonical_json(evidence)).hexdigest()
 
 
 def _verification_summary(meta: dict[str, Any], prefix: str) -> str:

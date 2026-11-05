@@ -17,6 +17,7 @@ from aad.engine.gate import (
     _mesh_watertight_check,
     hard_checks,
     interference_checks,
+    validator_geometry_checks,
 )
 from aad.engine.jobs import run_build
 from aad.engine.types import BuildRequest, ModelContext
@@ -57,7 +58,7 @@ class GeometricGateTests(unittest.TestCase):
                 )
                 self.assertEqual(
                     {check.id for check in errors},
-                    {"shape_present", "brep_valid", "solid_count", "closed_shells", "edge_quality",
+                    {"shape_present", "scene_coordinate_range", "brep_valid", "solid_count", "closed_shells", "edge_quality",
                      "face_quality", "step_volume_drift", "mesh_watertight"},
                 )
                 self.assertEqual(check_map(checks)["solid_count"].actual, "1 solid(s)")
@@ -116,6 +117,7 @@ class GeometricGateTests(unittest.TestCase):
         self.assertEqual(missing_checks["shape_present"].status, "fail")
         self.assertTrue(
             all(missing_checks[check_id].status == "skip" for check_id in (
+                "scene_coordinate_range",
                 "brep_valid",
                 "closed_shells",
                 "solid_count",
@@ -126,6 +128,15 @@ class GeometricGateTests(unittest.TestCase):
             ))
         )
         self.assertTrue(all(check.level == "error" for check in missing_checks.values()))
+
+    def test_extreme_scene_coordinates_fail_the_hard_gate(self) -> None:
+        shape = Box(1e39, 4, 2)
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
+            checks = check_map(hard_checks(context(shape, Path(tmp))))
+        coordinate_range = checks["scene_coordinate_range"]
+        self.assertEqual(coordinate_range.status, "fail", coordinate_range.actual)
+        self.assertIn("mm", coordinate_range.expected)
+        self.assertEqual(checks["brep_valid"].status, "skip")
 
     def test_invalid_open_solid_is_rejected_by_brepcheck(self) -> None:
         open_shell = Shell([Box(4, 4, 4).faces()[0]])
@@ -283,6 +294,14 @@ class GeometricGateTests(unittest.TestCase):
         self.assertAlmostEqual(overlap["overlap_volume_mm3"], 4.0)
         for actual_coordinate, expected_coordinate in zip(overlap["location_mm"], (0.5, 0.0, 0.0)):
             self.assertAlmostEqual(actual_coordinate, expected_coordinate, places=9)
+
+    def test_validator_geometry_hook_recomputes_interference_as_warning(self) -> None:
+        shape = Compound(children=[Box(2, 2, 2), Pos(1, 0, 0) * Box(2, 2, 2)])
+        check = validator_geometry_checks(context(shape, Path("."), kind="assembly"), time_budget_s=1)[0]
+        self.assertEqual(check.suite, "interference")
+        self.assertEqual(check.level, "warn")
+        self.assertEqual(check.status, "warn")
+        self.assertIn("Independent build interference warning", check.message)
 
     def test_interference_recognizes_clear_nested_parts(self) -> None:
         outer = Box(10, 10, 10) - Box(8, 8, 8)

@@ -300,6 +300,8 @@ def _bbox(shape: Any) -> list[float]:
 
 
 def _json_value(value: Any) -> Any:
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError("scene manifest data must contain only finite numbers")
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     if isinstance(value, Path):
@@ -458,7 +460,35 @@ def _manifest_context(ctx: Any, bbox: list[float], parts: list[dict[str, Any]], 
 
 
 def _manifest_json_bytes(manifest: dict[str, Any]) -> bytes:
-    return (json.dumps(manifest, cls=_NumpyEncoder, sort_keys=True, indent=2) + "\n").encode("utf-8")
+    return (json.dumps(manifest, cls=_NumpyEncoder, sort_keys=True, indent=2, allow_nan=False) + "\n").encode("utf-8")
+
+
+def _assert_finite_scene_data(value: Any) -> None:
+    """Reject non-finite mesh coordinates before they reach viewer JSON or Float32 buffers."""
+    import numpy as np
+
+    pending = [value]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, Mapping):
+            pending.extend(item.values())
+        elif isinstance(item, (list, tuple)):
+            pending.extend(item)
+        elif isinstance(item, (float, np.floating)):
+            if not math.isfinite(float(item)):
+                raise ValueError("scene tessellation produced a non-finite coordinate")
+        elif isinstance(item, np.ndarray):
+            if item.dtype.kind in "fc" and not bool(np.isfinite(item).all()):
+                raise ValueError("scene tessellation produced a non-finite coordinate")
+        else:
+            scalar = getattr(item, "item", None)
+            if callable(scalar):
+                try:
+                    value = scalar()
+                except (TypeError, ValueError):
+                    continue
+                if isinstance(value, (float, np.floating)) and not math.isfinite(float(value)):
+                    raise ValueError("scene tessellation produced a non-finite coordinate")
 
 
 def _write_single_scene(ctx: Any, out: Path) -> tuple[Any, dict[str, Any]]:
@@ -566,6 +596,9 @@ def _write_single_scene(ctx: Any, out: Path) -> tuple[Any, dict[str, Any]]:
     shapes["feature_map"] = feature_map
     # TCV 5.1.3 directly decodes this instance/reference form in Viewer.render.
     # ocp_tessellate emits Float32 geometry; no extra decimal rounding is used.
+    # Reject invalid numbers before metadata sanitization so broken geometry
+    # cannot disappear as if it were an unsupported optional property.
+    _assert_finite_scene_data({"instances": meshed, "shapes": shapes})
     # Clean the shape tree before ocp-tessellate recursively walks it. This
     # tree contains display metadata, while mesh arrays stay in `meshed` and
     # retain the binary-buffer encoding.
@@ -573,6 +606,9 @@ def _write_single_scene(ctx: Any, out: Path) -> tuple[Any, dict[str, Any]]:
     if not isinstance(safe_shapes, dict):
         raise TypeError("scene shape tree is not JSON-compatible")
     binary_tree = numpy_to_buffer_json({"instances": meshed, "shapes": safe_shapes})
+    # numpy_to_buffer_json converts mesh arrays to Float32; finite Float64
+    # coordinates outside Float32's range must be rejected after that cast.
+    _assert_finite_scene_data(binary_tree)
     safe_tree = _scene_json_value(binary_tree)
     if not isinstance(safe_tree, dict):
         raise TypeError("scene tree is not JSON-compatible")
@@ -582,6 +618,7 @@ def _write_single_scene(ctx: Any, out: Path) -> tuple[Any, dict[str, Any]]:
         sort_keys=True,
         separators=(",", ":"),
         allow_nan=False,
+    )
     ).encode("utf-8")
     compressed = gzip.compress(payload, compresslevel=6, mtime=0)
 

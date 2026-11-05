@@ -51,6 +51,21 @@ class GeometryInspectionTests(unittest.TestCase):
             self.assertEqual(evidence.spec_sha256, hashlib.sha256(validation._canonical_json({'requirements': [{'id': 'fit'}]})).hexdigest())
             self.assertIn('build123d', evidence.kernel_versions)
 
+    def test_validator_generates_clean_scene_from_its_loaded_brep(self):
+        with tempfile.TemporaryDirectory(prefix='aad-inspect-scene-') as temporary:
+            path = self._brep(temporary)
+            evidence = inspect_brep(
+                path, candidate_dir=temporary, kind='part', units='mm',
+                render_scene=True, project='inspection-test', rev=3,
+            )
+            self.assertTrue(evidence.ok, evidence.failure)
+            self.assertIsNotNone(evidence.scene)
+            self.assertEqual((evidence.scene.project, evidence.scene.rev, evidence.scene.status),
+                             ('inspection-test', 3, 'draft'))
+            scene_bytes = (evidence.scene_dir / 'scene.bin.gz').read_bytes()
+            self.assertEqual(hashlib.sha256(scene_bytes).hexdigest(), evidence.scene.scene_id)
+            self.assertGreater(evidence.scene_elapsed_ms, 0)
+
     def test_nested_assembly_uses_all_solids_and_explicit_coordinate_units(self):
         import build123d as bd
         shape = bd.Compound(children=[bd.Compound(children=[bd.Box(2, 3, 4)])])
@@ -199,6 +214,13 @@ class GeometryInspectionTests(unittest.TestCase):
             self.assertEqual(
                 launch.call_args.kwargs['address_space'],
                 memory.bootstrap_address_space_budget(memory_limit),
+            )
+            argv = launch.call_args.args[0]
+            self.assertEqual(argv[-1], str(memory_limit))
+            bootstrap = argv[4]
+            self.assertLess(
+                bootstrap.index('install_worker_memory_budget'),
+                bootstrap.index('from aad.engine._validation_worker import main'),
             )
 
     def test_native_exit_and_hang_are_bounded_without_invented_causes(self):
