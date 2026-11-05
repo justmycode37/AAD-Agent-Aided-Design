@@ -3,6 +3,8 @@ import { Display, Viewer, logger } from "three-cad-viewer";
 import "three-cad-viewer/css";
 import { displayStates, type DisplayMode, type Visibility } from "./display-mode";
 import type { Analysis } from "./transport/types";
+import { installNavigation } from "./navigation";
+import { planExplodeLayout, type ExplodePart } from "./explode-layout";
 
 const TREE_WIDTH = 220;
 const TREE_HEIGHT = 320;
@@ -80,11 +82,36 @@ export function mountCad3d(
     viewer.showTools(fullControls);
     viewer.setPickHandler(fullControls);
     viewer.setSelectionInput(fullControls);
+    const disposeNavigation = installNavigation(viewer as never);
     // Keep keyboard navigation on the simple buttons. Hidden CAD actions must
     // not reappear when somebody presses a letter while turning the model.
     if (!fullControls) viewer.setKeyMap(Object.fromEntries([
       "axes", "axes0", "grid", "gridxy", "perspective", "transparent", "blackedges", "zscale", "reset", "resize", "iso", "front", "rear", "top", "bottom", "left", "right", "explode", "distance", "properties", "select", "help", "play", "stop", "tree", "clip", "material", "zebra", "studio",
     ].map(action => [action, ""])) as never);
+    // Use the engine's animation lifecycle in both interfaces, with an axial
+    // layout that also separates concentric parts instead of scaling centers.
+    viewer.explode = (duration = 2, speed = 1, multiplier = 2.5) => {
+      viewer.clearAnimation();
+      const groups = viewer.rendered.nestedGroup.groups;
+      (viewer.rendered.nestedGroup.rootGroup as any).updateMatrixWorld(true);
+      const parts: ExplodePart[] = [];
+      for (const [id, state] of Object.entries(viewer.getStates())) {
+        if (!state.includes(1) || !groups[id]) continue;
+        const bounds = (viewer.bbox! as any).clone().makeEmpty().expandByObject(groups[id], false);
+        if (!bounds.isEmpty()) parts.push({ id, min: bounds.min.toArray(), max: bounds.max.toArray() });
+      }
+      const strength = Math.max(0, multiplier / 2.5);
+      for (const [id, offset] of planExplodeLayout(parts).offsets) {
+        const group = groups[id] as any;
+        const delta = group.position.clone().fromArray(offset).multiplyScalar(strength);
+        if (group.parent) {
+          const origin = group.parent.worldToLocal(group.position.clone().set(0, 0, 0));
+          group.parent.worldToLocal(delta).sub(origin);
+        }
+        viewer.addPositionTrack(id, [0, duration], [[0, 0, 0], delta.toArray()]);
+      }
+      if (parts.length) viewer.initAnimation(duration, speed, "E", false);
+    };
     let mode: DisplayMode = "shaded-edges";
     let lastSize = cadSize(opts.width, opts.height);
     let batchDepth = 0;
@@ -127,6 +154,7 @@ export function mountCad3d(
       }
     };
     let assembledCamera = viewer.getCameraLocationSettings();
+    let assembledWrapperTarget = viewer.rendered.camera.target.clone();
     const fit = () => {
       const bounds = (viewer.bbox! as any).clone().makeEmpty();
       for (const [id, state] of Object.entries(viewer.getStates())) {
@@ -141,10 +169,12 @@ export function mountCad3d(
       if (flag === (viewer.state.get("animationMode") === "explode")) return;
       if (flag) {
         assembledCamera = viewer.getCameraLocationSettings();
+        assembledWrapperTarget = viewer.rendered.camera.target.clone();
         viewer.setExplode(true); viewer.setRelativeTime(1);
         fit();
       } else {
         viewer.setExplode(false);
+        viewer.rendered.camera.target.copy(assembledWrapperTarget);
         viewer.setCameraLocationSettings(assembledCamera.position, assembledCamera.quaternion, assembledCamera.target, assembledCamera.zoom);
       }
     };
@@ -201,6 +231,7 @@ export function mountCad3d(
         if (camera) { camera.zoom = 0.8; camera.updateProjectionMatrix(); }
       },
       dispose() {
+        disposeNavigation();
         setAnalysis();
         viewer.dispose();
       },

@@ -1,10 +1,14 @@
 // End-to-end viewer checks in a real browser through the reference host. Needs `npm run build` first.
 // Set AAD_E2E_GPU=1 for real-GPU numbers on a Mac; the default software GL also runs in CI.
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { createHash } from "node:crypto";
+import { chromium } from "playwright";
 import { openRefHost } from "./ref-host.mjs";
 import { fakeMcp, loadFixture } from "./fake-mcp.mjs";
+import { checkNavigation } from "./navigation-checks.mjs";
+import { concentricFixture, checkExplode } from "./explode-checks.mjs";
 
 const OUT = "test-output";
 mkdirSync(OUT, { recursive: true });
@@ -93,6 +97,12 @@ function assemblyFixture() {
 }
 
 const assembly = assemblyFixture();
+await scenario("trackpad-navigation", { scene: assembly }, async ({ host }) => {
+  await checkNavigation({ page: host.page, frame: host.frame(), check });
+});
+await scenario("concentric-exploded-layout", { scene: concentricFixture(fixture), strictCsp: true }, async ({ host }) => {
+  await checkExplode({ frame: host.frame(), check });
+});
 await scenario("simple-controls-and-agent-views", { scene: assembly, strictCsp: true }, async ({ host, mcp, diag }) => {
   const frame = host.frame();
   const button = name => frame.getByRole("button", { name, exact: true });
@@ -215,6 +225,149 @@ for (const width of [320, 390]) await scenario(`mobile-layout-${width}`, { width
   await host.frame().getByRole("button", { name: "Pull apart", exact: true }).click();
   check(await host.frame().getByRole("button", { name: "Put together", exact: true }).count() === 1, "phone control responds to a real tap target click");
 });
+
+const gridState = (target) => target.evaluate(() => {
+  const v = globalThis.__viewer, button = document.querySelector('[data-control="grid"]');
+  return { state: [...v.getGrids()], drawn: [...v.rendered.gridHelper.grid], axes: v.getAxes(), axesDrawn: v.rendered.axesHelper.visible, pressed: button.getAttribute("aria-pressed"), label: button.getAttribute("aria-label") };
+});
+const checkGrid = async (target, grids, axes, label) => {
+  const got = await gridState(target);
+  const pressed = grids.some(Boolean);
+  const ok = JSON.stringify(got.state) === JSON.stringify(grids) && JSON.stringify(got.drawn) === JSON.stringify(grids)
+    && got.axes === axes && got.axesDrawn === axes && got.pressed === String(pressed) && got.label === (pressed ? "Hide grid" : "Show grid");
+  check(ok, label, ok ? "" : JSON.stringify(got));
+};
+const chooseView = async (target, label) => {
+  await target.getByRole("button", { name: "Views", exact: true }).click();
+  await target.getByRole("menuitemradio", { name: label, exact: true }).click();
+};
+const gridRecipes = [
+  { id: "plain", label: "Plain", presentation: { hide: ["/Group/main"] } },
+  { id: "grid-on", label: "Grid on", presentation: { grid: true } },
+  { id: "grid-off", label: "Grid off", presentation: { grid: false } },
+  { id: "section", label: "Section", view: "front", presentation: { section: { planes: [{ plane: "XY", offset: 2 }] } } },
+];
+const gridLabels = ["Plain", "Grid on", "Grid off", "Section", "Original"];
+const postViewer = (host, mcp, viewer, scene = mcp.toolResult.structuredContent.scene) => host.page.evaluate(result => document.getElementById("f").contentWindow.postMessage({ jsonrpc: "2.0", method: "ui/notifications/tool-result", params: result }, "*"), {
+  ...mcp.toolResult, structuredContent: { ...mcp.toolResult.structuredContent, scene, viewer: { mode: "inline", ...viewer } },
+});
+
+await scenario("grid-persists-across-views", { scene: assembly, viewer: { views: gridRecipes } }, async ({ host, mcp }) => {
+  const frame = host.frame();
+  const button = name => frame.getByRole("button", { name, exact: true });
+  const reset = () => frame.locator('[data-control="reset"]').click();
+  const updateSameScene = async (title, viewer) => {
+    await postViewer(host, mcp, { ...viewer, title });
+    await frame.locator(".aad-caption", { hasText: title }).waitFor();
+  };
+  const walk = async (grids, axes, name) => {
+    for (const label of gridLabels) {
+      await chooseView(frame, label);
+      await checkGrid(frame, grids, axes, `${name} survives ${label}`);
+      await reset();
+      await checkGrid(frame, grids, axes, `${name} survives Reset in ${label}`);
+    }
+  };
+  await checkGrid(frame, [false, false, false], false, "a recipe without grid starts a new scene with it off");
+
+  await button("Show grid").click();
+  await checkGrid(frame, [true, true, true], true, "the user turns the grid on");
+  await walk([true, true, true], true, "user grid on");
+  await chooseView(frame, "Section");
+  check(await frame.evaluate(() => globalThis.__viewer.getClipSlider(0) === 2), "Section still applies its own settings while the grid persists");
+  await chooseView(frame, "Plain");
+  check(await frame.evaluate(() => globalThis.__viewer.getState("/Group/main").every(v => v === 0)), "Plain still applies its own settings while the grid persists");
+  await chooseView(frame, "Original");
+  await button("Pull apart").click();
+  await checkGrid(frame, [true, true, true], true, "user grid on survives Pull apart");
+  await reset();
+  await checkGrid(frame, [true, true, true], true, "user grid on survives Reset from a pulled-apart view");
+  await updateSameScene("Base grid off", { presentation: { grid: false }, views: gridRecipes });
+  await checkGrid(frame, [true, true, true], true, "same-scene explicit grid:false keeps the user's grid on");
+  await updateSameScene("New recipes", { views: [...gridRecipes, { id: "added", label: "Added", presentation: { grid: false } }] });
+  await chooseView(frame, "Added");
+  await checkGrid(frame, [true, true, true], true, "an updated recipe list keeps the user's grid on");
+
+  await button("Hide grid").click();
+  await checkGrid(frame, [false, false, false], false, "the user turns the grid off");
+  await walk([false, false, false], false, "user grid off");
+  await updateSameScene("Base grid on", { presentation: { grid: true }, views: gridRecipes });
+  await checkGrid(frame, [false, false, false], false, "same-scene explicit grid:true keeps the user's grid off");
+
+  for (const [grids, axes] of [[[true, false, true], false], [[false, true, false], true], [[false, false, false], true]]) {
+    await frame.evaluate(([g, a]) => { globalThis.__viewer.setGrids(g); globalThis.__viewer.setAxes(a); }, [grids, axes]);
+    await walk(grids, axes, `planes ${grids.map(Number).join("")} axes ${Number(axes)}`);
+    await updateSameScene(`Flags ${grids.map(Number).join("")} ${Number(axes)}`, { presentation: { grid: true }, views: gridRecipes });
+    await checkGrid(frame, grids, axes, "same-scene update keeps individual planes and axes");
+  }
+  check(await frame.evaluate(() => globalThis.__aad.loads === 1), "grid preservation does not reload the original scene");
+
+  await frame.evaluate(() => { globalThis.__viewer.setGrids([true, false, false]); globalThis.__viewer.setAxes(true); });
+  await postViewer(host, mcp, { presentation: { hide: ["injected failure"] } });
+  await frame.waitForFunction(() => globalThis.__aad.state === "error");
+  await checkGrid(frame, [true, false, false], true, "a rejected same-scene request does not clear the user's grid");
+});
+
+function sceneRevision(revision) {
+  const blob = gzipSync(JSON.stringify({ ...JSON.parse(gunzip(assembly.blob)), _revision: revision }));
+  return { blob, manifest: { ...assembly.manifest, scene_id: createHash("sha256").update(blob).digest("hex"), total_bytes: blob.length } };
+}
+const revisions = [assembly, sceneRevision(2), sceneRevision(3)];
+const readRevision = ({ scene_id, offset, length }) => {
+  const { blob } = revisions.find(r => r.manifest.scene_id === scene_id);
+  const part = blob.subarray(offset, offset + length);
+  return { content: [{ type: "text", text: `${part.length} bytes` }], structuredContent: { data_b64: part.toString("base64"), offset, byte_count: part.length, total_bytes: blob.length, has_more: offset + part.length < blob.length } };
+};
+await scenario("grid-new-scene-uses-its-recipe", { scene: assembly, fakeOpts: { extra: { aad_scene_read: readRevision } }, viewer: { presentation: { grid: true }, views: gridRecipes } }, async ({ host, mcp }) => {
+  const frame = host.frame();
+  const button = name => frame.getByRole("button", { name, exact: true });
+  const nextScene = async (index, viewer) => {
+    await postViewer(host, mcp, viewer, revisions[index].manifest);
+    await frame.waitForFunction(loads => globalThis.__aad.loads === loads && globalThis.__aad.state === "ready", index + 1);
+  };
+  await checkGrid(frame, [true, true, true], true, "initial recipe grid:true turns the grid on");
+  await button("Hide grid").click();
+  await frame.locator('[data-control="reset"]').click();
+  await checkGrid(frame, [false, false, false], false, "Reset does not reapply the initial grid:true over the user's choice");
+  await nextScene(1, { presentation: { grid: true } });
+  await checkGrid(frame, [true, true, true], true, "a new scene uses its own grid:true over the previous preference");
+  await nextScene(2, { presentation: {} });
+  await checkGrid(frame, [false, false, false], false, "a new scene without grid starts off over the previous preference");
+  check((await frame.evaluate(() => globalThis.__aad.triangles)) === assembly.manifest.triangles, "new scenes keep every original triangle");
+});
+
+{
+  const asset = `data:image/svg+xml;base64,${Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg"><metadata id="aad-scene">${assembly.blob.toString("base64")}</metadata></svg>`).toString("base64")}`;
+  const config = JSON.stringify({ manifest: assembly.manifest, asset, controls: "cad", views: gridRecipes }).replaceAll("<", "\\u003c");
+  const file = resolve(OUT, "grid-cad.html");
+  writeFileSync(file, html.replace("<head>", () => `<head><script>window.__AAD_EMBEDDED_SCENE__ = ${config};</script>`));
+  const browser = await chromium.launch({ headless: true, channel: "chromium", args: gpu ? ["--use-angle=metal", "--enable-gpu", "--ignore-gpu-blocklist"] : ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
+  try {
+    const page = await (await browser.newContext({ viewport: { width: 1200, height: 800 } })).newPage();
+    const errors = [];
+    page.on("pageerror", e => errors.push(e.message));
+    await page.goto(`file://${file}`);
+    await page.waitForFunction(() => ["ready", "error"].includes(globalThis.__aad?.state), null, { timeout: 60_000 });
+    check(await page.evaluate(() => globalThis.__aad.state) === "ready", "full CAD grid page reaches ready");
+    check(await page.locator(".tcv_cad_toolbar").isVisible() && await page.locator(".tcv_cad_navigation").isVisible(), "full CAD grid page retains the native toolbar and tree");
+    const nativeChecks = () => page.evaluate(() => ["xy", "xz", "yz"].map(p => document.querySelector(`.tcv_grid-${p}`).checked));
+    for (const plane of ["xy", "yz"]) await page.locator(`.tcv_grid-${plane}`).evaluate(e => e.click());
+    await page.evaluate(() => globalThis.__viewer.setAxes(true));
+    await checkGrid(page, [true, false, true], true, "native CAD plane controls set individual planes");
+    for (const label of gridLabels) {
+      await chooseView(page, label);
+      await checkGrid(page, [true, false, true], true, `full CAD planes survive ${label}`);
+      check(JSON.stringify(await nativeChecks()) === "[true,false,true]", `native plane checkboxes stay synced after ${label}`);
+    }
+    await page.locator('[data-control="reset"]').click();
+    await checkGrid(page, [true, false, true], true, "full CAD planes survive the AAD Reset");
+    await page.locator(".tcv_grid-xy").evaluate(e => e.click());
+    await chooseView(page, "Grid on");
+    await checkGrid(page, [false, false, true], true, "a native plane change remains the preference for later views");
+    check(errors.length === 0, "full CAD grid page has no page errors", errors.join(" | "));
+    await page.screenshot({ path: `${OUT}/grid-cad.png` });
+  } finally { await browser.close(); }
+}
 
 await scenario("theme-backgrounds", {}, async ({ host }) => {
   const background = () => host.frame().evaluate(() => {

@@ -2,6 +2,7 @@ import { gunzipToText, readScene } from "./loader";
 import type { Envelope, Transport, NamedView } from "./transport/types";
 import { mountCad3d, type Cad3dView } from "./viewer3d";
 import { applyPresentation } from "./presentation";
+import { navigationHint } from "./navigation";
 import "./style.css";
 
 const STAGE_HEIGHT = 480;
@@ -49,7 +50,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
         <div class="aad-progress" role="status">Opening your model…<progress max="100" value="0"></progress></div>
         <div class="aad-analysis" hidden><div class="aad-analysis-title"></div><div class="aad-analysis-ramp"></div><div class="aad-analysis-range"></div><div class="aad-analysis-source"></div></div>
       </div>
-      <p class="aad-hint">Drag to turn · Scroll or pinch to zoom</p>
+      <p class="aad-hint">${navigationHint()}</p>
       <p class="aad-error" role="alert" hidden></p>
     </section>`;
   const q = <T extends HTMLElement>(s: string) => root.querySelector(s) as T;
@@ -69,6 +70,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
   let loading: Promise<void> = Promise.resolve();
   let presets: NamedView[] = [];
   let selectedId = "original";
+  let scenePresented = false;
   let menuOpen = false;
   let menuAnimation: Animation | undefined;
   const closeMenu = (focus = false, animate = true) => {
@@ -90,14 +92,24 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
   const applySelected = () => {
     if (!view) return;
     const selected = presets.find(p => p.id === selectedId);
+    // A scene's first recipe sets its grid. After that, grid and axes belong to
+    // the user, so Views, Reset, and same-scene updates must not change them.
+    const [xy, xz, yz] = view.viewer.getGrids();
+    const axes = view.viewer.getAxes();
+    const keepGrid = scenePresented;
     view.batch(() => {
-      view!.reset();
-      const zoom = view!.viewer.getCameraZoom();
-      view!.viewer.presetCamera(selected?.view ?? requested.view ?? "iso");
-      view!.viewer.setCameraZoom(zoom);
-      applyPresentation(view!, { grid: false, explode: false, ...(selected ? selected.presentation : requested.presentation) });
-      view!.setAnalysis(selected?.analysis);
+      try {
+        view!.reset();
+        const zoom = view!.viewer.getCameraZoom();
+        view!.viewer.presetCamera(selected?.view ?? requested.view ?? "iso");
+        view!.viewer.setCameraZoom(zoom);
+        applyPresentation(view!, { grid: false, explode: false, ...(selected ? selected.presentation : requested.presentation) });
+        view!.setAnalysis(selected?.analysis);
+      } finally {
+        if (keepGrid) { view!.viewer.setGrids([xy, xz, yz]); view!.viewer.setAxes(axes); }
+      }
     });
+    scenePresented = true;
     const analysis = selected?.analysis;
     q(".aad-analysis").hidden = !analysis;
     if (analysis) {
@@ -225,6 +237,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
     if (manifest.triangles !== undefined && triangles !== manifest.triangles) throw new Error(`Expected ${manifest.triangles} triangles, got ${triangles}`);
     const parsedAt = performance.now(); unsubscribe(); view?.dispose(); q(".aad-cad").replaceChildren();
     selectedId = "original";
+    scenePresented = false;
     const bounds = q(".aad-cad").getBoundingClientRect();
     view = mountCad3d(q(".aad-cad"), shapes, { width: bounds.width, height: bounds.height, theme: resolvedTheme(transport), view: env.viewer?.view, controls: transport.controls });
     (globalThis as { __viewer?: unknown }).__viewer = view.viewer;

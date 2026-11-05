@@ -15,7 +15,11 @@ Know what the user sees:
 - **Chat:** a model title, small white-outlined Pull apart, Grid, and Reset icons,
   a wider **Views** button, fullscreen, and orbit/pan/zoom. CAD panels and action
   shortcuts stay hidden. Pull apart fits the separated pieces; Put together
-  restores assembled framing. Reset restores the selected view recipe.
+  restores assembled framing. Reset restores the selected view recipe, except
+  the grid.
+- **Navigation:** on Mac, click-drag rotates, two-finger scroll pans in both
+  directions, pinch zooms, and Option-scroll is the zoom fallback. Other desktops
+  scroll or pinch to zoom and Shift-drag or right-drag to pan.
 - **Local CAD window / CAD standalone export:** native part tree, face/edge
   visibility, sections and caps, projections and standard cameras, selection,
   mesh measurements/properties, exploded animation, zebra inspection, material,
@@ -41,7 +45,18 @@ universal names. Provide useful views for the actual model: interior only when
 there is an interior, isolated subassemblies, selected sections, transparent or
 wireframe inspection, and camera directions. The menu adds **Original**. Each
 recipe is independent of the base presentation and other recipes; include all
-settings it needs. Updating recipes for the same scene does not reload its mesh.
+settings it needs, except the grid. Updating recipes for the same scene does not
+reload its mesh.
+
+The XYZ grid and axes are a user preference. A new scene takes them from its
+initial recipe. After that, Views, Reset, and same-scene `aad_show` updates keep
+the user's exact grid planes and axes, even when a recipe sets `grid`. Do not tell
+the user that a same-scene `grid` value changed the display; ask them to use Grid.
+
+Exploded layout spaces coaxial components along the assembly axis and separates
+parallel stacks without changing original geometry or part orientation. Its
+auto-spacing is a view layout inferred from bounding boxes, not a physical
+disassembly sequence or collision proof. Parts can still overlap in a projection.
 
 An analysis view requires real supplied or computed results. `analysis` colors
 whole components from numeric part values and displays quantity, units, range,
