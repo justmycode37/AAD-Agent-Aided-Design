@@ -416,10 +416,9 @@ Thickness is a sampled search, not a certified minimum. Heatmaps do not prove ma
 
 **Grid is the user's preference.** A new scene uses its initial recipe's `grid` (off when absent). After that, Views, Original, Reset and same-scene updates keep the exact grid planes and axes, even when a recipe supplies `grid`. Ask the user to use Grid to change it on an already displayed scene.
 
-**Referring to parts:** hover softly highlights the whole part without hiding its material or detail. Click selects; click it again to deselect. Shift-click toggles additional parts; blank click and Escape clear. Dragging only moves the camera. Double-click prepares an exact part reference for the main chat prompt: a host advertising native unsent composer insertion receives an `@part` item there; otherwise readable `AAD part name: URI` text is copied for the user to paste with ⌘V/Ctrl+V and type their request. Current T3 HTML chat uses copy and paste. Copied text avoids a bare `@name`, which T3 would treat as a file mention. There is no separate editor or automatic sending. If copying is blocked, the viewer offers manual copying. MCP hosts may also share selected parts through negotiated model context, cleared on deselection and scene/revision changes.
+**Referring to parts:** hover softly highlights the whole part without hiding its material or detail. Click selects; clicking a selected part removes it. Shift-click toggles additional parts; blank click and Escape clear. Dragging only moves the camera. On hosts advertising native unsent composer insertion, double-click adds an `@part` item to the real chat prompt. Current T3 HTML chat lacks that API, so insertion stays unavailable there. There is no clipboard workflow, separate editor, or automatic sending. Users can describe edits in normal chat. MCP hosts may share selected parts through negotiated model context, cleared on deselection and scene/revision changes; HTML-only hosts cannot share selection.
 
-**Resolve references before editing.** Inserted/copied references carry `aad://part/<project>/<rev>/<scene_id>?path=<percent-encoded-path>`. Match the exact project, revision, hash and `scene.parts` path before choosing modeling selectors. `@name` is a display label, not a file or a globally unique selector. Reconcile older revisions; a reference already inserted/copied keeps its original identity, and deselection does not remove it from the user's prompt. Selection context can report `selectedCount` and `omittedCount`; obtain omitted references before acting on those parts. The viewer prepares references, never calls editing tools.
-
+**Resolve references before editing.** Native references and selection context carry `aad://part/<project>/<rev>/<scene_id>?path=<percent-encoded-path>`. Match the exact project, revision, hash and `scene.parts` path before choosing modeling selectors. `@name` is a display label, not a file or a globally unique selector. Reconcile older revisions; a reference already inserted into a prompt keeps its original identity, and deselection does not remove it from that prompt. Selection context can report `selectedCount` and `omittedCount`; obtain omitted references before acting on those parts. The viewer prepares references, never calls editing tools.
 
 **The local page and CAD-mode bundles add** the part tree, face and edge visibility, sections with caps, standard cameras and projections, selection, mesh measurement and properties, exploded animation, zebra inspection, materials, studio lighting and Z scale. Mesh measurements are not exact B-rep values; use `aad_measure` for those.
 
@@ -449,6 +448,7 @@ Thickness is a sampled search, not a certified minimum. Heatmaps do not prove ma
 ```json
 {"project": "gearbox", "title": "Gearbox", "views": [
   {"id": "interior", "label": "Interior", "presentation": {"hide": ["housing_upper", "housing_lower"]}},
+  {"id": "see-through", "label": "See-through", "presentation": {"style": "transparent"}},
   {"id": "section", "label": "Longitudinal section", "view": "front",
    "presentation": {"section": {"planes": [{"plane": "YZ", "offset": 0}]}}}
 ]}
@@ -597,7 +597,7 @@ Say so plainly rather than working around it silently.
 - **Spec requirements are not evaluated on 2D sheets.**
 - **No global mate solver, general sheet metal unfolding, Class-A surfacing, or weldment, mold and harness tools.**
 - **`min_wall` and `symmetric` can only disprove,** so a good result stays `skip`.
-- **The viewer cannot edit the model directly.** Sliders and a separate Ask editor are not built. Part selection and exact references work as described above; native composer insertion depends on advertised host support, with copy and paste on other hosts.
+- **The viewer cannot edit the model directly.** Sliders and a separate Ask editor are not built. Part selection and exact references work as described above; native composer insertion depends on advertised host support, and stays unavailable on unsupported hosts.
 - **Windows has no sandbox,** so builds refuse to run there.
 - **Each job starts a new process with no shared cache,** and no memory limit is enforced.
 - **Out of scope:** CAM and toolpaths, FEA and CFD, advanced surfacing, PMI and GD&T, assemblies of thousands of parts, PDM and PLM, native formats such as SLDPRT, F3D or DWG.

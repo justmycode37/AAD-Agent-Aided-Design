@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { composerReferenceMessage, partReference, partReferenceClipboardText, partReferenceUri, partSelectionContext, supportsComposerReference } from "../src/part-reference";
+import { composerReferenceMessage, partReference, partReferenceUri, partSelectionContext, supportsComposerReference } from "../src/part-reference";
 import type { SceneManifest } from "../src/transport/types";
 
 const scene = { project: "gearbox", rev: 7, scene_id: "a".repeat(64), parts: [
@@ -19,23 +19,12 @@ describe("part references", () => {
     expect(() => partReference(scene, "screw")).toThrow();
     expect(() => partReference(scene, "/other-scene/screw")).toThrow();
   });
-  it("preserves revision, hash and encoded special characters through copied text", () => {
+  it("preserves revision, hash and encoded special characters in the identity URI", () => {
     const ref = partReference(scene, scene.parts[2].path), uri = new URL(partReferenceUri(ref));
     expect(uri.protocol).toBe("aad:");
     expect(uri.hostname).toBe("part");
     expect(uri.pathname).toBe(`/gearbox/7/${scene.scene_id}`);
     expect(uri.searchParams.get("path")).toBe(ref.path);
-    expect(partReferenceClipboardText(ref)).toBe(`AAD part ${ref.mention.slice(1)}: ${uri.href} `);
-  });
-  it("copies no bare @ for a composer to mistake for a file, and leaves the caret ready", () => {
-    const parts = [{ name: "gear@case", path: "/a@b/@gear" }, { name: "@gear", path: "/@gear" }];
-    for (const { path } of parts) {
-      const ref = partReference({ ...scene, project: "gear@box", parts }, path), text = partReferenceClipboardText(ref);
-      expect(ref.mention.startsWith("@")).toBe(true);
-      expect(text).not.toContain("@");
-      expect(text.endsWith(" ")).toBe(true);
-      expect(new URL(text.trim().split(" ").at(-1)!).searchParams.get("path")).toBe(path);
-    }
   });
   it("builds a titled, unsent, current-composer message with the exact identity", () => {
     const ref = partReference(scene, scene.parts[2].path);
@@ -52,6 +41,9 @@ describe("part references", () => {
     expect(supportsComposerReference({ message: { text: {} } })).toBe(false);
     expect(supportsComposerReference({ experimental: { other: {} }, message: { text: {} } })).toBe(false);
     expect(supportsComposerReference(undefined)).toBe(false);
+    expect(supportsComposerReference({ experimental: { "openai/message": true }, message: { text: {} } })).toBe(false);
+    expect(supportsComposerReference({ experimental: { "openai/message": [] }, message: { text: {} } })).toBe(false);
+    expect(supportsComposerReference({ experimental: { "openai/message": {} }, message: { text: true } })).toBe(false);
   });
   it("keeps separate source revisions distinguishable", () => {
     const a = partReference(scene, scene.parts[0].path);

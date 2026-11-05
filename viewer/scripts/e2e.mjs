@@ -10,7 +10,7 @@ import { fakeMcp, loadFixture } from "./fake-mcp.mjs";
 import { checkNavigation } from "./navigation-checks.mjs";
 import { concentricFixture, checkExplode, checkExplodedCamera } from "./explode-checks.mjs";
 import { checkFraming } from "./framing-checks.mjs";
-import { checkCopiedReference, checkComposerReference, checkRejectedComposerReference, checkUnsupportedExtensionShape, COMPOSER_CAPABILITIES } from "./part-reference-checks.mjs";
+import { checkUnavailableReference, checkComposerReference, checkRejectedComposerReference, checkUnsupportedExtensionShape, COMPOSER_CAPABILITIES } from "./part-reference-checks.mjs";
 
 const OUT = "test-output";
 mkdirSync(OUT, { recursive: true });
@@ -99,8 +99,8 @@ function assemblyFixture() {
 }
 
 const assembly = assemblyFixture();
-await scenario("part-reference-copy", { scene: assembly, strictCsp: true }, async ({ host, mcp }) => {
-  await checkCopiedReference({ host, mcp, check });
+await scenario("part-reference-unavailable", { scene: assembly, strictCsp: true }, async ({ host, mcp }) => {
+  await checkUnavailableReference({ host, mcp, check });
 });
 await scenario("part-reference-composer", { scene: assembly, strictCsp: true, capabilities: COMPOSER_CAPABILITIES }, async ({ host, mcp }) => {
   await checkComposerReference({ host, mcp, check });

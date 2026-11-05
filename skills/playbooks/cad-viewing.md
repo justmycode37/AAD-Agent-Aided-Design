@@ -18,41 +18,34 @@ Advanced CAD panels and action shortcuts are hidden. Local windows retain the
 native CAD engine's full toolset; standalone exports can opt into CAD controls.
 
 Chat softly highlights an entire part on hover, preserving material and detail.
-Click selects; clicking the selected part again deselects it. Shift-click toggles
-additional parts; blank click and Escape clear selection. Camera drags do not
-select. Double-click prepares the part reference for the real chat prompt,
-without a separate request editor. When the host advertises the OpenAI composer
-extension, it appends an unsent `@part` reference to the active draft. Current T3
-HTML chat instead copies a readable part name and exact reference for the user
-to paste with ⌘V/Ctrl+V. Copied text uses `AAD part name: URI`, with a trailing
-space for the request. It avoids bare `@name` text, which T3 treats as a file
-mention; native composer items still use the `@name` title.
-If copying is blocked, use the displayed reference's manual copy fallback.
-Nothing automatically sends or edits the model.
+Click selects; clicking a selected part removes it from the selection. Shift-click
+toggles additional parts; blank click and Escape clear selection. Camera drags do
+not select. On a host advertising native composer insertion, double-click appends
+an unsent `@part` reference to the active chat prompt. Current T3 HTML chat lacks
+this API, so that action stays unavailable. No clipboard workflow or separate
+request editor is offered, and nothing automatically sends or edits the model.
 
-Inserted and copied references include an exact identity URI:
+Native prompt references and selection context carry an exact identity URI:
 `aad://part/<project>/<rev>/<scene_id>?path=<percent-encoded-leaf-path>`.
-Use its project, revision, hash and path to resolve `scene.parts` before editing.
-The mention label is not a filesystem path or a globally unique identifier;
-duplicate names receive distinct display labels. The URI is not an engine query
-selector. Reconcile an older reference with the current revision before changing
-the model. Inserted or copied references retain their original revision; clearing
-viewer selection does not remove a reference from the user's prompt.
+Resolve its project, revision, hash and path against `scene.parts` before editing.
+The mention label is not a file or a globally unique identifier; duplicate names
+receive distinct labels. The URI is not a modeling query selector. Reconcile older
+revisions before changing a model. Clearing viewer selection does not remove a
+reference already added to the user's prompt.
 
 MCP Apps stage selected parts through advertised `updateModelContext` modalities
 and clear that context on deselection or scene/revision changes. HTML-only hosts
-carry identity in copied text. Context may report `selectedCount` and
-`omittedCount` to stay within host limits; obtain omitted references before
-acting on those parts. Part references never call model-editing tools.
+do not share selection with the agent. Context may report `selectedCount` and
+`omittedCount`; obtain omitted references before acting on those parts.
 
 Composer insertion requires `hostCapabilities.experimental["openai/message"]`
 and text-message support. Use `ui/message` with a titled text item carrying the
 exact identity and `_meta: {"openai/message": {target: "active", send: false}}`.
-Never use ordinary `ui/message` as a fallback: it can send immediately. A missing
-capability or rejected insertion falls back to copying, not sending. See the
-[official OpenAI extension documentation](https://developers.openai.com/plugins/build/extensions).
-Do not promise composer focus, desktop-version availability, or direct insertion
-when the connected host does not advertise support.
+Never use ordinary `ui/message` as a fallback: it can send immediately. Missing
+support leaves insertion unavailable; a rejected request only reports failure.
+See the [official OpenAI extension documentation](https://developers.openai.com/plugins/build/extensions).
+Do not promise composer focus or support in a particular installed app without
+its advertised capability.
 
 Opening a scene, selecting a view, Reset, and resizing fit visible component
 bounds to the current canvas, leaving room for the title controls and edges.
@@ -87,6 +80,7 @@ Pass `views` to `aad_show`, alongside the reviewed revision and optional base
   "title":"Gearbox",
   "views":[
     {"id":"interior","label":"Interior","description":"Housing hidden","presentation":{"hide":["housing_upper","housing_lower"]}},
+    {"id":"see-through","label":"See-through","presentation":{"style":"transparent"}},
     {"id":"gears","label":"Gear train","presentation":{"isolate":["/Group/gears"]}},
     {"id":"section","label":"Longitudinal section","view":"front","presentation":{"section":{"planes":[{"plane":"YZ","offset":0}]},"projection":"orthographic"}}
   ]

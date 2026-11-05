@@ -16,24 +16,14 @@ export function partReferenceUri(ref: PartReference): string {
   return `aad://part/${encodeURIComponent(ref.project)}/${ref.rev}/${ref.scene_id}?path=${encodeURIComponent(ref.path)}`;
 }
 
-/** The mention without its "@", for plain text that composers parse themselves. */
-export const partReferenceLabel = (ref: PartReference) => ref.mention.replace(/^@/, "");
-
-/**
- * What a user pastes into a real chat composer. A composer can read a bare "@name"
- * as a file mention, so this has none; only a host's explicitly titled item shows
- * "@name". The trailing space leaves the caret ready for the request.
- */
-export function partReferenceClipboardText(ref: PartReference): string {
-  return `AAD part ${partReferenceLabel(ref)}: ${partReferenceUri(ref)} `;
-}
-
 /**
  * True only for hosts documenting that `ui/message` can leave content unsent.
  * Without this, `ui/message` sends a prompt, so it is never a fallback.
  */
-export function supportsComposerReference(capabilities: { experimental?: Record<string, object>; message?: { text?: object } } | undefined): boolean {
-  return !!capabilities?.experimental?.["openai/message"] && !!capabilities.message?.text;
+export function supportsComposerReference(capabilities: unknown): boolean {
+  const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
+  return record(capabilities) && record(capabilities.experimental) && record(capabilities.experimental["openai/message"])
+    && record(capabilities.message) && record(capabilities.message.text);
 }
 
 /** Appends a titled inline item to the current composer, without sending or opening a conversation. */
@@ -50,7 +40,7 @@ export function partSelectionContext(references: PartReference[], modalities: { 
   const build = (included: PartReference[]) => {
     const omitted = references.length - included.length;
     const text = references.length
-      ? `Selected AAD parts (display references, not files; ${included.length} of ${references.length} shared):\n${included.map(ref => `${ref.mention}: ${partReferenceUri(ref)}`).join("\n")}${omitted ? "\nSome references exceed the host context limit. Ask for their copied references before acting on those parts." : ""}`
+      ? `Selected AAD parts (display references, not files; ${included.length} of ${references.length} shared):\n${included.map(ref => `${ref.mention}: ${partReferenceUri(ref)}`).join("\n")}${omitted ? "\nSome references exceed the host context limit. Obtain their exact references before acting on those parts." : ""}`
       : "AAD part selection cleared.";
     return { ...(modalities.text ? { content: [{ type: "text" as const, text }] } : {}),
       ...(modalities.structuredContent ? { structuredContent: {

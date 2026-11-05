@@ -17,19 +17,16 @@ edges visible. Click selects it; clicking it again clears that selection.
 Shift-click toggles additional parts, and blank click or Escape clears selection.
 Dragging still rotates.
 
-Double-click prepares a part reference for the normal chat prompt. Supported
-ChatGPT Desktop hosts append an unsent `@part` item directly to that prompt.
-Current T3 HTML chat copies `AAD part name: URI`: paste with ⌘V/Ctrl+V and type
-the edit request in the main prompt. This avoids a bare `@name` becoming a file
-mention in T3. There is no separate request editor and nothing is
-automatically sent. If the clipboard is blocked, use the displayed reference's
-manual copy fallback.
+On a host supporting native prompt insertion, double-click adds an unsent
+`@part` reference to the real chat prompt. Current T3 HTML chat lacks that host
+API, so this action stays unavailable there. No copy-and-paste workflow or separate
+editor is shown, and nothing automatically sends. Users can describe edits in
+normal chat.
 
-The reference carries the exact project, revision, scene and part path alongside
-its `@part` label. The agent resolves that identity before editing. A copied or
-inserted reference retains its original revision even after the viewer changes;
-clearing selection does not remove it from the user's prompt. Composer insertion
-is used only when the connected host advertises the required extension.
+Native references carry the exact project, revision, scene and part path. The
+agent resolves that identity before editing. References retain their original
+revision after the viewer changes; clearing selection does not remove a reference
+already inserted into the user's prompt.
 
 Opening a model, choosing a view, Reset, and resizing fit the visible component
 bounds to the current canvas, with room around the edges and title controls.
@@ -55,6 +52,7 @@ Agents supply independent recipes in `aad_show.views`:
 ```json
 {"project":"gearbox","views":[
   {"id":"interior","label":"Interior","presentation":{"hide":["housing_upper","housing_lower"]}},
+  {"id":"see-through","label":"See-through","presentation":{"style":"transparent"}},
   {"id":"section","label":"Longitudinal section","view":"front","presentation":{"section":{"planes":[{"plane":"YZ","offset":0}]}}}
 ]}
 ```

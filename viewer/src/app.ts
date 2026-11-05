@@ -4,8 +4,7 @@ import { mountCad3d, type Cad3dView } from "./viewer3d";
 import { applyPresentation } from "./presentation";
 import { navigationHint } from "./navigation";
 import { installPartSelection, type PartSelection } from "./part-selection";
-import { partReference, partReferenceClipboardText, partReferenceLabel } from "./part-reference";
-import { copyText } from "./copy-text";
+import { partReference, partReferenceUri } from "./part-reference";
 import "./style.css";
 
 const STAGE_HEIGHT = 480;
@@ -35,7 +34,7 @@ export function triangleCount(scene: any): number {
 const icon = (paths: string) => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 
 export async function runApp(transport: Transport, root: HTMLElement): Promise<void> {
-  const referenceAction = transport.caps.composerReferences ? "add it to your message" : "copy a reference to it";
+  const referenceHint = transport.caps.composerReferences ? " · Double-click to add it to your message" : "";
   root.innerHTML = `
     <section class="aad-frame" aria-label="3D model">
       <div class="aad-stage">
@@ -52,14 +51,10 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
         </div>
         <button class="aad-expand" type="button" data-control="fullscreen" aria-label="Make bigger" title="Make bigger" hidden>${icon('<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>')}</button>
         <div class="aad-progress" role="status">Opening your model…<progress max="100" value="0"></progress></div>
-        <div class="aad-reference" hidden>
-          <span class="aad-reference-message" role="status"></span>
-          <code class="aad-reference-text" tabindex="0" aria-label="Part reference" hidden></code>
-          <span class="aad-reference-actions" hidden><button type="button" data-control="copy-reference">Copy</button><button type="button" data-control="dismiss-reference" aria-label="Dismiss" title="Dismiss">${icon('<path d="m6 6 12 12M6 18 18 6"/>')}</button></span>
-        </div>
+        <div class="aad-reference" role="status" hidden></div>
         <div class="aad-analysis" hidden><div class="aad-analysis-title"></div><div class="aad-analysis-ramp"></div><div class="aad-analysis-range"></div><div class="aad-analysis-source"></div></div>
       </div>
-      <p class="aad-hint">${navigationHint()}${transport.controls === "cad" ? "" : `<span>Click a part to select · Double-click to ${referenceAction}</span>`}</p>
+      <p class="aad-hint">${navigationHint()}${transport.controls === "cad" ? "" : `<span>Click a part to select${referenceHint}</span>`}</p>
       <p class="aad-error" role="alert" hidden></p>
     </section>`;
   const q = <T extends HTMLElement>(s: string) => root.querySelector(s) as T;
@@ -75,13 +70,10 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
   let view: Cad3dView | undefined;
   let selection: PartSelection | undefined;
   let manifest: SceneManifest | undefined;
-  // The reference being added or copied, so a newer scene can retire it.
-  let activeReference: PartReference | undefined;
-  let fallbackReference: PartReference | undefined;
   let referenceAttempt = 0;
   let referenceTimer: number | undefined;
   const inserting = new Set<string>();
-  const sameRevision = (ref: PartReference, scene: SceneManifest) => ref.project === scene.project && ref.rev === scene.rev && ref.scene_id === scene.scene_id;
+  const sameRevision = (a: SceneManifest, b: SceneManifest) => a.project === b.project && a.rev === b.rev && a.scene_id === b.scene_id;
   const stageSelection = (paths: string[]) => {
     if (!manifest || !transport.stageSelection) return;
     // A mesh path absent from the current scene has no identity to share.
@@ -91,73 +83,41 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
   };
   const hideReference = () => {
     clearTimeout(referenceTimer);
-    const status = q(".aad-reference");
-    if (status.contains(document.activeElement)) view?.viewer.renderer.domElement.focus({ preventScroll: true });
-    status.hidden = true;
-    q(".aad-reference-text").textContent = "";
-    fallbackReference = undefined;
+    q(".aad-reference").hidden = true;
+    q(".aad-reference").textContent = "";
   };
-  /** One line of status. With a fallback it also offers the exact text, selected for manual copying. */
-  const showReference = (message: string, fallback?: PartReference) => {
+  const showReference = (message: string) => {
     clearTimeout(referenceTimer);
-    const text = q(".aad-reference-text");
-    if (!fallback && q(".aad-reference").contains(document.activeElement)) view?.viewer.renderer.domElement.focus({ preventScroll: true });
     q(".aad-reference").hidden = false;
-    q(".aad-reference-message").textContent = message;
-    text.hidden = q(".aad-reference-actions").hidden = !fallback;
-    if (!fallback) text.textContent = "";
-    fallbackReference = fallback;
-    if (!fallback) { referenceTimer = window.setTimeout(hideReference, 6000); return; }
-    text.textContent = partReferenceClipboardText(fallback);
-    // A slow rejection can arrive while the user is typing in the host's composer.
-    if (document.hasFocus()) text.focus({ preventScroll: true });
-    getSelection()?.selectAllChildren(text);
+    q(".aad-reference").textContent = message;
+    referenceTimer = window.setTimeout(hideReference, 6000);
   };
-  const copyReference = async (reference: PartReference) => {
-    const attempt = ++referenceAttempt;
-    activeReference = reference;
-    const copied = await copyText(partReferenceClipboardText(reference));
-    if (attempt !== referenceAttempt) return;
-    if (copied) showReference(`Copied a reference to ${partReferenceLabel(reference)}. Paste it into your message, then type your request.`);
-    else showReference(`Could not copy the reference to ${partReferenceLabel(reference)} automatically. Press ⌘C or Ctrl+C, then paste it into your message.`, reference);
-  };
-  const insertReference = async (reference: PartReference) => {
-    const uri = `${reference.project}/${reference.rev}/${reference.scene_id}/${reference.path}`;
-    if (inserting.has(uri)) return;
-    inserting.add(uri);
-    const attempt = ++referenceAttempt;
-    activeReference = reference;
-    showReference(`Adding ${reference.mention} to your message…`);
-    try {
-      await transport.insertPartReference!(reference);
-      if (attempt === referenceAttempt) showReference(`Added ${reference.mention} to your message.`);
-    } catch {
-      if (attempt !== referenceAttempt) return;
-      // Never retry as an ordinary message. Past the gesture, copying needs a new click.
-      const copied = navigator.userActivation?.isActive && await copyText(partReferenceClipboardText(reference));
-      if (attempt !== referenceAttempt) return;
-      if (copied) showReference(`Could not add ${reference.mention} to your message. Copied a reference instead, so paste it there.`);
-      else showReference(`Could not add ${reference.mention} to your message. Copy it, then paste it there.`, reference);
-    } finally { inserting.delete(uri); }
-  };
-  /** Runs synchronously in the double-click, because copying needs that user gesture. */
   const referencePart = (path: string) => {
-    if (!manifest) return;
+    if (!manifest || !transport.caps.composerReferences || !transport.insertPartReference) return;
     let reference: PartReference;
     try { reference = partReference(manifest, path); }
     catch {
-      referenceAttempt++; activeReference = undefined;
+      referenceAttempt++;
       showReference("This part is not in the current model, so no reference was made.");
       return;
     }
-    void (transport.caps.composerReferences && transport.insertPartReference ? insertReference(reference) : copyReference(reference));
+    const uri = partReferenceUri(reference);
+    if (inserting.has(uri)) return;
+    inserting.add(uri);
+    const attempt = ++referenceAttempt;
+    showReference(`Adding ${reference.mention} to your message…`);
+    void transport.insertPartReference(reference).then(() => {
+      if (attempt === referenceAttempt) showReference(`Added ${reference.mention} to your message.`);
+    }).catch(() => {
+      if (attempt === referenceAttempt) showReference(`Could not add ${reference.mention} to your message.`);
+    }).finally(() => inserting.delete(uri));
   };
   const updateManifest = (next: SceneManifest) => {
-    manifest = structuredClone(next);
-    if (activeReference && !sameRevision(activeReference, next)) {
-      referenceAttempt++; activeReference = undefined;
+    if (manifest && !sameRevision(manifest, next)) {
+      referenceAttempt++;
       hideReference();
     }
+    manifest = structuredClone(next);
   };
   let requested: Partial<NonNullable<Envelope["viewer"]>> = {};
   let requestKey = "";
@@ -311,8 +271,6 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
     if (!q(".aad-view-menu").contains(event.target as Node) && !control("views").contains(event.target as Node)) closeMenu();
   });
   control("reset").addEventListener("click", applySelected);
-  control("copy-reference").addEventListener("click", () => { if (fallbackReference) void copyReference(fallbackReference); });
-  control("dismiss-reference").addEventListener("click", () => { referenceAttempt++; activeReference = undefined; hideReference(); });
   control("fullscreen").hidden = !transport.caps.fullscreen;
   control("fullscreen").addEventListener("click", () => void transport.requestFullscreen().then(size).catch(fail));
 
@@ -351,7 +309,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
     (globalThis as { __viewer?: unknown }).__viewer = view.viewer;
     if (!view.fullControls) {
       view.viewer.renderer.domElement.tabIndex = 0;
-      view.viewer.renderer.domElement.setAttribute("aria-label", `3D model. Drag to turn, click a part to select, or double-click to ${referenceAction}.`);
+      view.viewer.renderer.domElement.setAttribute("aria-label", `3D model. Drag to turn. Click a part to select or deselect.${transport.caps.composerReferences ? " Double-click to add it to your message." : ""}`);
       selection = installPartSelection(view.viewer as never, { onSelection: stageSelection, onReference: referencePart });
     }
     unsubscribe = view.viewer.state.subscribeAll(syncControls);
