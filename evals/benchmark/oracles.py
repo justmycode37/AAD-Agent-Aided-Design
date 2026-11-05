@@ -807,7 +807,6 @@ def _entity_segments(entity: Mapping[str, Any]) -> list[tuple[tuple[float, float
             raise MalformedArtifact("arc entity has incomplete center/radius data")
         start = float(entity.get("start_angle", 0))
         end = float(entity.get("end_angle", 0))
-        clockwise = bool((entity.get("metadata") or {}).get("clockwise", False))
         return [(_arc_point(points[0], entity["radius_mm"], start), _arc_point(points[0], entity["radius_mm"], end))]
     if kind in {"circle", "text"}:
         return []
@@ -1698,7 +1697,7 @@ def _check_drawing_dimensions(check: Mapping[str, Any], task_id: str, brep: BRep
     all_pass = all_pass and views_ok
     details = {"dimensions": dimension_details, "required_views": views, "views_pass": views_ok}
     if not all_supported:
-        raise UnsupportedEvidence(f"at least one requested drawing dimension lacks an implemented measurement")
+        raise UnsupportedEvidence("at least one requested drawing dimension lacks an implemented measurement")
     return all_pass, details
 
 

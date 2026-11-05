@@ -17,7 +17,7 @@ from evals.benchmark.pilot import (
     run_pilot,
 )
 from evals.benchmark.corpus.loader import load_corpus
-from evals.benchmark.oracles import CheckObservation, StageAudit, TaskAudit, evaluate_stage, evaluate_task, request_pass_counts
+from evals.benchmark.oracles import StageAudit, TaskAudit, evaluate_stage, evaluate_task, request_pass_counts
 from evals.benchmark.selection import load_selection
 from evals.benchmark.harness.aad_benchmark_harness.types import SpendConsent
 from evals.benchmark.statistics import false_verified_summary

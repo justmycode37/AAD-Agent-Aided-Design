@@ -12,7 +12,7 @@ import argparse
 import asyncio
 from collections import defaultdict
 from contextlib import asynccontextmanager
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import importlib.metadata
@@ -36,7 +36,7 @@ from typing import Any, Mapping, Sequence
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-from .audit_process import AuditWorkerError, audit_task_in_process, unevaluated_task_audit
+from .audit_process import audit_task_in_process, unevaluated_task_audit
 from .corpus.loader import load_public_projection
 from .harness.aad_benchmark_harness.loop import filter_native_tools
 from .harness.aad_benchmark_harness.mcp_bridge import ClientSessionBridge
@@ -45,7 +45,6 @@ from .harness.aad_benchmark_harness.task_loop import TaskTrialResult, run_agent_
 from .harness.aad_benchmark_harness.types import (
     InputTokenEstimate,
     IsolationPreflight,
-    ObservationBlock,
     ProviderToolCall,
     ProviderTurn,
     PublicStageProjection,
