@@ -353,6 +353,7 @@ class InvoluteGearSolidTests(unittest.TestCase):
             "shape_present",
             "brep_valid",
             "solid_count",
+            "scene_coordinate_range",
             "closed_shells",
             "edge_quality",
             "face_quality",

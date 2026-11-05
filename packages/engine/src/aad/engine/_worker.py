@@ -390,6 +390,8 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
             artifacts=artifacts,
             job_dir=job_dir,
             build_ms=_elapsed_ms(started),
+            stdout=stdout_stream.getvalue(),
+            stderr=stderr_stream.getvalue(),
         )
         return _result_wire(result)
 

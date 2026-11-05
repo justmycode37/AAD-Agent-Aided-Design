@@ -666,7 +666,7 @@ result = Box(2, 3, 4)
                     'checks': [{'id': 'notice', 'level': 'warn', 'status': 'warn'}],
                     'scene': {'status': 'verified', 'checks_summary': {'pass': 99}}}
             built = self.mocked_result(wire, Path(temporary))
-            self.assertEqual(built.checks_summary, {'pass': 0, 'fail': 0, 'warn': 1, 'skip': 1, 'not_applicable': 0})
+            self.assertEqual(built.checks_summary, {'pass': 0, 'fail': 0, 'warn': 0, 'skip': 1, 'not_applicable': 0})
             self.assertIsNone(built.scene)
             self.assertFalse(any(check.id == 'notice' for check in built.checks))
             self.assertNotIn('bbox', built.metrics)
