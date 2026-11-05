@@ -65,6 +65,10 @@ const partIds = (frame, path) => frame.evaluate((path) => {
 
 /** Everything that defines the original geometry and its materials. */
 const geometryState = (frame) => frame.evaluate(() => {
+  const look = [];
+  globalThis.__viewer.rendered.nestedGroup.rootGroup.traverse(object => {
+    for (const m of [object.material ?? []].flat()) look.push([m.uuid, m.color?.getHexString(), m.opacity, m.metalness, m.roughness, m.linewidth, m.side, m.transparent].join());
+  });
   const sum = array => { let h = 2166136261; for (const byte of new Uint8Array(array.buffer, array.byteOffset, array.byteLength)) h = Math.imul(h ^ byte, 16777619); return h >>> 0; };
   const rows = [];
   let materials = 0;
@@ -75,8 +79,21 @@ const geometryState = (frame) => frame.evaluate(() => {
     const attributes = Object.keys(g.attributes).filter(name => g.attributes[name].array).map(name => `${name}:${sum(g.attributes[name].array)}`);
     rows.push([object.name, object.type, object.uuid, attributes.join(","), g.index ? sum(g.index.array) : 0, object.matrixWorld.elements.join(",")].join("|"));
   });
-  return { rows: rows.join("\n"), materials, uuids: (() => { const out = []; globalThis.__viewer.rendered.nestedGroup.rootGroup.traverse(o => { if (o.material) out.push([o.material].flat().map(m => m.uuid).join()); }); return out.join(); })() };
+  return { rows: rows.join("\n"), look: look.join("\n"), materials, uuids: (() => { const out = []; globalThis.__viewer.rendered.nestedGroup.rootGroup.traverse(o => { if (o.material) out.push([o.material].flat().map(m => m.uuid).join()); }); return out.join(); })() };
 });
+
+/** The shader three actually compiled for a material of a part, read back from the GPU context. */
+const compiledShaders = (frame, path) => frame.evaluate((path) => {
+  const v = globalThis.__viewer, gl = v.renderer.getContext(), out = [];
+  v.rendered.nestedGroup.groups[path].traverse(object => {
+    for (const m of [object.material ?? []].flat()) {
+      const program = v.renderer.properties.get(m).currentProgram;
+      if (!program || !m.userData?.highlightPatched || m.isPointsMaterial) continue;
+      out.push({ line: !!m.isLineMaterial, key: program.cacheKey, fragment: gl.getShaderSource(program.fragmentShader), vertex: gl.getShaderSource(program.vertexShader) });
+    }
+  });
+  return out;
+}, path);
 
 const events = (frame) => frame.evaluate(() => ({ selections: globalThis.__partSelection.selections.length, references: globalThis.__partSelection.references.length, paths: globalThis.__partSelection.selection.paths(), lastReference: globalThis.__partSelection.references.at(-1) }));
 
@@ -94,6 +111,30 @@ export async function checkPartSelection({ page, frame, check, offset = { x: 0, 
       return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
     }, png.toString("base64"));
   };
+  /** Pixels of the canvas that are not background, and how many differ from an earlier image. */
+  const canvasImage = async () => {
+    const rect = await frame.evaluate(() => { const r = globalThis.__viewer.renderer.domElement.getBoundingClientRect(); return { x: r.left, y: r.top, width: r.width, height: r.height }; });
+    const png = await page.screenshot({ clip: { ...rect, x: rect.x + offset.x, y: rect.y + offset.y } });
+    return png.toString("base64");
+  };
+  const imageStats = (base64, baseline) => page.evaluate(async ({ base64, baseline }) => {
+    const read = async (data) => {
+      const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${data}`)).blob());
+      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height), context = canvas.getContext("2d");
+      context.drawImage(bitmap, 0, 0);
+      return context.getImageData(0, 0, bitmap.width, bitmap.height).data;
+    };
+    const a = await read(base64), b = baseline ? await read(baseline) : null;
+    let drawn = 0, changed = 0;
+    for (let i = 0; i < a.length; i += 4) {
+      if (Math.max(Math.abs(a[i] - a[0]), Math.abs(a[i + 1] - a[1]), Math.abs(a[i + 2] - a[2])) > 24) drawn++;
+      if (b && Math.max(Math.abs(a[i] - b[i]), Math.abs(a[i + 1] - b[i + 1]), Math.abs(a[i + 2] - b[i + 2])) > 8) changed++;
+    }
+    return { drawn, changed };
+  }, { base64, baseline });
+  const distance = (a, b) => Math.max(...a.map((n, i) => Math.abs(n - b[i])));
+  /** Which channels are brightest to dimmest: the hue family a tint must not change. */
+  const channelOrder = (c) => [0, 1, 2].sort((i, j) => c[j] - c[i]).join();
   const differs = (a, b, by = 12) => a.some((n, i) => Math.abs(n - b[i]) > by);
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   const sorted = (ids) => [...ids].sort((a, b) => a - b);
@@ -123,7 +164,7 @@ export async function checkPartSelection({ page, frame, check, offset = { x: 0, 
   check(same(sorted(await flagged(frame, HOVER)), wholeIds), `${label}: hovering one face flags all faces and edges of its part, and no corner points`);
   await page.screenshot({ path: "test-output/part-selection-hover.png" }).catch(() => {});
   const hoverB = await pixel(faceB.point);
-  check(differs(hoverB, idleB), `${label}: hovering one face tints a different face of the part`, `${idleB} -> ${hoverB}`);
+  check(differs(hoverB, idleB, 2), `${label}: hovering one face tints a different face of the part`, `${idleB} -> ${hoverB}`);
   check(same(await pixel(leftPoint), idleLeft), `${label}: hovering leaves other parts untinted`);
   await move(faceB.point);
   check(same(sorted(await flagged(frame, HOVER)), wholeIds), `${label}: moving across faces keeps the whole-part hover`);
@@ -138,7 +179,7 @@ export async function checkPartSelection({ page, frame, check, offset = { x: 0, 
   await move(leftPoint);
   await page.screenshot({ path: "test-output/part-selection-selected-left-hovered.png" }).catch(() => {});
   const selectedB = await pixel(faceB.point);
-  check(differs(selectedB, idleB) && differs(selectedB, hoverB), `${label}: selected looks different from idle and hovered`, `${idleB} / ${hoverB} / ${selectedB}`);
+  check(differs(selectedB, idleB, 4) && differs(selectedB, hoverB, 2), `${label}: selected looks different from idle and hovered`, `${idleB} / ${hoverB} / ${selectedB}`);
   check(same(sorted(await flagged(frame, SELECTED)), wholeIds), `${label}: selection persists after the pointer leaves`);
 
   // Drags never change the selection.
@@ -158,15 +199,68 @@ export async function checkPartSelection({ page, frame, check, offset = { x: 0, 
   const fresh = await scan(frame);
   const point = (path, n = 0) => fresh.parts[path][n].point;
 
-  // Double-click selects and reports the part once.
+  // The highlight is a soft tint: the part's own color, shading and edge width all stay readable.
+  await frame.evaluate(() => globalThis.__partSelection.selection.clear());
+  await move([1, 1]);
+  const contrast = (shades) => Math.max(...shades.flatMap(a => shades.map(b => distance(a, b))));
+  const middleFaces = fresh.parts[MIDDLE].slice(0, 6).map(face => face.point);
+  const yellowPoint = point(LEFT), bluePoint = point(MIDDLE);
+  const idleYellow = await pixel(yellowPoint), idleBlue = await pixel(bluePoint);
+  const idleFaces = await Promise.all(middleFaces.map(pixel));
+  const idleShot = await canvasImage();
+  await move(yellowPoint);
+  const hoverYellow = await pixel(yellowPoint);
+  await click(yellowPoint);
+  state = await events(frame);
+  check(same(state.paths, [LEFT]), `${label}: a click selects before it can toggle`, JSON.stringify(state));
+  await move([1, 1]);
+  const selectedYellow = await pixel(yellowPoint);
+  const hoverStep = distance(hoverYellow, idleYellow), selectedStep = distance(selectedYellow, idleYellow);
+  check(hoverStep >= 2 && hoverStep <= 30, `${label}: hover is a faint tint`, `${idleYellow} -> ${hoverYellow}, step ${hoverStep}`);
+  check(selectedStep > hoverStep && selectedStep <= 60, `${label}: selection is a soft tint, stronger than hover`, `${idleYellow} -> ${selectedYellow}, step ${selectedStep}`);
+  check(channelOrder(selectedYellow) === channelOrder(idleYellow) && selectedYellow[0] > selectedYellow[2] + 60, `${label}: a selected yellow part stays yellow`, `${selectedYellow}`);
+  await page.screenshot({ path: "test-output/part-selection-soft-yellow.png" }).catch(() => {});
+
+  await click(bluePoint);
+  await move([1, 1]);
+  const selectedBlue = await pixel(bluePoint);
+  check(same((await events(frame)).paths, [MIDDLE]), `${label}: a plain click on another part replaces the selection`);
+  check(distance(selectedBlue, idleBlue) >= 6, `${label}: a blue part still shows the blue selection tint`, `${idleBlue} -> ${selectedBlue}`);
+  const selectedFaces = await Promise.all(middleFaces.map(pixel));
+  check(contrast(idleFaces) > 8 && contrast(selectedFaces) >= 0.6 * contrast(idleFaces), `${label}: a selected part keeps the shading between its faces`, `${contrast(idleFaces)} -> ${contrast(selectedFaces)}`);
+  const selectedStats = await imageStats(await canvasImage(), idleShot);
+  const idleStats = await imageStats(idleShot);
+  check(Math.abs(selectedStats.drawn - idleStats.drawn) <= idleStats.drawn * 0.02, `${label}: a selection does not thicken outlines or change the drawn shape`, `${idleStats.drawn} -> ${selectedStats.drawn}`);
+  const shaders = await compiledShaders(frame, MIDDLE);
+  check(shaders.length >= 2 && shaders.some(s => s.line) && shaders.some(s => !s.line), `${label}: the part's face and edge materials are compiled`, `${shaders.length}`);
+  check(shaders.every(s => s.key.includes("aad-soft-highlight") && /pow\(diffuseColor\.rgb, [^;]*, 0\.22\)/.test(s.fragment) && /pow\(diffuseColor\.rgb, [^;]*, 0\.10\)/.test(s.fragment) && !s.fragment.includes("diffuseColor.rgb = uHighlight")), `${label}: compiled shaders blend 22% selected and 10% hover, and never replace the color`);
+  check(shaders.filter(s => s.line).every(s => s.vertex.includes("offset *= linewidth;") && !s.vertex.includes("hlEdgeState")), `${label}: compiled edges keep their authored width`);
+
+  // A second click on a selected part deselects it, from any of its faces.
+  const selectionsBefore = (await events(frame)).selections;
+  await click(fresh.parts[MIDDLE][1].point);
+  state = await events(frame);
+  check(same(state.paths, []) && state.selections === selectionsBefore + 1 && !(await flagged(frame, SELECTED)).length, `${label}: clicking the selected part again deselects it`, JSON.stringify(state));
+  await move([1, 1]);
+  check(!differs(await pixel(bluePoint), idleBlue, 2), `${label}: deselecting restores the original color`);
+  await click(bluePoint);
+  check(same((await events(frame)).paths, [MIDDLE]), `${label}: a deselected part can be selected again`);
+  await frame.evaluate(() => globalThis.__partSelection.selection.clear());
+
+  // Double-click reports the part once, without reselecting what its second click cleared.
   await page.mouse.dblclick(...at(point(LEFT)));
   await settle(page, frame);
   state = await events(frame);
-  check(same(state.paths, [LEFT]) && state.references === 1 && state.lastReference === LEFT, `${label}: a double-click selects and references the part once`, JSON.stringify(state));
+  check(same(state.paths, []) && state.references === 1 && state.lastReference === LEFT, `${label}: a double-click references the part once and leaves it deselected`, JSON.stringify(state));
+  await click(point(LEFT));
+  await page.mouse.dblclick(...at(point(LEFT)));
+  await settle(page, frame);
+  state = await events(frame);
+  check(same(state.paths, [LEFT]) && state.references === 2 && state.lastReference === LEFT, `${label}: a double-click on a selected part references it and leaves it selected`, JSON.stringify(state));
   await page.mouse.dblclick(...at(fresh.blank));
   await settle(page, frame);
   state = await events(frame);
-  check(state.references === 1 && same(state.paths, []), `${label}: a double-click on background only clears`, JSON.stringify(state));
+  check(state.references === 2 && same(state.paths, []), `${label}: a double-click on background only clears`, JSON.stringify(state));
   for (let i = 0; i < 2; i++) {
     await page.mouse.move(...at(point(RIGHT)));
     await page.mouse.down({ clickCount: i + 1 });
@@ -176,7 +270,7 @@ export async function checkPartSelection({ page, frame, check, offset = { x: 0, 
   }
   await settle(page, frame);
   state = await events(frame);
-  check(state.references === 1 && same(state.paths, []), `${label}: a double drag neither selects nor references`, JSON.stringify(state));
+  check(state.references === 2 && same(state.paths, []), `${label}: a double drag neither selects nor references`, JSON.stringify(state));
 
   const again = await scan(frame);
   const here = (path, n = 0) => again.parts[path][n].point;
@@ -191,6 +285,12 @@ export async function checkPartSelection({ page, frame, check, offset = { x: 0, 
   await click(here(RIGHT));
   await page.keyboard.up("Shift");
   check(same((await events(frame)).paths, [LEFT, RIGHT]), `${label}: Shift-click adds a part`);
+  await page.keyboard.down("Shift");
+  await click(here(RIGHT));
+  check(same((await events(frame)).paths, [LEFT]), `${label}: Shift-click toggles a part off`);
+  await click(here(RIGHT));
+  await page.keyboard.up("Shift");
+  check(same((await events(frame)).paths, [LEFT, RIGHT]), `${label}: Shift-click toggles it back on`);
   await frame.evaluate(() => { const input = document.createElement("input"); input.id = "selection-input"; document.body.append(input); input.focus(); });
   await page.keyboard.press("Escape");
   check((await events(frame)).paths.length === 2, `${label}: Escape in a text field leaves the selection`);
@@ -288,16 +388,57 @@ export async function checkPartSelection({ page, frame, check, offset = { x: 0, 
   check(same((await events(frame)).paths, [MIDDLE]), `${label}: selection works in an analysis view`);
   await move([1, 1]);
   const analysisSelected = await pixel(paintedPoint);
-  check(differs(analysisSelected, analysisIdle), `${label}: an analysis part shows its selection`, `${analysisIdle} -> ${analysisSelected}`);
+  check(differs(analysisSelected, analysisIdle, 4) && distance(analysisSelected, analysisIdle) <= 60 && channelOrder(analysisSelected)[0] === channelOrder(analysisIdle)[0], `${label}: an analysis part shows a soft selection over its readable color`, `${analysisIdle} -> ${analysisSelected}`);
+  check((await compiledShaders(frame, MIDDLE)).every(s => s.key.includes("aad-soft-highlight")), `${label}: analysis copies compile the soft highlight`);
+  await page.screenshot({ path: "test-output/part-selection-soft-analysis.png" }).catch(() => {});
   await frame.evaluate(() => globalThis.__partSelection.selection.clear());
   await settle(page, frame);
   check(!differs(await pixel(paintedPoint), analysisIdle, 2), `${label}: clearing restores the analysis color`);
   await frame.evaluate(() => { globalThis.__view.setAnalysis(); globalThis.__viewer.update(true, false); });
   await settle(page, frame);
 
+  // Wireframe: edges alone keep a selection, at their own width.
+  await frame.evaluate(({ LEFT, MIDDLE, RIGHT }) => {
+    const v = globalThis.__viewer;
+    v.setState(LEFT, [0, 1]); v.setState(MIDDLE, [0, 0]); v.setState(RIGHT, [0, 0]);
+    v.update(true, false);
+  }, { LEFT, MIDDLE, RIGHT });
+  await move([1, 1]);
+  const edgePoint = await frame.evaluate((path) => {
+    const v = globalThis.__viewer, rect = v.renderer.domElement.getBoundingClientRect();
+    v.idPicker.setDirty();
+    for (let y = 4; y < rect.height - 4; y += 1) for (let x = 4; x < rect.width - 4; x += 1) {
+      const hit = v.idPicker.pickAt(x, y, { windowSize: 1 });
+      if (hit?.info.topo === "edge" && hit.info.solidPath === path) return [x + rect.left, y + rect.top];
+    }
+    return null;
+  }, LEFT);
+  check(!!edgePoint, `${label}: a wireframe part has a pickable edge`);
+  const wireIdle = await canvasImage();
+  await click(edgePoint);
+  check(same((await events(frame)).paths, [LEFT]), `${label}: clicking a wireframe edge selects its part`, JSON.stringify(await events(frame)));
+  await move([1, 1]);
+  await frame.evaluate(() => globalThis.__viewer.update(true, false));
+  await settle(page, frame);
+  check(same((await events(frame)).paths, [LEFT]), `${label}: the selection persists while only the part's edges are drawn`);
+  await page.screenshot({ path: "test-output/part-selection-soft-wireframe.png" }).catch(() => {});
+  const wireShot = await canvasImage();
+  const wireBefore = await imageStats(wireIdle), wireSelected = await imageStats(wireShot, wireIdle);
+  check(wireSelected.changed > 20, `${label}: a selected wireframe is visibly tinted`, `${wireSelected.changed} pixels`);
+  check(wireSelected.drawn <= wireBefore.drawn * 1.15, `${label}: selected wireframe edges stay thin`, `${wireBefore.drawn} -> ${wireSelected.drawn} pixels`);
+  await click(edgePoint);
+  check(same((await events(frame)).paths, []), `${label}: clicking a selected wireframe again deselects it`);
+  await click(edgePoint);
+  await frame.evaluate((path) => globalThis.__viewer.setState(path, [0, 0]), LEFT);
+  await settle(page, frame);
+  check(same((await events(frame)).paths, []), `${label}: hiding the edges too drops the selection`);
+  await frame.evaluate((paths) => { for (const path of paths) globalThis.__viewer.setState(path, [1, 1]); globalThis.__viewer.update(true, false); }, [LEFT, MIDDLE, RIGHT]);
+  await settle(page, frame);
+
   const final = await geometryState(frame);
   check(final.rows === original.rows, `${label}: geometry, ids and transforms are unchanged`);
   check(final.uuids === original.uuids, `${label}: visual materials are the originals, with no highlight clones`, `${original.materials} materials`);
+  check(final.look === original.look, `${label}: material colors, finish and edge widths are unchanged`);
 }
 
 async function main() {
@@ -352,7 +493,51 @@ async function main() {
     await checkPartSelection({ page, frame: page.mainFrame(), check });
 
     // Disposal hands the same viewer back to native face hover.
+    const softPath = "/Group/left";
+    const softPixel = await page.evaluate((path) => {
+      const v = globalThis.__viewer, rect = v.renderer.domElement.getBoundingClientRect();
+      v.idPicker.setDirty();
+      for (let y = 20; y < rect.height; y += 8) for (let x = 20; x < rect.width; x += 8) {
+        const hit = v.idPicker.pickAt(x, y, { windowSize: 1 });
+        if (hit?.info.topo === "face" && hit.info.solidPath === path) return [rect.left + x, rect.top + y];
+      }
+      return null;
+    }, softPath);
+    const sample = async () => {
+      const png = await page.screenshot({ clip: { x: softPixel[0], y: softPixel[1], width: 1, height: 1 } });
+      return page.evaluate(async (base64) => {
+        const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${base64}`)).blob());
+        const context = new OffscreenCanvas(1, 1).getContext("2d");
+        context.drawImage(bitmap, 0, 0);
+        return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+      }, png.toString("base64"));
+    };
+    const flagPart = (flag) => page.evaluate(({ path, flag }) => {
+      const v = globalThis.__viewer, nested = v.rendered.nestedGroup;
+      for (const info of nested.registry.entries()) if (info.solidPath === path && info.topo !== "vertex") nested.highlight.setSelected(info.id, flag);
+      v.update(true, false);
+    }, { path: softPath, flag });
+    await page.mouse.move(1, 1);
+    await page.waitForTimeout(SETTLE_MS);
+    const baseColor = await sample();
+    await flagPart(true);
+    const softColor = await sample();
+    await flagPart(false);
     await page.evaluate(() => globalThis.__partSelection.selection.dispose());
+    await page.waitForTimeout(SETTLE_MS);
+    const restored = await compiledShaders(page.mainFrame(), softPath);
+    check(restored.length >= 2 && restored.every(s => !s.key.includes("aad-soft-highlight") && s.fragment.includes("diffuseColor.rgb = uHighlightSelectedColor;")), "dispose: materials compile the engine's native highlight again", `${restored.length} materials`);
+    const ownOverrides = await page.evaluate((path) => {
+      let wrapped = 0;
+      globalThis.__viewer.rendered.nestedGroup.groups[path].traverse(o => { for (const m of [o.material ?? []].flat()) if (String(m.customProgramCacheKey?.()).includes("aad-soft")) wrapped++; });
+      return wrapped;
+    }, softPath);
+    check(ownOverrides === 0, "dispose: no material still carries the soft cache key");
+    await flagPart(true);
+    const nativeColor = await sample();
+    await flagPart(false);
+    const gap = (a, b) => Math.max(...a.map((n, i) => Math.abs(n - b[i])));
+    check(gap(nativeColor, baseColor) > 2 * gap(softColor, baseColor), "dispose: the native highlight is the full repaint again, far stronger than the soft tint", `base ${baseColor}, soft ${softColor}, native ${nativeColor}`);
     const nativeFace = await page.evaluate(() => {
       const v = globalThis.__viewer, rect = v.renderer.domElement.getBoundingClientRect();
       v.idPicker.setDirty();

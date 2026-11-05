@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { installPartSelection, partName, type PartSelectionViewer } from "../src/part-selection";
+import { HOVER_TINT, installPartSelection, partName, SELECTED_TINT, softenHighlightShader, type PartSelectionViewer } from "../src/part-selection";
 
 const SELECTED = 1, HOVER = 2;
 const A = "/Group/a", B = "/Group/b";
@@ -13,6 +13,22 @@ const entries = [
   { id: 6, path: `${B}/edges/e1`, topo: "edge", solidPath: B },
   { id: 7, path: "/Group/wire/edges/e1", topo: "edge", solidPath: null },
 ];
+
+/** The engine's _install() for a material, with shader text in the engine's exact form. */
+function nativePatch(material: Record<string, unknown>) {
+  material.userData = { highlightPatched: true };
+  material.customProgramCacheKey = () => "hl:patchFaceMaterial::";
+  material.onBeforeCompile = (shader: { fragmentShader: string; vertexShader: string }) => {
+    shader.fragmentShader += "diffuseColor.rgb = uHighlightSelectedColor;diffuseColor.rgb = uHighlightHoverColor;";
+    shader.vertexShader += "uint hlEdgeState = highlightState();\n\t\t\t\toffset *= ((hlEdgeState & 2u) != 0u ? 5.0 : ((hlEdgeState & 1u) != 0u ? 3.0 : linewidth));";
+  };
+  return material;
+}
+const compiled = (material: { onBeforeCompile(shader: unknown, renderer: unknown): void }) => {
+  const shader = { vertexShader: "", fragmentShader: "" };
+  material.onBeforeCompile(shader, null);
+  return shader;
+};
 
 let frames: FrameRequestCallback[] = [];
 const runFrames = () => { while (frames.length) frames.splice(0).forEach(cb => cb(0)); };
@@ -34,8 +50,8 @@ function setup() {
   let hoverIds: number[] = [];
   const highlight = {
     setSelected: (id: number, flag: boolean) => set(id, SELECTED, flag),
-    patchFaceMaterial: vi.fn(),
-    patchEdgeMaterial: vi.fn(),
+    patchFaceMaterial: vi.fn(nativePatch),
+    patchEdgeMaterial: vi.fn(nativePatch),
     _applyHover: (_key: string, ids: number[]) => { hoverIds.forEach(id => set(id, HOVER, false)); hoverIds = ids; ids.forEach(id => set(id, HOVER, true)); },
   };
   const hidden = new Set<string>();
@@ -60,6 +76,7 @@ function setup() {
     hasAnimationLoop: false,
     idPicker,
     shapes: {},
+    getStates: undefined as undefined | (() => Record<string, number[]>),
     update: vi.fn(() => (viewer.pickingController as unknown as { handleHover(): void }).handleHover()),
     renderer: { domElement: canvas },
     rendered: { nestedGroup, controls: { isInteracting: () => interacting.value } },
@@ -159,14 +176,37 @@ describe("click selection", () => {
     t.click(100);
     expect(t.onSelection).toHaveBeenLastCalledWith([A]);
     expect(withBit(t.flags, SELECTED)).toEqual([1, 2, 3]);
-    t.click(110);
-    expect(t.onSelection).toHaveBeenCalledTimes(1);
     t.click(200);
     expect(t.onSelection).toHaveBeenLastCalledWith([B]);
     expect(withBit(t.flags, SELECTED)).toEqual([5, 6]);
     t.click(50);
     expect(t.onSelection).toHaveBeenLastCalledWith([]);
     expect(withBit(t.flags, SELECTED)).toEqual([]);
+  });
+
+  it("deselects on a second click, from any face or edge of the part", () => {
+    const t = setup();
+    t.click(100);
+    t.click(110);
+    expect(t.selection.paths()).toEqual([]);
+    expect(t.onSelection).toHaveBeenLastCalledWith([]);
+    expect(withBit(t.flags, SELECTED)).toEqual([]);
+    t.click(120); // An edge of the same part.
+    expect(t.selection.paths()).toEqual([A]);
+    t.click(100);
+    expect(t.selection.paths()).toEqual([]);
+    expect(t.onSelection).toHaveBeenCalledTimes(4);
+  });
+
+  it("a plain click on one of several selected parts deselects only that part, and on another part replaces them", () => {
+    const t = setup();
+    t.click(100);
+    t.click(200, { shiftKey: true });
+    t.click(100);
+    expect(t.selection.paths()).toEqual([B]);
+    t.click(100, { shiftKey: true });
+    t.click(300);
+    expect(t.selection.paths()).toEqual(["/Group/wire"]);
   });
 
   it("keeps hover and selection distinct", () => {
@@ -309,16 +349,30 @@ describe("gestures that are not clicks", () => {
 });
 
 describe("double-click", () => {
-  it("selects and references the part exactly once", () => {
+  it("references the part exactly once, without reselecting what its second click cleared", () => {
     const t = setup();
     t.click(100);
     t.click(110);
     t.dblclick();
-    expect(t.selection.paths()).toEqual([A]);
+    expect(t.selection.paths()).toEqual([]);
+    expect(withBit(t.flags, SELECTED)).toEqual([]);
+    expect(t.onSelection.mock.calls).toEqual([[[A]], [[]]]);
     expect(t.onReference).toHaveBeenCalledTimes(1);
     expect(t.onReference).toHaveBeenCalledWith(A);
     t.dblclick();
     expect(t.onReference).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves a part selected when the double-click started from selected", () => {
+    const t = setup();
+    t.click(100);
+    t.onSelection.mockClear();
+    t.click(100);
+    t.click(100);
+    t.dblclick();
+    expect(t.selection.paths()).toEqual([A]);
+    expect(t.onReference).toHaveBeenCalledExactlyOnceWith(A);
+    expect(t.onSelection).toHaveBeenCalledTimes(2);
   });
 
   it("ignores background, different parts, a drag, and modifiers", () => {
@@ -350,7 +404,7 @@ describe("Escape", () => {
     t.win.dispatchEvent(new Event("pointerdown"));
     t.key(t.doc.body);
     expect(t.selection.paths()).toEqual([A]); // The last press was elsewhere.
-    t.click(100);
+    t.click(200);
     expect(t.key(t.doc.body).defaultPrevented).toBe(true);
     expect(t.selection.paths()).toEqual([]);
     expect(t.onSelection).toHaveBeenLastCalledWith([]);
@@ -379,6 +433,22 @@ describe("lifecycle", () => {
     expect(withBit(t.flags, SELECTED)).toEqual([]);
   });
 
+  it("keeps a selected part whose faces are hidden while its edges are drawn, using optional getStates", () => {
+    const t = setup();
+    t.click(100);
+    t.hidden.add(A); // The engine's pickVisible() reads faces, so it now reports a false negative.
+    t.viewer.getStates = () => ({ [A]: [0, 1], [B]: [1, 1] });
+    t.selection.refresh();
+    expect(t.selection.paths()).toEqual([A]);
+    t.viewer.update();
+    runFrames();
+    expect(t.selection.paths()).toEqual([A]);
+    t.viewer.getStates = () => ({ [A]: [0, 0], [B]: [1, 1] });
+    t.selection.refresh();
+    expect(t.selection.paths()).toEqual([]);
+    expect(t.onSelection).toHaveBeenLastCalledWith([]);
+  });
+
   it("refresh() drops parts missing from a rebuilt scene and follows a new highlight controller", () => {
     const t = setup();
     t.click(100);
@@ -389,16 +459,80 @@ describe("lifecycle", () => {
     expect(t.selection.paths()).toEqual([A]);
   });
 
-  it("patches an analysis clone that lost its highlight shader, and leaves others alone", () => {
+  it("patches an analysis clone that lost its highlight shader, softens it, and leaves others alone", () => {
     const t = setup();
     const clone = { userData: { highlightPatched: true } };
     const line = { userData: { highlightPatched: true }, isLineMaterial: true };
-    const patched = { userData: { highlightPatched: true }, onBeforeCompile() {} };
+    const foreign = { userData: { highlightPatched: true }, onBeforeCompile() {} };
     const back = { userData: {} };
-    t.group.materials.push(clone, [line], patched, back);
+    t.group.materials.push(clone, [line], foreign, back);
     t.hover(100);
     expect(t.highlight.patchFaceMaterial).toHaveBeenCalledExactlyOnceWith(clone);
     expect(t.highlight.patchEdgeMaterial).toHaveBeenCalledExactlyOnceWith(line);
+    expect(compiled(clone as never).fragmentShader).not.toContain("diffuseColor.rgb = uHighlightSelectedColor;");
+    expect(compiled(line as never).vertexShader).toBe("offset *= linewidth;");
+    expect(Object.keys(back)).toEqual(["userData"]);
+  });
+
+  it("softens this viewer's materials once, and only the engine's highlight shader", () => {
+    const t = setup();
+    const native = nativePatch({ needsUpdate: false, color: "keep" }) as never as { onBeforeCompile: never; customProgramCacheKey(): string; needsUpdate: boolean; color: string };
+    const { onBeforeCompile: compile } = native;
+    const triplanar = { userData: { highlightPatched: true }, onBeforeCompile() {}, customProgramCacheKey: () => "triplanar" };
+    const points = Object.assign(nativePatch({}), { isPointsMaterial: true });
+    const pointsCompile = points.onBeforeCompile;
+    t.group.materials.push(native, triplanar, points);
+    const elsewhere = nativePatch({ needsUpdate: false }) as { needsUpdate: boolean; onBeforeCompile: unknown };
+    const elsewhereCompile = elsewhere.onBeforeCompile;
+    t.hover(200);
+    expect(native.needsUpdate).toBe(false); // Not touched until its part is.
+    t.hover(100);
+    expect(native.needsUpdate).toBe(true);
+    expect(native.customProgramCacheKey()).toBe("hl:patchFaceMaterial:::aad-soft-highlight");
+    const wrapper = native.onBeforeCompile;
+    expect(wrapper).not.toBe(compile);
+    t.hover(50);
+    t.click(100);
+    expect(native.onBeforeCompile).toBe(wrapper);
+    expect(native.color).toBe("keep");
+    expect(triplanar.customProgramCacheKey()).toBe("triplanar");
+    expect(points.onBeforeCompile).toBe(pointsCompile);
+    expect(elsewhere.onBeforeCompile).toBe(elsewhereCompile);
+    expect(elsewhere.needsUpdate).toBe(false);
+    expect(Object.hasOwn(Object.getPrototypeOf(native), "onBeforeCompile")).toBe(false);
+  });
+
+  it("dispose restores the native shader functions, and a later replacement survives", () => {
+    const t = setup();
+    const material = nativePatch({ needsUpdate: false }) as { onBeforeCompile: unknown; customProgramCacheKey(): string; needsUpdate: boolean };
+    const replaced = nativePatch({}) as { onBeforeCompile: unknown };
+    const { onBeforeCompile, customProgramCacheKey } = material;
+    t.group.materials.push(material, replaced);
+    t.click(100);
+    const later = () => {};
+    replaced.onBeforeCompile = later;
+    material.needsUpdate = false;
+    t.selection.dispose();
+    expect(material.onBeforeCompile).toBe(onBeforeCompile);
+    expect(material.customProgramCacheKey).toBe(customProgramCacheKey);
+    expect(material.needsUpdate).toBe(true);
+    expect(replaced.onBeforeCompile).toBe(later);
+    expect(compiled(material as never).fragmentShader).toContain("diffuseColor.rgb = uHighlightSelectedColor;");
+  });
+
+  it("restores and forgets a painted copy when the analysis view disposes it", () => {
+    const t = setup();
+    const listeners: (() => void)[] = [];
+    const copy = { userData: { highlightPatched: true }, addEventListener: (_: string, listener: () => void) => listeners.push(listener) } as { userData: object; onBeforeCompile?: unknown; addEventListener: unknown };
+    t.group.materials.push(copy);
+    t.hover(100);
+    const soft = copy.onBeforeCompile;
+    listeners[0]();
+    expect(copy.onBeforeCompile).not.toBe(soft);
+    t.hover(50);
+    t.group.materials.length = 0;
+    t.selection.dispose();
+    expect(listeners).toHaveLength(1);
   });
 
   it("uses double-sided face picking while back faces are drawn, as in a section", () => {
@@ -443,6 +577,35 @@ describe("lifecycle", () => {
 
 it("names a part from its path", () => {
   expect(partName("/Group/shaft assembly/gear")).toBe("gear");
+});
+
+describe("soft highlight shader", () => {
+  it("blends in the requested bands and keeps authored edge width", () => {
+    expect(SELECTED_TINT).toBeGreaterThanOrEqual(0.18);
+    expect(SELECTED_TINT).toBeLessThanOrEqual(0.24);
+    expect(HOVER_TINT).toBeGreaterThanOrEqual(0.08);
+    expect(HOVER_TINT).toBeLessThanOrEqual(0.12);
+    const shader = { vertexShader: "", fragmentShader: "" };
+    shader.fragmentShader = "diffuseColor.rgb = uHighlightSelectedColor; else diffuseColor.rgb = uHighlightHoverColor;";
+    shader.vertexShader = "uint hlEdgeState = highlightState();\n  offset *= (x ? 5.0 : (y ? 3.0 : linewidth));\nrest";
+    softenHighlightShader(shader);
+    const blend = (strength: number) => `pow(mix(pow(diffuseColor.rgb, vec3(1.0 / 2.2)), pow(mix(uHighlightSelectedColor, vec3(1.0), 0.35), vec3(1.0 / 2.2)), ${strength.toFixed(2)}), vec3(2.2))`;
+    expect(shader.fragmentShader).toContain(blend(SELECTED_TINT));
+    expect(shader.fragmentShader).toContain(blend(HOVER_TINT));
+    expect(shader.vertexShader).toBe("offset *= linewidth;\nrest");
+  });
+
+  it("matches the pinned engine's exact shader text", () => {
+    const engine = readFileSync("node_modules/three-cad-viewer/dist/three-cad-viewer.esm.js", "utf8");
+    for (const source of [
+      "diffuseColor.rgb = ${U_HIGHLIGHT_SELECTED_COLOR};",
+      "diffuseColor.rgb = ${U_HIGHLIGHT_HOVER_COLOR};",
+      "`uint hlEdgeState = highlightState();",
+      "const cacheKey = `hl:${where}:${variant}:${prevKey}`;",
+      'const U_HIGHLIGHT_SELECTED_COLOR = "uHighlightSelectedColor";',
+      'const U_HIGHLIGHT_HOVER_COLOR = "uHighlightHoverColor";',
+    ]) expect(engine).toContain(source);
+  });
 });
 
 it("the pinned engine still has the internals this relies on", () => {

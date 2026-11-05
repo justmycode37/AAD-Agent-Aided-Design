@@ -1,11 +1,35 @@
 // Chat-only whole-part hover and click selection on the CAD engine's own GPU picker and shader flags.
 // The engine's always-on hover tints one face from inside update(), so this replaces that hover on this
 // viewer instance only. Install it for simple controls; the local CAD window keeps native face picking.
+// The engine's highlight also repaints a part in one flat color and thickens its edges, which hides the
+// part's own color and detail, so this viewer's materials compile a soft tint instead, until disposal.
 
 const DRAG_TRAVEL_PX = 4;
 /** three.js FrontSide and DoubleSide. `three` is only a transitive dependency of the pinned engine. */
 const FRONT_SIDE = 0;
 const DOUBLE_SIDE = 2;
+
+/**
+ * How far a part's own color moves toward the tint, before lighting. The blend is done in display-like
+ * gamma: in linear color, 22% of a light tint repaints a color's dark channels and turns yellow to peach.
+ */
+export const SELECTED_TINT = 0.22;
+export const HOVER_TINT = 0.1;
+/** The engine's selection blue, lifted toward white, so the tint still shows on a blue part. */
+const TINT_LIFT = 0.35;
+const SOFT_CACHE_KEY = ":aad-soft-highlight";
+
+const softTint = (strength: number) =>
+  `diffuseColor.rgb = pow(mix(pow(diffuseColor.rgb, vec3(1.0 / 2.2)), pow(mix(uHighlightSelectedColor, vec3(1.0), ${TINT_LIFT}), vec3(1.0 / 2.2)), ${strength.toFixed(2)}), vec3(2.2));`;
+
+/** Rewrites the engine's highlight GLSL. A test holds these anchors to the pinned engine's source. */
+export function softenHighlightShader(shader: { vertexShader: string; fragmentShader: string }): void {
+  shader.fragmentShader = shader.fragmentShader
+    .replace("diffuseColor.rgb = uHighlightSelectedColor;", softTint(SELECTED_TINT))
+    .replace("diffuseColor.rgb = uHighlightHoverColor;", softTint(HOVER_TINT));
+  shader.vertexShader = shader.vertexShader
+    .replace(/uint hlEdgeState = highlightState\(\);\s*offset \*= [^;]*;/, "offset *= linewidth;");
+}
 
 interface ComponentInfo { id: number; path: string; topo: string; solidPath: string | null }
 
@@ -51,7 +75,10 @@ export interface PartSelectionViewer {
 export interface PartSelectionCallbacks {
   /** The selected leaf paths, as in `viewer.getStates()` and scene part paths, after every change. */
   onSelection(paths: string[]): void;
-  /** A double-click on one part. Only reports the path; sending anything is up to the caller. */
+  /**
+   * A double-click on one part. Only reports the path; sending anything is up to the caller. Its two clicks
+   * have already toggled the part, so a part that was not selected before ends up not selected.
+   */
   onReference(path: string): void;
 }
 
@@ -96,16 +123,11 @@ function indexParts(entries: Iterable<ComponentInfo>): Map<string, Part> {
  * Material.clone() keeps userData but not onBeforeCompile, so an analysis view's painted copies claim to
  * be highlight-patched while their shaders ignore the flags. Patching keeps their analysis color.
  */
-function repairHighlightPatches(group: NestedGroup["groups"][string], highlight: Highlight): void {
-  group?.traverse(object => {
-    const materials = Array.isArray(object.material) ? object.material : [object.material];
-    for (const material of materials) {
-      if (!material?.userData?.highlightPatched || Object.hasOwn(material, "onBeforeCompile")) continue;
-      material.userData.highlightPatched = false;
-      if (material.isLineMaterial) highlight.patchEdgeMaterial(material);
-      else highlight.patchFaceMaterial(material);
-    }
-  });
+function repairHighlightPatch(material: any, highlight: Highlight): void {
+  if (!material?.userData?.highlightPatched || Object.hasOwn(material, "onBeforeCompile")) return;
+  material.userData.highlightPatched = false;
+  if (material.isLineMaterial) highlight.patchEdgeMaterial(material);
+  else highlight.patchFaceMaterial(material);
 }
 
 export function installPartSelection(viewer: PartSelectionViewer, callbacks: PartSelectionCallbacks): PartSelection {
@@ -129,6 +151,8 @@ export function installPartSelection(viewer: PartSelectionViewer, callbacks: Par
   let ownRender = false;
   let stale = true;
   let disposed = false;
+  /** This viewer's materials compiling the soft tint, with the engine's functions to put back. */
+  const softened = new Map<any, { compile: unknown; nativeCompile: unknown; nativeKey: unknown; key: unknown }>();
 
   const nested = () => viewer.rendered.nestedGroup;
 
@@ -146,11 +170,49 @@ export function installPartSelection(viewer: PartSelectionViewer, callbacks: Par
     try { viewer.update(true, false); } finally { ownRender = false; }
   };
 
+  const restoreNative = (material: any) => {
+    const wrap = softened.get(material);
+    if (!wrap) return;
+    softened.delete(material);
+    // Something else may have replaced these since; that is not this module's to undo.
+    if (material.onBeforeCompile === wrap.compile) material.onBeforeCompile = wrap.nativeCompile;
+    if (material.customProgramCacheKey === wrap.key) material.customProgramCacheKey = wrap.nativeKey;
+    material.needsUpdate = true;
+  };
+
+  const soften = (material: any) => {
+    if (!material?.userData?.highlightPatched || material.isPointsMaterial || softened.has(material)) return;
+    const { onBeforeCompile: nativeCompile, customProgramCacheKey: nativeKey } = material;
+    // Only the engine's own highlight shader: its cache key names it. A studio material keeps its own.
+    if (!Object.hasOwn(material, "onBeforeCompile") || !String(nativeKey?.call(material)).startsWith("hl:")) return;
+    const compile = (shader: Parameters<typeof softenHighlightShader>[0], renderer: unknown) => {
+      nativeCompile.call(material, shader, renderer);
+      softenHighlightShader(shader);
+    };
+    const key = () => nativeKey.call(material) + SOFT_CACHE_KEY;
+    softened.set(material, { compile, nativeCompile, nativeKey, key });
+    material.onBeforeCompile = compile;
+    material.customProgramCacheKey = key;
+    material.needsUpdate = true;
+    // An analysis view disposes its painted copies with the view.
+    material.addEventListener?.("dispose", () => restoreNative(material));
+  };
+
+  /** Makes every material of a part show its highlight flags softly. Lazy, as most parts are never touched. */
+  const prepareHighlight = (path: string, highlight: Highlight) => {
+    nested().groups[path]?.traverse(object => {
+      for (const material of [object.material].flat()) {
+        repairHighlightPatch(material, highlight);
+        soften(material);
+      }
+    });
+  };
+
   const flagSelected = (path: string, flag: boolean) => {
     const highlight = nested().highlight;
     const part = parts().get(path);
     if (!highlight || !part) return;
-    if (flag) repairHighlightPatches(nested().groups[path], highlight);
+    if (flag) prepareHighlight(path, highlight);
     for (const id of part.ids) highlight.setSelected(id, flag);
   };
 
@@ -159,7 +221,7 @@ export function installPartSelection(viewer: PartSelectionViewer, callbacks: Par
     hovered = path;
     const highlight = viewer.ready ? nested().highlight : null;
     if (highlight) {
-      if (path) repairHighlightPatches(nested().groups[path], highlight);
+      if (path) prepareHighlight(path, highlight);
       highlight._applyHover(path ? `part:${path}` : "", path ? parts().get(path)?.ids ?? [] : []);
     }
     return true;
@@ -214,6 +276,7 @@ export function installPartSelection(viewer: PartSelectionViewer, callbacks: Par
     const highlight = nested().highlight;
     if (highlight !== highlightInUse) {
       highlightInUse = highlight;
+      softened.clear(); // The rebuilt scene has new materials.
       hovered = null;
       clicks = [];
       return setSelection([]);
@@ -290,7 +353,7 @@ export function installPartSelection(viewer: PartSelectionViewer, callbacks: Par
       changed = !!path && setSelection(selected.includes(path) ? selected.filter(p => p !== path) : [...selected, path]);
     } else if (path) {
       clicks = [...clicks, path].slice(-2);
-      changed = setSelection([path]);
+      changed = setSelection(selected.includes(path) ? selected.filter(p => p !== path) : [path]);
     } else {
       clicks = [];
       changed = setSelection([]);
@@ -309,7 +372,6 @@ export function installPartSelection(viewer: PartSelectionViewer, callbacks: Par
     const [first, second] = clicks;
     clicks = [];
     if (first === undefined || first !== second || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
-    if (setSelection([first])) { render(); notify(); }
     callbacks.onReference(first);
   };
 
@@ -398,8 +460,9 @@ export function installPartSelection(viewer: PartSelectionViewer, callbacks: Par
         syncFaceSide(FRONT_SIDE);
         setHover(null);
         setSelection([]);
-        render();
       }
+      [...softened.keys()].forEach(restoreNative);
+      if (viewer.ready) render();
     },
   };
 }
