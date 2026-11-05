@@ -28,6 +28,23 @@ def test_mesh_worker_returns_the_size_of_the_bounded_json_record():
     assert size == len(raw)
 
 
+def test_mesh_worker_bounds_decompression_and_reports_uncompressed_size(monkeypatch):
+    import zlib
+
+    from aad_render import render_limits
+
+    raw = b'{"render":{"note":"' + b"x" * 1000 + b'"}}'
+    wire = render_limits.RENDER_PAYLOAD_ZLIB_PREFIX + zlib.compress(raw, level=1)
+    monkeypatch.setattr(render_limits, "MAX_RENDER_PAYLOAD_BYTES", len(raw))
+    request, size = mesh_worker._read_request(BytesIO(wire))
+    assert request == {"render": {"note": "x" * 1000}}
+    assert size == len(raw)
+
+    monkeypatch.setattr(render_limits, "MAX_RENDER_PAYLOAD_BYTES", 128)
+    with pytest.raises(ValueError, match="render payload exceeds"):
+        mesh_worker._read_request(BytesIO(wire))
+
+
 def test_mesh_worker_rejects_nonfinite_json_constants():
     with pytest.raises(ValueError, match="non-finite"):
         mesh_worker._read_request(BytesIO(b'{"render":{"coordinate":NaN}}'))

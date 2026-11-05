@@ -232,9 +232,11 @@ def test_parent_reads_prepared_mesh_file_with_a_separate_size_cap_and_no_follow(
 
 def test_render_prepare_writes_only_mesh_to_bounded_sidecar(tmp_path, monkeypatch):
     from types import SimpleNamespace
+    import zlib
 
     import aad_render
     from aad_platform import ops
+    from aad_render import render_limits
 
     render = {
         "version": 1,
@@ -253,6 +255,8 @@ def test_render_prepare_writes_only_mesh_to_bounded_sidecar(tmp_path, monkeypatc
     assert prepared["render_payload_file"] == ops.PREPARED_RENDER_FILENAME
     payload_path = tmp_path / ops.PREPARED_RENDER_FILENAME
     payload_bytes = payload_path.read_bytes()
+    if payload_bytes.startswith(render_limits.RENDER_PAYLOAD_ZLIB_PREFIX):
+        payload_bytes = zlib.decompress(payload_bytes[len(render_limits.RENDER_PAYLOAD_ZLIB_PREFIX) :])
     assert payload_bytes == json.dumps({"render": render}, separators=(",", ":"), allow_nan=False).encode()
     assert json.loads(payload_bytes) == {"render": render}
 
@@ -264,6 +268,30 @@ def test_render_prepare_writes_only_mesh_to_bounded_sidecar(tmp_path, monkeypatc
     with pytest.raises(FileExistsError):
         ops.op_render_prepare(SimpleNamespace(kind="part"), {}, symlink_out)
     assert target.read_bytes() == b"keep"
+
+
+def test_render_prepare_compresses_a_large_mesh_sidecar(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    import zlib
+
+    import aad_render
+    from aad_platform import ops
+    from aad_render import render_limits
+
+    render = {
+        "version": 1,
+        "request": {"backend": "vtk", "views": ["iso"], "style": "shaded", "labels": "none"},
+        "scene": {"repeated": "x" * 10_000},
+    }
+    monkeypatch.setattr(aad_render, "prepare_render", lambda _ctx, _request: {
+        "version": 1, "render": render, "inspection": {}
+    })
+
+    ops.op_render_prepare(SimpleNamespace(kind="part"), {}, tmp_path)
+    payload = (tmp_path / ops.PREPARED_RENDER_FILENAME).read_bytes()
+    assert payload.startswith(render_limits.RENDER_PAYLOAD_ZLIB_PREFIX)
+    raw = zlib.decompress(payload[len(render_limits.RENDER_PAYLOAD_ZLIB_PREFIX) :])
+    assert json.loads(raw) == {"render": render}
 
 
 @pytest.mark.parametrize(("fd", "stream"), [(1, "stdout"), (2, "stderr")])

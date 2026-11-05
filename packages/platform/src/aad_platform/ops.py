@@ -14,6 +14,7 @@ import os
 import shutil
 import stat
 import sys
+import zlib
 from collections.abc import Callable, Mapping
 from numbers import Real
 from pathlib import Path
@@ -170,6 +171,7 @@ def op_render_prepare(ctx: Any, args: dict[str, Any], _out: Path) -> dict[str, A
         MAX_INSPECTION_JSON_BYTES,
         MAX_PREPARED_RENDER_BYTES,
         MAX_RENDER_PAYLOAD_BYTES,
+        RENDER_PAYLOAD_ZLIB_PREFIX,
         json_size_limited,
     )
 
@@ -181,6 +183,12 @@ def op_render_prepare(ctx: Any, args: dict[str, Any], _out: Path) -> dict[str, A
     ).encode("utf-8")
     if len(render_bytes) > MAX_RENDER_PAYLOAD_BYTES:
         raise ValueError(f"render payload exceeds the {MAX_RENDER_PAYLOAD_BYTES}-byte limit")
+    compressed = zlib.compress(render_bytes, level=1)
+    render_wire_bytes = (
+        RENDER_PAYLOAD_ZLIB_PREFIX + compressed
+        if len(RENDER_PAYLOAD_ZLIB_PREFIX) + len(compressed) < len(render_bytes)
+        else render_bytes
+    )
 
     # The large mesh bypasses worker stdout and the parent's JSON decoder. The
     # fixed sidecar lives in the operation's write-only job directory; stdout
@@ -195,7 +203,7 @@ def op_render_prepare(ctx: Any, args: dict[str, Any], _out: Path) -> dict[str, A
         "render_payload_file": PREPARED_RENDER_FILENAME,
     }
     json_size_limited(metadata, MAX_PREPARED_RENDER_BYTES, "prepared render result")
-    _write_prepared_render_payload(_out, render_bytes)
+    _write_prepared_render_payload(_out, render_wire_bytes)
     return {"prepared_render": metadata}
 
 

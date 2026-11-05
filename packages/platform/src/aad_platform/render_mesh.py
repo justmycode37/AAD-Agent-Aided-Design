@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import zlib
 from pathlib import Path
 from typing import Any
 
@@ -17,13 +18,25 @@ def _reject_json_constant(token: str) -> None:
 
 def _read_request(stream: Any) -> tuple[dict[str, Any], int]:
     """Read bounded, strict JSON from the parent before constructing Python objects."""
-    from aad_render.render_limits import MAX_RENDER_PAYLOAD_BYTES
+    from aad_render.render_limits import MAX_RENDER_PAYLOAD_BYTES, RENDER_PAYLOAD_ZLIB_PREFIX
 
-    raw = stream.read(MAX_RENDER_PAYLOAD_BYTES + 1)
-    if not isinstance(raw, bytes):
+    wire_data = stream.read(MAX_RENDER_PAYLOAD_BYTES + 1)
+    if not isinstance(wire_data, bytes):
         raise ValueError("render request must be read as bytes")
-    if len(raw) > MAX_RENDER_PAYLOAD_BYTES:
+    if len(wire_data) > MAX_RENDER_PAYLOAD_BYTES:
         raise ValueError(f"render payload exceeds the {MAX_RENDER_PAYLOAD_BYTES}-byte limit")
+    if wire_data.startswith(RENDER_PAYLOAD_ZLIB_PREFIX):
+        decompressor = zlib.decompressobj()
+        try:
+            raw = decompressor.decompress(wire_data[len(RENDER_PAYLOAD_ZLIB_PREFIX) :], MAX_RENDER_PAYLOAD_BYTES + 1)
+        except zlib.error as exc:
+            raise ValueError("render payload compression is invalid") from exc
+        if len(raw) > MAX_RENDER_PAYLOAD_BYTES or decompressor.unconsumed_tail:
+            raise ValueError(f"render payload exceeds the {MAX_RENDER_PAYLOAD_BYTES}-byte limit")
+        if not decompressor.eof or decompressor.unused_data:
+            raise ValueError("render payload compression is incomplete or has trailing data")
+    else:
+        raw = wire_data
     request = json.loads(raw, parse_constant=_reject_json_constant)
     if not isinstance(request, dict) or set(request) != {"render"} or not isinstance(request["render"], dict):
         raise ValueError("mesh renderer request must contain one render object")

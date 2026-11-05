@@ -11,6 +11,7 @@ MAX_RENDER_PANES = 4
 # The 492-part hexarotor payload measured about 291 MB at 512 px. This leaves
 # room for larger assemblies while keeping untrusted JSON transfers bounded.
 MAX_RENDER_PAYLOAD_BYTES = 384 * 1024 * 1024
+RENDER_PAYLOAD_ZLIB_PREFIX = b"AADZ"
 # The prepare worker writes the mesh to a bounded sidecar; stdout carries only
 # inspection plus small request metadata.
 MAX_PREPARED_RENDER_BYTES = 36 * 1024 * 1024
