@@ -33,6 +33,39 @@ def test_material_lookup_is_exact_and_defensive():
     assert library("get", kind="material", id="PLA")["found"] is False
 
 
+@pytest.mark.parametrize(("query", "material_id"), [
+    ("ABS", "abs"), ("PETG", "petg"), ("nylon PA12", "pa12"),
+    ("6061 aluminium", "aluminum_6061"), ("aluminium 7075", "aluminum_7075"),
+    ("5052", "aluminum_5052"), ("stainless 316", "stainless_316_14401"),
+    ("ASA", "asa"), ("TPU", "tpu"), ("polycarbonate", "polycarbonate"),
+    ("acetal", "pom_c"), ("4140", "steel_4140"), ("C360 brass", "brass_c360"),
+    ("C110 copper", "copper_c110"), ("Ti64", "titanium_ti64"),
+    ("FR-4", "fr4"), ("PMMA acrylic", "pmma"), ("EPDM", "epdm"),
+    ("Clear Resin V5", "sla_clear_v5"), ("O1 tool steel", "tool_steel_o1"),
+    ("carbon fiber plate", "carbon_fiber_exel_extens"),
+])
+def test_material_search_resolves_common_alias_terms(query, material_id):
+    results = library("search", kind="material", query=query)
+    ids = {item["id"] for item in results["items"]}
+    assert material_id in ids
+    if "316" in query:
+        assert "stainless_304_4301" not in ids
+
+
+@pytest.mark.parametrize("query", ["aluminium", "rubber", "resin", "nylon"])
+def test_broad_material_search_results_are_marked_ambiguous(query):
+    result = library("search", kind="material", query=query)
+    assert result["items"]
+    assert all(item["ambiguous"] is True for item in result["items"])
+
+
+def test_specific_material_search_is_marked_unambiguous_and_delrin_is_not_pom_c():
+    specific = library("search", kind="material", query="nylon PA12")
+    assert specific["items"][0]["id"] == "pa12"
+    assert specific["items"][0]["ambiguous"] is False
+    assert library("search", kind="material", query="Delrin")["items"] == []
+
+
 def test_curved_modeling_recipes_are_discoverable_and_build_single_solids():
     import re
     from aad._runtime import configure_params

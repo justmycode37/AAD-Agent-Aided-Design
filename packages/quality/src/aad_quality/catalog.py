@@ -99,7 +99,8 @@ def _entries(kind: str) -> list[dict[str, Any]]:
     if kind == "material":
         from .materials import list_materials
         return [{**item, "title": item["name"], "summary": item["definition"],
-                 "tags": ["density", "nominal", item["id"]]} for item in list_materials()]
+                 "tags": ["density", "nominal", item["id"], *item.get("aliases", [])]}
+                for item in list_materials()]
     if kind == "part":
         from .standard_parts import list_parts
         return list_parts()
@@ -182,7 +183,12 @@ def library(action: str, *, kind: str | None = None, query: str | None = None,
     wants_screw = re.search(r"\bm\d+(?:\.\d+)?x\d", (query or "").casefold()) is not None
     for entry in entries:
         # Every component shares this boilerplate, so it must not make a query match.
-        haystack = json.dumps({k: v for k, v in entry.items() if k not in ("limitations", "evidence")}, ensure_ascii=False).casefold()
+        searchable = {k: v for k, v in entry.items() if k not in ("limitations", "evidence")}
+        if entry["kind"] == "material":
+            # Keep source URLs, density prose, and provenance out of alias search:
+            # digits in URLs must not make (for example) 316 match a 304 grade.
+            searchable = {k: entry[k] for k in ("id", "title", "summary", "tags") if k in entry}
+        haystack = json.dumps(searchable, ensure_ascii=False).casefold()
         # The index mentions every family, so it should only answer queries about itself.
         if entry["id"] == "component.index" and terms and _rank(terms, entry) <= 0:
             continue
@@ -200,10 +206,20 @@ def library(action: str, *, kind: str | None = None, query: str | None = None,
     matches.sort(key=lambda pair: (-pair[0], pair[1]["kind"] == "component", pair[1]["kind"], pair[1]["id"]))
     start = offset or 0
     summaries = []
+    material_matches = [entry for _, entry in matches if entry["kind"] == "material"]
+    broad_material_terms = {
+        "nylon", "rubber", "resin", "aluminium", "aluminum", "stainless",
+        "steel", "acetal", "plastic", "metal",
+    }
+    material_query_is_broad = len(terms) == 1 and terms[0] in broad_material_terms
     for _, entry in matches[start:start + _SEARCH_LIMIT]:
         summary = {"id": entry["id"], "kind": entry["kind"],
                    "title": entry.get("title", entry.get("name", entry["id"])),
                    "summary": entry.get("summary", "")[:180]}
+        if entry["kind"] == "material" and terms:
+            summary["ambiguous"] = (
+                material_query_is_broad or len(material_matches) > 1
+            )
         if entry["kind"] == "component" and "evidence" in entry:
             summary["evidence"] = entry["evidence"]["status"]
         summaries.append(summary)

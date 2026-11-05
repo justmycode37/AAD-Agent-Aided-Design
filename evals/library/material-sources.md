@@ -54,3 +54,49 @@ Catalog IDs are exact lookups. The PLA ID is scoped to one named resin grade; th
 - [Outokumpu Core Range Datasheet: Stainless Steels for Corrosive Environments](https://www.outokumpu.com/sv-se/products/product-ranges/-/media/files/products/core/outokumpu-core-range-datasheet.pdf?modified=20251117111909&revision=025e9931-a1d5-4c8f-8ff5-f881d38916da)
 
 **Assumptions and limits:** This is bulk density for the named wrought stainless grade, treated as a fully dense solid. Voids, porosity, scale, coatings, plating, corrosion, surface water, and other contamination are not modeled. The ID does not alias 304L/4307, 304LN/4311, 316, or another stainless grade. The datasheet gives a grade-level density and separate temperature-dependent physical properties; this catalog applies no temperature correction. Actual part mass is not guaranteed.
+
+
+## Additional source-checked entries (retrieved 2026-11-05)
+
+| Catalog ID | Scoped material | Density as printed | Source |
+|---|---|---:|---|
+| `abs` | Ensinger TECARAN ABS grey stock | 1.04 g/cm3 | [Ensinger product page](https://www.ensingerplastics.com/en-gb/shapes/tecaran-abs-grey) |
+| `pa12` | Ensinger TECAMID 12 natural, unfilled | 1.02 g/cm³ | [Ensinger product page](https://www.ensingerplastics.com/en/shapes/pa12-tecamid-12-natural) |
+| `petg` | PET G, Amsler & Frey supplier datasheet | 1.27 g/cm3 | [Technical datasheet](https://www.shop.amsler-frey.ch/en?category=24&cmd=generate_datasheet) |
+| `aluminum_5052` | Wrought alloy 5052, temper unspecified | 2.68 (kg/m³ × 10³) | [Aluminum Association Teal Sheets, December 2025](https://www.aluminum.org/sites/default/files/2026-01/Teal%20Sheets%20December%202025.pdf) |
+| `aluminum_7075` | Wrought alloy 7075, temper unspecified | 2.81 (kg/m³ × 10³) | [Aluminum Association Teal Sheets, December 2025](https://www.aluminum.org/sites/default/files/2026-01/Teal%20Sheets%20December%202025.pdf) |
+
+The Teal Sheets figures are numerically g/cm³ when expressed as listed ×10³ kg/m³. PETG is grade/supplier-specific rather than a universal polymer density. ABS and PA12 likewise identify the named Ensinger stock grades. For all entries, mass calculation treats the B-rep as fully dense; printing infill, porosity, conditioning, additives, and finished-part variation are not represented. No density temperature correction is made where the source gives no reference temperature.
+
+## Additional source-checked entries (retrieved 2026-11-05)
+
+| Catalog ID | Scoped material | Density as printed | Source |
+|---|---|---:|---|
+| `asa` | Spectrum THE FILAMENT ASA | Specific gravity 1.07 g/cm3 (ASTM D792) | [Spectrum ASA technical data sheet](https://spectrumfilaments.com/wp-content/uploads/2025/09/en_tds_the_filament_asa.pdf) |
+| `tpu` | Covestro Desmopan 9380A GMP | 1110 kg/m3 (ISO 1183-1), represented as 1.11 g/cm3 | [Covestro product data](https://solutions.covestro.com/en/products/desmopan/desmopan-9380a-gmp_000000000084876844) |
+| `polycarbonate` | Ensinger TECANAT natural, unfilled PC | 1.19 g/cm3 | [Ensinger product page](https://www.ensingerplastics.com/en-gb/shapes/polycarbonate-tecanat-natural) |
+| `pom_c` | Ensinger TECAFORM AH natural, unfilled POM-C | 1.41 g/cm3 | [Ensinger product page](https://www.ensingerplastics.com/en-us/shapes/acetal-tecaform-ah-natural) |
+| `stainless_316_14401` | Outokumpu Supra 316/4401, EN 1.4401 / UNS S31600 | 8.0 kg/dm3 | [Current Outokumpu Supra datasheet](https://www.outokumpu.com/-/media/files/products/supra/outokumpu-supra-range-datasheet.pdf?hash=8720C1FF12682806AF1BBC27E00209E0&modified=20251117111951&revision=7a909396-d1f3-4d36-9c1c-99606be41fd2) |
+| `steel_s235` | S235JR / EN 1.0038 structural steel | 7.85 g/cm3 | [Xometry S235JR datasheet](https://xometry.eu/wp-content/uploads/2021/02/Steel-1.0038.pdf) |
+| `steel_4140` | AISI/SAE 4140 Cr-Mo alloy steel | 7.85 g/cm3 | [NORAMARK 4140 reference](https://www.noramark.com/resources/materials/4140-steel/) |
+| `brass_c360` | bedra UNS C36000 free-cutting brass | 8.5 g/cm3 at 20°C | [bedra C36000 product data](https://www.bedra.com/asia/products/bedra-rod-bar-new/high-speed-free-cutting-alloys/c36000/) |
+| `copper_c110` | Kanthal C11000 ETP copper wire | 8.89 g/cm3 | [Kanthal C11000 data sheet](https://www.kanthal.com/en/products/datasheets/material-datasheets/wire/conductive-wire/c11000-etp/) |
+| `titanium_ti64` | Ti-6Al-4V Grade 5 / UNS R56400 | 4.43 g/cm3 at 20°C | [METALCOR Grade 5 datasheet](https://www.metalcor.de/en/datenblatt/125/) |
+| `fr4` | Eagle FR-4 glass epoxy laminate | 1.85 g/cm^3 (ASTM D792) | [Eagle FR-4 data](https://eagle-plastics.com/materials/fr-4/) |
+| `pmma` | Ensinger cast acrylic sheet, PMMA | 1.2 g/cm3 | [Ensinger cast acrylic datasheet](https://www.ensingerplastics.com/-/media/ensinger/files/document-teaser-files/uk-documents/datasheet-cast-acrylic-sheet-en.pdf?rev=3424c3eb184d4d6d9234d1e70b344976) |
+| `silicone_rubber` | Dow SILASTIC DY 32-5107 U, as cured | 1.16 g/cm3 | [Dow product page](https://www.dow.com/en-us/pdp.silastic%E2%84%A2%2Bdy%2B32-5107%2Bu%2Bsilicone%2Brubber.03270564z.html) |
+| `epdm` | MacLellan C653 peroxide-cured EPDM, 70 Shore A | Specific gravity 1.23 g/cm3 | [MacLellan product page](https://www.maclellanrubber.com/product/c653-70-shore-a-peroxide-cured-epdm-rubber-sheeting) |
+
+The values are limited to the listed product or grade, not all members of each polymer or alloy family. Values printed in kg/dm3 or kg/m3 are represented in the catalog as numerically equivalent g/cm3 values. As with the other entries, the mass estimate assumes a fully dense solid B-rep and does not model print infill or the as-manufactured condition.
+
+## Further named datasheet-backed entries (retrieved 2026-11-05)
+
+| Catalog ID | Scoped material | Density as printed | Source |
+|---|---|---:|---|
+| `sla_clear_v5` | Formlabs Clear Resin V5, SLA resin | 1.21 g/cm³ for both listed post-cure conditions (ASTM D792) | [Formlabs Clear Resin V5 technical data sheet](https://formlabs-media.formlabs.com/filer_public/dd/7f/dd7f3de9-55ae-4c82-ac52-408a4b5df64d/clear_resin_v5_tds___formlabs.pdf) |
+| `tool_steel_o1` | O1 / UNS T31501 tool steel | Specific gravity 7.83; density 0.283 lb/in³ | [Gautier O1 Tool Steel technical data sheet](https://static1.squarespace.com/static/677d87c404e5393add2a5270/t/67ee9fe783efe55296ec16f6/1743691751153/GSM%2BO1%2BTool%2BSteel.pdf) |
+| `carbon_fiber_exel_extens` | Exel EXTENS pultruded unidirectional carbon fibre strengthening plate; 68 vol-% fibre | 1.6 g/cm3 | [Exel EXTENS technical datasheet](https://exelcomposites.com/wp-content/uploads/2020/06/EN_Exel-Extens-Technical-Datasheet.pdf) |
+
+For O1, the catalog uses the sheet's specific gravity as the nominal g/cm³ equivalent and retains the printed imperial density in this evidence note. The Exel value is specific to the named pultruded plate, not a generic density for all carbon-fibre laminates.
+
+The Formlabs Clear Resin V5 datasheet reports 1.21 g/cm³ for printed specimens at two post-cure conditions. It states that test coupons were printed on a Form 4, washed for five minutes in at least 99% IPA, and post-cured as indicated. The catalog therefore scopes this value to the datasheet's washed, post-cured printed material, not uncured liquid resin. The model's fully dense B-rep calculation does not account for print settings or part-specific porosity.
