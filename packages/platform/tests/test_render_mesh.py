@@ -21,6 +21,13 @@ def test_mesh_worker_caps_json_bytes_before_parsing(monkeypatch):
         mesh_worker._read_request(BytesIO(raw))
 
 
+def test_mesh_worker_returns_the_size_of_the_bounded_json_record():
+    raw = b'{"render":{"version":1}}'
+    request, size = mesh_worker._read_request(BytesIO(raw))
+    assert request == {"render": {"version": 1}}
+    assert size == len(raw)
+
+
 def test_mesh_worker_rejects_nonfinite_json_constants():
     with pytest.raises(ValueError, match="non-finite"):
         mesh_worker._read_request(BytesIO(b'{"render":{"coordinate":NaN}}'))

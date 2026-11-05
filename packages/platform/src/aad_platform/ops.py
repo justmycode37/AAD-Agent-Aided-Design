@@ -175,7 +175,6 @@ def op_render_prepare(ctx: Any, args: dict[str, Any], _out: Path) -> dict[str, A
 
     if not isinstance(prepared, dict) or set(prepared) != {"version", "render", "inspection"}:
         raise ValueError("render preparation returned a malformed bundle")
-    json_size_limited(prepared["render"], MAX_RENDER_PAYLOAD_BYTES, "render payload")
     json_size_limited(prepared["inspection"], MAX_INSPECTION_JSON_BYTES, "render inspection")
     render_bytes = json.dumps(
         {"render": prepared["render"]}, separators=(",", ":"), allow_nan=False

@@ -608,6 +608,20 @@ def test_render_payload_byte_limit_is_enforced(tmp_path, monkeypatch):
     assert not (tmp_path / "output").exists()
 
 
+def test_bounded_worker_payload_skips_a_second_full_json_walk(tmp_path, monkeypatch):
+    import aad_render.agent_render as agent_render
+
+    monkeypatch.setattr(
+        agent_render._limits,
+        "json_size_limited",
+        lambda *_args, **_kwargs: pytest.fail("worker payload was already byte-capped before JSON parsing"),
+    )
+    with pytest.raises(ValueError, match="unexpected fields"):
+        agent_render._render_mesh_from_bounded_json({"version": 1}, tmp_path / "output", 16)
+
+    assert not (tmp_path / "output").exists()
+
+
 def _capture_render(monkeypatch, ctx, req, out):
     from aad_render import agent_render
 

@@ -15,7 +15,7 @@ def _reject_json_constant(token: str) -> None:
     raise ValueError(f"non-finite JSON number {token} is not allowed")
 
 
-def _read_request(stream: Any) -> dict[str, Any]:
+def _read_request(stream: Any) -> tuple[dict[str, Any], int]:
     """Read bounded, strict JSON from the parent before constructing Python objects."""
     from aad_render.render_limits import MAX_RENDER_PAYLOAD_BYTES
 
@@ -27,7 +27,7 @@ def _read_request(stream: Any) -> dict[str, Any]:
     request = json.loads(raw, parse_constant=_reject_json_constant)
     if not isinstance(request, dict) or set(request) != {"render"} or not isinstance(request["render"], dict):
         raise ValueError("mesh renderer request must contain one render object")
-    return request
+    return request, len(raw)
 
 
 def main() -> int:
@@ -36,11 +36,11 @@ def main() -> int:
     os.dup2(2, 1)
     try:
         out = Path(sys.argv[1])
-        request = _read_request(sys.stdin.buffer)
-        from aad_render import render_mesh
+        request, payload_size = _read_request(sys.stdin.buffer)
+        from aad_render.agent_render import _render_mesh_from_bounded_json
         from aad_render.render_limits import MAX_RENDER_RESULT_BYTES, json_size_limited
 
-        rendered = render_mesh(request["render"], out)
+        rendered = _render_mesh_from_bounded_json(request["render"], out, payload_size)
         result = {"ok": True, "rendered": _plain(rendered)}
         json_size_limited(result, MAX_RENDER_RESULT_BYTES, "render result")
     except Exception as exc:

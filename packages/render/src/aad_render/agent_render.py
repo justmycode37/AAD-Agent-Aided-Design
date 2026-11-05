@@ -466,9 +466,31 @@ def _validate_prepared_scene_limits(
 
 def render_mesh(payload: dict[str, Any], out: Path) -> dict[str, Any]:
     """Render a prepared mesh and return view metadata; this payload contains no B-rep report."""
+    _validate_render_payload_size(payload)
+    return _render_mesh_payload(payload, out)
+
+
+def _render_mesh_from_bounded_json(payload: dict[str, Any], out: Path, serialized_size: int) -> dict[str, Any]:
+    """Render JSON that the worker already read under its byte limit."""
+    _validate_render_payload_size(payload, serialized_size=serialized_size)
+    return _render_mesh_payload(payload, out)
+
+
+def _validate_render_payload_size(payload: Any, *, serialized_size: int | None = None) -> None:
     if not isinstance(payload, dict) or payload.get("version") != 1:
         raise ValueError("unsupported prepared render payload version")
-    _limits.json_size_limited(payload, _limits.MAX_RENDER_PAYLOAD_BYTES, "render payload")
+    if serialized_size is None:
+        _limits.json_size_limited(payload, _limits.MAX_RENDER_PAYLOAD_BYTES, "render payload")
+    elif (
+        isinstance(serialized_size, bool)
+        or not isinstance(serialized_size, int)
+        or serialized_size < 0
+        or serialized_size > _limits.MAX_RENDER_PAYLOAD_BYTES
+    ):
+        raise ValueError(f"render payload exceeds the {_limits.MAX_RENDER_PAYLOAD_BYTES}-byte limit")
+
+
+def _render_mesh_payload(payload: dict[str, Any], out: Path) -> dict[str, Any]:
     if set(payload) != {"version", "request", "scene", "labels", "legend", "heat_legend", "overlay", "pictures", "clip_box"}:
         raise ValueError("prepared render payload has unexpected fields")
     request = _validate_render_request(payload["request"])
