@@ -3,7 +3,7 @@ from __future__ import annotations
 import xml.etree.ElementTree as ET
 from types import SimpleNamespace
 
-from build123d import Box
+from build123d import Axis, Box, Cylinder, Pos, Rot, fillet
 import pytest
 
 from aad_drafting import DrawingRequest, make_drawing
@@ -45,6 +45,42 @@ def test_text_layout_uses_real_glyph_metrics():
     assert measured is not None
     assert measured.width == pytest.approx(wide)
     assert measured.ymin <= 20 < measured.ymax
+
+
+def test_housing_drawing_has_measured_hole_section_and_revision_callouts(tmp_path):
+    outer = fillet(Box(120, 80, 50).edges().filter_by(Axis.Z), radius=8)
+    cavity = fillet((Pos(0, 0, 1.5) * Box(114, 74, 47)).edges().filter_by(Axis.Z), radius=5)
+    shape = (outer - cavity) + Pos(0, 0, -27.5) * Box(150, 90, 5)
+    for x in (-65, 65):
+        for y in (-35, 35):
+            shape -= Pos(x, y, -27.5) * Cylinder(2.2, 7)
+            shape -= Pos(x, y, -26) * Cylinder(4.5, 2)
+    shape += Pos(66, 0, 0) * Rot(0, 90, 0) * Cylinder(22, 12)
+    shape -= Pos(66, 0, 0) * Rot(0, 90, 0) * Cylinder(16, 60)
+    result = make_drawing(
+        SimpleNamespace(shape=shape, units="mm", rev=7),
+        {
+            "sheet": "A3",
+            "views": ["front", "top", "right", "iso", {"name": "A", "kind": "section", "plane": "XZ", "offset": 0}],
+            "dimensions": "auto",
+            "formats": ["svg", "png"],
+        },
+        tmp_path,
+    )
+    assert result.ok, result.checks
+    assert {("wall_thickness", 3.0), ("cavity_depth", 47.0)} <= {
+        (dimension["kind"], dimension["value"]) for dimension in result.dimensions
+    }
+    root = ET.parse(result.artifacts["svg"]).getroot()
+    labels = " ".join(item.text or "" for item in root.findall(".//{http://www.w3.org/2000/svg}text"))
+    labels = " ".join(labels.split())
+    for expected in ("4X DIA 9 x 2, DIA 4.4 THRU", "DIA 32", "DIA 44", "WALL 3", "CAVITY 47", "AAD-R7", "REVISION: 7"):
+        assert expected in labels
+    hole_callout = next(d for d in result.dimensions if d["kind"] == "hole_diameter")
+    assert hole_callout["counterbore_diameter"] == pytest.approx(9.0)
+    assert hole_callout["counterbore_depth"] == pytest.approx(2.0)
+    assert "X1 SHEET SCALE" not in labels
+    assert result.preview.is_file()
 
 
 def test_notes_revision_table_title_and_bom_wrap_without_truncation(tmp_path):

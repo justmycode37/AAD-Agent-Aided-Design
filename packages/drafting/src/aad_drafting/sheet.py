@@ -407,6 +407,8 @@ def _hole_diameter_dimensions(
 ) -> list[dict[str, Any]]:
     result = []
     for group in _hole_groups(holes, indices):
+        counterbores = {(hole.counterbore_diameter, hole.counterbore_depth) for hole in group}
+        counterbore_diameter, counterbore_depth = next(iter(counterbores)) if len(counterbores) == 1 else (None, None)
         result.append(
             _dimension_record(
                 kind="hole_diameter",
@@ -425,6 +427,10 @@ def _hole_diameter_dimensions(
                 ),
             )
         )
+        if counterbore_diameter is not None and counterbore_depth is not None:
+            result[-1]["counterbore_diameter"] = counterbore_diameter
+            result[-1]["counterbore_depth"] = counterbore_depth
+            result[-1]["source"]["counterbore"] = "coaxial interior cylindrical face radius and axial length"
     return result
 
 
@@ -1026,7 +1032,17 @@ def _draw_hole_dimensions(
             _arrowed_hole_leader(entities,path,diameter["id"])
             leader_ids.add(diameter["id"])
 
-        entities.append(text(label, label_x, label_y, 2.8, "DIMENSIONS", dimension_id=diameter["id"]))
+        visible_label = label.replace("⌴ ", "   ")
+        entities.append(text(visible_label, label_x, label_y, 2.8, "DIMENSIONS", dimension_id=diameter["id"]))
+        if diameter.get("counterbore_diameter") is not None:
+            prefix = f"{diameter.get('count') or 1}X " if (diameter.get("count") or 1) > 1 else ""
+            symbol_x = label_x + text_width_mm(prefix, 2.8)
+            symbol = (
+                line(symbol_x, label_y + 1.0, symbol_x, label_y - 0.7, "DIMENSIONS", 0.18),
+                line(symbol_x, label_y - 0.7, symbol_x + 1.7, label_y - 0.7, "DIMENSIONS", 0.18),
+                line(symbol_x + 1.7, label_y - 0.7, symbol_x + 1.7, label_y + 1.0, "DIMENSIONS", 0.18),
+            )
+            entities.extend(symbol)
 
     return leader_ids
 
@@ -1044,6 +1060,138 @@ def _sheet_frame(entities: list[Primitive], width: float, height: float) -> None
             line(x0, y1, x0, y0, "BORDER", 0.3),
         ]
     )
+
+
+def _draw_cylinder_diameter_callouts(entities, placed, dimensions, units):
+    """Place measured axial-cylinder diameters on a view looking down their axis."""
+    candidates = [d for d in dimensions if d.get("kind") == "cylinder_size" and d.get("full_circle")]
+    by_view = {name: [] for name in placed}
+    for dimension in candidates:
+        axis = dimension["source"].get("axis")
+        origin = dimension["source"].get("axis_origin")
+        if not axis or not origin:
+            continue
+        if abs(axis[2]) > 0.98:
+            continue  # Axial Z features are already annotated with the top-view hole callouts/table.
+        view = next((item for item in placed.values()
+                     if abs(sum(axis[i] * item.projection.direction[i] for i in range(3))) > 0.98), None)
+        if view is None:
+            continue
+        station = (dimension["source"]["station_min"] + dimension["source"]["station_max"]) / 2
+        origin_station = sum(axis[i] * origin[i] for i in range(3))
+        center = tuple(origin[i] + axis[i] * (station - origin_station) for i in range(3))
+        point = _sheet_point(view, project_point(center, view.projection))
+        by_view[view.projection.name].append((dimension, point))
+    for name, values in by_view.items():
+        for index, (dimension, point) in enumerate(values):
+            view = placed[name]
+            end = (view.bounds.xmax + 4.0, view.bounds.ymax - 6.0 - index * 6.0)
+            entities.append(replace(line(*point, *end, "DIMENSIONS", 0.16), dimension_id=dimension["id"]))
+            entities.append(text(f"DIA {dimension['value']:g}", end[0] + 1.5, end[1], 2.8,
+                                 "DIMENSIONS", dimension_id=dimension["id"]))
+
+
+def _section_geometry_dimensions(shape, bounds, views, units):
+    """Measure orthogonal cavity walls and depth from section bounding planes."""
+    from OCP.BRepAdaptor import BRepAdaptor_Surface
+    from OCP.GeomAbs import GeomAbs_Plane
+    from OCP.TopAbs import TopAbs_REVERSED
+
+    sections = [view for view in views if view.kind == "section"]
+    if not sections:
+        return []
+    section_planes = {str(getattr(view, "plane", "") or "").upper() for view in sections}
+    planes: dict[int, list[tuple[float, int, float, int]]] = {0: [], 1: [], 2: []}
+    for index, face in enumerate(shape.faces()):
+        surface = BRepAdaptor_Surface(getattr(face, "wrapped", face))
+        if surface.GetType() != GeomAbs_Plane:
+            continue
+        plane = surface.Plane()
+        direction = plane.Axis().Direction()
+        axis = max(range(3), key=lambda i: abs((direction.X(), direction.Y(), direction.Z())[i]))
+        vector = (direction.X(), direction.Y(), direction.Z())
+        if abs(vector[axis]) < 0.999999:
+            continue
+        position = (plane.Location().X(), plane.Location().Y(), plane.Location().Z())[axis]
+        orientation = -1.0 if getattr(face, "wrapped", face).Orientation() == TopAbs_REVERSED else 1.0
+        planes[axis].append((float(position), index, vector[axis] * orientation, len(face.wires())))
+
+    open_cavity_top = False
+    for face in shape.faces():
+        surface = BRepAdaptor_Surface(getattr(face, "wrapped", face))
+        if surface.GetType() != GeomAbs_Plane:
+            continue
+        plane = surface.Plane()
+        direction = plane.Axis().Direction()
+        if direction.Z() < 0.999999 or abs(plane.Location().Z() - bounds.zmax) > 1e-5:
+            continue
+        for wire in face.wires()[1:]:
+            wire_size = wire.bounding_box().size
+            if wire_size.X >= bounds.size[0] * 0.5 and wire_size.Y >= bounds.size[1] * 0.5:
+                open_cavity_top = True
+                break
+        if open_cavity_top:
+            break
+    if not open_cavity_top:
+        return []
+
+    result = []
+    wall_axes = (0,) if "XZ" in section_planes else (1,) if "YZ" in section_planes else (0, 1)
+    for axis in wall_axes:
+        groups: dict[float, list[int]] = {}
+        normals: dict[float, float] = {}
+        for position, index, normal, _ in planes[axis]:
+            groups.setdefault(round(position, 6), []).append(index)
+            normals[round(position, 6)] = normal
+        positions = sorted(groups)
+        gaps = [(right-left, left, right, groups[left][0], groups[right][0])
+                for left, right in zip(positions, positions[1:])
+                if right-left > 0.5 and normals[left] * normals[right] < 0]
+        if gaps:
+            value, low, high, low_face, high_face = min(gaps)
+            a = [0.0, 0.0, (bounds.zmin+bounds.zmax)/2]
+            b = list(a); a[axis] = low; b[axis] = high
+            result.append({"kind": "wall_thickness", "value": value, "axis": "xyz"[axis],
+                "unit": units, "display": f"WALL {value:g}", "id": f"wall.{'xyz'[axis]}.{low_face}.{high_face}",
+                "source": {"type": "distance_between_parallel_planar_faces", "face_indices": [low_face, high_face], "measurement": "absolute plane offset difference", "points": [a,b]}})
+            break
+
+    z_groups: dict[float, list[int]] = {}
+    z_normals: dict[float, float] = {}
+    z_wires: dict[float, int] = {}
+    for position, index, normal, wire_count in planes[2]:
+        z_groups.setdefault(round(position, 6), []).append(index)
+        z_normals[round(position, 6)] = normal
+        z_wires[round(position, 6)] = max(z_wires.get(round(position, 6), 0), wire_count)
+    z_positions = sorted(z_groups)
+    top_z = max(z_positions) if z_positions else None
+    z_gaps = [(right-left, left, right, z_groups[left][0], z_groups[right][0])
+              for left, right in zip(z_positions, z_positions[1:])
+              if right-left > 0.5 and right == top_z and z_wires[right] > 1
+              and z_normals[left] * z_normals[right] > 0]
+    if z_gaps and ("XZ" in section_planes or "YZ" in section_planes):
+        value, low, high, low_face, high_face = max(z_gaps)
+        points = [[0.0, 0.0, low], [0.0, 0.0, high]]
+        result.append({"kind": "cavity_depth", "value": value, "axis": "z", "unit": units,
+            "display": f"CAVITY {value:g}", "id": f"cavity.z.{low_face}.{high_face}",
+            "source": {"type": "distance_between_parallel_planar_faces", "face_indices": [low_face, high_face], "measurement": "section top plane - cavity floor plane", "points": points}})
+    return result
+
+
+def _draw_section_dimensions(entities, placed, dimensions, views):
+    section = next((view for view in views if view.kind == "section" and view.name in placed), None)
+    if section is None:
+        return
+    pane = placed[section.name]
+    for index, dimension in enumerate(d for d in dimensions if d["kind"] in {"wall_thickness", "cavity_depth"}):
+        points = dimension["source"].get("points")
+        if not points:
+            continue
+        first, last = [_sheet_point(pane, project_point(tuple(point), pane.projection)) for point in points]
+        middle = ((first[0]+last[0])/2, (first[1]+last[1])/2)
+        label_point = (pane.bounds.xmax + 5.0, pane.bounds.ymax - 5.0 - 6.0 * index)
+        entities.append(line(*middle, *label_point, "DIMENSIONS", 0.16))
+        entities.append(text(dimension["display"], *label_point, 2.8, "DIMENSIONS", dimension_id=dimension["id"]))
 
 
 def _view_label_entities(
@@ -1128,9 +1276,16 @@ def _view_markers(entities, shape, placed, request):
             entities.append(line(*start, *end, layer="SECTION_MARKERS", width=0.3, dash=True))
             dx, dy = end[0]-start[0], end[1]-start[1]
             length = math.hypot(dx,dy)
-            nx, ny = -dy/length, dx/length
-            for x,y in (start,end):
-                entities.append(line(x,y,x+3*nx,y+3*ny,layer="SECTION_MARKERS",width=0.3))
+            nx = sum(trace.normal[i] * parent.projection.right[i] for i in range(3))
+            ny = sum(trace.normal[i] * parent.projection.up[i] for i in range(3))
+            normal_length = math.hypot(nx, ny)
+            if normal_length > 1e-9:
+                nx, ny = nx / normal_length, ny / normal_length
+                for tip in (start, end):
+                    base = (tip[0] - 3.0 * nx, tip[1] - 3.0 * ny)
+                    wing = (0.9 * ny, -0.9 * nx)
+                    entities.append(line(*tip, base[0] + wing[0], base[1] + wing[1], layer="SECTION_MARKERS", width=0.3))
+                    entities.append(line(*tip, base[0] - wing[0], base[1] - wing[1], layer="SECTION_MARKERS", width=0.3))
             label = spec.label or spec.name.upper()
             width, height = SHEET_SIZES_MM[request.sheet]
             candidates = [
@@ -1497,6 +1652,8 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
             view = replace(view, direction=direction, up=up)
         resolved.append(view)
     request = replace(request, views=tuple(resolved))
+    if not planar and request.dimensions == "auto":
+        dimensions.extend(_section_geometry_dimensions(shape, bounds, request.views, units))
     projections = (planar["projection"],) if planar else tuple(project_drawing_view(shape, view) for view in request.views)
     page_width, page_height = SHEET_SIZES_MM[request.sheet]
     unit_factor = UNIT_TO_MM[units]
@@ -1566,6 +1723,8 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
         page_height,
     )
     entities[first_hole_entity:]=[replace(e,view_name="top") for e in entities[first_hole_entity:]]
+    _draw_cylinder_diameter_callouts(entities, placed, dimensions, units)
+    _draw_section_dimensions(entities, placed, dimensions, request.views)
     marker_start = len(entities)
     _view_markers(entities, shape, placed, request)
     marker_geometry = [entity for entity in entities[marker_start:] if entity.kind != "text"]

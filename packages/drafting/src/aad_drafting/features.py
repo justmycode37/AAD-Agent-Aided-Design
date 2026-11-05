@@ -172,6 +172,7 @@ def cylindrical_schedule(shape, bounds, holes, units="mm"):
         ids=[]
         for name,value in zip(names,values):
             record={**raw,"id":feature.id+"."+name,"kind":"cylinder_"+name,"value":float(value),"axis":axis_label}
+            record["full_circle"] = feature.full_circle
             record["source"]={**raw["source"],"axis":list(feature.axis),"axis_origin":list(feature.axis_origin),
                               "datum":datum,"station_min":feature.station_min,"station_max":feature.station_max,
                               "measurement":raw["source"]["measurement"] if name=="size" else
