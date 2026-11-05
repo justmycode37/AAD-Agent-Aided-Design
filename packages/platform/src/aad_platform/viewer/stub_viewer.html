@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AAD viewer (M0 stub)</title>
 <style>
-  html, body { margin: 0; height: 100%; background: transparent; color: #d7dde4; font: 12px/1.4 ui-monospace, Menlo, monospace; }
+  html, body { margin: 0; background: transparent; color: #d7dde4; font: 12px/1.4 ui-monospace, Menlo, monospace; }
   #wrap { position: relative; height: 480px; border-radius: 20px; overflow: hidden; background: #14181d; }
-  body.fullscreen #wrap { height: 100vh; }
+  body.fullscreen #wrap { height: var(--aad-fullscreen-height, 480px); }
   canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
   #hud { position: absolute; left: 8px; top: 8px; right: 8px; pointer-events: none; white-space: pre-wrap; }
   #fs { position: absolute; right: 8px; bottom: 8px; display: none; background: #2a3138; color: inherit; border: 1px solid #47525c; border-radius: 4px; padding: 4px 8px; font: inherit; cursor: pointer; }
@@ -60,12 +60,13 @@
   function onHostContext(context) {
     const mode = context.displayMode;
     if (mode) document.body.classList.toggle("fullscreen", mode === "fullscreen");
+    document.body.style.setProperty("--aad-fullscreen-height", `${window.innerHeight}px`);
     resize();
     reportSize();
   }
 
   function reportSize() {
-    notify("ui/notifications/size-changed", { width: document.documentElement.clientWidth, height: document.getElementById("wrap").offsetHeight });
+    notify("ui/notifications/size-changed", { width: document.documentElement.clientWidth, height: Math.ceil(document.documentElement.getBoundingClientRect().height) });
   }
 
   async function init() {
@@ -95,6 +96,20 @@
 
   // Local window: the same UI over the daemon's same-origin routes (CONTRACTS section 8).
   const localWindow = window.__AAD_WINDOW__;
+  const embeddedScene = window.__AAD_EMBEDDED_SCENE__;
+
+  // HTML-only hosts can bundle a local SVG asset. Its metadata contains the exact
+  // compressed scene bytes, not a second tessellation or a reduced display mesh.
+  async function initEmbedded() {
+    state.host = "embedded scene";
+    const { manifest, asset } = embeddedScene;
+    if (!asset.startsWith("data:image/svg+xml;base64,")) throw new Error("Bundle the scene asset before displaying this HTML");
+    const svg = new DOMParser().parseFromString(new TextDecoder().decode(base64ToBytes(asset.split(",")[1])), "image/svg+xml");
+    const payload = svg.getElementById("aad-scene");
+    if (!payload) throw new Error("Scene asset has no AAD payload");
+    show("project", `${manifest.project} rev ${manifest.rev} | status ${manifest.status}`);
+    await displayScene(base64ToBytes(payload.textContent.trim()), manifest, performance.now(), "bundled scene");
+  }
   async function callTool(name, args) {
     if (!localWindow) return request("tools/call", { name, arguments: args });
     const response = await fetch("/rpc", {
@@ -174,6 +189,11 @@
     let at = 0;
     for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.length; }
     if (at !== total) throw new Error(`expected ${total} bytes, got ${at}`);
+    await displayScene(bytes, manifest, started, `${offsets.length} chunks`);
+  }
+
+  async function displayScene(bytes, manifest, started, transfer) {
+    if (bytes.length !== manifest.total_bytes) throw new Error(`expected ${manifest.total_bytes} bytes, got ${bytes.length}`);
     let hashNote = "sha256 not checked (no crypto.subtle)";
     if (window.crypto && crypto.subtle) {
       const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
@@ -184,7 +204,12 @@
     const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
     const tree = await new Response(stream).json();
     const count = draw(tree);
-    show("scene", `${count} triangles | ${total} bytes in ${offsets.length} chunks | ${hashNote} | ${(performance.now() - started).toFixed(0)} ms`);
+    if (manifest.triangles !== undefined && count !== manifest.triangles) throw new Error(`expected ${manifest.triangles} triangles, got ${count}`);
+    canvas.dataset.sceneId = manifest.scene_id;
+    canvas.dataset.triangles = String(count);
+    canvas.dataset.integrity = hashNote;
+    show("scene", `${count} triangles | ${bytes.length} bytes | ${transfer} | ${hashNote} | ${(performance.now() - started).toFixed(0)} ms`);
+    show("controls", "Drag to rotate · Scroll to zoom");
   }
 
   // Minimal WebGL renderer: flat shading, orbit, zoom.
@@ -310,7 +335,11 @@
     camera.distance = Math.max(radius * 1.1, camera.distance * Math.exp(e.deltaY * 0.001));
     render();
   }, { passive: false });
-  window.addEventListener("resize", resize);
+  window.addEventListener("resize", () => {
+    document.body.style.setProperty("--aad-fullscreen-height", `${window.innerHeight}px`);
+    resize();
+    if (!embeddedScene) reportSize();
+  });
 
   try {
     if (!gl) throw new Error("WebGL is not available in this host");
@@ -318,7 +347,7 @@
     resize();
     show("webgl", `WebGL ok: ${gl.getParameter(gl.VERSION)}`);
   } catch (error) { show("webgl", `WebGL failed: ${error.message}`, true); }
-  (localWindow ? initWindow() : init()).catch((error) => show("host", `viewer start failed: ${error.message}`, true));
+  (embeddedScene ? initEmbedded() : localWindow ? initWindow() : init()).catch((error) => show("host", `viewer start failed: ${error.message}`, true));
 })();
 </script>
 </body>

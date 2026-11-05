@@ -34,6 +34,12 @@ def _package_roots() -> list[Path]:
                 # Editable installs keep playbooks outside src; workers need the
                 # same read-only guidance that is bundled into release wheels.
                 roots.append(Path(str(_guidance_root())))
+                # The catalog checks this marker to locate editable guidance.
+                # Linux mount namespaces also need the file for is_file(), while
+                # macOS already grants file-read-metadata outside read subpaths.
+                marker = Path(spec.origin).parents[2] / "pyproject.toml"
+                if marker.is_file():
+                    roots.append(marker)
     return roots
 
 

@@ -1,0 +1,66 @@
+import base64
+import gzip
+import hashlib
+import json
+from xml.etree import ElementTree
+
+import pytest
+
+from aad_platform.viewer.bundle import export_bundle
+
+
+@pytest.fixture
+def saved_scene(tmp_path):
+    source = tmp_path / "scene"
+    source.mkdir()
+    # Sub-millimetre coordinates and the original JSON bytes must survive export.
+    payload = gzip.compress(b'{ "vertices": [0.000123456, 1.23456789, -0.98765432], "triangles": [0, 1, 2] }')
+    manifest = {
+        "scene_id": hashlib.sha256(payload).hexdigest(),
+        "total_bytes": len(payload),
+        "triangles": 1,
+        "project": "original",
+        "rev": 3,
+        "status": "draft",
+        "parts": [{"name": "gear", "path": "/gear"}],
+    }
+    (source / "scene.bin.gz").write_bytes(payload)
+    (source / "scene.json").write_text(json.dumps(manifest))
+    return source, payload, manifest
+
+
+def test_bundle_preserves_original_scene_bytes_and_complete_manifest(saved_scene, tmp_path):
+    source, payload, manifest = saved_scene
+    viewer = export_bundle(source, tmp_path / "export")
+    html = viewer.read_text()
+    config = json.loads(html.split("window.__AAD_EMBEDDED_SCENE__ = ", 1)[1].split(";</script>", 1)[0])
+    assert config["manifest"] == manifest
+    asset = ElementTree.parse(config["asset"])
+    metadata = asset.find("{http://www.w3.org/2000/svg}metadata")
+    assert metadata.attrib == {"id": "aad-scene", "encoding": "base64+gzip"}
+    assert base64.b64decode(metadata.text) == payload
+    assert (source / "scene.bin.gz").read_bytes() == payload
+
+
+@pytest.mark.parametrize("field,value,message", [
+    ("total_bytes", 0, "size"),
+    ("scene_id", "0" * 64, "hash"),
+])
+def test_bundle_rejects_corrupt_source_before_writing(saved_scene, tmp_path, field, value, message):
+    source, _, manifest = saved_scene
+    manifest[field] = value
+    (source / "scene.json").write_text(json.dumps(manifest))
+    output = tmp_path / "export"
+    with pytest.raises(ValueError, match=message):
+        export_bundle(source, output)
+    assert not output.exists()
+
+
+def test_bundle_manifest_cannot_end_its_script(saved_scene, tmp_path):
+    source, _, manifest = saved_scene
+    manifest["project"] = '</script><script>alert("injected")</script>'
+    (source / "scene.json").write_text(json.dumps(manifest))
+    viewer = export_bundle(source, tmp_path / "export")
+    config_text = viewer.read_text().split("window.__AAD_EMBEDDED_SCENE__ = ", 1)[1].split(";</script>", 1)[0]
+    assert "</script>" not in config_text
+    assert json.loads(config_text)["manifest"] == manifest
