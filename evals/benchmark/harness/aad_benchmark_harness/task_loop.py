@@ -15,6 +15,7 @@ from .types import (
     ProviderAdapter,
     PublicStageProjection,
     RunConfig,
+    SpendConsent,
     TrialResult,
 )
 
@@ -62,9 +63,10 @@ async def run_agent_task_loop(
     isolation_preflight: IsolationPreflight,
     *,
     provider: ProviderAdapter | None = None,
+    spend_consent: SpendConsent | None = None,
     monotonic: Callable[[], float] = time.monotonic,
 ) -> TaskTrialResult:
-    """Run all public stages with one conversation and task-wide hard budgets.
+    """Run all public stages with one conversation and task-wide budget accounting.
 
     An intermediate ``benchmark_finish`` is returned to the provider as a
     synthetic tool result, then the next public request is appended. The
@@ -127,11 +129,14 @@ async def run_agent_task_loop(
                 trace_path=stage_trace,
             )
 
-            # The first trial validates preflight before constructing an SDK
-            # adapter. The factory itself makes no request; every paid API
-            # request is still gated by the owning CLI's explicit consent.
+            # Validate preflight before adapter construction; the shared
+            # factory separately requires explicit spend consent on every path.
             if provider_adapter is None and not isolation_preflight.failure_reasons(stage_config):
-                provider_adapter = create_provider_adapter(config.provider, config.model)
+                provider_adapter = create_provider_adapter(
+                    config.provider,
+                    config.model,
+                    spend_consent=spend_consent,
+                )
             next_stage = stages[index + 1] if index + 1 < len(stages) else None
             set_stage = getattr(backend, "set_stage", None)
             if callable(set_stage):
@@ -142,6 +147,7 @@ async def run_agent_task_loop(
                 backend,
                 isolation_preflight,
                 provider=provider_adapter,
+                spend_consent=spend_consent,
                 initialize_provider=index == 0,
                 next_stage=next_stage,
                 monotonic=monotonic,

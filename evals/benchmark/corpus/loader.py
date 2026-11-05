@@ -205,11 +205,23 @@ def _check_typed(check: Any, where: str, asset_ids: set[str]) -> dict[str, Any]:
         "bbox_mm": ({"ranges"}, set()),
         "volume_mm3": ({"range"}, set()),
         "solids": ({"equals"}, set()),
-        "point_material": ({"point_mm", "equals"}, set()),
+        "point_material": ({"point_mm", "equals"}, {"additional_points_mm"}),
         "cylindrical_bores": ({"bores"}, set()),
         "clearance_mm": ({"asset_id", "range"}, set()),
         "asset_match": ({"asset_id", "symmetric_difference_volume_mm3", "surface_distance_mm"}, set()),
-        "dxf_profile": (set(), {"cut_layers", "contour_count", "closed_contours", "circles", "extents_mm", "segments"}),
+        "dxf_profile": (
+            set(),
+            {
+                "cut_layers",
+                "contour_count",
+                "closed_contours",
+                "circles",
+                "circle_patterns",
+                "regular_polygon",
+                "extents_mm",
+                "segments",
+            },
+        ),
         "drawing_dimensions": ({"dimensions", "required_views"}, set()),
         "clarification": (set(), {"missing", "conflicts"}),
         # Extensions are documented in COVERAGE.md. They are bounded until the
@@ -230,11 +242,11 @@ def _check_typed(check: Any, where: str, asset_ids: set[str]) -> dict[str, Any]:
         ),
         "rotational_pattern": (
             {"axis_mm", "center_mm", "count", "pitch_radius_mm", "feature_centers_mm", "tolerance_mm"},
-            set(),
+            {"feature_tip_radius_mm"},
         ),
         "linear_pattern": (
             {"axis_mm", "feature_centers_mm", "feature_width_mm", "feature_kind", "tolerance_mm"},
-            set(),
+            {"axis_options_mm", "scan_point_mm", "spacing_tolerance_mm"},
         ),
     }
     if kind not in schemas:
@@ -253,6 +265,12 @@ def _check_typed(check: Any, where: str, asset_ids: set[str]) -> dict[str, Any]:
             _fail(f"{where}.equals", "must be a positive integer")
     elif kind == "point_material":
         _vector(payload["point_mm"], f"{where}.point_mm")
+        if "additional_points_mm" in payload:
+            points = payload["additional_points_mm"]
+            if not isinstance(points, list) or not points:
+                _fail(f"{where}.additional_points_mm", "must be a nonempty list")
+            for index, point in enumerate(points):
+                _vector(point, f"{where}.additional_points_mm[{index}]")
         if not isinstance(payload["equals"], str) or payload["equals"] not in {"solid", "void"}:
             _fail(f"{where}.equals", "must be solid or void")
     elif kind == "cylindrical_bores":
@@ -300,9 +318,52 @@ def _check_typed(check: Any, where: str, asset_ids: set[str]) -> dict[str, Any]:
             for index, circle in enumerate(circles):
                 circle_where = f"{where}.circles[{index}]"
                 circle = _object(circle, circle_where)
-                _keys(circle, {"center_mm", "diameter_mm"}, set(), circle_where)
+                _keys(circle, {"center_mm", "diameter_mm"}, {"center_tolerance_mm"}, circle_where)
                 _point2(circle["center_mm"], f"{circle_where}.center_mm")
                 _range(circle["diameter_mm"], f"{circle_where}.diameter_mm", positive=True)
+                if "center_tolerance_mm" in circle and _finite(
+                    circle["center_tolerance_mm"], f"{circle_where}.center_tolerance_mm"
+                ) < 0:
+                    _fail(f"{circle_where}.center_tolerance_mm", "must be nonnegative")
+        if "circle_patterns" in payload:
+            patterns = payload["circle_patterns"]
+            if not isinstance(patterns, list) or not patterns:
+                _fail(f"{where}.circle_patterns", "must be a nonempty list")
+            for index, pattern in enumerate(patterns):
+                pattern_where = f"{where}.circle_patterns[{index}]"
+                pattern = _object(pattern, pattern_where)
+                _keys(
+                    pattern,
+                    {"center_mm", "count", "pitch_radius_mm", "diameter_mm", "center_tolerance_mm"},
+                    {"equally_spaced"},
+                    pattern_where,
+                )
+                _point2(pattern["center_mm"], f"{pattern_where}.center_mm")
+                count = pattern["count"]
+                if isinstance(count, bool) or not isinstance(count, int) or count < 1:
+                    _fail(f"{pattern_where}.count", "must be a positive integer")
+                _range(pattern["pitch_radius_mm"], f"{pattern_where}.pitch_radius_mm", positive=True)
+                _range(pattern["diameter_mm"], f"{pattern_where}.diameter_mm", positive=True)
+                if _finite(pattern["center_tolerance_mm"], f"{pattern_where}.center_tolerance_mm") < 0:
+                    _fail(f"{pattern_where}.center_tolerance_mm", "must be nonnegative")
+                if "equally_spaced" in pattern and not isinstance(pattern["equally_spaced"], bool):
+                    _fail(f"{pattern_where}.equally_spaced", "must be a boolean")
+        if "regular_polygon" in payload:
+            polygon = _object(payload["regular_polygon"], f"{where}.regular_polygon")
+            polygon_where = f"{where}.regular_polygon"
+            _keys(
+                polygon,
+                {"vertex_count", "center_mm", "across_flats_mm", "tolerance_mm"},
+                set(),
+                polygon_where,
+            )
+            count = polygon["vertex_count"]
+            if isinstance(count, bool) or not isinstance(count, int) or count < 4 or count % 2:
+                _fail(f"{polygon_where}.vertex_count", "must be an even integer of at least four")
+            _point2(polygon["center_mm"], f"{polygon_where}.center_mm")
+            _range(polygon["across_flats_mm"], f"{polygon_where}.across_flats_mm", positive=True)
+            if _finite(polygon["tolerance_mm"], f"{polygon_where}.tolerance_mm") < 0:
+                _fail(f"{polygon_where}.tolerance_mm", "must be nonnegative")
         if "extents_mm" in payload:
             extents = payload["extents_mm"]
             if not isinstance(extents, list) or len(extents) != 2:
@@ -394,6 +455,8 @@ def _check_typed(check: Any, where: str, asset_ids: set[str]) -> dict[str, Any]:
             _fail(f"{where}.feature_centers_mm", "must contain one center per repeated feature")
         for index, center in enumerate(centers):
             _vector(center, f"{where}.feature_centers_mm[{index}]")
+        if "feature_tip_radius_mm" in payload:
+            _range(payload["feature_tip_radius_mm"], f"{where}.feature_tip_radius_mm", positive=True)
         if _finite(payload["tolerance_mm"], f"{where}.tolerance_mm") < 0:
             _fail(f"{where}.tolerance_mm", "must be nonnegative")
     elif kind == "linear_pattern":
@@ -403,11 +466,25 @@ def _check_typed(check: Any, where: str, asset_ids: set[str]) -> dict[str, Any]:
             _fail(f"{where}.feature_centers_mm", "must contain at least two feature centers")
         for index, center in enumerate(centers):
             _vector(center, f"{where}.feature_centers_mm[{index}]")
+        if "axis_options_mm" in payload:
+            axes = payload["axis_options_mm"]
+            if not isinstance(axes, list) or len(axes) < 2:
+                _fail(f"{where}.axis_options_mm", "must contain at least two candidate axes")
+            for index, axis in enumerate(axes):
+                _vector(axis, f"{where}.axis_options_mm[{index}]", unit=True)
+            if "scan_point_mm" not in payload:
+                _fail(f"{where}.scan_point_mm", "is required when candidate axes are used")
+        if "scan_point_mm" in payload:
+            _vector(payload["scan_point_mm"], f"{where}.scan_point_mm")
         _range(payload["feature_width_mm"], f"{where}.feature_width_mm", positive=True)
         if not isinstance(payload["feature_kind"], str) or payload["feature_kind"] not in {"solid", "void"}:
             _fail(f"{where}.feature_kind", "must be solid or void")
         if _finite(payload["tolerance_mm"], f"{where}.tolerance_mm") < 0:
             _fail(f"{where}.tolerance_mm", "must be nonnegative")
+        if "spacing_tolerance_mm" in payload and _finite(
+            payload["spacing_tolerance_mm"], f"{where}.spacing_tolerance_mm"
+        ) < 0:
+            _fail(f"{where}.spacing_tolerance_mm", "must be nonnegative")
 
     _finite_tree(check, where)
     return dict(check)

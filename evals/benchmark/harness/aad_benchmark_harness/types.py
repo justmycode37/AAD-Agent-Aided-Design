@@ -10,6 +10,26 @@ from typing import Any, Literal, Mapping, Protocol, Sequence, runtime_checkable
 ProviderFamily = Literal["openai", "anthropic"]
 TrialOrigin = Literal["live", "mock", "custom"]
 
+
+@dataclass(frozen=True)
+class SpendConsent:
+    """Explicit caller authorization required before a live provider adapter is created."""
+
+    confirmed: bool
+    source: str
+
+    def __post_init__(self) -> None:
+        if type(self.confirmed) is not bool or self.confirmed is not True:
+            raise ValueError("SpendConsent can only represent explicit positive confirmation")
+        if self.source != "cli:--confirm-spend":
+            raise ValueError("SpendConsent must originate from the explicit --confirm-spend flag")
+
+    @classmethod
+    def from_cli_flag(cls, confirmed: bool) -> "SpendConsent":
+        if type(confirmed) is not bool or not confirmed:
+            raise PermissionError("explicit --confirm-spend consent is required before provider use")
+        return cls(confirmed=True, source="cli:--confirm-spend")
+
 PRIVATE_PROJECTION_KEYS = {
     "oracle",
     "expected_outcome",

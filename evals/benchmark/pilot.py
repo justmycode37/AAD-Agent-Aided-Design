@@ -1,9 +1,9 @@
 """Outcome-blind 20-task AAD pilot with real MCP stdio and an optional fake model.
 
-The only paid path is the CLI's normal provider path. It prints a token-price
-ceiling and exits before launching a provider unless ``--confirm-spend`` is
-present. ``--offline-smoke`` uses a scripted in-process provider and a real AAD
-stdio adapter/daemon; it makes no provider request.
+The cost-accounted live path prints a token-price estimate and exits before
+launching a provider unless ``--confirm-spend`` is present. The shared provider
+factory independently enforces an explicit spend-consent object. The offline
+smoke uses a scripted in-process provider and a real AAD stdio adapter/daemon.
 """
 
 from __future__ import annotations
@@ -50,6 +50,7 @@ from .harness.aad_benchmark_harness.types import (
     ProviderTurn,
     PublicStageProjection,
     RunConfig,
+    SpendConsent,
     ToolInvocationResult,
     ToolSpec,
     UsageReceipt,
@@ -84,6 +85,9 @@ _BACKEND_SOURCE_FILES = (
     "packages/platform/src/aad_platform/tools.py",
     "evals/benchmark/harness/aad_benchmark_harness/loop.py",
     "evals/benchmark/harness/aad_benchmark_harness/task_loop.py",
+    "evals/benchmark/harness/aad_benchmark_harness/providers.py",
+    "evals/benchmark/harness/aad_benchmark_harness/types.py",
+    "evals/benchmark/harness/aad_benchmark_harness/cli.py",
     "evals/benchmark/oracles.py",
     "evals/benchmark/audit_process.py",
     "evals/benchmark/audit_worker.py",
@@ -902,6 +906,82 @@ def _audit_from_dict(value: Mapping[str, Any]) -> TaskAudit:
     )
 
 
+def _false_verified_task_observation(
+    record: Mapping[str, Any],
+    *,
+    task_id: str,
+    arm_id: str,
+) -> AuditObservation:
+    """Join each native verification claim to its own stage audit.
+
+    The predeclared sampling unit remains one task. A task is bad only when a
+    stage that itself claimed native verification fails its matching audit;
+    a later, unverified edit failure cannot retroactively falsify an earlier
+    stage's verified claim.
+    """
+    audit = record.get("audit")
+    audit = audit if isinstance(audit, Mapping) else {}
+    task_verdict = str(audit.get("verdict", "indeterminate"))
+    task_coverage = str(audit.get("coverage", "bounded"))
+    trial = record.get("trial")
+
+    if not isinstance(trial, Mapping):
+        native_verified: bool | None = None
+        verdict, coverage = task_verdict, task_coverage
+    else:
+        stage_audits = {
+            str(stage.get("stage_id")): stage
+            for stage in audit.get("stages", [])
+            if isinstance(stage, Mapping) and stage.get("stage_id") is not None
+        }
+        verified_stage_ids = []
+        for stage_result in trial.get("stage_results", []):
+            if not isinstance(stage_result, Mapping):
+                continue
+            claims = stage_result.get("native_verified_claims", [])
+            if isinstance(claims, list) and claims:
+                verified_stage_ids.append(str(stage_result.get("stage_id", "")))
+
+        if verified_stage_ids:
+            native_verified = True
+            stage_verdicts = []
+            stage_coverages = []
+            for stage_id in verified_stage_ids:
+                stage_audit = stage_audits.get(stage_id)
+                if stage_audit is None:
+                    stage_verdicts.append("indeterminate")
+                    stage_coverages.append("bounded")
+                    continue
+                stage_verdict = str(stage_audit.get("verdict", "indeterminate"))
+                stage_coverage = str(stage_audit.get("effective_coverage", stage_audit.get("coverage", "bounded")))
+                if stage_verdict == "good" and stage_coverage != "complete":
+                    stage_verdict = "indeterminate"
+                stage_verdicts.append(stage_verdict)
+                stage_coverages.append(stage_coverage)
+            verdict = (
+                "bad" if "bad" in stage_verdicts
+                else "indeterminate" if "indeterminate" in stage_verdicts
+                else "good"
+            )
+            coverage = "complete" if stage_coverages and all(item == "complete" for item in stage_coverages) else "bounded"
+        elif trial.get("completed") is True:
+            native_verified = False
+            verdict, coverage = task_verdict, task_coverage
+        else:
+            native_verified = None
+            verdict, coverage = task_verdict, task_coverage
+
+    return AuditObservation(
+        task_id=task_id,
+        repetition=1,
+        native_verified=native_verified,
+        verdict=verdict,
+        coverage=coverage,
+        origin=str(record.get("origin", "scripted_control")),
+        arm_id=arm_id,
+    )
+
+
 async def _run_task(
     task: Mapping[str, Any],
     public_task: Mapping[str, Any],
@@ -915,6 +995,7 @@ async def _run_task(
     model: str,
     task_order_seed: int,
     scripted: bool,
+    spend_consent: SpendConsent | None,
 ) -> dict[str, Any]:
     task_id = str(task["id"])
     home = output / "artifacts" / task_id
@@ -949,6 +1030,7 @@ async def _run_task(
                 bridge,
                 preflight,
                 provider=provider,
+                spend_consent=spend_consent,
             )
             if bridge.catalog_sha256 != expected_catalog_sha256:
                 raise RuntimeError("MCP tool catalog changed during the task")
@@ -1190,28 +1272,14 @@ def _metric_rows(
         "category-population-weighted mean of each selected clarification/infeasible task's good indicator"
     )
 
-    false_verified_points = []
-    for task_id in task_ids:
-        trial = record_by_id[task_id].get("trial")
-        if not isinstance(trial, Mapping):
-            native_verified: bool | None = None
-        else:
-            claims = [
-                claim
-                for stage in trial.get("stage_results", [])
-                for claim in stage.get("native_verified_claims", [])
-            ]
-            native_verified = True if claims else (False if trial.get("completed") is True else None)
-        audit = record_by_id[task_id]["audit"]
-        false_verified_points.append(AuditObservation(
+    false_verified_points = [
+        _false_verified_task_observation(
+            record_by_id[task_id],
             task_id=task_id,
-            repetition=1,
-            native_verified=native_verified,
-            verdict=str(audit.get("verdict", "indeterminate")),
-            coverage=str(audit.get("coverage", "bounded")),
-            origin=str(record_by_id[task_id]["origin"]),
             arm_id=arm_id,
-        ))
+        )
+        for task_id in task_ids
+    ]
     false_verified = false_verified_summary(
         false_verified_points,
         selected=[(task_id, 1) for task_id in task_ids],
@@ -1285,19 +1353,29 @@ def _cost_estimate(input_rate: float, output_rate: float, *, provider: str, mode
     max_token_count_calls = max_generation_calls * TOKEN_COUNT_API_CALLS_PER_GENERATION
     max_provider_calls = max_generation_calls + max_token_count_calls
     total_tokens = max_tasks * TASK_TOKEN_BUDGET
-    ceiling = total_tokens * max(input_rate, output_rate) / 1_000_000
+    estimate = total_tokens * max(input_rate, output_rate) / 1_000_000
+    maximum_output_tokens = max_generation_calls * MAX_OUTPUT_TOKENS
     return {
         "provider": provider,
         "model": model,
+        "price_source": "caller_supplied",
+        "prices_are_absolute_spend_bounds": False,
         "pricing_input_usd_per_million": input_rate,
         "pricing_output_usd_per_million": output_rate,
-        "maximum_cost_usd_from_declared_token_prices": ceiling,
-        "maximum_billable_token_budget": total_tokens,
-        "ceiling_method": "all task token budget charged at the higher of the two user-supplied token rates",
+        "configured_token_budget_total": total_tokens,
+        "estimated_cost_usd_at_configured_token_budget": estimate,
+        "estimate_method": "configured token budget priced entirely at the higher caller-supplied input/output rate",
+        "token_budget_semantics": "pre-call reservation target, not a hard billable-token ceiling; a provider-reported overage can exceed it before the loop stops later calls",
         "maximum_generation_calls": max_generation_calls,
         "maximum_input_token_count_api_calls": max_token_count_calls,
         "maximum_provider_api_requests": max_provider_calls,
         "maximum_agent_mcp_tool_calls": max_tasks * TASK_MCP_TOOL_CALL_LIMIT,
+        "max_output_tokens_per_generation": MAX_OUTPUT_TOKENS,
+        "maximum_output_tokens_across_generations": maximum_output_tokens,
+        "worst_case_usage_note": (
+            f"The runner sends max_output_tokens/max_tokens={MAX_OUTPUT_TOKENS} on every generation; if the provider honors it, generated output is bounded by {maximum_output_tokens} tokens. "
+            "Prompt input token estimates can undercount, and these adapters have no provider-side input-token cap, so this harness does not establish a finite worst-case total-token or spend bound."
+        ),
         "task_budgets": {
             "max_tokens": TASK_TOKEN_BUDGET,
             "max_generation_calls": TASK_GENERATION_CALL_LIMIT,
@@ -1307,7 +1385,7 @@ def _cost_estimate(input_rate: float, output_rate: float, *, provider: str, mode
             "aad_build_timeout_seconds": int(PILOT_MODEL_CALL_CAP),
             "repetitions": 1,
         },
-        "estimate_limitations": "Ceiling uses only the supplied input/output token rates; provider-side request fees, taxes, discounts, cached-token tiers, and other charges are not included.",
+        "estimate_limitations": "This is an estimate at the configured reservation budget using caller-supplied token rates, not a maximum spend guarantee. It excludes provider request fees, taxes, discounts, cached-token tiers, and other charges.",
     }
 
 
@@ -1321,7 +1399,21 @@ def _public_map(value: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
     return {str(task["id"]): task for task in value["tasks"]}
 
 
-async def run_pilot(args: argparse.Namespace, *, selection: Mapping[str, Any], corpus: Mapping[str, Any], public: Mapping[str, Any], output: Path, cost_estimate: Mapping[str, Any] | None) -> dict[str, Any]:
+async def run_pilot(
+    args: argparse.Namespace,
+    *,
+    selection: Mapping[str, Any],
+    corpus: Mapping[str, Any],
+    public: Mapping[str, Any],
+    output: Path,
+    cost_estimate: Mapping[str, Any] | None,
+    spend_consent: SpendConsent | None = None,
+) -> dict[str, Any]:
+    scripted = bool(args.offline_smoke)
+    if not scripted and not isinstance(spend_consent, SpendConsent):
+        raise PermissionError("live pilot requires explicit --confirm-spend consent")
+    if scripted and spend_consent is not None:
+        raise ValueError("offline scripted control must not carry live spend consent")
     started_wall = time.monotonic()
     task_by_id = {str(task["id"]): task for task in corpus["tasks"]}
     public_by_id = _public_map(public)
@@ -1366,7 +1458,6 @@ async def run_pilot(args: argparse.Namespace, *, selection: Mapping[str, Any], c
         raise RuntimeError("isolation evidence is not bound to the recorded backend revision")
 
     backend_environment = preflight.backend_environment
-    scripted = bool(args.offline_smoke)
     provider_family = "openai" if scripted else str(args.provider)
     model = "scripted-offline-control" if scripted else str(args.model)
     arm_id = f"{provider_family}/{model}/aad-default-v1"
@@ -1389,6 +1480,7 @@ async def run_pilot(args: argparse.Namespace, *, selection: Mapping[str, Any], c
             model=model,
             task_order_seed=task_order_seed,
             scripted=scripted,
+            spend_consent=spend_consent,
         )
         task_records.append(record)
         if not record["daemon_stopped"]:
@@ -1607,9 +1699,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--offline-smoke", action="store_true", help="Run a scripted no-provider control over real local MCP stdio and AAD daemon")
     parser.add_argument("--provider", choices=("openai", "anthropic"), help="Provider for a paid pilot; there is no default")
     parser.add_argument("--model", help="Explicit provider model name; there is no default")
-    parser.add_argument("--input-usd-per-million", type=float, help="User-supplied input token price used only for the printed ceiling")
-    parser.add_argument("--output-usd-per-million", type=float, help="User-supplied output token price used only for the printed ceiling")
-    parser.add_argument("--confirm-spend", action="store_true", help="Explicitly authorize provider calls after the cost ceiling is printed")
+    parser.add_argument("--input-usd-per-million", type=float, help="Caller-supplied input price used for the configured-budget cost estimate")
+    parser.add_argument("--output-usd-per-million", type=float, help="Caller-supplied output price used for the configured-budget cost estimate")
+    parser.add_argument("--confirm-spend", action="store_true", help="Explicitly authorize provider calls after the cost estimate is printed")
     return parser
 
 
@@ -1617,6 +1709,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
+        spend_consent: SpendConsent | None = None
         corpus, selection = load_selection()
         public = load_public_projection()
         from .corpus.loader import public_projection
@@ -1645,10 +1738,11 @@ def main(argv: list[str] | None = None) -> int:
             input_rate = _positive_rate(args.input_usd_per_million, "--input-usd-per-million")
             output_rate = _positive_rate(args.output_usd_per_million, "--output-usd-per-million")
             cost_estimate = _cost_estimate(input_rate, output_rate, provider=args.provider, model=args.model)
-            print(json.dumps({"mode": "paid_pilot_cost_ceiling", **cost_estimate}, sort_keys=True))
+            print(json.dumps({"mode": "paid_pilot_cost_estimate", **cost_estimate}, sort_keys=True))
             if not args.confirm_spend:
-                print("No provider request was sent. Re-run with --confirm-spend only if this ceiling is acceptable.")
+                print("No provider request was sent. Re-run with --confirm-spend only if this estimate and its unbounded-input limitation are acceptable.")
                 return 0
+            spend_consent = SpendConsent.from_cli_flag(args.confirm_spend)
 
         output = _prepare_output_dir(args.output_dir)
         report = asyncio.run(run_pilot(
@@ -1658,6 +1752,7 @@ def main(argv: list[str] | None = None) -> int:
             public=public,
             output=output,
             cost_estimate=cost_estimate,
+            spend_consent=spend_consent,
         ))
         print(json.dumps({
             "output_dir": str(output),

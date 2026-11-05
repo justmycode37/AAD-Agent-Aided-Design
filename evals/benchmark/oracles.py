@@ -296,9 +296,14 @@ def _check_solids(check: Mapping[str, Any], brep: BRepAudit) -> tuple[bool, int]
     return len(brep.solids) == check["equals"], len(brep.solids)
 
 
-def _check_point(check: Mapping[str, Any], brep: BRepAudit) -> tuple[bool, str]:
-    actual = brep.point_state(check["point_mm"])
-    return actual == check["equals"], actual
+def _check_point(check: Mapping[str, Any], brep: BRepAudit) -> tuple[bool, Any]:
+    points = [check["point_mm"], *check.get("additional_points_mm", [])]
+    states = [brep.point_state(point) for point in points]
+    return all(state == check["equals"] for state in states), {
+        "expected": check["equals"],
+        "points_mm": points,
+        "states": states,
+    }
 
 
 def _check_bores(check: Mapping[str, Any], brep: BRepAudit) -> tuple[bool, list[dict[str, Any]]]:
@@ -310,7 +315,9 @@ def _check_bores(check: Mapping[str, Any], brep: BRepAudit) -> tuple[bool, list[
         diameter_bounds = bore["diameter_mm"]
         radius_bounds = [float(value) / 2 for value in diameter_bounds]
         radius = sum(radius_bounds) / 2
-        tolerance = float(bore.get("center_tolerance_mm", 0.1))
+        if "center_tolerance_mm" not in bore:
+            raise UnsupportedEvidence("bore check has no tolerance stated in the public request")
+        tolerance = float(bore["center_tolerance_mm"])
         candidates = [
             item for item in brep.cylinders_on_axis(
                 axis, center, radius=radius,
@@ -324,21 +331,73 @@ def _check_bores(check: Mapping[str, Any], brep: BRepAudit) -> tuple[bool, list[
             continue
 
         depth = sum(float(value) for value in bore["depth_mm"]) / 2
-        offsets = [((i / 10) - 0.5) * depth for i in range(1, 10)]
+        inset = min(0.01, depth / 1000)
+        if inset * 2 >= depth:
+            inset = depth / 4
+        start_offset = -depth / 2 + inset
+        end_offset = depth / 2 - inset
+        interior_offsets = [
+            start_offset + (end_offset - start_offset) * index / 20
+            for index in range(21)
+        ]
+        if bore["through"]:
+            offsets = [-depth / 2, *interior_offsets, depth / 2]
+        else:
+            # Blind bores open on the positive axis end; their negative end is
+            # the floor and is checked separately below.
+            offsets = [*interior_offsets, depth / 2]
         centerline = [brep.point_state(_point_at_axis(center, axis, offset)) for offset in offsets]
         if any(value != "void" for value in centerline):
-            results.append({"index": index, "status": "fail", "reason": "requested bore axis is not void through its stated depth", "centerline": centerline})
+            results.append({
+                "index": index,
+                "status": "fail",
+                "reason": "requested bore axis is not open at both faces and throughout its full depth",
+                "centerline": centerline,
+                "sample_offsets_mm": offsets,
+            })
+            all_pass = False
+            continue
+
+        # A clear centerline alone can be satisfied by a pinhole. Sample the
+        # expected bore cross-section near both ends and at mid-depth as well.
+        first, second = _vector_perpendicular(axis)
+        radial = radius * 0.75
+        radial_offsets = (offsets[0], offsets[len(offsets) // 2], offsets[-1])
+        radial_samples = [
+            {
+                "offset_mm": offset,
+                "states": [
+                    brep.point_state(_add(
+                        _point_at_axis(center, axis, offset),
+                        _scale(direction, radial),
+                    ))
+                    for direction in (first, _scale(first, -1), second, _scale(second, -1))
+                ],
+            }
+            for offset in radial_offsets
+        ]
+        if any(state != "void" for sample in radial_samples for state in sample["states"]):
+            results.append({
+                "index": index,
+                "status": "fail",
+                "reason": "requested bore cross-section is not open at its entrance, middle, and exit",
+                "centerline": centerline,
+                "radial_samples": radial_samples,
+            })
             all_pass = False
             continue
 
         if bore["through"]:
-            # A cylindrical wall plus an uninterrupted void centerline is a
-            # bounded through-bore witness; it does not certify the whole part.
-            result = {"index": index, "status": "pass", "matched_radii_mm": sorted({round(c.radius, 6) for c in candidates})}
+            result = {
+                "index": index,
+                "status": "pass",
+                "matched_radii_mm": sorted({round(c.radius, 6) for c in candidates}),
+                "sample_offsets_mm": offsets,
+                "radial_samples": radial_samples,
+            }
         else:
             # For a blind bore, probe between the target wall and any smaller
             # coaxial bore at its floor. A through cut at this radius must fail.
-            first, second = _vector_perpendicular(axis)
             radial = radius * 0.72
             lower_inside = _point_at_axis(center, axis, -depth / 2 + max(0.03, tolerance / 2))
             lower_outside = _point_at_axis(center, axis, -depth / 2 - max(0.03, tolerance / 2))
@@ -354,7 +413,14 @@ def _check_bores(check: Mapping[str, Any], brep: BRepAudit) -> tuple[bool, list[
                 results.append({"index": index, "status": "fail", "reason": "blind-bore floor depth is not independently visible", "floor_inside": inside_states, "floor_outside": outside_states})
                 all_pass = False
                 continue
-            result = {"index": index, "status": "pass", "matched_radii_mm": sorted({round(c.radius, 6) for c in candidates}), "floor_outside": outside_states}
+            result = {
+                "index": index,
+                "status": "pass",
+                "matched_radii_mm": sorted({round(c.radius, 6) for c in candidates}),
+                "sample_offsets_mm": offsets,
+                "radial_samples": radial_samples,
+                "floor_outside": outside_states,
+            }
         results.append(result)
     return all_pass, results
 
@@ -425,16 +491,14 @@ def _check_rotational_pattern(check: Mapping[str, Any], brep: BRepAudit) -> tupl
     radius = sum(float(item) for item in radii) / 2
     tolerance = float(check["tolerance_mm"])
     first, second = _vector_perpendicular(axis)
-    expected_angles = []
+    axial_offsets = []
     for point in check["feature_centers_mm"]:
         offset = _sub(point, center)
         radial = _sub(offset, _scale(axis, _dot(offset, axis)))
         observed_radius = _norm(radial)
         if not _in_range(observed_radius, radii):
             return False, {"reason": "declared feature witness is outside its pitch-radius bounds", "radius_mm": observed_radius}
-        expected_angles.append(math.atan2(_dot(radial, second), _dot(radial, first)) % (2 * math.pi))
-        if brep.point_state(_point_at_axis(_add(center, radial), axis, _dot(offset, axis))) != "solid":
-            return False, {"reason": "a requested pattern witness is not material", "point_mm": list(point)}
+        axial_offsets.append(_dot(offset, axis))
 
     samples = 720
     occupied = []
@@ -447,16 +511,67 @@ def _check_rotational_pattern(check: Mapping[str, Any], brep: BRepAudit) -> tupl
     angular_tolerance = max(math.radians(1.0), 2 * math.asin(min(0.99, tolerance / max(radius, 1e-9))) + math.radians(0.5))
     if len(runs) != expected_count:
         return False, {"expected_count": expected_count, "measured_count": len(runs), "ring_radius_mm": radius, "runs": runs}
-    unused = list(range(len(runs)))
-    for expected_angle in expected_angles:
-        if not unused:
-            return False, {"reason": "pattern features cannot be matched one-to-one", "runs": runs}
-        best = min(unused, key=lambda index: _angular_distance(expected_angle, runs[index][0]))
-        distance = _angular_distance(expected_angle, runs[best][0])
-        if distance > angular_tolerance:
-            return False, {"reason": "pattern feature angular position is outside tolerance", "angle_error_rad": distance, "runs": runs}
-        unused.remove(best)
-    return True, {"count": len(runs), "ring_radius_mm": radius, "angular_centers_rad": [item[0] for item in runs]}
+    angular_centers = sorted(item[0] for item in runs)
+    gaps = [
+        (angular_centers[(index + 1) % len(angular_centers)] - angular_centers[index]) % (2 * math.pi)
+        for index in range(len(angular_centers))
+    ]
+    expected_gap = 2 * math.pi / expected_count
+    if any(abs(gap - expected_gap) > 2 * angular_tolerance for gap in gaps):
+        return False, {
+            "reason": "measured repeated features are not equally spaced",
+            "expected_gap_rad": expected_gap,
+            "measured_gaps_rad": gaps,
+            "angular_centers_rad": angular_centers,
+        }
+
+    tip_radius = check.get("feature_tip_radius_mm")
+    tip_states = None
+    tip_outside_states = None
+    tip_witness_radius = None
+    tip_outside_witness_radius = None
+    if tip_radius is not None:
+        # Probe the allowed minimum and maximum reach. The exact requested
+        # tip can lie on a BRep boundary, which is valid evidence of the surface.
+        tip_distance = float(tip_radius[0])
+        tip_witness_radius = tip_distance
+        tip_outside_distance = float(tip_radius[1])
+        tip_outside_witness_radius = tip_outside_distance
+        axial_offset = sum(axial_offsets) / len(axial_offsets)
+        base = _point_at_axis(center, axis, axial_offset)
+        tip_states = []
+        tip_outside_states = []
+        for angle in angular_centers:
+            radial_direction = _add(_scale(first, math.cos(angle)), _scale(second, math.sin(angle)))
+            inside_point = _add(base, _scale(radial_direction, tip_distance))
+            outside_point = _add(base, _scale(radial_direction, tip_outside_distance))
+            tip_states.append(brep.point_state(inside_point))
+            tip_outside_states.append(brep.point_state(outside_point))
+        if (
+            any(state not in {"solid", "boundary"} for state in tip_states)
+            or any(state == "solid" for state in tip_outside_states)
+        ):
+            return False, {
+                "reason": "one or more phase-independent feature-tip witnesses miss the allowed radial bounds",
+                "tip_radius_mm": tip_radius,
+                "tip_witness_radius_mm": tip_witness_radius,
+                "tip_outside_witness_radius_mm": tip_outside_witness_radius,
+                "tip_states": tip_states,
+                "tip_outside_states": tip_outside_states,
+                "angular_centers_rad": angular_centers,
+            }
+    return True, {
+        "count": len(runs),
+        "ring_radius_mm": radius,
+        "angular_centers_rad": angular_centers,
+        "equally_spaced_gaps_rad": gaps,
+        "phase_invariant": True,
+        "tip_radius_mm": tip_radius,
+        "tip_witness_radius_mm": tip_witness_radius,
+        "tip_outside_witness_radius_mm": tip_outside_witness_radius,
+        "tip_states": tip_states,
+        "tip_outside_states": tip_outside_states,
+    }
 
 
 def _shape_corners(bounds: Sequence[Sequence[float]]) -> list[tuple[float, float, float]]:
@@ -508,6 +623,63 @@ def _line_runs(brep: BRepAudit, axis: Sequence[float], base: Sequence[float], lo
 def _check_linear_pattern(check: Mapping[str, Any], brep: BRepAudit) -> tuple[bool, Any]:
     if check.get("feature_kind") != "solid":
         raise UnsupportedEvidence("only solid linear patterns are implemented")
+    if "axis_options_mm" in check:
+        scan_point = tuple(float(item) for item in check["scan_point_mm"])
+        expected_count = len(check["feature_centers_mm"])
+        width_range = check["feature_width_mm"]
+        tolerance = float(check["tolerance_mm"])
+        spacing_tolerance = float(check.get("spacing_tolerance_mm", 2 * tolerance))
+        corners = _shape_corners(brep.bounds)
+        attempts = []
+        for raw_axis in check["axis_options_mm"]:
+            axis = _unit(raw_axis)
+            # The scan plane follows the requested feature height. Try several
+            # transverse locations so a valid array need not cross the origin.
+            transverse = _unit((-axis[1], axis[0], 0.0))
+            transverse_bounds = [_dot(corner, transverse) for corner in corners]
+            cross_low, cross_high = min(transverse_bounds), max(transverse_bounds)
+            scan_fractions = (0.1, 0.3, 0.5, 0.7, 0.9)
+            projected = [_dot(corner, axis) for corner in corners]
+            runs_by_scan = []
+            for fraction in scan_fractions:
+                cross_offset = cross_low + (cross_high - cross_low) * fraction
+                base = _sub(scan_point, _scale(axis, _dot(scan_point, axis)))
+                base = _add(base, _scale(transverse, cross_offset - _dot(base, transverse)))
+                intervals = _line_runs(brep, axis, base, min(projected), max(projected))
+                centers = sorted((low + high) / 2 for low, high in intervals)
+                widths = [high - low for low, high in intervals]
+                gaps = [centers[index + 1] - centers[index] for index in range(len(centers) - 1)]
+                matches = (
+                    len(intervals) == expected_count
+                    and all(_in_range(width, width_range) for width in widths)
+                    and (not gaps or max(gaps) - min(gaps) <= spacing_tolerance + 1e-6)
+                )
+                runs_by_scan.append({
+                    "transverse_coordinate_mm": cross_offset,
+                    "intervals_mm": intervals,
+                    "centers_mm": centers,
+                    "widths_mm": widths,
+                    "center_gaps_mm": gaps,
+                    "matches": matches,
+                })
+                if matches:
+                    return True, {
+                        "count": expected_count,
+                        "centers_mm": centers,
+                        "widths_mm": widths,
+                        "center_gaps_mm": gaps,
+                        "orientation_axis_mm": list(raw_axis),
+                        "transverse_coordinate_mm": cross_offset,
+                        "phase_invariant": True,
+                        "tested_scan_offsets": runs_by_scan,
+                    }
+            attempts.append({"axis_mm": list(raw_axis), "scans": runs_by_scan})
+        return False, {
+            "reason": "no candidate orientation and scan line contains the requested equally spaced pattern",
+            "expected_count": expected_count,
+            "attempts": attempts,
+        }
+
     axis = _unit(check["axis_mm"])
     first_center = tuple(float(item) for item in check["feature_centers_mm"][0])
     base = _sub(first_center, _scale(axis, _dot(first_center, axis)))
@@ -755,9 +927,12 @@ def _circles_match(expected: Sequence[Mapping[str, Any]], actual: Sequence[Mappi
     ok = True
     for item in expected:
         center, diameter = item["center_mm"], item["diameter_mm"]
+        if "center_tolerance_mm" not in item:
+            raise UnsupportedEvidence("circle check has no center tolerance stated in the public request")
+        center_tolerance = float(item["center_tolerance_mm"])
         candidates = [
             index for index in remaining
-            if math.dist(actual[index]["center_mm"], center) <= 0.1 + 1e-7
+            if math.dist(actual[index]["center_mm"], center) <= center_tolerance + 1e-7
             and _in_range(actual[index]["diameter_mm"], diameter)
         ]
         if not candidates:
@@ -768,6 +943,149 @@ def _circles_match(expected: Sequence[Mapping[str, Any]], actual: Sequence[Mappi
             remaining.remove(index)
             details.append({"expected": item, "matched": True, "actual": actual[index]})
     return ok, details
+
+
+def _check_circle_patterns(
+    patterns: Sequence[Mapping[str, Any]], actual: Sequence[Mapping[str, Any]]
+) -> tuple[bool, list[dict[str, Any]]]:
+    all_pass = True
+    details = []
+    for pattern in patterns:
+        center = tuple(float(value) for value in pattern["center_mm"])
+        pitch_radius = pattern["pitch_radius_mm"]
+        diameter = pattern["diameter_mm"]
+        radius_tolerance = float(pattern["center_tolerance_mm"])
+        candidates = [
+            circle
+            for circle in actual
+            if _in_range(circle["diameter_mm"], diameter)
+            and _in_range(
+                math.dist(circle["center_mm"], center),
+                [float(pitch_radius[0]) - radius_tolerance, float(pitch_radius[1]) + radius_tolerance],
+            )
+        ]
+        count = int(pattern["count"])
+        result: dict[str, Any] = {
+            "expected_count": count,
+            "matched_count": len(candidates),
+            "center_mm": list(center),
+            "pitch_radius_mm": pitch_radius,
+            "diameter_mm": diameter,
+            "centers_mm": [circle["center_mm"] for circle in candidates],
+        }
+        passed = len(candidates) == count
+        if passed and pattern.get("equally_spaced", False):
+            angles = sorted(
+                math.atan2(circle["center_mm"][1] - center[1], circle["center_mm"][0] - center[0])
+                % (2 * math.pi)
+                for circle in candidates
+            )
+            gaps = [
+                (angles[(index + 1) % count] - angles[index]) % (2 * math.pi)
+                for index in range(count)
+            ]
+            expected_gap = 2 * math.pi / count
+            angular_tolerance = max(math.radians(1.0), 2 * math.asin(min(0.99, radius_tolerance / max(sum(pitch_radius) / 2, 1e-9))) + math.radians(0.5))
+            result["angular_gaps_rad"] = gaps
+            result["phase_invariant"] = True
+            passed = all(abs(gap - expected_gap) <= 2 * angular_tolerance for gap in gaps)
+        if not passed:
+            all_pass = False
+        details.append({**result, "status": "pass" if passed else "fail"})
+    return all_pass, details
+
+
+def _check_regular_polygon(
+    expected: Mapping[str, Any], segments: Sequence[tuple[tuple[float, float], tuple[float, float]]]
+) -> tuple[bool, dict[str, Any]]:
+    vertex_count = int(expected["vertex_count"])
+    center = tuple(float(value) for value in expected["center_mm"])
+    across_flats = [float(value) for value in expected["across_flats_mm"]]
+    tolerance = float(expected["tolerance_mm"])
+    if len(segments) != vertex_count:
+        return False, {
+            "reason": "regular polygon has the wrong number of sides",
+            "expected_sides": vertex_count,
+            "actual_sides": len(segments),
+        }
+
+    vertices: list[tuple[float, float]] = []
+    edges: list[tuple[int, int]] = []
+
+    def vertex_index(point: tuple[float, float]) -> int:
+        for index, existing in enumerate(vertices):
+            if math.dist(point, existing) <= 1e-5:
+                return index
+        vertices.append(point)
+        return len(vertices) - 1
+
+    for first, second in segments:
+        left, right = vertex_index(first), vertex_index(second)
+        if left == right:
+            return False, {"reason": "regular polygon contains a zero-length side"}
+        edges.append((left, right))
+    adjacency = [set() for _ in vertices]
+    for left, right in edges:
+        adjacency[left].add(right)
+        adjacency[right].add(left)
+    connected = len(vertices) == vertex_count and all(len(neighbors) == 2 for neighbors in adjacency)
+    if connected and adjacency:
+        visited = set()
+        pending = [0]
+        while pending:
+            current = pending.pop()
+            if current in visited:
+                continue
+            visited.add(current)
+            pending.extend(adjacency[current] - visited)
+        connected = len(visited) == vertex_count
+    if not connected:
+        return False, {
+            "reason": "regular polygon sides do not form one closed simple cycle",
+            "expected_vertices": vertex_count,
+            "actual_vertices": len(vertices),
+            "vertex_degrees": [len(neighbors) for neighbors in adjacency],
+        }
+
+    radii = [math.dist(point, center) for point in vertices]
+    angles = sorted(math.atan2(point[1] - center[1], point[0] - center[0]) % (2 * math.pi) for point in vertices)
+    angle_gaps = [
+        (angles[(index + 1) % vertex_count] - angles[index]) % (2 * math.pi)
+        for index in range(vertex_count)
+    ]
+    expected_radius = [
+        value / (2 * math.cos(math.pi / vertex_count))
+        for value in across_flats
+    ]
+    expected_side = [value * math.tan(math.pi / vertex_count) for value in across_flats]
+    edge_lengths = [math.dist(vertices[left], vertices[right]) for left, right in edges]
+    centroid = (
+        sum(point[0] for point in vertices) / vertex_count,
+        sum(point[1] for point in vertices) / vertex_count,
+    )
+    expected_gap = 2 * math.pi / vertex_count
+    angular_tolerance = max(
+        math.radians(1.0),
+        2 * math.asin(min(0.99, tolerance / max(sum(expected_radius) / 2, 1e-9)))
+        + math.radians(0.5),
+    )
+    passed = (
+        math.dist(centroid, center) <= tolerance + 1e-7
+        and all(expected_radius[0] - tolerance <= radius <= expected_radius[1] + tolerance for radius in radii)
+        and all(expected_side[0] - 2 * tolerance <= length <= expected_side[1] + 2 * tolerance for length in edge_lengths)
+        and all(abs(gap - expected_gap) <= 2 * angular_tolerance for gap in angle_gaps)
+    )
+    return passed, {
+        "center_mm": list(center),
+        "centroid_mm": list(centroid),
+        "vertex_count": vertex_count,
+        "vertices_mm": vertices,
+        "radii_mm": radii,
+        "edge_lengths_mm": edge_lengths,
+        "angular_gaps_rad": angle_gaps,
+        "expected_across_flats_mm": across_flats,
+        "phase_invariant": True,
+    }
 
 
 def _check_dxf_profile(check: Mapping[str, Any], sheet_path: Path) -> tuple[bool, Any]:
@@ -805,6 +1123,8 @@ def _check_dxf_profile(check: Mapping[str, Any], sheet_path: Path) -> tuple[bool
         "contour_count": {"expected": check.get("contour_count"), "actual": contour_count},
         "closed_contours": {"expected": check.get("closed_contours"), "actual": all_closed},
         "circles": None,
+        "circle_patterns": None,
+        "regular_polygon": None,
         "extents_mm": {"expected": check.get("extents_mm"), "actual": measured_extents},
         "segments": None,
     }
@@ -819,108 +1139,19 @@ def _check_dxf_profile(check: Mapping[str, Any], sheet_path: Path) -> tuple[bool
         circle_ok, circle_details = _circles_match(check["circles"], actual_circles)
         checks["circles"] = circle_details
         ok = ok and circle_ok
+    if "circle_patterns" in check:
+        pattern_ok, pattern_details = _check_circle_patterns(check["circle_patterns"], actual_circles)
+        checks["circle_patterns"] = pattern_details
+        ok = ok and pattern_ok
+    if "regular_polygon" in check:
+        polygon_ok, polygon_details = _check_regular_polygon(check["regular_polygon"], segments)
+        checks["regular_polygon"] = polygon_details
+        ok = ok and polygon_ok
     if "segments" in check:
         segment_ok, segment_details = _segments_match(check["segments"], segments)
         checks["segments"] = segment_details
         ok = ok and segment_ok
     return ok, checks
-
-
-_TOPIC_RULES: dict[str, tuple[tuple[str, ...], ...]] = {
-    "pipe standard or measured outside diameter": (
-        ("pipe standard", "standard number", "nps", "nominal pipe size", "pipe schedule", "outside diameter", "outside dia", "outer diameter", "pipe od"),
-    ),
-    "mating-port dimensions and insertion depth": (
-        ("mating port", "port", "mating interface", "interface"),
-        ("dimensions", "dimension", "size", "diameter", "bore"),
-        ("insertion depth", "insertion", "engagement", "depth"),
-    ),
-    "pressure and temperature range": (
-        ("pressure",),
-        ("temperature", "thermal"),
-        ("range", "operating condition", "operating envelope"),
-    ),
-    "seal type and permitted leakage": (
-        ("seal", "gasket", "o-ring", "oring"),
-        ("leakage", "leak", "leak rate", "permitted leak"),
-    ),
-    "material, process, units, and tolerances": (
-        ("material",),
-        ("process", "manufacturing method", "manufacture"),
-        ("units", "millimetres", "millimeters", "inches"),
-        ("tolerances", "tolerance"),
-    ),
-    "board length, width, thickness, and hole pattern": (
-        ("board", "pcb", "circuit board"),
-        ("length",),
-        ("width",),
-        ("thickness",),
-        ("hole pattern", "mounting holes", "mounting pattern", "hole spacing"),
-    ),
-    "connector locations and clearance envelopes": (
-        ("connector", "connectors", "port"),
-        ("location", "locations", "position", "positions"),
-        ("clearance", "envelope", "keepout"),
-    ),
-    "lid or open-top preference and sealing requirement": (
-        ("lid", "cover", "open top", "open-top"),
-        ("seal", "sealing", "waterproof", "gasket"),
-    ),
-    "material, process, and wall limits": (
-        ("material",),
-        ("process", "manufacturing method", "manufacture"),
-        ("wall", "wall thickness", "thickness limit"),
-    ),
-    "units and tolerances": (
-        ("units", "millimetres", "millimeters", "inches"),
-        ("tolerances", "tolerance"),
-    ),
-}
-
-
-def _has_term(text: str, term: str) -> bool:
-    normalized = re.sub(r"[^a-z0-9]+", " ", text.casefold()).strip()
-    candidate = re.sub(r"[^a-z0-9]+", " ", term.casefold()).strip()
-    return bool(candidate) and f" {candidate} " in f" {normalized} "
-
-
-def _mentions_number(text: str, target: float, tolerance: float = 1e-6) -> bool:
-    return any(abs(float(value) - target) <= tolerance for value in _NUMBER.findall(text))
-
-
-def _check_clarification(check: Mapping[str, Any], text: str) -> tuple[bool, Any]:
-    response = text.strip()
-    if not response:
-        return False, {"reason": "no user-facing clarification or infeasibility response was captured"}
-    missing_results = []
-    for item in check.get("missing", []):
-        groups = _TOPIC_RULES.get(item)
-        if groups is None:
-            raise UnsupportedEvidence(f"clarification topic {item!r} has no reviewed semantic matcher")
-        group_results = []
-        for group in groups:
-            group_results.append(any(_has_term(response, term) for term in group))
-        missing_results.append({"topic": item, "pass": all(group_results), "concepts": group_results})
-
-    conflict_results = []
-    for item in check.get("conflicts", []):
-        if "cartridge" not in item.casefold() or "span" not in item.casefold():
-            raise UnsupportedEvidence(f"conflict topic {item!r} has no reviewed semantic matcher")
-        lower_value = _mentions_number(response, 109.9)
-        upper_value = _mentions_number(response, 105.1)
-        incompatibility = any(
-            _has_term(response, phrase)
-            for phrase in ("exceeds", "greater than", "larger than", "longer than", "cannot fit", "won't fit", "will not fit", "infeasible", "incompatible")
-        )
-        conflict_results.append({
-            "topic": item,
-            "pass": lower_value and upper_value and incompatibility,
-            "lower_bound_mentioned": lower_value,
-            "upper_bound_mentioned": upper_value,
-            "conflict_explained": incompatibility,
-        })
-    details = {"missing": missing_results, "conflicts": conflict_results}
-    return all(item["pass"] for item in (*missing_results, *conflict_results)), details
 
 
 _DRAWING_DIMENSIONS: dict[str, dict[str, str]] = {
@@ -1468,10 +1699,9 @@ def _evaluate_check(
     coverage = str(stage["oracle"]["coverage"])
     try:
         if check_type == "clarification":
-            passed, actual = _check_clarification(check, response_text)
-            return CheckObservation(check_id, check_type, _SUPPORTED if passed else _FAILED, coverage,
-                                    "all reviewed missing/conflicting topics were addressed" if passed else "one or more required topics were absent from the user-facing response",
-                                    {key: check[key] for key in ("missing", "conflicts") if key in check}, actual)
+            raise UnsupportedEvidence(
+                "natural-language clarification meaning and conflict polarity are not independently audited"
+            )
         if check_type == "dxf_profile":
             if sheet_path is None:
                 raise MalformedArtifact("native 2D sheet artifact was not captured")

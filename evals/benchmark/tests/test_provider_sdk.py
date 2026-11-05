@@ -14,6 +14,7 @@ from evals.benchmark.harness.aad_benchmark_harness.types import (
     MCPObservation,
     ObservationBlock,
     PublicStageProjection,
+    SpendConsent,
     ToolInvocationResult,
     ToolSpec,
 )
@@ -46,16 +47,21 @@ def test_official_sdk_serializes_multiturn_tool_image_and_usage(family):
         })
 
     async def exercise():
+        test_consent = SpendConsent.from_cli_flag(True)
         transport = httpx2.MockTransport(respond)
         http_client = httpx2.AsyncClient(transport=transport)
         if family == "openai":
             from openai import AsyncOpenAI
             client = AsyncOpenAI(api_key="offline-mock-only", base_url="https://provider.invalid/v1", http_client=http_client, max_retries=0)
-            adapter = OpenAIResponsesAdapter(client, "offline-mock-model")
+            adapter = OpenAIResponsesAdapter(
+                client, "offline-mock-model", spend_consent=test_consent
+            )
         else:
             from anthropic import AsyncAnthropic
             client = AsyncAnthropic(api_key="offline-mock-only", base_url="https://provider.invalid", http_client=http_client, max_retries=0)
-            adapter = AnthropicMessagesAdapter(client, "offline-mock-model")
+            adapter = AnthropicMessagesAdapter(
+                client, "offline-mock-model", spend_consent=test_consent
+            )
         adapter.origin = "mock"
         try:
             adapter.initialize(
@@ -91,12 +97,14 @@ def test_official_sdk_serializes_multiturn_tool_image_and_usage(family):
     assert all(any(tool.get("name") == "benchmark_finish" for tool in payload["tools"]) for _, payload in requests)
     last = requests[-1][1]
     if family == "openai":
+        assert requests[1][1]["max_output_tokens"] == 128
         assert last["input"][-2]["type"] == "function_call_output"
         assert last["input"][-2]["output"][0]["type"] == "input_image"
         assert last["input"][-1]["role"] == "user"
         assert "preserve its bores" in last["input"][-1]["content"][0]["text"]
         assert requests[1][1]["store"] is False
     else:
+        assert requests[1][1]["max_tokens"] == 128
         assert last["messages"][-1]["content"][0]["type"] == "tool_result"
         assert last["messages"][-1]["content"][0]["content"][0]["type"] == "image"
         assert last["messages"][-1]["content"][1]["type"] == "text"

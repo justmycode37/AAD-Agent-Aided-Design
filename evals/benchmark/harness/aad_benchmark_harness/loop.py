@@ -27,6 +27,7 @@ from .types import (
     ProviderAdapter,
     PublicStageProjection,
     RunConfig,
+    SpendConsent,
     ToolInvocationResult,
     ToolSpec,
     TraceSink,
@@ -421,6 +422,7 @@ async def run_agent_loop(
     isolation_preflight: IsolationPreflight,
     *,
     provider: ProviderAdapter | None = None,
+    spend_consent: SpendConsent | None = None,
     trace_sink: TraceSink | None = None,
     monotonic: Callable[[], float] = time.monotonic,
     initialize_provider: bool = True,
@@ -573,6 +575,15 @@ async def run_agent_loop(
             state = "ineligible"
             stop_reason = eligibility_reasons[0]
             return result()
+        if (
+            provider_adapter is not None
+            and getattr(provider_adapter, "requires_spend_consent", False)
+            and not isinstance(spend_consent, SpendConsent)
+        ):
+            state = "ineligible"
+            stop_reason = "explicit_spend_consent_required"
+            eligibility_reasons.append("explicit_spend_consent_required")
+            return result()
         if config.include_tool_images and not config.provider_supports_image_input:
             state = "ineligible"
             stop_reason = "provider_image_input_capability_not_declared"
@@ -616,7 +627,11 @@ async def run_agent_loop(
             if provider_adapter is None:
                 # The factory is called only after the external isolation report has
                 # matched this backend revision/environment and passed every probe.
-                provider_adapter = create_provider_adapter(config.provider, config.model)
+                provider_adapter = create_provider_adapter(
+                    config.provider,
+                    config.model,
+                    spend_consent=spend_consent,
+                )
             if provider_adapter.family != config.provider or provider_adapter.model != config.model:
                 state = "ineligible"
                 stop_reason = "provider_configuration_mismatch"

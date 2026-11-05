@@ -32,7 +32,7 @@ uv run --offline --project packages/platform --with pytest==9.2.0 python -m pyte
   evals/benchmark/tests/test_pilot.py -q
 ```
 
-The controls cover shared generation/tool budgets over edit stages, filtered native tools, spend-ceiling/confirmation behavior, frozen task selection, one wrong-geometry mutant for every selected check type, a bounded positive reference control that remains indeterminate, and unsupported evidence counted as a nonpass. They do not call a provider. The local pytest environment may warn that the root `timeout` option is unknown when `pytest-timeout` is not installed.
+The controls cover shared generation/tool budgets over edit stages, factory/adapter/single-stage/task/pilot consent gates, provider output caps and post-response token overages, frozen task selection, wrong-geometry mutants, negated/denying clarification responses, multi-point enclosure cavities, request-sourced bore tolerances, phase-rotated wheel and hex-profile references, alternate-axis heat-sink arrays, stage-matched false-verified accounting, bounded positive references, and unsupported evidence counted as a nonpass. They do not call a provider. The local pytest environment may warn that the root `timeout` option is unknown when `pytest-timeout` is not installed.
 
 Statistics and corpus validation are separate:
 
@@ -47,6 +47,6 @@ uv run --offline --project packages/platform --with pytest==9.2.0 python -m pyte
 
 ## Run boundaries
 
-The live command requires explicit provider, model, input/output token rates, and `--confirm-spend`. It prints the user-priced token ceiling before preflight or provider construction. Without the flag it exits before creating run output or making a provider request. Each task has a shared 12,000-token, 32-generation, 96 model-issued AAD-tool-call, and 300-second wall budget; SDK retries are disabled. The full limits and metric denominators are documented in [../README.md](../README.md).
+The paid pilot command requires explicit provider, model, caller-supplied input/output token rates, and `--confirm-spend`. It prints an estimate at the configured reservation budget before preflight or provider construction. Without the flag it exits before creating run output or making a provider request. Provider adapters receive a 2,048 output-token cap per generation, but input counts can understate billed usage; the 12,000-token per-task budget is not a hard billable-token ceiling. Generation-call and model-issued AAD-tool-call limits remain hard counts, and SDK retries are disabled. The lower-level single-stage CLI also requires `--confirm-spend` and the shared factory rejects a missing `SpendConsent`. Full limits and metric denominators are documented in [../README.md](../README.md).
 
 The runner covers only one AAD arm, one model, and one repetition per selected task. No matched plain-build123d runner is wired. Even an eligible future pilot report is not the release gate, which still requires matched baselines, multiple model families, repeated trials, and an independent native-verification sample.

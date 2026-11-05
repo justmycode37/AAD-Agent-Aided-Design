@@ -4,6 +4,8 @@ import asyncio
 from pathlib import Path
 from typing import Any, Sequence
 
+import pytest
+
 from evals.benchmark.harness.aad_benchmark_harness.task_loop import run_agent_task_loop
 from evals.benchmark.harness.aad_benchmark_harness.types import (
     InputTokenEstimate,
@@ -184,3 +186,17 @@ def test_edit_chain_stops_before_spending_past_shared_call_budget(tmp_path) -> N
     assert result.stop_reason == "task_model_call_limit_reached_before_next_stage"
     assert provider.complete_calls == 1
     assert provider.advances == ["edit"]
+
+
+def test_task_route_cannot_create_a_live_adapter_without_consent(tmp_path) -> None:
+    stages = tuple(
+        PublicStageProjection.from_task_projection(PUBLIC_TASK, stage["id"])
+        for stage in PUBLIC_TASK["stages"]
+    )
+    with pytest.raises(PermissionError, match="explicit --confirm-spend"):
+        asyncio.run(run_agent_task_loop(
+            make_config(tmp_path),
+            stages,
+            MockBackend(),
+            make_preflight(),
+        ))
