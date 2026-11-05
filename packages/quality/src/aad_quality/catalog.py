@@ -132,7 +132,17 @@ def _guide_item(item: dict[str, Any], requested: str | None) -> dict[str, Any]:
             "Request a section by slug; use `section=all` for the complete guide."
         )
         title = preamble.splitlines()[0] if preamble else "# AAD guide"
-        text = "\n\n".join([title, listing, *(section["text"] for section in selected)]).strip()
+        core_sections = []
+        for section in selected:
+            if section["id"] == "tools":
+                lines = section["text"].splitlines()
+                headings = [index for index, line in enumerate(lines) if line.startswith("### ")]
+                if len(headings) < 2 or lines[headings[0]].strip() != "### Quick tool list":
+                    raise ValueError("The AAD guide tools section needs a leading Quick tool list for the short core")
+                core_sections.append("\n".join(lines[: headings[1]]).strip())
+            else:
+                core_sections.append(section["text"])
+        text = "\n\n".join([title, listing, *core_sections]).strip()
         selected_id = "core"
     elif requested.strip().casefold() == "all":
         text = item["text"]

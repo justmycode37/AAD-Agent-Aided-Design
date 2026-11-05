@@ -60,6 +60,13 @@ presenting an exterior mockup as the finished object.
 
 Thirteen tools are for you. Every tool except `aad_new` and `aad_library` takes `project`, and most also take `rev`, which defaults to the head revision. `aad_import` treats `project` as optional.
 
+### Quick tool list
+
+- `aad_new` starts a project; `aad_build` creates a revision; `aad_inspect`, `aad_query`, `aad_measure` and `aad_check` review it.
+- `aad_render` returns images and exact facts; `aad_show` presents the part; `aad_drawing` makes drawings.
+- `aad_history` manages revisions and jobs; `aad_import` and `aad_export` move geometry and files; `aad_library` looks up parts, materials and guidance.
+- `aad_scene_read`, `aad_set_param`, `aad_pick_info` and `aad_file_read` are app-only viewer tools; do not call them.
+
 ### aad_new: create a project
 
 | Argument | Meaning |

@@ -91,7 +91,7 @@ def test_playbook_and_api_search_find_content_without_dumping_text():
     results = library("search", kind="playbook", query="counterbore")
     assert results["total"] > 0
     assert all(item["kind"] == "playbook" and "text" not in item for item in results["items"])
-    entry = library("get", kind="playbook", id=results["items"][0]["id"])["item"]
+    entry = library("get", kind="playbook", id=results["items"][0]["id"], section="all")["item"]
     assert "counterbore" in entry["text"].casefold()
     assert entry["candidate_status"] == "unmeasured"
     assert library("search", kind="api", query="nominal mass")["total"] > 0
@@ -182,6 +182,7 @@ def test_aad_guide_core_is_small_and_sections_follow_source_headings():
     assert default["section"] == "core"
     assert len(default["text"].encode("utf-8")) < 8_192
     assert all(heading in default["text"] for heading in ("## The loop", "## Tools", "## Honesty rules"))
+    assert "### Quick tool list" in default["text"]
     assert "If a tool result disagrees with it, believe the tool." in default["text"]
     assert all(section["id"] in default["text"] for section in default["sections"])
     assert library("get", kind="playbook", id="aad.guide.v1", section="core")["item"]["text"] == default["text"]
