@@ -124,7 +124,7 @@ On a 2D sheet, only whole-sheet `area` and `bbox` work, and they return the shee
 
 `suites` is a list of `hard`, `spec`, `process`, `interference` and `2d`. The default is hard, spec and process. `2d` applies only to 2D projects.
 
-`interference` intersects every pair of solids whose boxes overlap. It reports the 20 largest overlaps by part label and volume, and the total count. Touching is not interference. A boolean failure, or running out of its 60 second budget, is reported as unknown and never as a pass.
+`interference` intersects every pair of solids whose boxes overlap. It reports counts and up to 20 largest undeclared and intended-contact pairs separately. Each reported pair has its part labels/paths, common volume and location; intended pairs also include the required reason. Touching is not interference. A boolean failure, or running out of its bounded budget, is reported as unknown and never as a pass. Every multi-solid build runs this check after writing the BREP and scene, with at most 45 seconds and only a fraction of the build time left after reserving time to return the result. If the remaining time is too short, the result is unknown; run `aad_check(suites=["interference"])` or raise `timeout_s`. Overlaps are warnings by default; an `interference` spec requirement can make them errors. The build summary calls out confirmed overlaps and incomplete checks explicitly. A declared intended fit is a design claim, not proof of fit or function.
 
 ### aad_render: images and exact facts for you
 
@@ -246,7 +246,7 @@ result = asm
 - `aad_inspect(what="bom")` returns the BOM. `aad_drawing(bom=True)` puts it on a sheet. One part number on different volumes is refused.
 - `aad_measure(kind="mass")` uses each component's material, or the project's.
 - `asm.exploded(1.5)` or `exploded(shape, 1.5)` makes an exploded copy. Put it behind a parameter.
-- `asm.interference()` and `overlap_volume(a, b)` report overlaps. Add an `interference` requirement, because AAD does not otherwise notice overlapping parts.
+- `asm.interference()` and `overlap_volume(a, b)` report overlaps. Every multi-solid build checks interference automatically; add an `interference` requirement to make the threshold a hard requirement. Use `asm.allow_overlap("a", "b", reason="press fit", max_volume_mm3=0.2)` after adding both named components to declare intended contact. The reason is required; the optional volume cap prevents a declaration from hiding a larger overlap. Declarations are reported separately and do not prove fit or function. Library deep-groove ball bearings automatically report their nominal rolling contacts separately.
 - `motion_clearance(moving, fixed, locations)` tests only the poses you give it, and is not dynamics.
 - Place parts with `at=`, or with build123d joints such as `RigidJoint` and `RevoluteJoint`. There is no global mate solver.
 - A plain `Compound(children=[...])` of labeled bodies also works, without a BOM. `shape.color = Color(r, g, b)` sets a part's display color.

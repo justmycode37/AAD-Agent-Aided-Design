@@ -79,6 +79,9 @@ def run_build(req: BuildRequest) -> BuildResult:
             "spec": request.spec,
             "material": request.material,
             "process": request.process,
+            # The worker reserves startup, result serialization and transport
+            # time inside the parent-side timeout.
+            "timeout_s": request.timeout_s,
             # Optional native rendering must not abort or hang this process
             # after it has already produced a usable BREP.
             "preview": False,

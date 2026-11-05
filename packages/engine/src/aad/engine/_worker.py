@@ -22,7 +22,7 @@ from aad._runtime import (
 from aad.modeling import (
     configure_modeling, context_metadata, current_part_name, finalize_modeling, named_shape, record_operation,
 )
-from .gate import hard_checks
+from .gate import hard_checks, interference_checks
 from .select import SelectorError
 from .types import (
     BuildResult,
@@ -366,13 +366,32 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
         unavailable_message="Process checks are unavailable because aad_quality is not installed.",
     )
     checks.extend(process_checks)
-
     scene, scene_check = _optional_scene(context)
     checks.append(scene_check)
 
     render_artifacts, render_check = _optional_render(context, bool(payload.get("preview", False)))
     checks.append(render_check)
     artifacts.update(render_artifacts)
+
+    # Run interference last, after the BREP and scene are safely written.
+    # The parent starts its kill timer before sandbox startup, so reserve extra
+    # time here for startup plus returning and serializing the worker result.
+    if len(list(shape.solids())) > 1:
+        timeout_s = payload.get("timeout_s", 60.0)
+        elapsed_s = time.monotonic() - started
+        remaining_s = max(0.0, float(timeout_s) - 5.0 - elapsed_s)
+        available_s = max(0.0, remaining_s - 5.0)
+        time_budget_s = min(45.0, available_s * 0.4)
+        interference = interference_checks(context, time_budget_s=time_budget_s)
+        for check in interference:
+            check.level = "warn"
+            if check.status == "fail":
+                check.status = "warn"
+                check.message = "Build interference warning: " + check.message
+            elif check.status == "skip":
+                check.message = "Build interference result is unknown: " + check.message
+                check.message += ' Run aad_check(suites=["interference"]) or raise timeout_s for a longer build budget.'
+        checks.extend(interference)
 
     requirements_proven, coverage_check = _requirements_proven(
         context.spec,
@@ -440,6 +459,9 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
         status = "draft"
         ok = True
         summary = "The model built and passed the available hard checks; requirements are not fully proven."
+    interference_result = next((check for check in checks if check.id == "interference_pairs"), None)
+    if interference_result is not None and interference_result.status in {"warn", "skip"}:
+        summary += " BUILD INTERFERENCE REVIEW REQUIRED: " + interference_result.message
 
     result = BuildResult(
         ok=ok,

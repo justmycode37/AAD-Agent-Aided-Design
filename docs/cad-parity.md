@@ -87,3 +87,5 @@ PDM, PLM and collaboration are out of scope. Interactive picking and sliders sta
 - **Status stays `draft`.** The worker cannot attest its own verification and no trusted validator is wired, so `aad_export` needs `allow_unverified` for every revision.
 - **2D requirements are unproven.** Spec requirements are not evaluated on sheets yet.
 - **Standard parts use simple threads** unless a record says otherwise, so thread fit needs its own check.
+
+- Multi-solid builds run bounded exact interference checks automatically. Reports include top-20 details and counts, using part labels/paths and overlap locations/volumes; declared contacts are listed separately with reasons and optional volume limits. Default build findings warn, while an interference spec requirement can make them errors. Library deep-groove ball bearings report their nominal rolling contacts separately. A declaration is an agent claim, not proof of fit or function.
