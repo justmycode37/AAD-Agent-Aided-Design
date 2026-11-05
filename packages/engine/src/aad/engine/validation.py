@@ -53,6 +53,7 @@ def inspect_brep(
     brep_path: str | Path, *, candidate_dir: str | Path, kind: str,
     units: str, timeout_s: float = 60.0, spec: dict[str, Any] | None = None,
     memory_limit_bytes: int | None = None,
+    process: str | None = None,
 ) -> GeometryEvidence:
     """Snapshot then inspect a BREP after its model process has fully exited.
 
@@ -64,7 +65,7 @@ def inspect_brep(
     """
     started = time.monotonic()
     result = GeometryEvidence()
-    process = None
+    child = None
     communication_complete = False
     stdout, stderr = b"", b""
     phase = "input"
@@ -79,7 +80,7 @@ def inspect_brep(
         else:
             memory_limit_bytes = memory.memory_budget_bytes(memory_limit_bytes)
         deadline = started + timeout_s
-        declared = {"kind": kind, "units": units, "spec": {} if spec is None else spec}
+        declared = {"kind": kind, "units": units, "spec": {} if spec is None else spec, "process": process}
         if not isinstance(declared["spec"], dict):
             raise ValueError("spec must be a plain JSON object")
         _json_value(declared)
@@ -123,15 +124,15 @@ def inspect_brep(
             if memory_limit_bytes is not None
             else None
         )
-        process = sandbox.popen(
+        child = sandbox.popen(
             [sys.executable, "-I", "-B", "-c", _BOOTSTRAP, str(_SOURCE_ROOT)],
             result.inspection_dir,
             address_space=startup_limit,
         )
         phase = "inspect"
-        stdout, stderr = process.communicate(input=_canonical_json(payload) + b"\n", timeout=_remaining(deadline))
+        stdout, stderr = child.communicate(input=_canonical_json(payload) + b"\n", timeout=_remaining(deadline))
         communication_complete = True
-        if process.returncode != 0:
+        if child.returncode != 0:
             if memory.has_setup_failure_marker(stdout) or memory.has_setup_failure_marker(stderr):
                 result.failure = Failure(
                     code="SANDBOX_DENIED",
@@ -150,7 +151,7 @@ def inspect_brep(
                 )
             else:
                 result.failure = Failure(code="WORKER_CRASH", phase="crash", feature="unknown",
-                                         message=f"The BREP inspector exited with status {process.returncode}; no exit cause was inferred.")
+                                         message=f"The BREP inspector exited with status {child.returncode}; no exit cause was inferred.")
         else:
             phase = "decode"
             wire = _response(stdout)
@@ -182,10 +183,10 @@ def inspect_brep(
                                  message="Independent BREP inspection could not be completed.",
                                  kernel_message=f"{type(exc).__name__}: {exc}")
     finally:
-        if process is not None and (not communication_complete or process.poll() is None):
+        if child is not None and (not communication_complete or child.poll() is None):
             try:
-                _kill_worker(process)
-                stdout, stderr = _drain_killed_worker(process)
+                _kill_worker(child)
+                stdout, stderr = _drain_killed_worker(child)
             except OSError as exc:
                 result.failure = Failure(code="WORKER_CRASH", phase="crash", feature="unknown",
                                          message="BREP inspector cleanup failed.", kernel_message=f"{type(exc).__name__}: {exc}")
@@ -222,12 +223,12 @@ def _accept_response(result: GeometryEvidence, wire: dict, units: str, kind: str
     if not isinstance(checks, list) or any(not isinstance(c, dict) or not {"id", "suite", "level", "status", "message"} <= c.keys() for c in checks):
         raise ValueError("inspection checks must contain complete check objects")
     decoded = [_check_from_wire(c) for c in checks]
-    if any(c.suite != "hard" for c in decoded) or len({c.id for c in decoded}) != len(decoded):
-        raise ValueError("inspection checks must be unique hard checks")
+    if any(c.suite not in {"hard", "spec", "process"} for c in decoded) or len({(c.suite, c.id) for c in decoded}) != len(decoded):
+        raise ValueError("inspection checks must be unique recognized checks")
     failure = wire.get("failure")
     if failure is not None and (not isinstance(failure, dict) or failure.get("code") != "INVALID_SOLID" or failure.get("phase") != "validate" or not isinstance(failure.get("message"), str)):
         raise ValueError("inspection failure is malformed")
-    if wire["ok"] and (failure is not None or not metrics or not metrics["valid"] or metrics["solids"] < 1 or (kind == "part" and metrics["solids"] != 1) or metrics["volume"] <= 0 or not decoded or any(c.level == "error" and c.status == "fail" for c in decoded)):
+    if wire["ok"] and (failure is not None or not metrics or not metrics["valid"] or metrics["solids"] < 1 or (kind == "part" and metrics["solids"] != 1) or metrics["volume"] <= 0 or not decoded or any(c.suite == "hard" and c.level == "error" and c.status == "fail" for c in decoded)):
         raise ValueError("inspection reports contradictory success")
     if not wire["ok"] and failure is None:
         raise ValueError("failed inspection requires a failure")

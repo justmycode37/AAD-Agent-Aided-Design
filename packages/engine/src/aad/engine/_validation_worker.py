@@ -32,6 +32,7 @@ def main() -> None:
             from OCP.BRepCheck import BRepCheck_Analyzer
             from .gate import hard_checks
             from .types import ModelContext
+            from aad_quality import spec_checks, process_checks
 
             shape = bd.import_brep("part.brep")
             if shape is None or shape.wrapped is None or shape.wrapped.IsNull():
@@ -56,8 +57,11 @@ def main() -> None:
             _json_value(metrics)
             wire["metrics"] = metrics
             ctx = ModelContext(kind=record["inputs"]["kind"], units=record["inputs"]["units"],
-                               spec=record["inputs"]["spec"], shape=shape, metrics=metrics, job_dir=Path.cwd())
+                               spec=record["inputs"]["spec"], process=record["inputs"].get("process"),
+                               shape=shape, metrics=metrics, job_dir=Path.cwd())
             checks = hard_checks(ctx)
+            checks += spec_checks(ctx)
+            checks += process_checks(ctx)
             wire["checks"] = [asdict(check) for check in checks]
             if not metrics["valid"] or (ctx.kind == "part" and len(solids) != 1) or any(c.level == "error" and c.status == "fail" for c in checks):
                 raise ValueError("independently loaded geometry failed native validity, body-count or hard checks")

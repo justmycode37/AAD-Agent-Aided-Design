@@ -403,6 +403,42 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
             id="worker_verification_unattested", suite="hard", level="error", status="skip",
             message="The model process cannot attest its own verified status. A separate trusted validator is required.",
         ))
+    # Never use the worker's geometry metrics, feature records, or check outcomes
+    # as verification evidence. Re-load the private BREP in the independent
+    # validator and evaluate only requirements supported by native geometry.
+    if result.ok and kind != "2d" and part is not None:
+        try:
+            import json
+            import yaml
+            from .validation import inspect_brep
+            project = json.loads((project_dir / "project.json").read_text())
+            spec_path = project_dir / "spec.yaml"
+            spec = yaml.safe_load(spec_path.read_text()) if spec_path.is_file() else {}
+            if not isinstance(spec, dict):
+                spec = {}
+            evidence = inspect_brep(part, candidate_dir=job_dir, kind=kind,
+                                    units=project.get("units", "mm"), spec=spec,
+                                    process=project.get("process"))
+            result.checks = [c for c in result.checks if c.id != "worker_verification_unattested"]
+            result.checks.extend(evidence.checks)
+            requirements = spec.get("requirements") or []
+            required_checks = [c for c in evidence.checks if c.suite in {"spec", "process"} and c.level == "error"]
+            if (evidence.ok and requirements and required_checks
+                    and all(c.status == "pass" for c in required_checks)
+                    and not any(c.level == "error" and c.status in {"fail", "skip"} for c in evidence.checks)):
+                result.status = "verified"
+                result.requirements_proven = True
+                result.summary = "The saved BREP passed independent geometry and requirement checks."
+            else:
+                result.status = "draft"
+                if not any(c.id == "worker_verification_unattested" for c in result.checks):
+                    result.checks.append(Check(id="worker_verification_unattested", suite="hard", level="error", status="skip",
+                        message="Independent evidence did not prove every error-level requirement."))
+            result.metrics.update(evidence.metrics)
+        except Exception:
+            result.status = "draft"
+            result.checks.append(Check(id="trusted_validation_unavailable", suite="hard", level="error", status="skip",
+                message="Independent validation could not be completed."))
     changed_counts = _detail_counts(result.checks)
     result.checks_summary = {status: totals[status] + changed_counts[status] - original_counts[status]
                              for status in totals}
