@@ -48,6 +48,20 @@ The gate checks:
   bodies may legitimately touch. Faces outside any solid fall back to the
   whole-shape check.
 
+The optional `interference_checks(ctx)` provider is selected explicitly with
+`aad_check(suites=["interference"])`; it is not part of the default hard gate.
+It enumerates solid pairs, skips pairs whose axis-aligned boxes are disjoint,
+and runs an OCCT common on every remaining pair. A common volume strictly above
+`volume_threshold_mm3` (default `1e-6 mm³`) is an interference; zero-volume
+contact and volumes at or below the threshold are clear. Overlaps include both
+solid indexes and available labels, common volume, and a location in mm. The
+check reports the total overlap count and keeps at most the 20 largest pair
+details. It has a 60-second default budget (at most 120 seconds for direct
+provider calls). A failed boolean is an unknown pair, and a budget-expired run
+reports how many pairs were unchecked; neither case can produce a pass. If
+some pairs are confirmed overlapping, the check fails while retaining unknown
+and unchecked counts in its result.
+
 The STEP file is created in a unique temporary directory under `ctx.job_dir`
 and cleaned up on success or failure. Existing files in the job directory are
 not reused. The job directory's parent must already exist.

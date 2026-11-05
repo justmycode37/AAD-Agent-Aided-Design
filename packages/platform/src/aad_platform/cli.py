@@ -65,6 +65,12 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument("--preview", action="store_true", help="request a build preview")
     build.add_argument("--create", action="store_true", help="create the project before building")
     build.add_argument("--timeout", type=float, metavar="S", help="seconds before the build worker is killed (default 60, max 600)")
+    build.add_argument(
+        "--kind",
+        choices=("part", "assembly", "2d"),
+        default="part",
+        help="project kind when used with --create",
+    )
     build.add_argument("--json", action="store_true", help="machine-readable output")
 
     show = sub.add_parser("show", help="show a project revision")
@@ -462,7 +468,7 @@ def _remote_command(args: argparse.Namespace) -> int:
                 return _finish({"ok": False, "error": f"Could not read {args.file}: {exc}"}, args.json)
         common = {"project": args.project, "client": dict(CLI_CLIENT)}
         if args.create:
-            new_params: dict[str, Any] = {"name": args.project, "client": dict(CLI_CLIENT)}
+            new_params: dict[str, Any] = {"name": args.project, "kind": args.kind, "client": dict(CLI_CLIENT)}
             if source is not None:
                 new_params["source"] = source
             calls.append(("aad_new", new_params))

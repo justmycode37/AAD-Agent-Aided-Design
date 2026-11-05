@@ -83,6 +83,10 @@ For closer inspection, use these optional controls:
 types and defining dimensions, edge curve types and adjacency, and exact section loops. Cylinder
 facts distinguish inward-facing holes from outward-facing bosses. Numbers are rounded to nine
 decimal places for repeatability; their accuracy remains subject to the model/kernel tolerance.
+Exact edge class and adjacent-face facts are computed for shapes with at most 2,048 edges. Above
+that limit, curve type, length and endpoint facts remain available, while edge classes and their
+adjacency are omitted; `inspection.edge_classification` reports the skipped count and limit. The
+image still includes the model's tessellated edges, drawn with the general edge style.
 Each image lists pane rectangles, visible face selectors and pixel bounds, scale, labels actually
 drawn, and a 2x4 `world_to_pixel` affine matrix: multiply `[x,y,z,1]` to obtain whole-image pixel
 coordinates. This visibility describes the geometry under annotations, including the frontmost

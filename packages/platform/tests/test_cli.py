@@ -323,11 +323,15 @@ def test_remote_commands_are_json_and_forward_contract(monkeypatch, capsys, temp
         return replies, None
 
     monkeypatch.setattr(cli, "_remote_calls", fake_remote)
-    assert cli.main(["build", "sample", str(source), "--param", "width=4.5", "--preview", "--create", "--json"]) == 0
+    assert cli.main([
+        "build", "sample", str(source), "--param", "width=4.5", "--preview",
+        "--create", "--kind", "assembly", "--json",
+    ]) == 0
     build = output_object(capsys)
     assert build["ok"] is True
     assert [method for method, _params in calls] == ["aad_new", "aad_build"]
     assert calls[0][1]["source"].startswith("from build123d")
+    assert calls[0][1]["kind"] == "assembly"
     assert calls[1][1]["params"] == {"width": 4.5}
     assert calls[1][1]["preview"] is True
     assert calls[1][1]["client"] == {"name": "aad-cli", "supports_ui": False}

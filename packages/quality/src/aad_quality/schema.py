@@ -319,7 +319,13 @@ def _validate_requirement(req: dict[str, Any], index: int, units: str) -> list[S
         issues.append(SpecIssue("level must be 'error' or 'warn'", path + ("level",), index))
 
     type_fields = [key for key in req if key not in {"id", "level"}]
-    known = [key for key in type_fields if key in {"bbox", "solids", "holes", "min_wall", "clearance", "mass_g", "symmetric", "measure", "material_at_point"}]
+    known = [
+        key for key in type_fields
+        if key in {
+            "bbox", "solids", "holes", "min_wall", "clearance", "mass_g", "symmetric",
+            "measure", "material_at_point", "interference",
+        }
+    ]
     if not known:
         # Unknown types are deliberately retained so the evaluator can emit a skip.
         return issues
@@ -338,6 +344,7 @@ def _validate_requirement(req: dict[str, Any], index: int, units: str) -> list[S
         "symmetric": {"id", "level", "symmetric"},
         "measure": {"id", "level", "measure", "equals", "min", "max"},
         "material_at_point": {"id", "level", "material_at_point"},
+        "interference": {"id", "level", "interference"},
     }[field]
     try:
         _check_keys(req, allowed, path)
@@ -431,6 +438,13 @@ def _validate_requirement(req: dict[str, Any], index: int, units: str) -> list[S
                     raise ValueError(f"{_path_text(path + (field, 'point', axis))} must be one exact coordinate")
             if not isinstance(values.get("expected"), str) or values.get("expected") not in {"solid", "void"}:
                 raise ValueError(f"{_path_text(path + (field,))}.expected must be 'solid' or 'void'")
+        elif field == "interference":
+            values = _require_mapping(body, path + (field,))
+            _check_keys(values, {"volume_threshold_mm3"}, path + (field,))
+            if "volume_threshold_mm3" in values:
+                threshold = _finite_number(values["volume_threshold_mm3"], path + (field, "volume_threshold_mm3"))
+                if threshold < 0:
+                    raise ValueError(f"{_path_text(path + (field, 'volume_threshold_mm3'))} must be non-negative")
     except (ValueError, TypeError, KeyError) as exc:
         issues.append(SpecIssue(str(exc), path, index))
     return issues

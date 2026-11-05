@@ -492,6 +492,36 @@ def _eval_custom_measure(req_id: str, level: str, req: dict[str, Any], unit: str
     )
 
 
+def _eval_interference(req_id: str, level: str, req: dict[str, Any], ctx: Any) -> Any:
+    from aad.engine.gate import INTERFERENCE_VOLUME_THRESHOLD_MM3, interference_checks
+
+    settings = req["interference"]
+    threshold = settings.get("volume_threshold_mm3", INTERFERENCE_VOLUME_THRESHOLD_MM3)
+    result = interference_checks(ctx, volume_threshold_mm3=threshold)[0]
+    if result.status == "pass":
+        status = "pass"
+        message = f"Interference requirement {req_id!r} is satisfied."
+    elif result.status == "skip":
+        status = "skip"
+        message = f"Interference requirement {req_id!r} is unknown or incomplete."
+    else:
+        status = "fail" if level == "error" else "warn"
+        message = f"Interference requirement {req_id!r} found overlapping solid pairs."
+    return _check(
+        req_id,
+        level=level,
+        status=status,
+        message=message,
+        expected=result.expected or f"No solid pair has common volume above {threshold:g} mm³",
+        actual=result.actual or "unknown (the interference result was not provided)",
+        fix_hint=(
+            "Move or reshape the reported components to remove their common volume, or correct the explicit "
+            "volume_threshold_mm3 if a smaller overlap is acceptable."
+        ),
+        assumptions=result.assumptions,
+    )
+
+
 def _evaluate_one(req: dict[str, Any], index: int, doc: dict[str, Any], ctx: Any, native_factor: float | None) -> Any:
     req_id = _requirement_id(req, index)
     level = _level(req)
@@ -506,6 +536,7 @@ def _evaluate_one(req: dict[str, Any], index: int, doc: dict[str, Any], ctx: Any
         "symmetric",
         "measure",
         "material_at_point",
+        "interference",
     }
     known = [key for key in types if key in supported]
     if len(known) != 1:
@@ -563,6 +594,8 @@ def _evaluate_one(req: dict[str, Any], index: int, doc: dict[str, Any], ctx: Any
     if field == "material_at_point":
         spec_factor = mm_per_unit(unit)
         return _eval_material_point(req_id, level, req, unit, spec_factor, native_factor, ctx)
+    if field == "interference":
+        return _eval_interference(req_id, level, req, ctx)
     raise AssertionError(f"unhandled requirement type {field}")
 
 

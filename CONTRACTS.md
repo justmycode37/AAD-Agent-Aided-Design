@@ -125,9 +125,18 @@ requirements:
     level: warn               # error (default) or warn
     measure: {kind: distance, a: "face(feature='a', where='max_z')", b: "face(feature='b', where='min_z')"}
     equals: 12 ± 0.05
+  - id: no_interference
+    interference: {volume_threshold_mm3: 1e-6}
 ```
 
 S5 owns the evaluator and may add requirement types. Unknown types return a `skip` check, never a silent pass.
+The optional `interference` requirement runs the same exact solid-pair check as
+`aad_check(suites=["interference"])`. It accepts an optional
+`volume_threshold_mm3` (default `1e-6`); a common volume must be strictly above
+that threshold to count as interference. The provider uses a 60-second default
+pair-check budget, reports at most the 20 largest overlaps plus bounded unknown
+pair details, and identifies any unchecked pairs. A boolean failure or an
+exhausted budget cannot produce a pass.
 
 ---
 
@@ -471,6 +480,9 @@ only PNGs as image blocks; it includes the JSON data in structured `inspection` 
 fields, with all file paths in `artifacts`. Inspection version 1 includes B-rep face/edge facts,
 mass properties, exact section loops, image pane scales, world-to-pixel matrices, visible
 selectors, probe results and measurements. Face/edge indexes belong to the current revision.
+Exact sharp/tangent/seam edge classification and adjacent-face lists are included up to 2,048
+edges. Above that explicit limit, curve facts remain available, edge classes are omitted, and
+`inspection.edge_classification` says so; rendered edges use the general edge style.
 Camera direction points toward the viewer; probe direction points into the scene. Pixel probes
 use whole-image coordinates and view names without `.png`. Thickness is a sampled mesh search
 with B-rep refinement of its smallest candidates, not proof of a global minimum. See
@@ -488,6 +500,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 
 ## 11. Changelog
 
+- 2026-11-05: S1/S3/S5 added an opt-in interference spec requirement with a reported mm³ threshold, bounded pair details and explicit unknowns, and documented the render edge-classification cap so large assemblies can render without dropping B-rep curve facts.
 - 2026-11-05: S1 added the first-party gear helpers to the `from aad import *` modeling API, with degree-based angles and normal module.
 - 2026-11-05: Added optional `timeout_s` to `aad_build` in section 5, because the fixed 60 second kill limit stopped a full gearbox assembly that needed about 80 seconds.
 - 2026-11-05: S2/S3 added optional agent-controlled viewer presentations to `aad_show` and its result, following the user’s request for simple user controls and detailed views prepared through chat.
