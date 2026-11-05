@@ -1,5 +1,6 @@
 import asyncio
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -92,6 +93,37 @@ def test_library_preserves_worker_timeout(monkeypatch):
     result = asyncio.run(Handlers().aad_library({"action": "search", "query": "bolt"}))
     assert result["structured"]["failure"]["code"] == "TIMEOUT"
     assert result["structured"]["failure"]["phase"] == "timeout"
+
+
+def test_editable_guidance_is_discoverable_with_only_worker_read_mounts(tmp_path, monkeypatch):
+    from aad_platform.daemon import ops_client
+    from aad_quality import catalog
+
+    root = tmp_path / "checkout"
+    package = root / "packages" / "quality"
+    origin = package / "src" / "aad_quality" / "__init__.py"
+    origin.parent.mkdir(parents=True)
+    origin.touch()
+    (package / "pyproject.toml").write_text('[project]\nname = "aad-quality"\n')
+    (package / "unrelated.txt").write_text("not needed by the worker")
+    guidance = root / "skills"
+    (guidance / "playbooks").mkdir(parents=True)
+    monkeypatch.setattr(ops_client.importlib.util, "find_spec", lambda name: SimpleNamespace(origin=str(origin)) if name == "aad_quality" else None)
+    monkeypatch.setattr(catalog, "__file__", str(origin))
+    monkeypatch.setattr(catalog, "files", lambda name: origin.parent)
+    reads = ops_client._package_roots()
+
+    # Linux bubblewrap hides files outside the explicit read mounts. Unlike
+    # Seatbelt's metadata permission, even is_file() cannot see an unmounted file.
+    is_file, is_dir = Path.is_file, Path.is_dir
+
+    def visible(path):
+        return any(path == allowed or (is_dir(allowed) and path.is_relative_to(allowed)) for allowed in reads)
+
+    monkeypatch.setattr(Path, "is_file", lambda path: visible(path) and is_file(path))
+    monkeypatch.setattr(Path, "is_dir", lambda path: visible(path) and is_dir(path))
+    assert catalog._guidance_root() == guidance
+    assert not (package / "unrelated.txt").is_file()
 
 
 def test_duplicate_yaml_cannot_create_or_advance_project(project):
