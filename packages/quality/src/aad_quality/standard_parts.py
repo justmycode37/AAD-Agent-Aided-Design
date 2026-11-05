@@ -54,6 +54,7 @@ _THREAD_SIZES: dict[str, tuple[float, float]] = {
 }
 
 _FASTENER_ID = "fastener.iso4762.socket_head_cap_screw"
+_NUT_ID = "nut.iso4032.hex_nut"
 _BEARING_ID = "bearing.deep_groove_ball.skt"
 _THREAD_ID = "thread.iso_metric_external"
 
@@ -82,8 +83,13 @@ _CATALOG: tuple[dict[str, Any], ...] = (
                 "default": 20.0,
                 "constraint": "Nominal ISO 4762 length for the selected size.",
             },
+            "thread": {
+                "type": "enum",
+                "default": "envelope",
+                "choices": ["envelope", "helical"],
+            },
         },
-        "fixed": {"fastener_type": "iso4762", "hand": "right", "simple": False, "mode": "private"},
+        "fixed": {"fastener_type": "iso4762", "hand": "right", "mode": "private"},
         "example": (
             "from aad_quality.standard_parts import make_part\n"
             "screw = make_part(\n"
@@ -91,8 +97,10 @@ _CATALOG: tuple[dict[str, Any], ...] = (
             ")"
         ),
         "limitations": [
-            "Uses full helical thread geometry: upstream simple=True models only "
-            "a minor-diameter core and understates the thread clearance envelope. "
+            "thread='envelope' models the threaded length as a plain cylinder at the "
+            "major diameter, which holds the true clearance envelope. thread='helical' "
+            "models the full thread, but its sliver faces fail the hard gate's "
+            "edge_quality and face_quality checks, so use it only outside a built model. "
             "Nominal geometry does not prove purchased-hardware fit or load capacity."
         ],
     },
@@ -210,7 +218,8 @@ _FAMILIES: tuple[dict[str, Any], ...] = (
             "bd_warehouse.fastener", "SetScrew", {"size": "M6-1", "length": 10.0},
             {"fastener_type": "iso4026", "simple": True}, _FAST_THREAD),
     _family("nut.iso4032.hex_nut", "fastener", "ISO 4032 hex nut", "Metric hex nut, style 1.",
-            "bd_warehouse.fastener", "HexNut", {"size": "M6-1"}, {"fastener_type": "iso4032", "simple": True}, _FAST_THREAD),
+            "bd_warehouse.fastener", "HexNut", {"size": "M6-1"}, {"fastener_type": "iso4032"},
+            "Built by AAD from upstream's ISO 4032 dimension table with a 0.95 s chamfer and a plain bore at the major diameter. Threads are not modeled, so check thread fit separately."),
     _family("washer.iso7089.plain", "fastener", "ISO 7089 plain washer", "Metric plain washer, normal series.",
             "bd_warehouse.fastener", "PlainWasher", {"size": "M6"}, {"fastener_type": "iso7089"}),
     _family("bearing.angular_contact.skt", "bearing", "Angular contact ball bearing", "Single-row angular contact ball bearing.",
@@ -322,6 +331,42 @@ def _nominal_fastener_length(part_id: str, size: str, value: Any) -> float:
     return length
 
 
+def _hex_nut(size: str) -> Any:
+    """An ISO 4032 style 1 nut from upstream's dimension table, with a plain major-diameter bore.
+
+    The bore matches the envelope screw, so the two touch without overlapping.
+
+    Upstream's chamfer cone stops just short of the hexagon corners and leaves
+    0.003 mm edges there, which the hard gate rightly rejects. Here the chamfer
+    starts at 0.95 s, the usual washer-face diameter, and so clears each corner.
+    """
+    from bd_warehouse.fastener import HexNut
+    from build123d import Axis, Face, Plane, RegularPolygon, Solid, Vector, Wire
+
+    row = HexNut.fastener_data.get(size)
+    if row is None or not row.get("iso4032:s"):
+        raise ValueError(f"nut.iso4032.hex_nut has no size {size!r}")
+    across_flats, height = float(row["iso4032:s"]), float(row["iso4032:m"])
+    major = float(size[1:].split("-")[0])
+    hexagon = RegularPolygon(radius=across_flats / 2, side_count=6, major_radius=False)
+    prism = Solid.extrude(hexagon.faces()[0], Vector(0, 0, height))
+
+    start = 0.475 * across_flats
+    corner = across_flats / math.sqrt(3) + 1.0
+    rise = (corner - start) * math.tan(math.radians(30))
+    outline = [(0, 0), (start, 0), (corner, rise), (corner, height - rise), (start, height), (0, height)]
+    profile = Face(Wire.make_polygon([Plane.XZ.from_local_coords((r, z)) for r, z in outline], close=True))
+    chamfered = prism.intersect(Solid.revolve(profile, 360, Axis.Z))[0]
+
+    bore = Solid.make_cylinder(major / 2, height + 2, Plane((0, 0, -1)))
+    nut = chamfered.cut(bore)
+    if not nut.is_valid or len(nut.solids()) != 1:
+        raise RuntimeError(f"The {size} hex nut did not form one valid solid")
+    solid = nut.solids()[0]
+    solid.label = f"ISO 4032 {size} hex nut"
+    return solid
+
+
 def make_part(id: str, **params: Any) -> Any:
     """Build a registered part, importing bd_warehouse only for construction.
 
@@ -334,6 +379,10 @@ def make_part(id: str, **params: Any) -> Any:
     if entry is None:
         raise ValueError(f"unknown standard part id: {id!r}")
     _reject_unknown_parameters(id, entry, params)
+
+    if id == _NUT_ID:
+        _require_pinned_backend()
+        return _hex_nut(params.get("size", "M6-1"))
 
     if id in _FAMILY_IDS:
         _require_pinned_backend()
@@ -348,18 +397,29 @@ def make_part(id: str, **params: Any) -> Any:
             id, params.get("size", "M6-1"), tuple(_FASTENER_LENGTHS_BY_SIZE)
         )
         length = _nominal_fastener_length(id, size, params.get("length", 20))
+        thread = params.get("thread", "envelope")
+        if thread not in ("envelope", "helical"):
+            raise ValueError(f"thread for {id!r} must be 'envelope' or 'helical'")
         _require_pinned_backend()
         from bd_warehouse.fastener import SocketHeadCapScrew
-        from build123d import Mode
+        from build123d import Mode, Plane, Solid
 
         part = SocketHeadCapScrew(
             size=size,
             length=length,
             fastener_type="iso4762",
             hand="right",
-            simple=False,
+            simple=thread == "envelope",
             mode=Mode.PRIVATE,
         )
+        if thread == "envelope":
+            major = float(size[1:].split("-")[0])
+            shank = Solid.make_cylinder(major / 2, length, Plane((0, 0, -length)))
+            fused = part.solids()[0].fuse(shank, *part.solids()[1:])
+            if not fused.is_valid or len(fused.solids()) != 1:
+                raise RuntimeError("The screw head and shank could not be united into one valid solid")
+            fused.label = f"ISO 4762 {size} x {length:g} mm"
+            return fused
         solids = list(part.solids())
         fused = solids[0].fuse(*solids[1:]) if len(solids) > 1 else part
         if not fused.is_valid or len(fused.solids()) != 1:
