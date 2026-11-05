@@ -187,10 +187,9 @@ allocation child requests at most 8 + 96 = 104 MiB additional memory; the
 sampling child uses 64 MiB. No supervisor is tested or claimed by this package.
 
 Functional Linux AS tests use real bwrap and fail if it is absent; they do not
-skip to obtain green CI. Only Mac-specific accounting/setup/Seatbelt tests are
-marked Mac-only. Linux runtime remains untested from this Mac and CI's bwrap
-gap remains S2 #52/#50. An actual Linux run is required before claiming Linux
-evidence.
+skip to obtain green CI. Ubuntu CI runs that bwrap path. Only Mac-specific
+accounting/setup/Seatbelt tests are marked Mac-only. This local run was on Mac
+and does not report a Linux result.
 
 On the tested Mac, the focused memory/build/sandbox/preview/platform/guide run
 passed 146 tests in 90.07 s with no skips. It exercised the relative 32 MiB
@@ -199,5 +198,7 @@ with `ENOMEM`. The 64 MiB and 2 GiB absolute setup failures were also
 reproduced before target execution. After adding OOM propagation regressions,
 the focused spec/process/2D/ops run passed 102 tests in 2.20 s. A real fallback
 scene child and a real operation worker under a 4 GiB configured budget each
-passed in a separate test. These results cover this Mac only; Linux enforcement
-and independent PR review are not claimed.
+passed in a separate test. After tightening startup OOM detection and updating
+the config CLI expectation, the focused CLI/memory/build/sandbox/ops/guide run
+passed 145 tests in 93.76 s. These results cover this Mac only; Linux
+enforcement and independent PR review are not claimed.

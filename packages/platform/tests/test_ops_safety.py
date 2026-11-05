@@ -274,6 +274,21 @@ def test_ops_client_reports_memory_setup_failure_as_sandbox_denied(tmp_path, mon
     assert "operation did not run" in result["failure"]["message"]
 
 
+def test_ops_client_keeps_unrelated_memory_text_as_worker_crash(tmp_path, monkeypatch, project):
+    from aad.engine import sandbox
+    from aad_platform.daemon import ops_client
+
+    process = SimpleNamespace(
+        returncode=1,
+        communicate=lambda _data, timeout: (b"", b"RuntimeError: no out of memory condition was found\n"),
+    )
+    monkeypatch.setattr(sandbox, "popen", lambda *args, **kwargs: process)
+    result = ops_client._run_sandboxed(
+        {"op": "library", "args": {}, "out_dir": str(tmp_path / "out")}, timeout_s=10
+    )
+    assert result["failure"]["code"] == "WORKER_CRASH"
+
+
 def test_empty_suites_still_allow_the_spec_reference(tmp_path):
     from types import SimpleNamespace
 

@@ -150,14 +150,22 @@ def is_memory_exhaustion(exc: BaseException) -> bool:
 
 
 def is_memory_exhaustion_output(output: bytes | str) -> bool:
-    """Recognize startup diagnostics for explicit allocation failure.
+    """Recognize exception lines that identify an actual allocation failure.
 
     A killed worker with no such diagnostic remains WORKER_CRASH; signal-only
     exits are not enough to claim OOM.
     """
+    import errno
+
     text = output.decode(errors="replace") if isinstance(output, bytes) else output
-    folded = text.casefold()
-    return "memoryerror" in folded or "cannot allocate memory" in folded or "out of memory" in folded
+    for line in text.splitlines():
+        candidate = line.strip()
+        if re.fullmatch(r"MemoryError(?::.*)?", candidate):
+            return True
+        match = re.match(r"OSError:\s*\[Errno ([0-9]+)\](?:\s|$)", candidate)
+        if match is not None and int(match.group(1)) == errno.ENOMEM:
+            return True
+    return False
 
 
 def has_setup_failure_marker(output: bytes | str) -> bool:

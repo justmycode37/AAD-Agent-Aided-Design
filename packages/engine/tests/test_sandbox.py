@@ -232,6 +232,15 @@ class PublicBuildSandboxFailureTests(unittest.TestCase):
         self.assertEqual(built.failure.code, "OUT_OF_MEMORY")
         self.assertEqual(built.failure.phase, "oom")
 
+    def test_startup_runtime_error_mentioning_memory_is_not_reported_as_oom(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary, patch.object(sandbox, "popen") as launcher:
+            launcher.return_value.returncode = 1
+            launcher.return_value.communicate.return_value = (
+                b"", b"RuntimeError: no out of memory condition was found\n"
+            )
+            built = run_build(BuildRequest(source="result = Box(1, 1, 1)", project_dir=Path(temporary)))
+        self.assertEqual(built.failure.code, "WORKER_CRASH")
+
 
 @unittest.skipUnless(sys.platform == "darwin", "macOS Seatbelt escape tests")
 class MacSandboxTests(unittest.TestCase):

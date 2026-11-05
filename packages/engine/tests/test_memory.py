@@ -45,6 +45,14 @@ class AddressSpacePolicyTests(unittest.TestCase):
         self.assertFalse(memory.is_memory_exhaustion(RuntimeError("unexplained exit")))
         self.assertFalse(memory.is_memory_exhaustion_output("signal 9"))
         self.assertTrue(memory.is_memory_exhaustion_output("MemoryError: allocation failed"))
+        self.assertTrue(memory.is_memory_exhaustion_output(
+            f"OSError: [Errno {errno.ENOMEM}] Cannot allocate memory"
+        ))
+        self.assertFalse(memory.is_memory_exhaustion_output("RuntimeError: no out of memory was observed"))
+        self.assertFalse(memory.is_memory_exhaustion_output("RuntimeError: cannot allocate memory"))
+        self.assertFalse(memory.is_memory_exhaustion_output(
+            f"OSError: [Errno {errno.ENOSPC}] Cannot allocate memory"
+        ))
 
     def test_bytes_are_positive_finite_representable_integers(self) -> None:
         for value in (True, False, 1.0, '1024', None, object()):
