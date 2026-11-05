@@ -386,7 +386,7 @@ Every build runs these checks. A failure fails the build, with `HARD_GATE_FAILED
 | `brep_valid` | The kernel reports an invalid shape |
 | `closed_shells` | A shell is open |
 | `solid_count` | A `part` is not exactly one solid, or an `assembly` has none |
-| `edge_quality` | An edge is degenerate or at most 0.01 mm long |
+| `edge_quality` | An edge is degenerate or at most 0.01 mm long. The zero-length pole of a sphere or cone is expected and reported as `surface_pole_edges` |
 | `face_quality` | A face is under 0.001 mm² or 0.001 mm wide |
 | `step_volume_drift` | Volume changes on STEP round trip by more than 1e-6 relative. Usually a self-intersecting profile |
 | `mesh_watertight` | A mesh does not close. In an assembly each body is checked alone |

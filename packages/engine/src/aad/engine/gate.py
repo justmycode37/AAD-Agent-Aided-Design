@@ -782,6 +782,9 @@ def _closed_shell_check(shape: Any) -> Check:
     )
 
 
+_POLE_EDGE_LENGTH_MM = 1e-7
+
+
 def _edge_quality_check(shape: Any, tolerance: GateTolerances, unit_scale: float) -> Check:
     threshold = tolerance.min_edge_length_mm
     try:
@@ -801,15 +804,22 @@ def _edge_quality_check(shape: Any, tolerance: GateTolerances, unit_scale: float
             )
 
         lengths: list[float] = []
+        pole_count = 0
         degenerate_count = 0
         for raw_edge in edges:
             edge = TopoDS.Edge(raw_edge)
-            degenerate_count += int(bool(BRep_Tool.Degenerated_s(edge)))
             properties = GProp_GProps()
             BRepGProp.LinearProperties_s(edge, properties)
             length = float(properties.Mass()) * unit_scale
             if not isfinite(length) or length < 0:
                 raise ValueError("an edge length was negative or not finite")
+            if BRep_Tool.Degenerated_s(edge):
+                # OCCT represents the pole of a sphere or the apex of a cone as a
+                # zero-length degenerated edge. That is correct topology, not a sliver.
+                if length <= _POLE_EDGE_LENGTH_MM:
+                    pole_count += 1
+                    continue
+                degenerate_count += 1
             lengths.append(length)
     except Exception as exc:
         reason = _exception_text(exc)
@@ -821,17 +831,18 @@ def _edge_quality_check(shape: Any, tolerance: GateTolerances, unit_scale: float
 
     small_count = sum(length <= threshold for length in lengths)
     passed = degenerate_count == 0 and small_count == 0
+    minimum_length = _fmt(min(lengths)) if lengths else "none"
     return _check(
         "edge_quality",
         "pass" if passed else "fail",
-        f"All {len(lengths)} edges are non-degenerate and above the configured threshold."
+        f"All {len(lengths)} measured edges are above the configured threshold; {pole_count} surface pole edge(s) are expected."
         if passed
         else f"Found {degenerate_count} degenerate edge(s) and {small_count} edge(s) at or below the configured threshold.",
-        expected=f"no degenerate edges; each edge length > {_fmt(threshold)} mm",
+        expected=f"no degenerate edges other than surface poles; each edge length > {_fmt(threshold)} mm",
         actual=(
-            f"edges={len(lengths)}; degenerate_edges={degenerate_count}; "
+            f"edges={len(lengths)}; surface_pole_edges={pole_count}; degenerate_edges={degenerate_count}; "
             f"edges_at_or_below_threshold={small_count}; "
-            f"minimum_edge_length={_fmt(min(lengths))} mm; "
+            f"minimum_edge_length={minimum_length} mm; "
             f"configured_threshold={_fmt(threshold)} mm"
         ),
         heuristic=True,
@@ -1122,6 +1133,7 @@ def _check_mesh_arrays(
         triangle_counts: Counter[tuple[int, int, int]] = Counter()
         links: dict[int, dict[int, set[int]]] = defaultdict(lambda: defaultdict(set))
         degenerate_triangles = 0
+        collapsed_triangles = 0
         minimum_triangle_area = float("inf")
 
         for triangle_number, triangle in enumerate(source_triangles, start=1):
@@ -1134,8 +1146,9 @@ def _check_mesh_arrays(
                 raise ValueError(f"triangle {triangle_number} references an out-of-range vertex")
             indices = tuple(vertex_map[index] for index in raw_indices)
             if len(set(indices)) != 3:
-                minimum_triangle_area = 0.0
-                degenerate_triangles += 1
+                # Corners welded together, as at a surface pole. The triangle encloses
+                # nothing, so dropping it cannot hide a hole: the edge checks still run.
+                collapsed_triangles += 1
                 continue
 
             area = _triangle_area(*(welded_points[index] for index in indices))
@@ -1202,6 +1215,7 @@ def _check_mesh_arrays(
         actual=(
             f"input_vertices={len(points)}; welded_vertices={len(welded_points)}; "
             f"triangles={len(source_triangles)}; degenerate_triangles={degenerate_triangles}; "
+            f"collapsed_triangles={collapsed_triangles}; "
             f"duplicate_triangles={duplicate_triangles}; winding_conflicts={winding_conflicts}; "
             f"nonmanifold_vertices={nonmanifold_vertices}; "
             f"undirected_edges={len(edge_degrees)}; boundary_edges={boundaries}; "
