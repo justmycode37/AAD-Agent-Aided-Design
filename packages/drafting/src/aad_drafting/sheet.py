@@ -36,6 +36,7 @@ from .layout import (
     bom_from_context,
     compose_auxiliary_layout,
     drawing_geometry_margin_overflow,
+    entity_bounds,
     hole_callout_text,
     pack_views,
     primitive_intersects_rect,
@@ -1062,8 +1063,15 @@ def _sheet_frame(entities: list[Primitive], width: float, height: float) -> None
     )
 
 
-def _draw_cylinder_diameter_callouts(entities, placed, dimensions, units):
-    """Place measured axial-cylinder diameters on a view looking down their axis."""
+def _draw_cylinder_diameter_callouts(
+    entities,
+    placed,
+    dimensions,
+    view_geometry,
+    sheet_width,
+    sheet_height,
+):
+    """Place measured axial-cylinder diameters in clear space around their view."""
     candidates = [d for d in dimensions if d.get("kind") == "cylinder_size" and d.get("full_circle")]
     by_view = {name: [] for name in placed}
     for dimension in candidates:
@@ -1083,12 +1091,114 @@ def _draw_cylinder_diameter_callouts(entities, placed, dimensions, units):
         point = _sheet_point(view, project_point(center, view.projection))
         by_view[view.projection.name].append((dimension, point))
     for name, values in by_view.items():
+        values.sort(key=lambda item: (float(item[0]["value"]), item[0]["id"]))
         for index, (dimension, point) in enumerate(values):
             view = placed[name]
-            end = (view.bounds.xmax + 4.0, view.bounds.ymax - 6.0 - index * 6.0)
-            entities.append(replace(line(*point, *end, "DIMENSIONS", 0.16), dimension_id=dimension["id"]))
-            entities.append(text(f"DIA {dimension['value']:g}", end[0] + 1.5, end[1], 2.8,
-                                 "DIMENSIONS", dimension_id=dimension["id"]))
+            label = f"DIA {dimension['value']:g}"
+            lane_step = max(2.8 * 1.35 + 2.0, 6.0)
+            lane_offsets = [0.0]
+            for lane in range(1, 10):
+                lane_offsets.extend((lane * lane_step, -lane * lane_step))
+
+            placements = []
+            # Prefer the right side as before, then look around the other edges.
+            # The neighboring views can change with font metrics and kernel
+            # projection details, so every candidate is checked against the
+            # actual projected strokes rather than relying on a fixed gap.
+            for offset in lane_offsets:
+                placements.append(text(
+                    label, view.bounds.xmax + 5.5, view.bounds.center[1] + offset,
+                    2.8, "DIMENSIONS", "left", dimension_id=dimension["id"],
+                ))
+                placements.append(text(
+                    label, view.bounds.xmin - 5.5, view.bounds.center[1] + offset,
+                    2.8, "DIMENSIONS", "right", dimension_id=dimension["id"],
+                ))
+                placements.append(text(
+                    label, view.bounds.center[0] + offset, view.bounds.ymax + 5.5,
+                    2.8, "DIMENSIONS", "center", dimension_id=dimension["id"],
+                ))
+                placements.append(text(
+                    label, view.bounds.center[0] + offset, view.bounds.ymin - 5.5,
+                    2.8, "DIMENSIONS", "center", dimension_id=dimension["id"],
+                ))
+
+            selected = None
+            leader = None
+            for placement in placements:
+                label_bounds = text_bounds(placement)
+                if label_bounds is None or (
+                    label_bounds.xmin < MARGIN_MM - 1e-7
+                    or label_bounds.ymin < MARGIN_MM - 1e-7
+                    or label_bounds.xmax > sheet_width - MARGIN_MM + 1e-7
+                    or label_bounds.ymax > sheet_height - MARGIN_MM + 1e-7
+                ):
+                    continue
+                if text_view_collisions([placement], view_geometry):
+                    continue
+                combined = [*entities, placement]
+                candidate_index = len(combined) - 1
+                if any(candidate_index in pair for pair in text_text_collisions(combined)):
+                    continue
+
+                if point[0] < label_bounds.xmin:
+                    end = (label_bounds.xmin - 1.5, min(max(point[1], label_bounds.ymin), label_bounds.ymax))
+                elif point[0] > label_bounds.xmax:
+                    end = (label_bounds.xmax + 1.5, min(max(point[1], label_bounds.ymin), label_bounds.ymax))
+                elif point[1] < label_bounds.ymin:
+                    end = (min(max(point[0], label_bounds.xmin), label_bounds.xmax), label_bounds.ymin - 1.5)
+                else:
+                    end = (min(max(point[0], label_bounds.xmin), label_bounds.xmax), label_bounds.ymax + 1.5)
+                candidate_leader = replace(
+                    line(*point, *end, "DIMENSIONS", 0.16),
+                    dimension_id=dimension["id"],
+                    view_name=name,
+                )
+                if any(
+                    primitive_intersects_rect(candidate_leader, text_bounds(entity))
+                    for entity in entities if entity.kind == "text" and text_bounds(entity) is not None
+                ):
+                    continue
+                other_view_collision = False
+                for other_name, geometry in view_geometry.items():
+                    if other_name == name:
+                        continue
+                    if any(
+                        (bounds := entity_bounds(entity)) is not None
+                        and primitive_intersects_rect(candidate_leader, bounds)
+                        for entity in geometry
+                    ):
+                        other_view_collision = True
+                        break
+                if other_view_collision:
+                    continue
+                if any(
+                    primitive_intersects_rect(
+                        candidate_leader,
+                        Rect(
+                            other.bounds.xmin,
+                            other.bounds.ymin,
+                            other.bounds.xmax,
+                            other.bounds.ymax,
+                        ),
+                    )
+                    for other_name, other in placed.items()
+                    if other_name != name
+                ):
+                    continue
+                selected, leader = placement, candidate_leader
+                break
+
+            if selected is None:
+                # Keep the annotation visible and let the drawing validator
+                # report a fit problem if no clear position exists.
+                end = (view.bounds.xmax + 4.0, view.bounds.ymax - 6.0 - index * 6.0)
+                selected = text(label, end[0] + 1.5, end[1], 2.8,
+                                "DIMENSIONS", dimension_id=dimension["id"])
+                leader = replace(line(*point, *end, "DIMENSIONS", 0.16),
+                                 dimension_id=dimension["id"], view_name=name)
+            entities.append(leader)
+            entities.append(selected)
 
 
 def _section_geometry_dimensions(shape, bounds, views, units):
@@ -1767,7 +1877,14 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
         page_height,
     )
     entities[first_hole_entity:]=[replace(e,view_name="top") for e in entities[first_hole_entity:]]
-    _draw_cylinder_diameter_callouts(entities, placed, dimensions, units)
+    _draw_cylinder_diameter_callouts(
+        entities,
+        placed,
+        dimensions,
+        view_geometry,
+        page_width,
+        page_height,
+    )
     _draw_section_dimensions(entities, placed, dimensions, request.views)
     marker_start = len(entities)
     _view_markers(entities, shape, placed, request)
