@@ -187,6 +187,14 @@ def test_hex_nut_matches_iso_4032_dimensions() -> None:
         make_part('nut.iso4032.hex_nut', size='M999-1')
 
 
+def test_envelope_screw_passes_through_the_nut_without_overlap() -> None:
+    pytest.importorskip('bd_warehouse')
+    from build123d import Pos
+    screw = make_part(FASTENER_ID, size='M6-1', length=20)
+    nut = Pos(0, 0, -12) * make_part('nut.iso4032.hex_nut', size='M6-1')
+    assert sum(piece.volume for piece in screw.intersect(nut) or []) == pytest.approx(0, abs=1e-6)
+
+
 @pytest.mark.parametrize(
     'part_id', [part['id'] for part in list_parts()]
 )
