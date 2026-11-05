@@ -155,8 +155,73 @@ def test_fastener_dimensions_and_validity() -> None:
 @pytest.mark.parametrize('size,length', [('M3-0.5',5),('M10-1.5',16)])
 def test_full_threaded_screws_remain_single_solids_for_other_sizes(size,length):
     pytest.importorskip('bd_warehouse')
-    screw=make_part(FASTENER_ID,size=size,length=length)
+    screw=make_part(FASTENER_ID,size=size,length=length,thread='helical')
     assert _is_valid(screw) and len(screw.solids())==1
+
+
+def test_envelope_screw_holds_the_major_diameter_and_length() -> None:
+    pytest.importorskip('bd_warehouse')
+    screw = make_part(FASTENER_ID, size='M6-1', length=20)
+    below_head = screw.bounding_box()
+    assert below_head.min.Z == pytest.approx(-20, abs=0.01)
+    from build123d import Box, Pos
+    pieces = screw.intersect(Pos(0, 0, -10) * Box(20, 20, 19))
+    assert len(pieces) == 1
+    assert pieces[0].bounding_box().size.X == pytest.approx(6, abs=0.01)
+
+
+def test_helical_is_the_only_thread_alternative() -> None:
+    with pytest.raises(ValueError, match='envelope'):
+        make_part(FASTENER_ID, thread='square')
+
+
+def test_hex_nut_matches_iso_4032_dimensions() -> None:
+    pytest.importorskip('bd_warehouse')
+    nut = make_part('nut.iso4032.hex_nut', size='M6-1')
+    assert _is_valid(nut) and len(nut.solids()) == 1
+    size = nut.bounding_box().size
+    assert size.Y == pytest.approx(10, abs=0.01)  # Across flats.
+    assert size.X == pytest.approx(10 / 0.8660254, abs=0.05)  # Across corners, less the chamfer.
+    assert size.Z == pytest.approx(5.2, abs=0.01)
+    with pytest.raises(ValueError, match='no size'):
+        make_part('nut.iso4032.hex_nut', size='M999-1')
+
+
+@pytest.mark.parametrize(
+    'part_id', [part['id'] for part in list_parts()]
+)
+def test_every_library_part_passes_the_hard_gate_geometry_checks(part_id):
+    """The guide recommends these, so each must survive the checks every build runs."""
+    pytest.importorskip('bd_warehouse')
+    from aad.engine.gate import GateTolerances, _edge_quality_check, _face_quality_check, _mesh_watertight_check
+    shape = make_part(part_id)
+    tolerances = GateTolerances()
+    checks = [
+        _edge_quality_check(shape, tolerances, 1.0),
+        _face_quality_check(shape, tolerances, 1.0),
+        _mesh_watertight_check(shape, tolerances, 1.0, 'assembly'),
+    ]
+    assert [(check.id, check.actual) for check in checks if check.status != 'pass'] == []
+
+
+@pytest.mark.parametrize('part_id,size', [
+    ('nut.iso4032.hex_nut', size) for size in ('M3-0.5', 'M5-0.8', 'M8-1.25', 'M10-1.5')
+] + [
+    ('fastener.iso4762.socket_head_cap_screw', size) for size in ('M3-0.5', 'M10-1.5')
+] + [
+    ('bearing.deep_groove_ball.skt', size) for size in ('M3-10-4', 'M10-30-9')
+])
+def test_other_sizes_pass_the_hard_gate_geometry_checks(part_id, size):
+    pytest.importorskip('bd_warehouse')
+    from aad.engine.gate import GateTolerances, _edge_quality_check, _face_quality_check, _mesh_watertight_check
+    shape = make_part(part_id, size=size)
+    tolerances = GateTolerances()
+    checks = [
+        _edge_quality_check(shape, tolerances, 1.0),
+        _face_quality_check(shape, tolerances, 1.0),
+        _mesh_watertight_check(shape, tolerances, 1.0, 'assembly'),
+    ]
+    assert [(check.id, check.actual) for check in checks if check.status != 'pass'] == []
 
 
 def test_factory_does_not_silently_publish_into_a_surrounding_builder():
