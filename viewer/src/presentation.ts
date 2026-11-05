@@ -23,6 +23,29 @@ export function applyPresentation(view: Cad3dView, presentation: Presentation = 
   const ids = Object.keys(viewer.getStates());
   if (presentation.isolate) view.isolateParts(resolveParts(presentation.isolate, ids));
   if (presentation.hide) for (const id of resolveParts(presentation.hide, ids)) view.hidePart(id);
+  const materialKey = view as unknown as object;
+  let records = paintedMaterials.get(materialKey);
+  if (!records) { records = []; paintedMaterials.set(materialKey, records); }
+  for (const record of records) record.mesh.material = record.original;
+  records.length = 0;
+  for (const override of presentation.materials ?? []) for (const id of resolveParts(override.parts, ids)) {
+    const group = viewer.rendered.nestedGroup.groups[id] as any;
+    group?.traverse((mesh: any) => {
+      if (!mesh.isMesh || !mesh.material) return;
+      const original = mesh.material;
+      const copy = (material: any) => {
+        const next = material.clone();
+        if (override.color) next.color?.set(override.color);
+        if (override.metalness !== undefined && "metalness" in next) next.metalness = override.metalness;
+        if (override.roughness !== undefined && "roughness" in next) next.roughness = override.roughness;
+        if (override.opacity !== undefined) { next.opacity = override.opacity; next.transparent = override.opacity < 1; next.depthWrite = override.opacity >= 1; }
+        next.needsUpdate = true;
+        return next;
+      };
+      mesh.material = Array.isArray(original) ? original.map(copy) : copy(original);
+      records!.push({ mesh, original });
+    });
+  }
   viewer.setOrtho(presentation.projection === "orthographic");
   if (presentation.section) {
     viewer.setActiveTab("clip");
@@ -45,3 +68,5 @@ export function applyPresentation(view: Cad3dView, presentation: Presentation = 
   view.setExploded((presentation.explode ?? wasExploded) && view.canExplode());
   viewer.showTools(view.fullControls); viewer.setPickHandler(view.fullControls);
 }
+
+const paintedMaterials = new WeakMap<object, { mesh: any; original: any }[]>();

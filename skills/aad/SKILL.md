@@ -500,6 +500,8 @@ bundle. A merged PR does not update another editable checkout or old HTML export
 | `explode` | Pull the parts apart |
 | `grid` | Show the XYZ grid |
 | `inside` | Legacy `{hide, section}` recipe. Prefer a named view |
+| `materials` | Up to 256 per-part display overrides: `{parts, color, metalness, roughness, opacity}`. `parts` uses exact names or paths; color is `#RRGGBB`; numeric values are 0–1. This changes display only. |
+| `environment` | `"studio"` selects the offline studio environment when available. |
 
 **`views` entries** give users real choices, such as Interior, Gear train or Longitudinal section. Each has `id`, `label`, `description`, `view`, `presentation` and `analysis`. At most 24 entries and 64 KiB. IDs and labels are unique, and `original` is reserved. Each entry stands alone and inherits nothing. `views: []` clears the menu.
 

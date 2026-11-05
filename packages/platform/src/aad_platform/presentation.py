@@ -29,7 +29,7 @@ def _number(value: Any, name: str) -> float:
 
 def normalize_presentation(value: Any, parts: list[dict[str, Any]]) -> dict[str, Any]:
     """Resolve unique part names/group paths to existing leaf paths; never guess."""
-    value = _object(value, {"isolate", "hide", "style", "projection", "section", "explode", "grid", "inside"}, "presentation")
+    value = _object(value, {"isolate", "hide", "style", "projection", "section", "explode", "grid", "inside", "materials"}, "presentation")
     result: dict[str, Any] = {}
     for key in ("isolate", "hide"):
         if key not in value:
@@ -61,6 +61,36 @@ def normalize_presentation(value: Any, parts: list[dict[str, Any]]) -> dict[str,
             if not isinstance(value[key], bool):
                 raise ValueError(f"{key} must be true or false")
             result[key] = value[key]
+    if "materials" in value:
+        rows = value["materials"]
+        if not isinstance(rows, list) or not 1 <= len(rows) <= 256:
+            raise ValueError("materials must contain 1 to 256 part material overrides")
+        normalized, assigned = [], set()
+        for row in rows:
+            row = _object(row, {"parts", "color", "metalness", "roughness", "opacity"}, "material")
+            selectors = row.get("parts")
+            if not isinstance(selectors, list) or not 1 <= len(selectors) <= 256:
+                raise ValueError("material.parts must contain 1 to 256 part names or paths")
+            paths = normalize_presentation({"isolate": selectors}, parts)["isolate"]
+            if assigned.intersection(paths):
+                raise ValueError("A part may have only one material override")
+            assigned.update(paths)
+            item = {"parts": paths}
+            if "color" in row:
+                color = row["color"]
+                if not isinstance(color, str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+                    raise ValueError("material.color must be a #RRGGBB color")
+                item["color"] = color
+            for key in ("metalness", "roughness", "opacity"):
+                if key in row:
+                    number = _number(row[key], f"material.{key}")
+                    if not 0 <= number <= 1:
+                        raise ValueError(f"material.{key} must be between 0 and 1")
+                    item[key] = number
+            if len(item) == 1:
+                raise ValueError("Each material needs at least one display property")
+            normalized.append(item)
+        result["materials"] = normalized
     if "section" in value:
         section = _object(value["section"], {"planes", "intersection"}, "section")
         planes = section.get("planes")
