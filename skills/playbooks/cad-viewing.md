@@ -10,6 +10,28 @@ candidate_status: unmeasured
 Unmeasured candidate agent guidance. The implementation is tested; this wording
 has not been evaluated for agent tool-choice efficiency.
 
+## Use the canonical viewer
+
+Use AAD's packaged viewer for every CAD model. For HTML-only chat, export the
+saved AAD scene with `python -m aad_platform.viewer.bundle SCENE_DIR OUTPUT_DIR`
+and pass `viewer.html` to the host's HTML preview and display tools. Use its
+`--title`, `--presentation` and `--views` options for inspection recipes. This
+also works for an explicitly unverified inspection scene; it does not require
+replacing the renderer when a build check fails.
+
+Do not write a separate Three.js/WebGL viewer or copy an old stub to work around
+missing MCP tools, a failed build, or HTML size limits. Unless the user explicitly
+requests a different viewer, preserve AAD's controls, navigation and original
+scene geometry. If the runtime is missing, repair the installation or report
+the actual blocker.
+
+When a viewer looks outdated, inspect the active Python environment and the
+resolved asset before editing UI: `python -c "import sys; from aad_platform.viewer
+import viewer_path; print(sys.executable); print(viewer_path())"` (one line).
+An old editable checkout is a separate runtime from another checkout containing
+new commits. Merging a PR does not update that environment or saved HTML files.
+Regenerate the viewer bundle with the current runtime after updating it.
+
 ## Two interfaces, one original scene
 
 Chat exposes orbit/pan/zoom, Pull apart/Put together, XYZ Grid, Reset, a wider

@@ -450,6 +450,12 @@ The one-based number follows the original scene manifest, stays fixed across
 views, and is revision-local. The label clears when hovering ends.
 
 
+Use the packaged AAD viewer, including for HTML-only hosts via the bundle command below.
+Do not hand-write a replacement Three.js/WebGL viewer or use the legacy stub.
+If it is missing or looks outdated, check the active Python environment and
+`aad_platform.viewer.viewer_path()`, repair that installation and regenerate the
+bundle. A merged PR does not update another editable checkout or old HTML export.
+
 `aad_show` displays a revision for the user. Its result holds a scene manifest with `scene.parts`, whose exact names and paths you use in presentations. The original geometry is never simplified. Hiding, clipping, colors and exploding are display settings, not model changes.
 
 | Host | What happens |
