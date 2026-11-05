@@ -671,7 +671,7 @@ plate.rectangle("outline", 80, 40, origin=(0, 0))
 plate.circle("hole", (10, 10), 2.5)
 ```
 
-Sheets offer `point`, `line`, `circle`, `arc`, `polyline`, `rectangle`, `bezier`, `ellipse` and `text`, layers `cut`, `score` and `engrave`, booleans, offsets, patterns, and named constraints. See `packages/drafting/docs/`. An open cut contour fails the build. 2D specs measure `bbox` x/y, closed circular cut-contour hole counts and diameters (including expanded pattern copies), filled cut `area` and whole-sheet `measure: {kind: area}`, plus component catalog requirements. A z bbox, selector-based measurement, and requirement types without a 2D meaning are skipped with an explicit explanation. Laser process settings remain available to 2D process checks. Successful 2D builds remain `draft` while verification is unavailable.
+Sheets offer `point`, `line`, `circle`, `arc`, `polyline`, `rectangle`, `bezier`, `ellipse` and `text`, layers `cut`, `score` and `engrave`, booleans, offsets, patterns, and named constraints. See `packages/drafting/docs/`. An open cut contour fails the build. 2D specs measure `bbox` x/y, closed circular cut-contour hole counts and diameters (including expanded pattern copies), filled cut `area` and whole-sheet `measure: {kind: area}`, plus component catalog requirements. `holes.through: false` skips because a sheet has no depth evidence; nested circular contours skip because their void/island topology is ambiguous. A z bbox, selector-based measurement, and requirement types without a 2D meaning are also skipped with an explicit explanation. Laser process settings remain available to 2D process checks. Successful 2D builds remain `draft` while verification is unavailable.
 
 ## Python-only features
 
