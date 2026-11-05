@@ -308,20 +308,6 @@ class GeometricGateTests(unittest.TestCase):
         self.assertEqual(actual["confirmed_overlapping_pairs"], 1)
         self.assertEqual(actual["allowed_overlap_pairs"], 0)
 
-    def test_library_bearing_rolling_contacts_are_reported_as_intended(self) -> None:
-        from aad import assembly
-        from aad_quality.standard_parts import make_part
-
-        asm = assembly("bearing_test")
-        asm.add("bearing", make_part("bearing.deep_groove_ball.skt", size="M8-22-7"))
-        ctx = context(asm.compound(), Path("."), kind="assembly")
-        ctx.meta = {"assembly": asm.record()}
-        actual = json.loads(interference_checks(ctx)[0].actual)
-        self.assertGreater(actual["allowed_overlap_pairs"], 0)
-        self.assertEqual(actual["confirmed_overlapping_pairs"], actual["allowed_overlap_pairs"])
-        self.assertEqual(actual["undeclared_overlapping_pairs"], 0)
-        self.assertTrue(all("Library bearing" in pair["reason"] for pair in actual["reported_allowed_overlaps"]))
-
     def test_interference_budget_overrun_is_unknown_not_pass(self) -> None:
         shape = Compound(children=[Box(2, 2, 2), Box(2, 2, 2).translate((1, 0, 0))])
         with patch("aad.engine.gate.monotonic", side_effect=[0.0, 2.0, 2.0]):

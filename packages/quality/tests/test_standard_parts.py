@@ -255,6 +255,28 @@ def test_bearing_builds_with_pinned_constructor_and_expected_major_dimensions() 
     assert _dimensions(bearing) == pytest.approx((22.0, 22.0, 7.0), abs=0.01)
 
 
+def test_library_bearing_rolling_contacts_are_reported_as_intended() -> None:
+    pytest.importorskip("bd_warehouse")
+    pytest.importorskip("build123d")
+
+    from aad import assembly
+    from aad.engine.gate import interference_checks
+    from aad.engine.types import ModelContext
+    from pathlib import Path
+    import json
+
+    asm = assembly("bearing_test")
+    asm.add("bearing", make_part(BEARING_ID, size="M8-22-7"))
+    ctx = ModelContext(shape=asm.compound(), units="mm", kind="assembly", job_dir=Path("."), meta={"assembly": asm.record()})
+    check = interference_checks(ctx)[0]
+    actual = json.loads(check.actual)
+    assert check.status == "warn"
+    assert actual["allowed_overlap_pairs"] > 0
+    assert actual["confirmed_overlapping_pairs"] == actual["allowed_overlap_pairs"]
+    assert actual["undeclared_overlapping_pairs"] == 0
+    assert all("Library bearing" in pair["reason"] for pair in actual["reported_allowed_overlaps"])
+
+
 def test_thread_builds_with_pinned_constructor_and_expected_major_dimensions() -> None:
     pytest.importorskip("bd_warehouse")
     pytest.importorskip("build123d")

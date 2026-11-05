@@ -425,9 +425,11 @@ def interference_checks(
     unknown_count = 0
     overlaps: list[tuple[float, int, int, dict[str, Any]]] = []
     allowed_overlaps: list[tuple[float, int, int, dict[str, Any]]] = []
-    declarations = ctx.meta.get("assembly", {}).get("allowed_overlaps", []) if isinstance(ctx.meta, dict) else []
+    metadata = getattr(ctx, "meta", {})
+    assembly_metadata = metadata.get("assembly", {}) if isinstance(metadata, dict) else {}
+    declarations = assembly_metadata.get("allowed_overlaps", [])
     allowed_by_pair = {frozenset((item["a"], item["b"])): item for item in declarations if isinstance(item, dict) and item.get("a") and item.get("b") and item.get("reason")}
-    library_contacts = ctx.meta.get("assembly", {}).get("library_contacts", []) if isinstance(ctx.meta, dict) else []
+    library_contacts = assembly_metadata.get("library_contacts", [])
     allowed_overlap_count = 0
     allowed_overlap_volume_mm3 = 0.0
     unknown_pairs: list[dict[str, Any]] = []
