@@ -52,8 +52,9 @@ tests/e2e/                           S2  end-to-end smoke tests
   spec.yaml        requirements
   exports/         files for the user
   .aad/
-    revs/000007/   model.py, spec.yaml, meta.json, part.brep, scene.bin.gz, scene.json, sheet.png
-    cache/         content-addressed, safe to delete
+    revs/000007/   model.py, spec.yaml, meta.json, features.json, part.brep, scene.bin.gz, scene.json, sheet.png
+    objects/sha256/ content-addressed files hard-linked into revision paths
+    cache/         engine cache, content-addressed and safe to delete
     jobs/          job dirs, the only place sandboxed code may write
 ```
 
@@ -536,6 +537,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 
 - 2026-11-05: S2 made the structured `aad_render` report compact by default, with `inspection="full"` for the rest, because it reached 2.6 MB on a 492-part assembly.
 - 2026-11-05: S1 added `REQUIREMENT_FAILED`, because a failed spec or process check reached agents as `RUNTIME_ERROR`, and began emitting the documented `KERNEL_*` codes from model builds.
+- 2026-11-05: S1 added a project-local SHA-256 object store for identical revision files and moved large feature tables into reusable files, reconstructing them for tools so revision paths and results remain stable.
 - 2026-11-05: S3 specified whole-part toggle selection, subtle highlighting, exact scene-scoped references, negotiated selection context and capability-gated unsent composer insertion; unsupported hosts keep local selection without a clipboard workflow, and server editing routes remain reserved.
 - 2026-11-05: Replaced `PLAN.md` with `ARCHITECTURE.md` at the user's request. Scope, sector and milestone text remains in git history.
 - 2026-11-05: S5 added rigid reference-model comparison as a spec requirement and sandboxed CLI operation, with explicit geometric-only evidence limits.

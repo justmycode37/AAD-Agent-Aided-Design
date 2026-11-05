@@ -331,28 +331,28 @@ class Handlers:
             return reply(compact(envelope))
         if result.get("scene"):
             result["scene"]["status"] = "verified" if status == "verified" else "draft"
-        (job_dir / "meta.json").write_text(
-            json.dumps(
-                compact(
-                    {
-                        "rev": rev,
-                        "base_rev": head,
-                        "job": job_id,
-                        "status": status,
-                        "metrics": result.get("metrics"),
-                        "checks": result.get("checks"),
-                        "checks_summary": result.get("checks_summary"),
-                        "scene": result.get("scene"),
-                        "param_overrides": overrides,
-                        "params": (result.get("context") or {}).get("params"),
-                        "features": (result.get("context") or {}).get("features"),
-                        "meta": (result.get("context") or {}).get("meta"),
-                    }
-                ),
-                indent=2,
-                default=str,
-            )
+        revision_metadata = compact(
+            {
+                "rev": rev,
+                "base_rev": head,
+                "job": job_id,
+                "status": status,
+                "metrics": result.get("metrics"),
+                "checks": result.get("checks"),
+                "checks_summary": result.get("checks_summary"),
+                "scene": result.get("scene"),
+                "param_overrides": overrides,
+                "params": (result.get("context") or {}).get("params"),
+                "features": (result.get("context") or {}).get("features"),
+                "meta": (result.get("context") or {}).get("meta"),
+            }
         )
+        features = revision_metadata.pop("features", None)
+        if features:
+            (job_dir / "features.json").write_text(
+                json.dumps(features, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+            )
+        (job_dir / "meta.json").write_text(json.dumps(revision_metadata, indent=2, default=str))
         if project.head_rev != head:
             project.discard_job(job_dir)
             return reply(
@@ -409,7 +409,7 @@ class Handlers:
         rev_dir = project.rev_dir(rev)
         if not rev_dir.is_dir():
             return reply(failure_envelope(project.name, "BAD_INPUT", "input", f"No revision {rev}.", head_rev=head))
-        meta = json.loads((rev_dir / "meta.json").read_text())
+        meta = project.revision_meta(rev)
         scene = meta.get("scene")
         payload = _scene_payload(rev_dir)
         if not scene or payload is None:
@@ -1006,7 +1006,7 @@ def _publish_exports(exports: Path, out: Path, files: dict[str, str], stem: str)
 
 def _rev_meta(project: Project, rev: int) -> dict[str, Any]:
     try:
-        return json.loads((project.rev_dir(rev) / "meta.json").read_text())
+        return project.revision_meta(rev)
     except (OSError, ValueError):
         return {}
 

@@ -75,10 +75,11 @@ def _feature(item: dict[str, Any]) -> Any:
 
 def load_context(request: dict[str, Any]) -> Any:
     from aad.engine.types import ModelContext
+    from .daemon.projects import Project
 
     project_dir = Path(request["project_dir"])
     rev_dir = project_dir / ".aad" / "revs" / f"{request['rev']:06d}"
-    meta = json.loads((rev_dir / "meta.json").read_text())
+    meta = Project(project_dir).revision_meta(request["rev"])
     shape = None
     brep = rev_dir / "part.brep"
     if brep.exists():

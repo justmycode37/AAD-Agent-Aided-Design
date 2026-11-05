@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
 import shutil
+import stat
 import time
 import uuid
 from dataclasses import dataclass
@@ -67,6 +69,14 @@ class Project:
     def jobs_dir(self) -> Path:
         return self.path / ".aad" / "jobs"
 
+    @property
+    def objects_dir(self) -> Path:
+        return self.path / ".aad" / "objects" / "sha256"
+
+    @property
+    def objects_index_path(self) -> Path:
+        return self.path / ".aad" / "objects" / "revisions.json"
+
     def meta(self) -> dict[str, Any]:
         return json.loads(self.meta_path.read_text())
 
@@ -83,6 +93,16 @@ class Project:
 
     def rev_dir(self, rev: int) -> Path:
         return self.revs_dir / f"{rev:06d}"
+
+    def revision_meta(self, rev: int) -> dict[str, Any]:
+        """Read revision metadata, expanding a separately stored feature table when present."""
+        rev_dir = self.rev_dir(rev)
+        metadata = json.loads((rev_dir / "meta.json").read_text())
+        if "features" not in metadata:
+            features_path = rev_dir / "features.json"
+            if features_path.is_file():
+                metadata["features"] = json.loads(features_path.read_text())
+        return metadata
 
     def revisions(self) -> list[int]:
         return sorted(int(p.name) for p in self.revs_dir.iterdir() if p.name.isdigit())
@@ -124,14 +144,103 @@ class Project:
 
     def commit_revision(self, job_dir: Path, source: str, spec: str | None) -> int:
         """Promote a finished job to the next immutable revision and move the head."""
+        interned = self._intern_existing_revisions()
         rev = self.next_rev()
         target = self.rev_dir(rev)
         (job_dir / "model.py").write_text(source)
         if spec is not None:
             (job_dir / "spec.yaml").write_text(spec)
+        self._intern_files(job_dir)
         os.replace(job_dir, target)
         self.checkout(rev)
+        interned.add(rev)
+        self._write_interned_revisions(interned)
+        self.prune_objects()
         return rev
+
+    def _intern_existing_revisions(self) -> set[int]:
+        try:
+            stored = json.loads(self.objects_index_path.read_text())
+            values = stored.get("revisions", []) if isinstance(stored, dict) else []
+            interned = {item for item in values if isinstance(item, int) and not isinstance(item, bool)}
+        except (OSError, ValueError, AttributeError, TypeError):
+            interned = set()
+        revisions = set(self.revisions())
+        interned.intersection_update(revisions)
+        for rev in sorted(revisions - interned):
+            self._intern_files(self.rev_dir(rev))
+            interned.add(rev)
+        return interned
+
+    def _write_interned_revisions(self, revisions: set[int]) -> None:
+        self.objects_index_path.parent.mkdir(parents=True, exist_ok=True)
+        write_atomic(self.objects_index_path, json.dumps({"revisions": sorted(revisions)}, separators=(",", ":")))
+
+    def _intern_files(self, directory: Path) -> None:
+        """Hard-link regular revision files to the project's SHA-256 object store."""
+        for path in sorted(directory.rglob("*")):
+            try:
+                mode = path.lstat().st_mode
+            except FileNotFoundError:
+                continue
+            if not stat.S_ISREG(mode):
+                continue
+
+            digest = _file_digest(path)
+            size = path.stat().st_size
+            blob = self.objects_dir / digest[:2] / digest
+            blob.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                os.link(path, blob)
+            except FileExistsError:
+                if not self._valid_blob(blob, digest, size):
+                    blob_mode = blob.lstat().st_mode
+                    if not stat.S_ISREG(blob_mode):
+                        raise OSError(f"Content object path is not a regular file: {blob}")
+                    blob.unlink()
+                    os.link(path, blob)
+                else:
+                    self._replace_with_blob(path, blob)
+            path.chmod(stat.S_IMODE(path.stat().st_mode) & ~0o222)
+
+    @staticmethod
+    def _replace_with_blob(path: Path, blob: Path) -> None:
+        temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.link")
+        try:
+            os.link(blob, temporary)
+            os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    @staticmethod
+    def _valid_blob(path: Path, digest: str, size: int) -> bool:
+        try:
+            mode = path.lstat().st_mode
+            return stat.S_ISREG(mode) and path.stat().st_size == size and _file_digest(path) == digest
+        except OSError:
+            return False
+
+    def prune_objects(self) -> int:
+        """Remove only object names with no hard links from a revision or active job."""
+        if not self.objects_dir.exists():
+            return 0
+        removed = 0
+        for path in self.objects_dir.rglob("*"):
+            try:
+                mode = path.lstat().st_mode
+                links = path.stat().st_nlink
+            except OSError:
+                continue
+            if stat.S_ISREG(mode) and links == 1:
+                path.unlink()
+                removed += 1
+        for path in sorted(self.objects_dir.rglob("*"), reverse=True):
+            if path.is_dir() and not path.is_symlink():
+                try:
+                    path.rmdir()
+                except OSError:
+                    pass
+        return removed
 
     def retain_failed_job(self, job_dir: Path, job_id: str, envelope: dict[str, Any]) -> None:
         """Keep a built, failed candidate as evidence, bounded per project. Never touches the head."""
@@ -189,6 +298,7 @@ def create_project(
     (path / ".aad" / "revs").mkdir(parents=True, exist_ok=True)
     (path / ".aad" / "jobs").mkdir(exist_ok=True)
     (path / ".aad" / "cache").mkdir(exist_ok=True)
+    (path / ".aad" / "objects" / "sha256").mkdir(parents=True, exist_ok=True)
     (path / "exports").mkdir(exist_ok=True)
     project = Project(path)
     project.write_meta(
@@ -225,3 +335,11 @@ def open_project(name: str, client: dict[str, Any] | None = None) -> Project:
         if (path / "project.json").exists():
             return Project(path.resolve())
     raise ProjectError("BAD_INPUT", f"No project named {name!r}. Create it with aad_new.")
+
+
+def _file_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()

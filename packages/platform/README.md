@@ -13,6 +13,20 @@ The `aad-design` wheel declares these default runtime requirements:
 
 The workspace source mappings keep repository resolution tied to these local packages instead of similarly named registry packages. Built wheel metadata uses normal versioned distribution requirements. A registry install such as `uv tool install aad-design` also requires these component distributions to be available on the configured index; this change does not publish them. The quality package and its on-demand catalog are included in the installed runtime. Optional standard-part construction still requires the quality package's `parts` extra.
 
+## Revision storage
+
+Revision files keep their normal paths under `.aad/revs/<rev>/`. On its first commit after upgrade, a project interns existing revisions; new revisions are interned during commit. Files are hard-linked to matching objects in `.aad/objects/sha256/` and are read-only after commit. `Project.revision_meta()` loads the large `features.json` sidecar in new revisions and still reads older revisions that embed features in `meta.json`. The revision index records which directories have been migrated. Cleanup removes an object only when its hard-link count is one, so no revision or job still points to it.
+
+On 2026-11-05, a scratch project built three times from a read-only copy of `~/AAD/dsg-0b5` revision 7's model and spec. The scratch run used temporary `HOME` and `AAD_HOME`; the source project was not changed. Its original `.aad/` occupied 527 MiB. The scratch revision tree had these logical file sizes and unique inode allocations:
+
+| Revisions | Logical revision files | Unique bytes | Allocated blocks |
+|---:|---:|---:|---:|
+| 1 | 43.90 MiB | 43.90 MiB | 43.91 MiB |
+| 2 | 87.80 MiB | 43.96 MiB | 43.98 MiB |
+| 3 | 131.69 MiB | 69.25 MiB | 69.27 MiB |
+
+The second revision reused all large content; the third added 25.3 MiB of new unique bytes despite using the same source. The store shares byte-identical files only. Feature tables are compact sidecars rather than pretty-printed inside `meta.json`, reducing the first scratch revision from the original project's roughly 60 MiB per revision to 43.90 MiB before inter-revision reuse.
+
 ## Installed-wheel smoke
 
 Run the local build and isolated install check with:

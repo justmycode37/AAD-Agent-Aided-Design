@@ -100,7 +100,13 @@ def test_show_updates_an_open_window_and_keeps_settings_on_reload(tmp_path, monk
     (scene_dir / "scene.bin.gz").write_bytes(payload)
     scene = {"scene_id": hashlib.sha256(payload).hexdigest(), "total_bytes": len(payload), "parts": PARTS}
     (tmp_path / "meta.json").write_text(json.dumps({"scene": scene, "status": "draft"}), encoding="utf-8")
-    project = SimpleNamespace(name="gearbox", path=tmp_path, head_rev=1, rev_dir=lambda rev: tmp_path)
+    project = SimpleNamespace(
+        name="gearbox",
+        path=tmp_path,
+        head_rev=1,
+        rev_dir=lambda rev: tmp_path,
+        revision_meta=lambda rev: json.loads((tmp_path / "meta.json").read_text(encoding="utf-8")),
+    )
     monkeypatch.setattr(handlers, "open_project", lambda *args: project)
     monkeypatch.setattr(handlers.scenes, "publish", lambda *args: None)
     sent = []

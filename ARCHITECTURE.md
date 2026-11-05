@@ -51,7 +51,7 @@ Kernel versions are pinned in `packages/engine/pyproject.toml`.
 3. The daemon starts a new Python process under the OS sandbox: `sandbox-exec` on macOS, bubblewrap on Linux. It has no network and can write only to its job directory. Without a working sandbox the build fails with `SANDBOX_DENIED`; there is no unsandboxed fallback.
 4. That process runs `model.py`. `feature()` records which faces and edges each named feature produced. It then runs the hard gate, spec checks and process checks, tessellates a scene, and optionally renders a preview.
 5. The daemon kills the process at the time limit: 60 s by default, up to 600 s with `timeout_s`. If the build outlasts `wait_s`, the call returns `running` with a job id, which the agent polls through `aad_history`.
-6. A successful build becomes an immutable revision on disk. A failure never moves the head revision; a built candidate that failed a check is kept for inspection.
+6. A successful build becomes an immutable revision on disk. Identical files are hard-linked through the project's `.aad/objects/sha256` store; a failure never moves the head revision, and a built candidate that failed a check is kept for inspection.
 7. The agent gets a short text summary, plus an image only when requested.
 
 Later operations such as render, check, measure, query, export, drawing and compare each run in their own sandboxed process through `aad_platform.ops`, against a stored revision.
@@ -115,7 +115,9 @@ The guide agents read is `skills/aad/SKILL.md`, which `aad_library` also serves 
   spec.yaml                requirements
   exports/                 files for the user
   .aad/
-    revs/000007/           model.py, spec, meta.json, part.brep, scene
+    revs/000007/           model.py, spec, meta.json, features.json, part.brep, scene
+    objects/sha256/        content-addressed files hard-linked into revision paths
+    cache/                 engine cache, content-addressed, safe to delete
     jobs/                  job directories, the only place sandboxed code may write
 
 ~/.aad/                    config, daemon socket and token, logs, project index
@@ -136,7 +138,7 @@ The guide agents read is `skills/aad/SKILL.md`, which `aad_library` also serves 
 
 - A warm worker pool. Every job starts a new process.
 - A memory limit on jobs. `aad.engine.memory` exists, but builds and operations do not apply it.
-- Use of the content-addressed cache in `aad.engine.cache` by the daemon.
+- Reuse of model computation across builds through `aad.engine.cache`; `.aad/objects` deduplicates identical revision files only.
 - The independent validator in the build path, so `verified` is not reachable.
 - A sandbox on Windows, so builds fail there with `SANDBOX_DENIED`.
 - Spec requirements on `kind="2d"` sheets. Sheets build and run their 2D checks, but a spec is not evaluated on them, so they stay `draft`.

@@ -376,6 +376,7 @@ Every tool returns a short text summary plus structured data:
 - **`failure`:** `code`, `phase`, `message`, `kernel_message`, and often `line`, `selector`, `candidates`, `probes`, `repair` and `last_good_rev`.
 - **`artifacts`:** paths and handles to files.
 - **`next`:** up to three suggested steps.
+- **Revision files:** each revision keeps ordinary model, BREP, scene and metadata paths. Identical files share a hard-linked SHA-256 object under `.aad/objects/sha256`; new revisions store large feature tables in `features.json`, which AAD reloads transparently.
 
 ### The hard gate
 
@@ -560,10 +561,11 @@ Drafts need `allow_unverified`. Their files get `-UNVERIFIED` in the name, and y
 ```
 <project>/
   project.json   model.py   spec.yaml   exports/   imports/
-  .aad/revs/000007/   immutable: model.py, spec, meta, part.brep, scene
+  .aad/revs/000007/   immutable: model.py, spec, meta, features, part.brep, scene
+  .aad/objects/sha256/ content-addressed files hard-linked into revision paths
 ```
 
-Revisions never change. A failed build leaves the head alone. Use `checkout` to go back, and `branch` to try something else in a new project.
+Revisions never change as seen through AAD tools. Unchanged files may share a read-only inode; safe cleanup removes only object links with no revision or job references. A failed build leaves the head alone. Use `checkout` to go back, and `branch` to try something else in a new project.
 
 ## Library
 
@@ -690,7 +692,7 @@ Say so plainly rather than working around it silently.
 - **`min_wall` and `symmetric` can only disprove,** so a good result stays `skip`.
 - **The viewer cannot edit the model directly.** Sliders and a separate Ask editor are not built. Part selection and exact references work as described above; native composer insertion depends on advertised host support, and stays unavailable on unsupported hosts.
 - **Windows has no sandbox,** so builds refuse to run there.
-- **Each job starts a new process with no shared cache,** and no memory limit is enforced.
+- **Each job starts a new process, and model computation has no shared cache.** Identical revision files are deduplicated; no memory limit is enforced yet.
 - **Out of scope:** CAM and toolpaths, FEA and CFD, advanced surfacing, PMI and GD&T, assemblies of thousands of parts, PDM and PLM, native formats such as SLDPRT, F3D or DWG.
 
 ## Honesty rules
