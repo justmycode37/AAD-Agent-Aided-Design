@@ -17,7 +17,8 @@ Views menu, and fullscreen. Small white-outlined icons sit beside the title.
 Advanced CAD panels and action shortcuts are hidden. Local windows retain the
 native CAD engine's full toolset; standalone exports can opt into CAD controls.
 
-Chat softly highlights an entire part on hover, preserving material and detail.
+Chat highlights an entire part with a soft blue hover tint and a stronger blue
+selection tint, preserving material and detail.
 Click selects; clicking a selected part removes it from the selection. Shift-click
 toggles additional parts; blank click and Escape clear selection. Camera drags do
 not select. On a host advertising native composer insertion, double-click appends

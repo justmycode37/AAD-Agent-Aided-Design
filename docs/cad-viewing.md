@@ -12,8 +12,8 @@ The corner button makes the view bigger. The CAD toolbars, part tree, menus,
 measurement panels, and their keyboard shortcuts are hidden in chat.
 A model with one visible piece disables Pull apart.
 
-Hover softly highlights the whole part while keeping its color, shading and
-edges visible. Click selects it; clicking it again clears that selection.
+Hover highlights the whole part in soft blue. Selection uses a stronger blue
+tint while keeping its color, shading and edges visible. Click selects it; clicking it again clears that selection.
 Shift-click toggles additional parts, and blank click or Escape clears selection.
 Dragging still rotates.
 
