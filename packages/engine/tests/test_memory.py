@@ -60,11 +60,11 @@ class AddressSpacePolicyTests(unittest.TestCase):
                 api = SimpleNamespace(RLIMIT_AS=5, RLIM_INFINITY=-1,
                                       getrlimit=Mock(), setrlimit=Mock())
                 events = []
-                api.getrlimit.side_effect = lambda _: (events.append('read') or (inherited if len(events) == 1 else expected))
-                api.setrlimit.side_effect = lambda *_: events.append('set')
+                api.getrlimit.side_effect = lambda _, events=events, inherited=inherited, expected=expected: (events.append('read') or (inherited if len(events) == 1 else expected))
+                api.setrlimit.side_effect = lambda *_, events=events: events.append('set')
                 with patch.object(memory, '_address_resource', return_value=api), \
-                        patch.object(memory, '_restore_exec_signals', side_effect=lambda *_: events.append('signals')) as restore, \
-                        patch.object(memory.os, 'execvpe', side_effect=lambda *_: events.append('exec')) as execute:
+                        patch.object(memory, '_restore_exec_signals', side_effect=lambda *_, events=events: events.append('signals')) as restore, \
+                        patch.object(memory.os, 'execvpe', side_effect=lambda *_, events=events: events.append('exec')) as execute:
                     memory._exec_address_space(memory.AddressSpaceBudget(100), ['target', 'argument'])
                 api.setrlimit.assert_called_once_with(5, expected)
                 execute.assert_called_once_with('target', ['target', 'argument'], os.environ)
@@ -148,7 +148,7 @@ class AccountingTests(unittest.TestCase):
         _, info_type, _ = self.api
         for returned, error in ((0, errno.ENOMEM), (95, 0), (-1, errno.EACCES), (104, 0), (0, errno.ESRCH)):
             with self.subTest(returned=returned, error=error):
-                def reader(*_):
+                def reader(*_, error=error, returned=returned):
                     C.set_errno(error)
                     return returned
 

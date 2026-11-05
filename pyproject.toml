@@ -9,3 +9,17 @@ dev = ["pytest>=8.4", "pytest-timeout>=2.4"]
 addopts = "--import-mode=importlib -ra"
 pythonpath = ["packages/drafting"]
 timeout = 300
+
+[tool.ruff.lint]
+select = ["F", "B023"]
+
+[tool.ruff.lint.per-file-ignores]
+# These model and fixture files intentionally use the public star-import API.
+"evals/dsg-0b5/model.py" = ["F403", "F405"]
+"evals/teardown/tasks/*.py" = ["F403", "F405"]
+"fixtures/examples/seamaster/build.py" = ["F403", "F405"]
+"fixtures/models/*.py" = ["F403", "F405"]
+# _cad returns locals() so its lazy-imported build123d symbols are used by string lookup.
+"evals/benchmark/corpus/references.py" = ["F401"]
+# Public names are resolved through __getattr__ and returned from globals().
+"packages/engine/src/aad/__init__.py" = ["F401"]

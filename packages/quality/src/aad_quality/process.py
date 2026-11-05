@@ -114,7 +114,7 @@ def _additive_checks(ctx: Any, process: str, settings: dict[str, Any]) -> list[A
     level = settings["level"]
     units = getattr(ctx, "units", None)
     try:
-        scale = mm_per_unit(units)
+        mm_per_unit(units)
     except ValueError as exc:
         return [
             _skip(
@@ -425,7 +425,6 @@ def _cnc_checks(ctx: Any, settings: dict[str, Any]) -> list[Any]:
                 )
             )
         else:
-            volumes = [item[0] for item in tested]
             thresholds=[item[3] for item in tested]
             by_cylinder: dict[int, list[Any]] = {}
             for item in tested:

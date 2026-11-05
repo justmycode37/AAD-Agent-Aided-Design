@@ -94,7 +94,7 @@ def test_svg_preserves_analytic_arcs_beziers_and_rotated_ellipses(tmp_path):
                   start_angle=20, end_angle=140, layer="engrave")
     output = io2d.export_2d(_ctx(sheet), "svg", tmp_path / "curves.svg")
     root = ET.parse(output).getroot()
-    by_name = {node.attrib["data-entity"]: node for node in root.findall(f".//*[@data-entity]")}
+    by_name = {node.attrib["data-entity"]: node for node in root.findall(".//*[@data-entity]")}
     assert by_name["ccw_arc"].attrib["d"].startswith("M ")
     assert by_name["ccw_arc"].attrib["d"].split()[8] == "0"  # SVG sweep is inverted by the y-up map.
     assert by_name["cw_arc"].attrib["d"].split()[8] == "1"

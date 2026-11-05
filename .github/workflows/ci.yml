@@ -35,6 +35,15 @@ jobs:
       - id: discover
         run: python3 .github/scripts/discover.py
 
+  lint:
+    name: Ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+      - name: Check Python lint rules
+        run: uvx ruff==0.17.4 check .
+
   packages:
     needs: discover
     if: needs.discover.outputs.packages != '[]'
@@ -135,7 +144,7 @@ jobs:
   # One stable check name that covers the dynamic matrix, including skipped legs.
   ci-ok:
     if: always()
-    needs: [discover, packages, e2e, viewer, benchmark]
+    needs: [discover, packages, e2e, viewer, benchmark, lint]
     runs-on: ubuntu-latest
     steps:
       - name: All required jobs passed or were skipped
@@ -143,7 +152,7 @@ jobs:
           echo '${{ toJSON(needs) }}' | python3 -c '
           import json, sys
           needs = json.load(sys.stdin)
-          required = {"discover", "e2e", "benchmark"}
+          required = {"discover", "e2e", "benchmark", "lint"}
           bad = {k: v["result"] for k, v in needs.items()
                  if v["result"] != "success" and (k in required or v["result"] != "skipped")}
           print("results:", {k: v["result"] for k, v in needs.items()})

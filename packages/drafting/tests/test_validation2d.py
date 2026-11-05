@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from aad_drafting import Entity2D, Sheet2D, sheet2d
+from aad_drafting import Entity2D, sheet2d
 from aad_drafting.validation2d import checks, measurement_evidence
 
 

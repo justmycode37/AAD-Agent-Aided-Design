@@ -369,7 +369,6 @@ def edge_polyline(edge: Any, linear: float, angular: float) -> list[tuple[float,
 
 def section_loops(cap_faces: list[Any]) -> list[dict[str, Any]]:
     """Exact outline of each cut region: area, centroid, and every loop's lines and arcs."""
-    from OCP.BRepAdaptor import BRepAdaptor_Curve
     from OCP.BRepGProp import BRepGProp
     from OCP.BRepTools import BRepTools, BRepTools_WireExplorer
     from OCP.GProp import GProp_GProps

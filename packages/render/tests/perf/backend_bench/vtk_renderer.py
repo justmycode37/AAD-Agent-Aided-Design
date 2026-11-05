@@ -61,7 +61,7 @@ def _edge_polydata(mesh):
 
 def render(mesh, output):
     from vtkmodules.util.numpy_support import vtk_to_numpy
-    import vtkmodules.vtkRenderingOpenGL2  # Registers the native OpenGL render-window implementation.
+    import vtkmodules.vtkRenderingOpenGL2  # noqa: F401  # Registers the native OpenGL render-window implementation.
     from vtkmodules.vtkRenderingCore import (
         vtkActor,
         vtkCamera,

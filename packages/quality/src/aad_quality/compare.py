@@ -434,7 +434,7 @@ def _parse_ply_header(data: bytes) -> tuple[dict[str, Any], int]:
 
 
 def _read_ply(path: Path, deadline: _Deadline) -> TriangleMesh:
-    np = _numpy()
+    _numpy()
     try:
         data = path.read_bytes()
     except OSError as exc:
@@ -976,7 +976,7 @@ def _f_score(model_distances: Any, reference_distances: Any, tau_mm: float) -> d
 
 
 def _mesh_extent(mesh: TriangleMesh) -> Any:
-    np = _numpy()
+    _numpy()
     return mesh.vertices.max(axis=0) - mesh.vertices.min(axis=0)
 
 
@@ -988,7 +988,7 @@ def _solid_indices(mesh: TriangleMesh) -> list[int]:
 
 
 def _mesh_for_solid(mesh: TriangleMesh, solid_id: int) -> TriangleMesh:
-    np = _numpy()
+    _numpy()
     if mesh.solid_ids is None:
         return TriangleMesh(mesh.vertices, mesh.faces, merge_for_closed=mesh.merge_for_closed)
     selected = mesh.faces[mesh.solid_ids == solid_id]

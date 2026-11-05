@@ -6,16 +6,14 @@ import json
 import math
 import subprocess
 import sys
-from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from build123d import Axis, Box, Cylinder, Pos, Rot, Sphere, fillet
+from build123d import Axis, Box, Cylinder, Pos, Sphere, fillet
 from PIL import Image
 
 from aad_render import render
-from aad_render import exact
 
 
 def _ctx(shape, features=()):

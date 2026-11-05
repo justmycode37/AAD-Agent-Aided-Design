@@ -21,7 +21,6 @@ from .geometry import (
     context_units,
     context_value,
     project_point,
-    project_view,
     shape_bounds,
     through_holes,
     _STANDARD_VIEWS,
@@ -777,11 +776,6 @@ def _draw_overall_dimensions(
 
     if top and "y" in by_axis:
         bounds = _measurement_bounds(top)
-        has_y_ordinates = any(
-            dimension["kind"] == "hole_coordinate" and dimension["axis"] == "y"
-            or dimension["kind"] == "hole_spacing" and dimension["axis"] == "y"
-            for dimension in dimensions
-        )
         from .layout import _view_padding
         left_reserve=_view_padding("top",dimensions)[0]
         label_width=text_width_mm(by_axis["y"]["display"],2.8)

@@ -8,7 +8,7 @@ import json
 import math
 import re
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -199,7 +199,7 @@ def _check_typed(check: Any, where: str, asset_ids: set[str]) -> dict[str, Any]:
     check = _object(check, where)
     if "id" not in check or "type" not in check:
         _fail(where, "requires id and type")
-    check_id = _string(check["id"], f"{where}.id", identifier=True)
+    _string(check["id"], f"{where}.id", identifier=True)
     kind = _string(check["type"], f"{where}.type")
     schemas: dict[str, tuple[set[str], set[str]]] = {
         "bbox_mm": ({"ranges"}, set()),

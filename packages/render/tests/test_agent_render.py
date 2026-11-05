@@ -5,8 +5,6 @@ import math
 import os
 import subprocess
 import sys
-from pathlib import Path
-
 import pytest
 from build123d import Box, Cylinder, Polygon, Pos, extrude
 from PIL import Image

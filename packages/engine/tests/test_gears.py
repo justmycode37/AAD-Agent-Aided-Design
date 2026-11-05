@@ -63,7 +63,6 @@ def _sampled_profile_deviation(face, teeth: int, module: float, helix_angle: flo
     transverse_pressure = math.atan(math.tan(pressure) / math.cos(beta))
     pitch_radius = teeth * transverse_module / 2.0
     base_radius = pitch_radius * math.cos(transverse_pressure)
-    tip_radius = pitch_radius + module
     half_pitch = math.pi / (2.0 * teeth)
     involute_pitch = math.tan(transverse_pressure) - transverse_pressure
     splines = [edge for edge in wire.edges() if edge.geom_type == GeomType.BSPLINE]
@@ -116,7 +115,14 @@ class InvoluteGearProfileTests(unittest.TestCase):
                 half_pitch = math.pi / 80.0
                 base_half = half_pitch + inv(alpha)
 
-                def expected_thickness(radius: float) -> float:
+                def expected_thickness(
+                    radius: float,
+                    base_radius: float = base_radius,
+                    base_half: float = base_half,
+                    half_pitch: float = half_pitch,
+                    inv=inv,
+                    alpha: float = alpha,
+                ) -> float:
                     if radius <= base_radius:
                         half_angle = base_half
                     else:
