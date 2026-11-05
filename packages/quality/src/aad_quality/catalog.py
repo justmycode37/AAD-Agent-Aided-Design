@@ -13,6 +13,9 @@ import yaml
 KINDS = ("part", "component", "material", "playbook", "api")
 GUIDE_ID = "aad.guide.v1"
 _SEARCH_LIMIT = 5
+_PARTIAL_STOPWORDS = frozenset(
+    {"a", "an", "and", "by", "for", "from", "in", "into", "mm", "cm", "inch", "inches", "is", "no", "not", "of", "or", "the", "to", "with"}
+)
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
 _GUIDE_HEADING = re.compile(r"^##\s+(.+?)\s*$")
 
@@ -198,6 +201,36 @@ def _rank(terms: list[str], entry: dict[str, Any]) -> int:
     return score
 
 
+def _meaningful_terms(terms: list[str]) -> list[str]:
+    return [
+        term for term in terms
+        if term not in _PARTIAL_STOPWORDS and not (term.isdigit() and len(term) == 1)
+        and not (len(term) <= 2 and not any(char.isdigit() for char in term))
+    ]
+
+
+def _material_matches(terms: list[str]) -> bool:
+    meaningful = _meaningful_terms(terms)
+    if not meaningful:
+        return False
+    for entry in _entries("material"):
+        haystack = json.dumps(entry, ensure_ascii=False).casefold()
+        if any(term in haystack for term in meaningful):
+            return True
+    return False
+
+
+def _empty_search_message(query: str, kind: str | None, terms: list[str]) -> str:
+    if kind == "component":
+        message = f"No component entries matched {query!r}."
+        if _material_matches(terms):
+            message += " Try kind=material to search the material catalog."
+        return message
+    if kind:
+        return f"No {kind} entries matched {query!r}."
+    return f"No catalog entries matched {query!r}."
+
+
 def library(action: str, *, kind: str | None = None, query: str | None = None,
             id: str | None = None, offset: int | None = None,
             section: str | None = None,
@@ -250,7 +283,7 @@ def library(action: str, *, kind: str | None = None, query: str | None = None,
                 "item": deepcopy(matches[0]) if matches else None}
     terms = _search_terms(query)
     matches = []
-    hits: list[tuple[int, int, dict[str, Any]]] = []
+    hits: list[tuple[int, dict[str, Any], str]] = []
     wants_screw = re.search(r"\bm\d+(?:\.\d+)?x\d", (query or "").casefold()) is not None
     for entry in entries:
         # Every component shares this boilerplate, so it must not make a query match.
@@ -267,12 +300,22 @@ def library(action: str, *, kind: str | None = None, query: str | None = None,
         if found == len(terms):
             matches.append((_rank(terms, entry) + (wants_screw and entry.get("category") == "fastener"), entry))
         elif found and entry["kind"] == "component":
-            hits.append((found, _rank(terms, entry), entry))
+            hits.append((found, entry, haystack))
     partial = False
     if not matches and hits and kind == "component":
-        # Values like "10k" live in option ranges, so offer the closest families.
-        partial = True
-        matches = [(found * 1000 + rank, entry) for found, rank, entry in hits]
+        # Partial suggestions must agree on meaningful query terms, not just
+        # ubiquitous dimensions, units, or words in a long component record.
+        meaningful = _meaningful_terms(terms)
+        minimum_hits = min(2, len(meaningful))
+        for found, entry, haystack in hits:
+            if entry["id"] == "component.index" or not minimum_hits:
+                continue
+            relevant_hits = sum(term in haystack for term in meaningful)
+            if relevant_hits < minimum_hits:
+                continue
+            partial = True
+            relevance = _rank(meaningful, entry) * 100 + relevant_hits * 10 + found
+            matches.append((relevance, entry))
     # Components only outrank other kinds on score, so an unfiltered browse stays mixed.
     matches.sort(key=lambda pair: (-pair[0], pair[1]["kind"] == "component", pair[1]["kind"], pair[1]["id"]))
     start = offset or 0
@@ -296,6 +339,8 @@ def library(action: str, *, kind: str | None = None, query: str | None = None,
         summaries.append(summary)
     result = {"query": query or "", "items": summaries, "total": len(matches),
               "truncated": len(matches) > start + _SEARCH_LIMIT}
+    if query and terms and not matches:
+        result["message"] = _empty_search_message(query, kind, terms)
     if result["truncated"]:
         result["next_offset"] = start + _SEARCH_LIMIT
     if partial:
