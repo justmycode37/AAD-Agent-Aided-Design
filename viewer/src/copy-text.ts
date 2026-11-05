@@ -1,5 +1,9 @@
-/** Clipboard fallback for opaque, sandboxed HTML viewers. Call from a click. */
-export async function copyDraft(text: string): Promise<boolean> {
+/**
+ * Clipboard for opaque, sandboxed HTML viewers without a clipboard grant. Call
+ * inside the user gesture: the legacy copy runs synchronously, before any await.
+ * Returns whether a copy was reported, so callers never claim success without one.
+ */
+export async function copyText(text: string): Promise<boolean> {
   const field = document.createElement("textarea");
   const focused = document.activeElement as HTMLElement | null;
   field.value = text;

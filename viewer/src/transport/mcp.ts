@@ -1,7 +1,7 @@
 // MCP Apps transport: postMessage to the host through @modelcontextprotocol/ext-apps.
 import { App } from "@modelcontextprotocol/ext-apps";
 import type { Chunk, Envelope, PartReference, Transport, TransportCaps } from "./types";
-import { partSelectionContext } from "../part-reference";
+import { composerReferenceMessage, partSelectionContext, supportsComposerReference } from "../part-reference";
 
 const APP_INFO = { name: "aad-viewer", version: "0.0.1" };
 
@@ -46,8 +46,10 @@ export class McpTransport implements Transport {
   async connect(): Promise<void> {
     await this.app.connect();
     const modes = this.app.getHostContext()?.availableDisplayModes ?? [];
-    const context = this.app.getHostCapabilities()?.updateModelContext;
-    this.caps = { fullscreen: modes.includes("fullscreen"), modelContext: !!(context?.text || context?.structuredContent) };
+    const host = this.app.getHostCapabilities();
+    const context = host?.updateModelContext;
+    this.caps = { fullscreen: modes.includes("fullscreen"), modelContext: !!(context?.text || context?.structuredContent),
+      composerReferences: supportsComposerReference(host) };
   }
 
   getInitialResult(): Promise<Envelope> {
@@ -98,5 +100,14 @@ export class McpTransport implements Transport {
     });
     this.contextUpdates = next;
     return next;
+  }
+
+  async insertPartReference(reference: PartReference): Promise<void> {
+    // Hosts without the extension ignore the metadata and send the message.
+    if (!this.caps.composerReferences) throw new Error("This host cannot leave a reference unsent");
+    // sendMessage() puts params on the wire as given. Its exported request schema
+    // would strip the `_meta` that keeps this unsent, so nothing may parse them.
+    const result = await this.app.sendMessage(composerReferenceMessage(reference));
+    if (result.isError) throw new Error("The host did not add the reference");
   }
 }
