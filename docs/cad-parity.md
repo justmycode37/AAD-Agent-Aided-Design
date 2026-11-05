@@ -87,3 +87,5 @@ PDM, PLM and collaboration are out of scope. Interactive picking and sliders sta
 - **Status stays `draft`.** The worker cannot attest its own verification and no trusted validator is wired, so `aad_export` needs `allow_unverified` for every revision.
 - **2D requirements are unproven.** Spec requirements are not evaluated on sheets yet.
 - **Standard parts use simple threads** unless a record says otherwise, so thread fit needs its own check.
+
+- Multi-solid builds now run bounded exact interference checks automatically; overlaps warn by default and an interference requirement can make them errors. Intended contacts can be recorded on named assemblies with `allow_overlap`.

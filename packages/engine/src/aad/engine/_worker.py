@@ -22,7 +22,7 @@ from aad._runtime import (
 from aad.modeling import (
     configure_modeling, context_metadata, current_part_name, finalize_modeling, named_shape, record_operation,
 )
-from .gate import hard_checks
+from .gate import hard_checks, interference_checks
 from .select import SelectorError
 from .types import (
     BuildResult,
@@ -366,6 +366,16 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
         unavailable_message="Process checks are unavailable because aad_quality is not installed.",
     )
     checks.extend(process_checks)
+    if len(list(shape.solids())) > 1:
+        interference = interference_checks(context, time_budget_s=45.0)
+        for check in interference:
+            check.level = "warn"
+            if check.status == "fail":
+                check.status = "warn"
+                check.message = "Build interference warning: " + check.message
+            elif check.status == "skip":
+                check.message = "Build interference result is unknown: " + check.message
+        checks.extend(interference)
 
     scene, scene_check = _optional_scene(context)
     checks.append(scene_check)
@@ -440,6 +450,9 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
         status = "draft"
         ok = True
         summary = "The model built and passed the available hard checks; requirements are not fully proven."
+    interference_result = next((check for check in checks if check.id == "interference_pairs"), None)
+    if interference_result is not None and interference_result.status in {"warn", "skip"}:
+        summary += " BUILD INTERFERENCE REVIEW REQUIRED: " + interference_result.message
 
     result = BuildResult(
         ok=ok,

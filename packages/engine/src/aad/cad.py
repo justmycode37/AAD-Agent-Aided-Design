@@ -240,6 +240,16 @@ class Assembly:
             raise CadOperationError("Assembly name must be non-empty text.")
         self.name = name
         self.components: list[Component] = []
+        self.allowed_overlaps: list[dict[str, str]] = []
+
+    def allow_overlap(self, first: str, second: str, *, reason: str) -> None:
+        """Declare a named pair's intended contact; this records a claim, not proof."""
+        if not isinstance(reason, str) or not reason.strip():
+            raise CadOperationError("An intended overlap requires a non-empty reason.")
+        names = {item.name for item in self.components}
+        if first not in names or second not in names or first == second:
+            raise CadOperationError("Intended overlap names must identify two different assembly components.")
+        self.allowed_overlaps.append({"a": first, "b": second, "reason": reason.strip()[:240]})
 
     def add(
         self,
@@ -325,7 +335,7 @@ class Assembly:
         return found
 
     def record(self) -> dict[str, Any]:
-        return {"name": self.name, "components": [item.name for item in self.components], "bom": self.bom()}
+        return {"name": self.name, "components": [item.name for item in self.components], "bom": self.bom(), "allowed_overlaps": self.allowed_overlaps}
 
 
 def assembly(name: str = "assembly") -> Assembly:
