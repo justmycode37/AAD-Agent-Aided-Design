@@ -429,9 +429,15 @@ def prepare_render(ctx: Any, req: Any) -> dict[str, Any]:
         },
         "clip_box": clip_box,
     }
+    # _scene_to_payload emits built-in JSON values itself. Walking its millions
+    # of point coordinates and triangle indexes again just copies them.
+    render_payload = {
+        key: value if key == "scene" else _json_safe(value)
+        for key, value in render_state.items()
+    }
     return {
         "version": 1,
-        "render": _json_safe(render_state),
+        "render": render_payload,
         "inspection": _json_safe(report),
     }
 
@@ -552,39 +558,45 @@ def render_prepared(prepared: dict[str, Any], out: Path) -> list[Path]:
 
 
 def _scene_to_payload(scene: RenderScene) -> dict[str, Any]:
+    def finite_float_list(values: Any, name: str) -> list[Any]:
+        array = np.asarray(values, dtype=np.float64)
+        if array.size and not np.isfinite(array).all():
+            raise ValueError(f"{name} contain non-finite coordinates")
+        return array.tolist()
+
     return {
         "faces": [
             {
-                "index": face.index,
-                "source_index": face.source_index,
+                "index": int(face.index),
+                "source_index": None if face.source_index is None else int(face.source_index),
                 "feature": face.feature,
-                "points": np.asarray(face.points).tolist(),
+                "points": finite_float_list(face.points, "render face points"),
                 "triangles": np.asarray(face.triangles).tolist(),
-                "normal": list(face.normal),
-                "anchor": list(face.anchor),
-                "section_cap": face.section_cap,
-                "highlighted": face.highlighted,
-                "color": list(face.color),
-                "triangle_colors": [list(color) for color in face.triangle_colors],
+                "normal": finite_float_list(face.normal, "render face normal"),
+                "anchor": finite_float_list(face.anchor, "render face anchor"),
+                "section_cap": bool(face.section_cap),
+                "highlighted": bool(face.highlighted),
+                "color": np.asarray(face.color, dtype=np.int64).tolist(),
+                "triangle_colors": np.asarray(face.triangle_colors, dtype=np.int64).tolist(),
             }
             for face in scene.faces
         ],
         "lines": [
             {
-                "points": [list(point) for point in line.points],
+                "points": finite_float_list(line.points, "render line points"),
                 "role": line.role,
-                "index": line.index,
-                "source_index": line.source_index,
+                "index": None if line.index is None else int(line.index),
+                "source_index": None if line.source_index is None else int(line.source_index),
                 "feature": line.feature,
-                "anchor": list(line.anchor) if line.anchor is not None else None,
-                "highlighted": line.highlighted,
+                "anchor": finite_float_list(line.anchor, "render line anchor") if line.anchor is not None else None,
+                "highlighted": bool(line.highlighted),
             }
             for line in scene.lines
         ],
-        "bounds": [[*scene.bounds[0]], [*scene.bounds[1]]],
+        "bounds": finite_float_list(scene.bounds, "render bounds"),
         "units": scene.units,
         "section_label": scene.section_label,
-        "data_colors": scene.data_colors,
+        "data_colors": bool(scene.data_colors),
     }
 
 
