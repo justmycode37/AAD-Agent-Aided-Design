@@ -1177,18 +1177,28 @@ def _face_section_camera(
     width: int,
     height: int,
 ) -> CameraSpec:
-    """Turn a pane toward the retained side when its default view hides the cut cap."""
+    """Keep orthographic panes fixed and rotate ISO only to a cut-facing octant."""
+    if camera.name != "iso":
+        return camera
     toward = _normalize(_subtract(camera.position, camera.focal_point))
     if _dot(toward, section.normal) > 1.0e-6:
         return camera
-    up = (0.0, 0.0, 1.0) if abs(section.normal[2]) < 0.99 else (0.0, 1.0, 0.0)
-    return _camera(
-        "section",
+    octants = [
+        _normalize((x, y, z))
+        for x in (-1.0, 1.0)
+        for y in (-1.0, 1.0)
+        for z in (-1.0, 1.0)
+        if _dot((x, y, z), section.normal) > 1.0e-9
+    ]
+    direction = max(octants, key=lambda candidate: _dot(candidate, toward))
+    aimed = _camera(
+        "iso",
         bounds,
         width,
         height,
-        settings={"direction": section.normal, "up": up, "target": camera.focal_point, "span": None},
+        settings={"direction": direction, "up": (0.0, 0.0, 1.0), "target": camera.focal_point, "span": None},
     )
+    return replace(aimed, parallel_scale=camera.parallel_scale)
 
 
 def _frames_for(backend: Any, scene: RenderScene, panes: list[_Pane], style: str, clip_box: Any) -> None:

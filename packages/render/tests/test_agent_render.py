@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import subprocess
 import sys
@@ -131,7 +132,7 @@ def test_section_is_capped_and_annotated_with_the_plane(tmp_path):
 
 
 def test_default_section_camera_faces_and_shows_cut_cap():
-    from aad_render.agent_render import _camera, _face_section_camera, _make_scene, _parse_section, _section_shape, _shape_bounds
+    from aad_render.agent_render import _camera, _face_section_camera, _layout, _make_scene, _parse_section, _section_shape, _shape_bounds
 
     shape = _bracket()
     bounds = _shape_bounds(shape)
@@ -143,10 +144,20 @@ def test_default_section_camera_faces_and_shows_cut_cap():
                         topology=None, hatch_span=100.0, classify_edges=False)
     assert any(face.section_cap for face in scene.faces)
 
-    default = _camera("iso", bounds, 256, 256)
-    aimed = _face_section_camera(default, section, bounds, 256, 256)
+    _, panes = _layout("sheet", bounds, 256, None)
+    before = {pane.view: tuple(pane.camera.position[i] - pane.camera.focal_point[i] for i in range(3)) for pane in panes}
+    for pane in panes:
+        pane.camera = _face_section_camera(pane.camera, section, bounds, pane.width, pane.height)
+    after = {pane.view: tuple(pane.camera.position[i] - pane.camera.focal_point[i] for i in range(3)) for pane in panes}
+    for name in ("front", "right", "top"):
+        assert after[name] == pytest.approx(before[name])
+    assert len({tuple(round(value, 6) for value in direction) for direction in after.values()}) == 4
+    aimed = next(pane.camera for pane in panes if pane.view == "iso")
+    assert aimed.name == "iso"
     toward = tuple(aimed.position[i] - aimed.focal_point[i] for i in range(3))
     assert sum(toward[i] * section.normal[i] for i in range(3)) > 0
+    normalized = tuple(value / math.sqrt(sum(component * component for component in toward)) for value in toward)
+    assert sorted(abs(value) for value in normalized) == pytest.approx([1 / math.sqrt(3)] * 3)
 
 
 @pytest.mark.parametrize("style", ["shaded", "lines", "xray"])
@@ -237,6 +248,7 @@ def test_axis_aligned_section_offsets(plane, normal, point):
         ("overhang", "views=['iso'], labels='none', heatmap='overhang', section=None", "iso.png"),
         ("labels", "views=['iso'], labels='faces', heatmap=None, section=None", "iso.png"),
         ("section", "views=['iso'], labels='none', heatmap=None, section={'plane': 'YZ', 'offset': 0}", "iso.png"),
+        ("section_xz", "views=['iso'], labels='none', heatmap=None, section={'plane': 'XZ', 'offset': 0}", "iso.png"),
     ],
 )
 def test_png_is_identical_in_two_processes(tmp_path, label, request_text, filename):
