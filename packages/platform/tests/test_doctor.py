@@ -76,6 +76,39 @@ def test_kernel_check_accepts_either_real_environment_outcome(temp_home):
         assert result.get("fix")
 
 
+def test_project_build_failure_recommends_bubblewrap(monkeypatch, tmp_path):
+    import aad_platform.rpc as rpc
+
+    class FakeClient:
+        async def close(self):
+            return None
+
+    async def connect(_cls, _path):
+        return FakeClient()
+
+    async def call(_client, method, _params, timeout_s=None):
+        if method == "aad_new":
+            return {"structured": {"ok": True}, "text": "Project created."}
+        failure = "Linux bubblewrap (bwrap) is unavailable; the model was not started."
+        return {
+            "structured": {
+                "ok": False,
+                "status": "failed",
+                "summary": f"SANDBOX_DENIED: {failure}",
+                "failure": {"code": "SANDBOX_DENIED", "message": failure},
+            },
+            "text": failure,
+        }
+
+    monkeypatch.setattr(rpc.RpcClient, "connect", classmethod(connect))
+    monkeypatch.setattr(doctor, "_rpc_call", call)
+    checks = asyncio.run(doctor._project_checks(tmp_path))
+    build = next(check for check in checks if check["id"] == "project_build")
+    assert build["status"] == "fail"
+    assert "bubblewrap" in build["fix"]
+    assert "bwrap" in build["fix"]
+
+
 def test_viewer_check_reports_stub_as_warning(temp_home):
     result = doctor._viewer_check()
     assert result["status"] in {"pass", "warn", "fail"}

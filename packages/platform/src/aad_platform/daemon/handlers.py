@@ -216,12 +216,18 @@ class Handlers:
         base_rev = params.get("base_rev")
         if base_rev is not None and base_rev != head:
             project.discard_job(job_dir)
+            message = (
+                f"This project has no head revision yet, so base_rev {base_rev} cannot be used. "
+                "Build once without base_rev, then pass the returned revision as base_rev when editing."
+                if head is None
+                else f"base_rev {base_rev} is not the head revision {head}. Rebase your edit on the head."
+            )
             return reply(
                 failure_envelope(
                     project.name,
                     "BASE_REV_CONFLICT",
                     "input",
-                    f"base_rev {base_rev} is not the head revision {head}. Rebase your edit on the head.",
+                    message,
                     head_rev=head,
                     base_rev=base_rev,
                 )
