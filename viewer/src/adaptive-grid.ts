@@ -4,36 +4,17 @@ const LABEL_HEIGHT = 18;
 const TARGET_SPACING = 85;
 export interface LabelBox { x: number; y: number; width: number; height: number }
 
-const INTERVAL_FACTORS = [1, 2, 2.5, 5, 10];
-function roundedIntervalUp(requested: number): number {
-  const power = 10 ** Math.floor(Math.log10(requested));
-  return INTERVAL_FACTORS.find(value => value >= requested / power)! * power;
-}
-
-/** A readable world interval, with hysteresis to avoid flickering at zoom thresholds. */
-export function gridInterval(pixelsPerUnit: number, previous = 0): number {
-  const spacing = previous * pixelsPerUnit;
-  if (previous > 0 && spacing >= 64 && spacing <= 150) return previous;
-  const requested = TARGET_SPACING / Math.max(pixelsPerUnit, 1e-12);
-  const power = 10 ** Math.floor(Math.log10(requested));
-  // The first choice must already lie in the hold band, avoiding a correction next frame.
-  const candidates = INTERVAL_FACTORS.map(value => value * power)
-    .filter(value => value * pixelsPerUnit >= 64 && value * pixelsPerUnit <= 150);
-  return candidates.sort((a, b) => Math.abs(a * pixelsPerUnit - TARGET_SPACING) - Math.abs(b * pixelsPerUnit - TARGET_SPACING))[0] ?? roundedIntervalUp(requested);
-}
-
-/** Grow drawing coverage without moving the coordinate planes or their origin. */
-export function gridCoverage(halfExtent: number, pixelsPerUnit: number, viewport: number, offset = 0, previousStep = 0, previousHalf = 0): { step: number; half: number; divisions: number } {
-  const needed = Math.max(halfExtent, viewport * .8 / pixelsPerUnit + offset);
-  // Keep allocation bounded even when panning far from the origin or inspecting tiny details.
-  const step = Math.max(gridInterval(pixelsPerUnit, previousStep), roundedIntervalUp(needed * 1.25 / 128));
-  const previousDivisions = previousHalf / step;
-  if (previousHalf >= needed && previousHalf <= needed * 2.5 && previousDivisions <= 128 &&
-      Math.abs(previousDivisions - Math.round(previousDivisions)) < 1e-8) {
-    return { step, half: previousHalf, divisions: Math.round(previousDivisions) };
-  }
-  const divisions = Math.ceil(needed * 1.25 / step);
-  return { step, half: divisions * step, divisions };
+/** Choose sparse subdivisions of the fixed grid, with a dead band around zoom thresholds. */
+export function gridDivisions(halfExtent: number, pixelsPerUnit: number, previous = 0): number {
+  const spacing = halfExtent * pixelsPerUnit / previous;
+  if (previous && spacing >= 64 && spacing <= 150) return previous;
+  const candidates = [1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 25, 32, 40, 50, 64, 80, 100, 128];
+  const readable = candidates.filter(n => {
+    const value = halfExtent / n;
+    return Math.abs(Number(value.toPrecision(4)) - value) <= Math.abs(value) * 1e-8;
+  });
+  const wanted = halfExtent * pixelsPerUnit / TARGET_SPACING;
+  return readable.filter(n => n <= wanted).at(-1) ?? 1;
 }
 
 export function gridCoordinate(local: number, offset: number): string {
@@ -55,15 +36,14 @@ export function installAdaptiveGrid(viewer: any): () => void {
   const nativeCreateLabel = grid.createLabel;
   const halfExtent = grid.size / 2;
   let previousKey = "";
-  let previousStep = 0;
-  let visibleLastFrame = new Set<string>();
+  let previousDivisions = 0;
+  let visibleLastFrame = new Set<any>();
   grid.createLabel = function(_tick: string, x: number, plane: number, horizontal: boolean) {
     const text = gridCoordinate(x, 0);
     const value = Number(text);
     // Native tick strings have already lost small fractions; use numeric coordinates.
-    const label = nativeCreateLabel.call(this, text, value, plane, horizontal);
+    const label = nativeCreateLabel.call(this, text, x, plane, horizontal);
     label.userData.aadTick = value;
-    label.userData.aadLabelId = `${plane}:${horizontal}:${text}`;
     return label;
   };
   grid.update = function(_zoom: number, force = false, theme: string | null = null) {
@@ -78,18 +58,8 @@ export function installAdaptiveGrid(viewer: any): () => void {
     const distance = cameraTarget.distanceTo(camera.position);
     const pixelsPerUnit = height * Math.abs(camera.projectionMatrix.elements[5]) /
       (2 * (camera.isPerspectiveCamera ? Math.max(distance, 1e-12) : 1));
-    if (!(pixelsPerUnit > 0) || !Number.isFinite(pixelsPerUnit)) return Promise.resolve();
-    const origin = grid.getAxes0() ? [0, 0, 0] : grid.bbox.center();
-    const offset = Math.max(...['x', 'y', 'z'].map((axis, index) => Math.abs(cameraTarget[axis] - origin[index])));
-    const coverage = gridCoverage(halfExtent, pixelsPerUnit, Math.max(width, height), offset, previousStep, grid.size / 2);
-    // Dolly-out can move the camera past the original model-sized far plane.
-    // Include the expanded coordinate field (and model) in the camera frustum.
-    const neededFar = distance + Math.sqrt(3) * (2 * coverage.half + halfExtent);
-    if (camera.far < neededFar) {
-      camera.far = neededFar;
-      camera.updateProjectionMatrix();
-    }
-    const key = `${coverage.step}:${coverage.half}:${grid.theme}`;
+    const divisions = gridDivisions(halfExtent, pixelsPerUnit, previousDivisions);
+    const key = `${divisions}:${grid.theme}`;
     if (key !== previousKey) {
       // Dispose grid lines and cached label resources before rebuilding; no scene meshes are involved.
       for (const group of grid.children) group.children[0]?.traverse((object: any) => {
@@ -97,28 +67,17 @@ export function installAdaptiveGrid(viewer: any): () => void {
         for (const material of [object.material ?? []].flat()) material.dispose();
       });
       grid.clearCache(); grid.clear();
-      // Only the drawing coverage grows; grid line coordinates remain multiples of step.
-      grid.size = 2 * coverage.half;
-      grid.ticks = coverage.divisions;
+      // Rebuild subdivisions only; never resize or recenter the grid box.
+      grid.size = 2 * halfExtent;
+      grid.ticks = divisions;
       void grid.create(false);
-      // Three expanding planes should read as a quiet background, not a dense overlay.
-      for (const group of grid.children) group.children[0]?.traverse((object: any) => {
-        for (const material of [object.material ?? []].flat()) {
-          if (material.isLineDashedMaterial) {
-            material.transparent = true; material.opacity = .3; material.depthWrite = false;
-          }
-        }
-      });
       previousKey = key;
-      previousStep = coverage.step;
+      previousDivisions = divisions;
+      visibleLastFrame.clear();
     }
     if (force) grid.setVisible();
-    // Native setCenter offsets planes by size/2. Always use the ORIGINAL size for
-    // those offsets: expanding coverage must never move the floor/walls or origin.
-    const drawingSize = grid.size;
-    grid.size = 2 * halfExtent;
+    // Keep the original planes, extent and origin fixed in world coordinates, as in native CAD.
     grid.setCenter(grid.getAxes0(), grid.flipY);
-    grid.size = drawingSize;
     grid.updateWorldMatrix(true, true);
     const labelHeight = LABEL_HEIGHT * grid.gridFontSize / 10;
     const labels: { label: any; box: LabelBox; value: number }[] = [];
@@ -140,14 +99,12 @@ export function installAdaptiveGrid(viewer: any): () => void {
       }
     }
     // Important small coordinates win; suppress duplicate/overlapping labels across all three planes.
-    labels.sort((a, b) => Number(visibleLastFrame.has(b.label.userData.aadLabelId)) - Number(visibleLastFrame.has(a.label.userData.aadLabelId)) || a.value - b.value);
+    labels.sort((a, b) => Number(visibleLastFrame.has(b.label)) - Number(visibleLastFrame.has(a.label)) || a.value - b.value);
     visibleLastFrame = new Set();
     const placed: LabelBox[] = [];
-    const maxLabels = Math.max(8, Math.floor(Math.min(width, height) / 24));
     for (const { label, box } of labels) {
-      if (placed.length >= maxLabels) break;
       if (placed.some(other => overlaps(box, other))) continue;
-      label.visible = true; placed.push(box); visibleLastFrame.add(label.userData.aadLabelId);
+      label.visible = true; placed.push(box); visibleLastFrame.add(label);
     }
     return Promise.resolve();
   };
