@@ -7,6 +7,7 @@ from xml.etree import ElementTree
 import pytest
 
 from aad_platform.viewer.bundle import export_bundle
+from aad_platform.viewer import viewer_path
 
 
 @pytest.fixture
@@ -40,6 +41,13 @@ def test_bundle_preserves_original_scene_bytes_and_complete_manifest(saved_scene
     assert metadata.attrib == {"id": "aad-scene", "encoding": "base64+gzip"}
     assert base64.b64decode(metadata.text) == payload
     assert (source / "scene.bin.gz").read_bytes() == payload
+    runtime = next((tmp_path / "export").glob("viewer-*.svg"))
+    runtime_metadata = ElementTree.parse(runtime).find("{http://www.w3.org/2000/svg}metadata")
+    assert base64.b64decode(runtime_metadata.text) == viewer_path().read_bytes()
+    assert len(html) < 512_000  # Scene and CAD runtime travel as assets, not tool arguments.
+    standalone = (tmp_path / "export" / "standalone.html").read_text()
+    assert "data:image/svg+xml;base64," in standalone
+    assert 'src="/src/main.ts"' not in standalone
 
 
 @pytest.mark.parametrize("field,value,message", [

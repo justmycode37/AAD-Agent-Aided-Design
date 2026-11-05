@@ -127,6 +127,8 @@ jobs:
           npm ci
           npm run build
           npm test --if-present
+          npx playwright install --with-deps chromium
+          npm run test:e2e
 
   # One stable check name that covers the dynamic matrix, including skipped legs.
   ci-ok:
