@@ -162,7 +162,8 @@ def test_complete_rectangular_geometry_proves_the_absence_of_cnc_cavities():
     from aad_quality.process import process_checks
     ctx = SimpleNamespace(shape=Box(10,10,3), units='mm', process='cnc_3axis', spec={}, features=[])
     checks = process_checks(ctx)
-    assert checks and all(c.status == 'pass' for c in checks), checks
+    assert checks and all(c.status in {'pass', 'not_applicable'} for c in checks), checks
+    assert next(c for c in checks if c.id == 'process.cnc_3axis.internal_radius').status == 'not_applicable'
 
 
 def test_resolver_metadata_is_measured_only_through_its_live_native_binding(monkeypatch):

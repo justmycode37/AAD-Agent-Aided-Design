@@ -10,15 +10,12 @@ import pytest
     ({'requirements':[{'id':'size','bbox':{'x':10}},{'id':'future','unimplemented':1}]},False),
     ({'requirements':[{'id':'dup','solids':1},{'id':'dup','solids':1}]},False),
 ])
-def test_worker_uses_real_quality_checks_without_attesting_their_results(tmp_path,spec,measured):
+def test_parent_independently_evaluates_saved_brep_and_spec(tmp_path,spec,measured):
     result=run_build(BuildRequest(source='from build123d import Box\nresult=Box(10,8,4)\n',
         project_dir=tmp_path,job_dir=tmp_path/'job',spec=spec,timeout_s=60))
     assert result.ok,result.failure
-    # S1's parent clears model-process proof claims until independent
-    # validation exists. Passing worker measurements are still useful, but
-    # cannot promote the revision or become a trusted proof bit.
-    assert result.status=='draft'
-    assert result.requirements_proven is False,result.checks
+    assert result.status == ('verified' if measured else 'draft')
+    assert result.requirements_proven is measured, result.checks
     spec_checks=[check for check in result.checks if check.suite=='spec']
     assert spec_checks
     if measured:
@@ -29,6 +26,42 @@ def test_worker_uses_real_quality_checks_without_attesting_their_results(tmp_pat
     assert all(isinstance(check,Check) for check in result.checks)
     assert not any(check.id=='spec_checks_unavailable' for check in result.checks)
     assert result.artifacts
+
+
+def test_independent_spec_rejects_tampered_worker_pass_and_accepts_real_pass(tmp_path):
+    spec = {'units': 'mm', 'requirements': [{'id': 'length', 'bbox': {'x': '80 ± 0.1'}}]}
+    forged_quality = (
+        "from aad.engine.types import Check\n"
+        "def spec_checks(ctx): return [Check(id='length', suite='spec', level='error', status='pass', expected='80', actual='80')]\n"
+        "def process_checks(ctx): return []\n"
+    )
+    source = (
+        "from pathlib import Path\nimport sys\n"
+        f"Path('aad_quality.py').write_text({forged_quality!r})\n"
+        "sys.path.insert(0, str(Path.cwd()))\n"
+        "from build123d import Box\nresult = Box(84, 10, 6)\n"
+    )
+    forged = run_build(BuildRequest(source=source, project_dir=tmp_path, job_dir=tmp_path / 'forged', spec=spec, timeout_s=60))
+    assert not forged.ok and forged.status == 'failed'
+    assert any(check.id == 'length' and check.status == 'fail' for check in forged.checks)
+
+    correct = run_build(BuildRequest(source='from build123d import Box\nresult = Box(80, 10, 6)\n',
+        project_dir=tmp_path, job_dir=tmp_path / 'correct', spec=spec, timeout_s=60))
+    assert correct.ok and correct.status == 'verified'
+    assert correct.requirements_proven
+
+
+def test_error_level_selector_skip_stays_draft(tmp_path):
+    spec = {'units': 'mm', 'requirements': [{
+        'id': 'feature_gap',
+        'measure': {'kind': 'distance', 'a': "face(feature='plate', where='max_z')",
+                    'b': "face(feature='missing', where='min_z')"},
+        'equals': '2 ± 0.01',
+    }]}
+    result = run_build(BuildRequest(source='from build123d import Box\nresult = Box(2, 2, 2)\n',
+        project_dir=tmp_path, job_dir=tmp_path / 'selector', spec=spec, timeout_s=60))
+    assert result.ok and result.status == 'draft'
+    assert any(check.id == 'feature_gap' and check.status == 'skip' for check in result.checks)
 
 
 def test_sandboxed_worker_can_place_catalog_parts_and_check_a_component_list(tmp_path):

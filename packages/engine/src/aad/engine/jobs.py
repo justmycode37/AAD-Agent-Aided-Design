@@ -33,6 +33,7 @@ from .types import (
 _MAX_ASSET_BYTES = 256 * 1024 * 1024
 _RESULT_MARKER = b"AAD_ENGINE_RESULT:"
 _STARTED_MARKER = b"AAD_ENGINE_STARTED\n"
+_VALIDATION_TIMEOUT_S = 600.0
 _SOURCE_ROOT = Path(__file__).resolve().parents[2]
 _WORKER_BOOTSTRAP = (
     "import sys; sys.path.insert(0, sys.argv.pop(1)); "
@@ -81,6 +82,7 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
             "spec": request.spec,
             "material": request.material,
             "process": request.process,
+            "defer_validation": True,
             # Optional native rendering must not abort or hang this process
             # after it has already produced a usable BREP.
             "preview": False,
@@ -194,9 +196,11 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
 
     try:
         result = _result_from_wire(response, job_dir=job_dir, elapsed_ms=elapsed_ms, process_stderr=_decode(stderr_bytes))
+        # This is a parent-clock measurement, not the model worker's JSON field.
+        result.build_ms = elapsed_ms
         result = _constrain_worker_evidence(result, job_dir, project_dir, kind=request.kind,
                                             spec=request.spec, process=request.process, units=request.units,
-                                            timeout_s=max(0.1, request.timeout_s - (time.perf_counter() - started)))
+                                            timeout_s=_VALIDATION_TIMEOUT_S)
     except (KeyError, TypeError, ValueError, AttributeError) as exc:
         return _failed(
             Failure(
@@ -212,6 +216,37 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
             stderr=_decode(stderr_bytes),
         )
 
+    if result.ok and request.kind in {"part", "assembly"} and "part.brep" in result.artifacts:
+        try:
+            from .scene import render_brep_scene
+
+            result.scene = render_brep_scene(
+                result.artifacts["part.brep"],
+                candidate_dir=job_dir,
+                project=project_dir.name,
+                rev=request.rev,
+                kind=request.kind,
+                units=request.units,
+                status=result.status,
+                metrics=result.metrics,
+                checks_summary=result.checks_summary,
+                expected_brep_sha256=(result.verification_receipt or {}).get("brep_sha256"),
+                timeout_s=120.0,
+            )
+            if result.verification_receipt is not None and result.scene is not None:
+                result.verification_receipt["scene_id"] = result.scene.scene_id
+        except Exception as exc:
+            result.checks.append(
+                Check(
+                    id="scene_generation_failed",
+                    suite="hard",
+                    level="warn",
+                    status="warn",
+                    message="A clean scene could not be generated from the validated BREP.",
+                    actual=f"{type(exc).__name__}: {exc}",
+                )
+            )
+            result.checks_summary = _detail_counts(result.checks)
     preview_started = time.perf_counter()
     if request.preview and "part.brep" in result.artifacts:
         from ._preview import add_preview
@@ -220,7 +255,11 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
         add_preview(result, timeout_s=remaining_s, memory_limit_bytes=memory_limit_bytes)
     elapsed_ms = _elapsed_ms(started)
     result.build_ms = elapsed_ms
-    _finish_phase_timings(result, elapsed_ms, preview_ms=_elapsed_ms(preview_started) if request.preview else 0.0)
+    _finish_phase_timings(
+        result,
+        elapsed_ms,
+        preview_ms=_elapsed_ms(preview_started) if request.preview else 0.0,
+    )
     return result
 
 
@@ -350,8 +389,9 @@ def _detail_counts(checks: list[Check]) -> dict[str, int]:
 
 def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: Path, *, kind: str = "part",
                                spec: Mapping[str, Any] | None = None, process: str | None = None,
-                               units: str = "mm", timeout_s: float = 60.0) -> BuildResult:
+                               units: str = "mm", timeout_s: float = _VALIDATION_TIMEOUT_S) -> BuildResult:
     # A model's pipe result is not a trusted validation receipt.
+    worker_claimed_verified = result.status == "verified"
     # A sheet has no B-rep body: its source record is the artifact that must exist.
     required = "sheet.json" if kind == "2d" else "part.brep"
     part = _canonical_artifact(job_dir / required, job_dir)
@@ -442,8 +482,9 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
                 result.summary = "The saved BREP passed independent geometry and requirement checks."
             elif independent_failure is None:
                 result.status = "draft"
-                result.checks.append(Check(id="worker_verification_unattested", suite="hard", level="error", status="skip",
-                    message="Independent evidence did not prove every error-level requirement."))
+                if worker_claimed_verified:
+                    result.checks.append(Check(id="worker_verification_unattested", suite="hard", level="error", status="skip",
+                        message="The model worker's verified claim was not independently proven."))
             result.metrics = dict(evidence.metrics)
         except Exception as exc:
             result.status = "draft"

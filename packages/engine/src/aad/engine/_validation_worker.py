@@ -12,6 +12,8 @@ import sys
 
 from .validation import _MARKER, _canonical_json, _file_digest, _json_value
 
+_METRICS_MARKER = b"AAD_GEOMETRY_METRICS:"
+
 
 def main() -> None:
     payload = json.loads(sys.stdin.buffer.readline())
@@ -31,8 +33,13 @@ def main() -> None:
             import build123d as bd
             from OCP.BRepCheck import BRepCheck_Analyzer
             from .gate import hard_checks
-            from .types import ModelContext
-            from aad_quality import spec_checks, process_checks
+            from .types import Check, ModelContext
+            try:
+                from aad_quality import spec_checks, process_checks
+            except ModuleNotFoundError as exc:
+                if exc.name != "aad_quality":
+                    raise
+                spec_checks = process_checks = None
 
             shape = bd.import_brep("part.brep")
             if shape is None or shape.wrapped is None or shape.wrapped.IsNull():
@@ -56,12 +63,25 @@ def main() -> None:
                        "vertices": len(shape.vertices()), "valid": bool(shape.is_valid and BRepCheck_Analyzer(shape.wrapped).IsValid())}
             _json_value(metrics)
             wire["metrics"] = metrics
+            progress = {"nonce": payload["nonce"], "input_sha256": digest,
+                        "snapshot_sha256": snapshot_hash, "metrics": metrics}
+            sys.__stdout__.buffer.write(b"\n" + _METRICS_MARKER + _canonical_json(progress) + b"\n")
+            sys.__stdout__.buffer.flush()
             ctx = ModelContext(kind=record["inputs"]["kind"], units=record["inputs"]["units"],
                                spec=record["inputs"]["spec"], process=record["inputs"].get("process"),
                                shape=shape, metrics=metrics, job_dir=Path.cwd())
             checks = hard_checks(ctx)
-            checks += spec_checks(ctx)
-            checks += process_checks(ctx)
+            if spec_checks is not None and process_checks is not None:
+                checks += spec_checks(ctx)
+                checks += process_checks(ctx)
+            else:
+                requested_process = record["inputs"].get("process") or record["inputs"]["spec"].get("process")
+                if record["inputs"]["spec"].get("requirements"):
+                    checks.append(Check(id="spec_evaluator_unavailable", suite="spec", level="error", status="skip",
+                                        message="The aad-quality evaluator is not installed; spec requirements were not checked."))
+                if requested_process:
+                    checks.append(Check(id="process_evaluator_unavailable", suite="process", level="error", status="skip",
+                                        message="The aad-quality evaluator is not installed; process requirements were not checked."))
             wire["checks"] = [asdict(check) for check in checks]
             if not metrics["valid"] or (ctx.kind == "part" and len(solids) != 1) or any(c.level == "error" and c.status == "fail" for c in checks):
                 raise ValueError("independently loaded geometry failed native validity, body-count or hard checks")

@@ -377,6 +377,22 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
     )
     _add_phase_time(phase_timings, "model", model_phase_started)
 
+    if payload.get("defer_validation") is True:
+        # run_build() validates the saved BREP in a clean parent-owned process.
+        # Avoid repeating expensive checks or trusting any worker-generated scene.
+        metrics["phase_timings_ms"] = _rounded_timings(phase_timings)
+        result = BuildResult(
+            ok=True,
+            status="draft",
+            summary="The model built and saved a BREP; independent validation is pending.",
+            context=context,
+            metrics=metrics,
+            artifacts=artifacts,
+            job_dir=job_dir,
+            build_ms=_elapsed_ms(started),
+        )
+        return _result_wire(result)
+
     checks, gate_timings = _hard_checks_with_timings(context)
     phase_timings.update(gate_timings)
     if params_warning is not None:

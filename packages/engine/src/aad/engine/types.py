@@ -215,3 +215,4 @@ class BuildResult:
     stdout: str = ""
     stderr: str = ""
     requirements_proven: bool = False
+    verification_receipt: dict[str, Any] | None = None

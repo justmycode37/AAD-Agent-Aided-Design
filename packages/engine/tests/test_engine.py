@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import os
 import signal
 import subprocess
@@ -399,6 +400,7 @@ result = Box(2, 3, 4)
                 self.assertEqual(built.status, "draft")
                 self.assertTrue(any(c.level == "error" and c.status == "skip" for c in built.checks))
 
+    @unittest.skipUnless(importlib.util.find_spec("aad_quality"), "aad-quality is installed by the app, not aad-engine")
     def test_independent_spec_gate_rejects_mismatch_and_verifies_match(self) -> None:
         with tempfile.TemporaryDirectory(prefix="aad-engine-verified-") as temporary:
             root = Path(temporary)
@@ -419,6 +421,7 @@ result = Box(2, 3, 4)
             self.assertTrue(matched.requirements_proven)
             self.assertTrue(any(c.id == "render_not_requested" and c.level == "warn" for c in matched.checks))
 
+    @unittest.skipUnless(importlib.util.find_spec("aad_quality"), "aad-quality is installed by the app, not aad-engine")
     def test_forged_worker_claim_and_metadata_cannot_replace_brep_evidence(self) -> None:
         def forged_build(root: Path, size: float, spec: dict) -> object:
             wire = {"protocol": 1, "result": {
@@ -448,6 +451,7 @@ result = Box(2, 3, 4)
             self.assertEqual(no_requirements.status, "draft")
             self.assertFalse(no_requirements.requirements_proven)
 
+    @unittest.skipUnless(importlib.util.find_spec("aad_quality"), "aad-quality is installed by the app, not aad-engine")
     def test_selector_requirement_with_worker_feature_dependency_stays_draft(self) -> None:
         spec = {"units": "mm", "requirements": [{
             "id": "feature_gap", "measure": {
@@ -461,6 +465,7 @@ result = Box(2, 3, 4)
             self.assertEqual(built.status, "draft")
             self.assertTrue(any(c.id == "feature_gap" and c.status == "skip" for c in built.checks))
 
+    @unittest.skipUnless(importlib.util.find_spec("aad_quality"), "aad-quality is installed by the app, not aad-engine")
     def test_error_level_not_applicable_process_screen_does_not_block_verified(self) -> None:
         spec = {
             "units": "mm", "process": "cnc_3axis",

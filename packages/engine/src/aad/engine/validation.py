@@ -22,6 +22,7 @@ from .jobs import _check_from_wire, _decode, _drain_killed_worker, _failure_from
 from .types import Check, Failure
 
 _MARKER = b"AAD_GEOMETRY_EVIDENCE:"
+_METRICS_MARKER = b"AAD_GEOMETRY_METRICS:"
 _SOURCE_ROOT = Path(__file__).resolve().parents[2]
 _BOOTSTRAP = (
     "import sys; sys.path.insert(0, sys.argv.pop(1)); "
@@ -175,7 +176,12 @@ def inspect_brep(
                 raise ValueError("BREP snapshot changed during inspection")
             _accept_response(result, wire, units, kind)
             _remaining(deadline)
-    except (TimeoutError, subprocess.TimeoutExpired):
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.output or b""
+        stderr = exc.stderr or b""
+        result.failure = Failure(code="TIMEOUT", phase="timeout", feature="unknown",
+                                 message=f"BREP inspection exceeded its {timeout_s:g} second budget.")
+    except TimeoutError:
         result.failure = Failure(code="TIMEOUT", phase="timeout", feature="unknown",
                                  message=f"BREP inspection exceeded its {timeout_s:g} second budget.")
     except memory.AddressSpaceUnavailable as exc:
@@ -200,12 +206,25 @@ def inspect_brep(
         if child is not None and (not communication_complete or child.poll() is None):
             try:
                 _kill_worker(child)
-                stdout, stderr = _drain_killed_worker(child)
+                drained_stdout, drained_stderr = _drain_killed_worker(child)
+                stdout = drained_stdout or stdout
+                stderr = drained_stderr or stderr
             except OSError as exc:
                 result.failure = Failure(code="WORKER_CRASH", phase="crash", feature="unknown",
                                          message="BREP inspector cleanup failed.", kernel_message=f"{type(exc).__name__}: {exc}")
         result.stdout, result.stderr = _decode(stdout), _decode(stderr)
         result.elapsed_ms = (time.monotonic() - started) * 1000
+        if result.failure is not None and result.failure.code == "TIMEOUT" and result.snapshot_sha256:
+            try:
+                progress = _progress_response(stdout)
+                if (progress.get("nonce") != nonce or progress.get("input_sha256") != result.input_sha256
+                        or progress.get("snapshot_sha256") != result.snapshot_sha256):
+                    raise ValueError("validator metrics progress is not bound to this inspection")
+                if _file_digest(snapshot, math.inf) != result.snapshot_sha256:
+                    raise ValueError("validation snapshot changed before timeout")
+                result.metrics = _validated_metrics(progress.get("metrics"), units)
+            except Exception:
+                result.metrics = {}
         if result.failure is not None:
             result.ok = False
     return result
@@ -214,25 +233,7 @@ def inspect_brep(
 def _accept_response(result: GeometryEvidence, wire: dict, units: str, kind: str) -> None:
     if not isinstance(wire.get("ok"), bool):
         raise ValueError("inspection ok must be boolean")
-    metrics = wire.get("metrics")
-    if not isinstance(metrics, dict):
-        raise ValueError("inspection metrics must be an object")
-    _json_value(metrics)
-    if metrics:
-        if metrics.get("units") != units or not isinstance(metrics.get("valid"), bool):
-            raise ValueError("inspection metrics have invalid units or validity")
-        for key in ("solids", "faces", "edges", "vertices"):
-            if type(metrics.get(key)) is not int or metrics[key] < 0:
-                raise ValueError(f"inspection {key} must be a non-negative integer")
-        for key in ("volume", "area"):
-            if type(metrics.get(key)) not in (int, float) or metrics[key] < 0:
-                raise ValueError(f"inspection {key} must be a non-negative number")
-        for key in ("bbox", "center_of_mass"):
-            vector = metrics.get(key)
-            if not isinstance(vector, list) or len(vector) != 3 or any(type(v) not in (int, float) for v in vector):
-                raise ValueError(f"inspection {key} must contain three numbers")
-        if any(value < 0 for value in metrics["bbox"]):
-            raise ValueError("inspection bbox dimensions must be non-negative")
+    metrics = _validated_metrics(wire.get("metrics"), units)
     checks = wire.get("checks")
     if not isinstance(checks, list) or any(not isinstance(c, dict) or not {"id", "suite", "level", "status", "message"} <= c.keys() for c in checks):
         raise ValueError("inspection checks must contain complete check objects")
@@ -248,6 +249,38 @@ def _accept_response(result: GeometryEvidence, wire: dict, units: str, kind: str
         raise ValueError("failed inspection requires a failure")
     result.ok, result.metrics, result.checks = wire["ok"], metrics, decoded
     result.failure = _failure_from_wire(failure) if failure is not None else None
+
+
+def _validated_metrics(value: Any, units: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError("inspection metrics must be an object")
+    _json_value(value)
+    if value:
+        if value.get("units") != units or not isinstance(value.get("valid"), bool):
+            raise ValueError("inspection metrics have invalid units or validity")
+        for key in ("solids", "faces", "edges", "vertices"):
+            if type(value.get(key)) is not int or value[key] < 0:
+                raise ValueError(f"inspection {key} must be a non-negative integer")
+        for key in ("volume", "area"):
+            if type(value.get(key)) not in (int, float) or value[key] < 0:
+                raise ValueError(f"inspection {key} must be a non-negative number")
+        for key in ("bbox", "center_of_mass"):
+            vector = value.get(key)
+            if not isinstance(vector, list) or len(vector) != 3 or any(type(v) not in (int, float) for v in vector):
+                raise ValueError(f"inspection {key} must contain three numbers")
+        if any(value < 0 for value in value["bbox"]):
+            raise ValueError("inspection bbox dimensions must be non-negative")
+    return value
+
+
+def _progress_response(stdout: bytes) -> dict[str, Any]:
+    for line in reversed(stdout.splitlines()):
+        if line.startswith(_METRICS_MARKER):
+            value = json.loads(line[len(_METRICS_MARKER):])
+            if not isinstance(value, dict):
+                raise ValueError("validator metrics progress must be an object")
+            return value
+    raise ValueError("validator did not emit trusted metrics before timeout")
 
 
 def _canonical_json(value: Any) -> bytes:
