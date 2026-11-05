@@ -67,7 +67,7 @@ def test_housing_drawing_has_measured_hole_section_and_revision_callouts(tmp_pat
         },
         tmp_path,
     )
-    assert result.ok, result.checks
+    assert result.ok, [(check["id"], check.get("status"), check.get("actual")) for check in result.checks if check["status"] == "fail"]
     assert {("wall_thickness", 3.0), ("cavity_depth", 47.0)} <= {
         (dimension["kind"], dimension["value"]) for dimension in result.dimensions
     }
