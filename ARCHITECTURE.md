@@ -23,21 +23,15 @@ This document explains how AAD is built. `CONTRACTS.md` holds the exact interfac
          │ model worker    │   runs model.py and saves the BREP
          │ (fresh per job) │   build123d → OCCT; a crash costs one job, never the model
  └─────────────────┘
-         │ worker exits; saved BREP is reloaded in a clean process
+         │ worker exits; saved BREP is loaded once in a clean process
          ▼
-         ┌─────────────────┐
-         │ BREP validator  │   hard gate + spec + process checks
-         │ (no model code) │   sandboxed; evidence bound to BREP/spec/kernel hashes
-         └─────────────────┘
-         │ validated BREP snapshot
-         ▼
-         ┌─────────────────┐
-         │ scene renderer  │   clean sandboxed BREP-derived viewer scene
-         │ (no model code) │
-         └─────────────────┘
+         ┌──────────────────────────┐
+         │ trusted BREP validator   │   hard gate + spec + process + geometry-only checks
+         │ and scene generation     │   same loaded shape; no model code, sandboxed
+         └──────────────────────────┘
 ```
 
-The adapter, daemon, model worker, validator and scene renderer are separate processes because kernel crashes and hangs are expected, and the MCP handshake must not wait for kernel imports.
+The adapter, daemon, model worker and validator are separate processes because kernel crashes and hangs are expected, and the MCP handshake must not wait for kernel imports. The validator generates the scene from its already-loaded BREP shape.
 
 Hosts that cannot reach a local process use `aad serve --http` instead of stdio. It speaks Streamable HTTP, authenticates with bearer tokens, and gives each user a private home and daemon. All daemons run as the account that started the server, so the worker sandbox is the boundary around model code.
 
