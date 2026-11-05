@@ -80,7 +80,9 @@ def inspect_brep(
         else:
             memory_limit_bytes = memory.memory_budget_bytes(memory_limit_bytes)
         deadline = started + timeout_s
-        declared = {"kind": kind, "units": units, "spec": {} if spec is None else spec, "process": process}
+        declared = {"kind": kind, "units": units, "spec": {} if spec is None else spec}
+        if process is not None:
+            declared["process"] = process
         if not isinstance(declared["spec"], dict):
             raise ValueError("spec must be a plain JSON object")
         _json_value(declared)
