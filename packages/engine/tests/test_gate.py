@@ -283,7 +283,9 @@ class GeometricGateTests(unittest.TestCase):
         asm.allow_overlap("left", "right", reason="press fit", max_volume_mm3=5)
         ctx = context(asm.compound(), Path("."), kind="assembly")
         ctx.meta = {"assembly": asm.record()}
-        actual = json.loads(interference_checks(ctx)[0].actual)
+        check = interference_checks(ctx)[0]
+        actual = json.loads(check.actual)
+        self.assertEqual(check.status, "warn")
         self.assertEqual(actual["confirmed_overlapping_pairs"], 1)
         self.assertEqual(actual["undeclared_overlapping_pairs"], 0)
         self.assertEqual(actual["allowed_overlap_pairs"], 1)

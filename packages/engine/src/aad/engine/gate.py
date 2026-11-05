@@ -507,6 +507,12 @@ def interference_checks(
                 f" {unknown_count} pair(s) have unknown boolean results; "
                 f"{unchecked_pairs} pair(s) were unchecked."
             )
+    elif overlap_count_complete and allowed_overlap_count:
+        status = "warn"
+        message = (
+            f"No undeclared overlaps were found; {allowed_overlap_count} intended-contact pair(s) were reported separately. "
+            "They are declarations, not clearance passes."
+        )
     elif overlap_count_complete:
         status = "pass"
         message = f"No undeclared solid pair overlaps above {threshold:g} mm³; all {total_pairs} pair(s) were resolved, including {allowed_overlap_count} reported intended-contact pair(s)."
