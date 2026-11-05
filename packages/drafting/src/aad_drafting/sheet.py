@@ -1422,8 +1422,6 @@ def _view_markers(entities, shape, placed, request):
                 continue
             start, end = [_sheet_point(parent, p) for p in trace.curve.points]
             entities.append(line(*start, *end, layer="SECTION_MARKERS", width=0.3, dash=True))
-            dx, dy = end[0]-start[0], end[1]-start[1]
-            length = math.hypot(dx,dy)
             nx = sum(trace.normal[i] * parent.projection.right[i] for i in range(3))
             ny = sum(trace.normal[i] * parent.projection.up[i] for i in range(3))
             normal_length = math.hypot(nx, ny)

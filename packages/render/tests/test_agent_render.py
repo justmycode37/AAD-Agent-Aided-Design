@@ -130,7 +130,7 @@ def test_section_is_capped_and_annotated_with_the_plane(tmp_path):
 
 
 def test_default_section_camera_faces_and_shows_cut_cap():
-    from aad_render.agent_render import _camera, _face_section_camera, _layout, _make_scene, _parse_section, _section_shape, _shape_bounds
+    from aad_render.agent_render import _face_section_camera, _layout, _make_scene, _parse_section, _section_shape, _shape_bounds
 
     shape = _bracket()
     bounds = _shape_bounds(shape)
