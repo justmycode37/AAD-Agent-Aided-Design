@@ -166,7 +166,7 @@ See [Import and export](#import-and-export). Arguments: `formats`, `options`, `a
 
 ### aad_library: look things up
 
-`action` is `search` (with `kind` and `query`), `get` (with `kind` and `id`) or `check` (with `items`, a bill of materials). `kind` is `part`, `component`, `material`, `playbook` or `api`. `search` returns five results; when `truncated` is true, pass `next_offset` as `offset` for more. A component search with no full match returns the closest families with `partial_match: true`. See [Library](#library).
+`action` is `search` (with `kind` and `query`), `get` (with `kind` and `id`) or `check` (with `items`, a bill of materials). `kind` is `part`, `component`, `material`, `playbook` or `api`. `search` returns five results; when `truncated` is true, pass `next_offset` as `offset` for more. A component search with no full match returns the closest families with `partial_match: true`. For `aad.guide.v1`, omit `section` to get the short core with the loop, tools, section list and honesty rules; pass a listed heading slug for that section, or `section="all"` for the complete guide. A full-guide request reaches both text-only and structured-only hosts whole. See [Library](#library).
 
 ### Tools that are not for you
 

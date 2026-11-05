@@ -150,7 +150,7 @@ def test_main_skill_is_served_as_the_guide_and_its_examples_build(tmp_path):
     from aad.engine.jobs import run_build
     from aad.engine.types import BuildRequest
 
-    entry = library("get", kind="playbook", id="aad.guide.v1")["item"]
+    entry = library("get", kind="playbook", id="aad.guide.v1", section="all")["item"]
     assert entry["text"].startswith("# AAD guide")
     assert "aad.guide.v1" in [item["id"] for item in library("search", kind="playbook", query="guide")["items"]]
     blocks = [block.split("```", 1)[0] for block in entry["text"].split("```python\n")[1:]]
@@ -169,6 +169,46 @@ def test_main_skill_is_served_as_the_guide_and_its_examples_build(tmp_path):
         assert namespace["plate"].to_face().area > 0
     exec("from aad import *\n" + gears, namespace)
     assert namespace["pinion"].is_valid and not (namespace["pinion"] & namespace["wheel"])
+
+
+def test_aad_guide_core_is_small_and_sections_follow_source_headings():
+    from aad_quality.catalog import _guidance_root
+
+    source = _guidance_root().joinpath("aad/SKILL.md").read_text(encoding="utf-8")
+    full_text = source.split("\n---\n", 1)[1].strip()
+    default = library("get", kind="playbook", id="aad.guide.v1")["item"]
+    complete = library("get", kind="playbook", id="aad.guide.v1", section="all")["item"]
+
+    assert default["section"] == "core"
+    assert len(default["text"].encode("utf-8")) < 8_192
+    assert all(heading in default["text"] for heading in ("## The loop", "## Tools", "## Honesty rules"))
+    assert all(section["id"] in default["text"] for section in default["sections"])
+    assert complete["section"] == "all"
+    assert complete["text"] == full_text
+
+    lines = full_text.splitlines()
+    heading_rows = [(index, line[3:].strip()) for index, line in enumerate(lines) if line.startswith("## ")]
+    assert [section["title"] for section in complete["sections"]] == [title for _, title in heading_rows]
+    for position, (start, title) in enumerate(heading_rows):
+        end = heading_rows[position + 1][0] if position + 1 < len(heading_rows) else len(lines)
+        section = complete["sections"][position]
+        fetched = library("get", kind="playbook", id="aad.guide.v1", section=section["id"])["item"]
+        assert fetched["section"] == section["id"]
+        assert fetched["text"] == "\n".join(lines[start:end]).strip()
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        {"action": "search", "section": "render"},
+        {"action": "get", "kind": "playbook", "id": "workflow.core.v1", "section": "all"},
+        {"action": "get", "kind": "playbook", "id": "aad.guide.v1", "section": "missing"},
+        {"action": "get", "kind": "playbook", "id": "aad.guide.v1", "section": 2},
+    ],
+)
+def test_guide_section_arguments_are_scoped_and_validated(args):
+    with pytest.raises(ValueError):
+        library(**args)
 
 
 def test_published_core_example_builds_the_requested_geometry():

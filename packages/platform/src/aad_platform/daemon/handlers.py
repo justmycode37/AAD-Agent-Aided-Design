@@ -961,7 +961,7 @@ class Handlers:
         )
 
     async def aad_library(self, params: dict[str, Any]) -> dict[str, Any]:
-        args = {k: params.get(k) for k in ("action", "kind", "query", "id", "offset", "items")}
+        args = {k: params.get(k) for k in ("action", "kind", "query", "id", "offset", "section", "items")}
         request = {"op": "library", "args": args, "out_dir": str(paths.cache_dir() / "library")}
         result = await run_op(request, timeout_s=60.0)
         if not result.get("ok"):
@@ -972,7 +972,7 @@ class Handlers:
             return reply(failure_envelope("", "BAD_INPUT" if failure.get("code") == "NOT_READY" else failure.get("code", "RUNTIME_ERROR"), failure.get("phase", "runtime"), message))
         data = result["library"]
         item = data.get("item") if isinstance(data, dict) else None
-        # A fetched guide must reach the model whole, including hosts that only pass on the text.
+        # An explicitly requested full guide must reach the model whole, including text-only hosts.
         # The component index and a bill-of-materials check are useless when cut off.
         limit = 100_000 if params.get("kind") == "component" or params.get("action") == "check" else 6000
         text = item["text"] if isinstance(item, dict) and isinstance(item.get("text"), str) else json.dumps(data, default=str)[:limit]
