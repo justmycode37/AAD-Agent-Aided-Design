@@ -1,5 +1,5 @@
 /** Check projected world bounds rather than just a screenshot's center pixel. */
-export async function checkFraming(frame, check, label) {
+export async function checkFraming(frame, check, label, verticalPadding = 56) {
   const result = await frame.evaluate(() => {
     const v = globalThis.__viewer, camera = v.rendered.camera.getCamera();
     const canvas = v.rendered.controls.domElement;
@@ -18,6 +18,6 @@ export async function checkFraming(frame, check, label) {
       minY: Math.min(...points.map(p => p[1])), maxY: Math.max(...points.map(p => p[1])),
       depthFits: points.every(p => p[2] > -1 && p[2] < 1) };
   });
-  check(result.minX >= 23.9 && result.maxX <= result.width - 23.9 && result.minY >= 55.9 && result.maxY <= result.height - 55.9 && result.depthFits,
+  check(result.minX >= 23.9 && result.maxX <= result.width - 23.9 && result.minY >= verticalPadding - .1 && result.maxY <= result.height - verticalPadding + .1 && result.depthFits,
     `framing: ${label} clears every edge and the title controls`, JSON.stringify(result));
 }

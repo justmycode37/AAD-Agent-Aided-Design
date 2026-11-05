@@ -23,7 +23,6 @@ export function applyPresentation(view: Cad3dView, presentation: Presentation = 
   const ids = Object.keys(viewer.getStates());
   if (presentation.isolate) view.isolateParts(resolveParts(presentation.isolate, ids));
   if (presentation.hide) for (const id of resolveParts(presentation.hide, ids)) view.hidePart(id);
-  if (presentation.isolate || presentation.hide) view.fit();
   viewer.setOrtho(presentation.projection === "orthographic");
   if (presentation.section) {
     viewer.setActiveTab("clip");
@@ -40,6 +39,9 @@ export function applyPresentation(view: Cad3dView, presentation: Presentation = 
     });
   }
   if (presentation.grid !== undefined) view.setGrid(presentation.grid);
+  // Exploded recipes must save an already fitted assembled camera, including
+  // the requested projection, so Put together restores the same safe framing.
+  view.fit();
   view.setExploded((presentation.explode ?? wasExploded) && view.canExplode());
   viewer.showTools(view.fullControls); viewer.setPickHandler(view.fullControls);
 }

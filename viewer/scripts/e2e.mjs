@@ -98,6 +98,28 @@ function assemblyFixture() {
 }
 
 const assembly = assemblyFixture();
+for (const width of [320, 728]) await scenario(`initial-exploded-framing-${width}`, { scene: assembly, width,
+  viewer: { presentation: { explode: true }, views: [
+    { id: "plain", label: "Plain" },
+    { id: "apart", label: "Apart", presentation: { explode: true } },
+    { id: "side-plain", label: "Side plain", view: "right", presentation: { projection: "orthographic" } },
+    { id: "side-apart", label: "Side apart", view: "right", presentation: { projection: "orthographic", explode: true } },
+  ] } }, async ({ host }) => {
+  const frame = host.frame(), button = name => frame.getByRole("button", { name, exact: true });
+  const choose = async label => { await button("Views").click(); await frame.getByRole("menuitemradio", { name: label, exact: true }).click(); };
+  await checkFraming(frame, check, "base presentation opens exploded");
+  await button("Put together").click();
+  await checkFraming(frame, check, "base presentation collapses to fitted geometry");
+  for (const [plain, apart] of [["Plain", "Apart"], ["Side plain", "Side apart"]]) {
+    await choose(plain);
+    const fittedZoom = await frame.evaluate(() => globalThis.__viewer.getCameraZoom());
+    await choose(apart);
+    await checkFraming(frame, check, `${apart} opens fitted`);
+    await button("Put together").click();
+    await checkFraming(frame, check, `${apart} collapses fitted`);
+    check(await frame.evaluate(zoom => Math.abs(globalThis.__viewer.getCameraZoom() / zoom - 1) < 1e-7, fittedZoom), "initially exploded recipe restores the normal assembled fit");
+  }
+});
 for (const width of [320, 728]) await scenario(`viewport-framing-${width}`, { scene: assembly, width,
   viewer: { views: [{ id: "side", label: "Side", view: "right", presentation: { projection: "orthographic" } }] } }, async ({ host }) => {
   const frame = host.frame(), button = name => frame.getByRole("button", { name, exact: true });
@@ -373,6 +395,7 @@ await scenario("grid-new-scene-uses-its-recipe", { scene: assembly, fakeOpts: { 
     await page.goto(`file://${file}`);
     await page.waitForFunction(() => ["ready", "error"].includes(globalThis.__aad?.state), null, { timeout: 60_000 });
     check(await page.evaluate(() => globalThis.__aad.state) === "ready", "full CAD grid page reaches ready");
+    await checkFraming(page, check, "native CAD model", 24);
     check(await page.locator(".tcv_cad_toolbar").isVisible() && await page.locator(".tcv_cad_navigation").isVisible(), "full CAD grid page retains the native toolbar and tree");
     const nativeChecks = () => page.evaluate(() => ["xy", "xz", "yz"].map(p => document.querySelector(`.tcv_grid-${p}`).checked));
     for (const plane of ["xy", "yz"]) await page.locator(`.tcv_grid-${plane}`).evaluate(e => e.click());
