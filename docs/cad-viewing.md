@@ -12,14 +12,23 @@ The corner button makes the view bigger. The CAD toolbars, part tree, menus,
 measurement panels, and their keyboard shortcuts are hidden in chat.
 A model with one visible piece disables Pull apart.
 
-Hover highlights the whole part. Click selects it, Shift-click toggles additional
-parts, and blank click or Escape clears selection. Dragging still rotates.
-Double-click opens an unsent part draft below the viewer. Type the request and
-choose Copy draft, then paste it into chat. The copied text carries the exact
-project, revision, scene and part path alongside its `@part` label. It is never
-automatically sent. Direct insertion into T3 Code's composer requires a host API
-that is not currently available. A model revision change marks the reference
-stale while preserving the unsent text.
+Hover softly highlights the whole part while keeping its color, shading and
+edges visible. Click selects it; clicking it again clears that selection.
+Shift-click toggles additional parts, and blank click or Escape clears selection.
+Dragging still rotates.
+
+Double-click prepares a part reference for the normal chat prompt. Supported
+ChatGPT Desktop hosts append an unsent `@part` item directly to that prompt.
+Current T3 HTML chat copies the reference: paste with ⌘V/Ctrl+V and type the edit
+request in the main prompt. There is no separate request editor and nothing is
+automatically sent. If the clipboard is blocked, use the displayed reference's
+manual copy fallback.
+
+The reference carries the exact project, revision, scene and part path alongside
+its `@part` label. The agent resolves that identity before editing. A copied or
+inserted reference retains its original revision even after the viewer changes;
+clearing selection does not remove it from the user's prompt. Composer insertion
+is used only when the connected host advertises the required extension.
 
 Opening a model, choosing a view, Reset, and resizing fit the visible component
 bounds to the current canvas, with room around the edges and title controls.

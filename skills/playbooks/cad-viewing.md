@@ -17,26 +17,39 @@ Views menu, and fullscreen. Small white-outlined icons sit beside the title.
 Advanced CAD panels and action shortcuts are hidden. Local windows retain the
 native CAD engine's full toolset; standalone exports can opt into CAD controls.
 
-Chat highlights an entire part on hover and keeps it selected on click.
-Shift-click toggles additional parts; blank click and Escape clear selection.
-Camera drags do not select. Double-click opens an unsent viewer-local draft
-with an `@part` label and Copy. The user pastes it into chat. T3 Code currently
-has no viewer-to-composer draft insertion API; double-click never sends a message.
+Chat softly highlights an entire part on hover, preserving material and detail.
+Click selects; clicking the selected part again deselects it. Shift-click toggles
+additional parts; blank click and Escape clear selection. Camera drags do not
+select. Double-click prepares the part reference for the real chat prompt,
+without a separate request editor. When the host advertises the OpenAI composer
+extension, it appends an unsent `@part` reference to the active draft. Current T3
+HTML chat instead copies the reference for the user to paste with ⌘V/Ctrl+V.
+If copying is blocked, use the displayed reference's manual copy fallback.
+Nothing automatically sends or edits the model.
 
-Copied prompts include an exact identity URI:
+Inserted and copied references include an exact identity URI:
 `aad://part/<project>/<rev>/<scene_id>?path=<percent-encoded-leaf-path>`.
 Use its project, revision, hash and path to resolve `scene.parts` before editing.
 The mention label is not a filesystem path or a globally unique identifier;
 duplicate names receive distinct display labels. The URI is not an engine query
 selector. Reconcile an older reference with the current revision before changing
-the model. A new revision marks an open draft stale and preserves its text until
-the user double-clicks a current part.
+the model. Inserted or copied references retain their original revision; clearing
+viewer selection does not remove a reference from the user's prompt.
 
 MCP Apps stage selected parts through advertised `updateModelContext` modalities
 and clear that context on deselection or scene/revision changes. HTML-only hosts
 carry identity in copied text. Context may report `selectedCount` and
 `omittedCount` to stay within host limits; obtain omitted references before
-acting on those parts. Drafts never call model-editing tools.
+acting on those parts. Part references never call model-editing tools.
+
+Composer insertion requires `hostCapabilities.experimental["openai/message"]`
+and text-message support. Use `ui/message` with a titled text item carrying the
+exact identity and `_meta: {"openai/message": {target: "active", send: false}}`.
+Never use ordinary `ui/message` as a fallback: it can send immediately. A missing
+capability or rejected insertion falls back to copying, not sending. See the
+[official OpenAI extension documentation](https://developers.openai.com/plugins/build/extensions).
+Do not promise composer focus, desktop-version availability, or direct insertion
+when the connected host does not advertise support.
 
 Opening a scene, selecting a view, Reset, and resizing fit visible component
 bounds to the current canvas, leaving room for the title controls and edges.

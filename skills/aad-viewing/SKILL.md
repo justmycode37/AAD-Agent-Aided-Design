@@ -21,11 +21,15 @@ Know what the user sees:
 - **Navigation:** on Mac, click-drag rotates, two-finger scroll pans in both
   directions, pinch zooms, and Option-scroll is the zoom fallback. Other desktops
   scroll or pinch to zoom and Shift-drag or right-drag to pan.
-- **Parts:** chat hovers and selects whole parts. Click selects, Shift-click
-  toggles additional parts, and blank click or Escape clears. Dragging rotates
-  without selecting. Double-click opens an unsent draft with a part mention and
-  Copy. The user pastes it into chat; the viewer does not insert into the chat
-  composer or automatically send a message.
+- **Parts:** hover softly highlights the whole part while retaining its material
+  and detail. Click selects; click the selected part again to deselect.
+  Shift-click toggles additional parts; blank click or Escape clears selection.
+  Dragging rotates without selecting. Double-click prepares an exact part
+  reference for the user's normal chat prompt. Hosts advertising native unsent
+  composer insertion receive an `@part` reference there. Other hosts, including
+  current T3 HTML chat, copy the reference for the user to paste with ⌘V/Ctrl+V.
+  There is no separate request editor and nothing automatically sends. If copying
+  is blocked, the viewer offers the reference for manual copying.
 - **Local CAD window / CAD standalone export:** native part tree, face/edge
   visibility, sections and caps, projections and standard cameras, selection,
   mesh measurements/properties, exploded animation, zebra inspection, material,
@@ -59,13 +63,15 @@ initial recipe. After that, Views, Reset, and same-scene `aad_show` updates keep
 the user's exact grid planes and axes, even when a recipe sets `grid`. Do not tell
 the user that a same-scene `grid` value changed the display; ask them to use Grid.
 
-Copied drafts include `aad://part/<project>/<rev>/<scene_id>?path=<encoded-path>`.
+Inserted and copied references include `aad://part/<project>/<rev>/<scene_id>?path=<encoded-path>`.
 Resolve this against that revision's `scene.parts` and scene hash before editing.
 The `@name` is a display label, not a file or a globally unique selector. Never
 pass the identity URI as a modeling query; resolve the actual part and its
 modeling selectors first. A newer revision needs reconciliation, even if a part
 has the same name. MCP hosts may also stage selection context, including
 `selectedCount`/`omittedCount`; obtain omitted references before acting on them.
+A reference already inserted into a prompt or copied retains its original revision; clearing the viewer selection does not remove it
+from the user's prompt. Reconcile it before editing a newer revision.
 
 Exploded layout spaces coaxial components along the assembly axis and separates
 parallel stacks without changing original geometry or part orientation. Its

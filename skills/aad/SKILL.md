@@ -412,6 +412,15 @@ Thickness is a sampled search, not a certified minimum. Heatmaps do not prove ma
 
 **The user's controls in chat:** orbit, pan, zoom, Pull apart/Put together, XYZ grid, Reset, a Views menu, fullscreen. CAD panels stay hidden.
 
+**Navigation:** on Mac, click-drag rotates, two-finger scroll pans in both directions, pinch zooms, and Option-scroll is the zoom fallback. Other desktops scroll or pinch to zoom and Shift-drag or right-drag to pan. Opening a scene, choosing a view, Reset and resizing fit the model with space around the edges and controls. Pull apart fits the separated pieces; Put together restores the assembled framing. Exploded layouts preserve original geometry and orientation, but are inferred view layouts, not physical disassembly plans or collision proofs; parts can overlap in projection.
+
+**Grid is the user's preference.** A new scene uses its initial recipe's `grid` (off when absent). After that, Views, Original, Reset and same-scene updates keep the exact grid planes and axes, even when a recipe supplies `grid`. Ask the user to use Grid to change it on an already displayed scene.
+
+**Referring to parts:** hover softly highlights the whole part without hiding its material or detail. Click selects; click it again to deselect. Shift-click toggles additional parts; blank click and Escape clear. Dragging only moves the camera. Double-click prepares an exact `@part` reference for the main chat prompt: a host advertising native unsent composer insertion receives it there; otherwise it is copied for the user to paste with ⌘V/Ctrl+V. Current T3 HTML chat uses copy and paste. There is no separate editor or automatic sending. If copying is blocked, the viewer offers manual copying. MCP hosts may also share selected parts through negotiated model context, cleared on deselection and scene/revision changes.
+
+**Resolve references before editing.** Inserted/copied references carry `aad://part/<project>/<rev>/<scene_id>?path=<percent-encoded-path>`. Match the exact project, revision, hash and `scene.parts` path before choosing modeling selectors. `@name` is a display label, not a file or a globally unique selector. Reconcile older revisions; a reference already inserted/copied keeps its original identity, and deselection does not remove it from the user's prompt. Selection context can report `selectedCount` and `omittedCount`; obtain omitted references before acting on those parts. The viewer prepares references, never calls editing tools.
+
+
 **The local page and CAD-mode bundles add** the part tree, face and edge visibility, sections with caps, standard cameras and projections, selection, mesh measurement and properties, exploded animation, zebra inspection, materials, studio lighting and Z scale. Mesh measurements are not exact B-rep values; use `aad_measure` for those.
 
 **Arguments:**
@@ -588,7 +597,7 @@ Say so plainly rather than working around it silently.
 - **Spec requirements are not evaluated on 2D sheets.**
 - **No global mate solver, general sheet metal unfolding, Class-A surfacing, or weldment, mold and harness tools.**
 - **`min_wall` and `symmetric` can only disprove,** so a good result stays `skip`.
-- **The viewer cannot edit anything.** Sliders, picking back to the agent, and the Ask box are not built.
+- **The viewer cannot edit the model directly.** Sliders and a separate Ask editor are not built. Part selection and exact references work as described above; native composer insertion depends on advertised host support, with copy and paste on other hosts.
 - **Windows has no sandbox,** so builds refuse to run there.
 - **Each job starts a new process with no shared cache,** and no memory limit is enforced.
 - **Out of scope:** CAM and toolpaths, FEA and CFD, advanced surfacing, PMI and GD&T, assemblies of thousands of parts, PDM and PLM, native formats such as SLDPRT, F3D or DWG.
