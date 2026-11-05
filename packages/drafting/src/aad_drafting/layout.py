@@ -506,7 +506,11 @@ def _pack_at_scale(
     for projection in remaining:
         # Dimension reserves are occupied space. Geometry in those gutters
         # can obscure arrows even when no text happens to cross a curve.
-        extra_padding = (2.0, 2.0, 2.0, 8.0)
+        minimum_padding = (2.0, 2.0, 2.0, 8.0)
+        extra_padding = tuple(
+            max(required, minimum)
+            for required, minimum in zip(padding[projection.name], minimum_padding)
+        )
         placement = _free_slot(
             projection,
             factor,

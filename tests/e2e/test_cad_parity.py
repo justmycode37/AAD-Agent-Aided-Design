@@ -117,7 +117,8 @@ def test_sheet_builds_checks_shows_and_exports(mcp_process: Any) -> None:
     assert envelope["metrics"]["area"] == pytest.approx(40 * 20 - 3.141592653589793 * 4)
     assert ok(call(mcp_process, "aad_show", project="s"))["scene"]["format"] == "svg-1"
     assert ok(call(mcp_process, "aad_check", project="s"))["checks_summary"]["fail"] == 0
-    assert call(mcp_process, "aad_render", project="s")["content"][-1]["type"] == "image"
+    rendered = call(mcp_process, "aad_render", project="s")
+    assert rendered["content"][-1]["type"] == "image", rendered
     files = ok(call(mcp_process, "aad_export", project="s", formats=["dxf", "svg", "pdf"], allow_unverified=True))["artifacts"]
     assert set(files) == {"dxf", "svg", "pdf"}
     imported = ok(call(mcp_process, "aad_import", project="s", path=files["dxf"]))["imported"]
