@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 env:
   UV_PYTHON: "3.12"
@@ -41,7 +41,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15-intel, ubuntu-latest]
+        # Intel Mac runners are the bottleneck, so only pushes to main use them.
+        os: ${{ fromJSON(github.event_name == 'push' && '["macos-15-intel", "ubuntu-latest"]' || '["ubuntu-latest"]') }}
         package: ${{ fromJSON(needs.discover.outputs.packages) }}
     name: ${{ matrix.package.dir }} (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -65,7 +66,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15-intel, ubuntu-latest]
+        # Intel Mac runners are the bottleneck, so only pushes to main use them.
+        os: ${{ fromJSON(github.event_name == 'push' && '["macos-15-intel", "ubuntu-latest"]' || '["ubuntu-latest"]') }}
     name: e2e smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     # Includes cold workspace installation and every selected package on Intel Macs.
