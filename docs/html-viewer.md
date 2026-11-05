@@ -12,15 +12,20 @@ uv run python -m aad_platform.viewer.bundle \
 ```
 
 Pass the resulting `viewer.html` text to the host's HTML preview and display
-tools. The host must inline local SVG assets (T3's `html_preview` and
-`html_render` support this). Separate SVG metadata containers hold the complete
-original `scene.bin.gz` bytes and the CAD viewer runtime. Nothing is drawn from
-those SVGs: AAD unpacks the metadata and renders the original 3D scene in WebGL.
-No mesh simplification, rounding, or retessellation occurs. The runtime uses
-ordinary inline module scripts, without `eval` or external dependencies.
+tools. The host must inline local images by absolute path (T3's `html_preview`
+and `html_render` support this). The scene is stored in lossless RGB PNG chunks;
+the CAD viewer runtime is carried in a separate SVG asset. Nothing is drawn
+from those assets: AAD restores the original scene bytes and renders the scene
+in WebGL. No mesh simplification, rounding, or retessellation occurs. The
+runtime uses inline scripts, without `eval` or external dependencies.
 
-The exported HTML argument stays small while the host bundles the separate
-asset into the final artifact. The viewer checks the original scene ID using
+The exported `viewer.html` stays under T3's 512,000-character
+`html_preview`/`html_render` argument cap. It references each PNG chunk once by
+absolute local path; those image tags are inlined by the host. Do not put chunk
+data URIs in `viewer.html`. Exports refuse oversized manifests or HTML arguments
+and point to the generated `standalone.html`.
+
+The viewer checks the original scene ID using
 SHA-256 when Web Crypto is available, the byte count, and the triangle count.
 It reports a missing asset instead of substituting a different mesh.
 
@@ -33,10 +38,11 @@ A missing or altered chunk produces a visible load error; the viewer never
 substitutes geometry. This avoids relying on one oversized SVG data URL.
 
 Inline artifact limits are host-specific. The current T3 `html_preview` ceiling
-is 25 MiB; export estimates the inlined size and refuses to write `viewer.html`
-when the estimate exceeds that ceiling. It still writes `standalone.html` and
-reports its path so the user can open it locally or use a host with a larger
-limit. This 25 MiB figure is not a general HTML-host limit.
+is 25 MiB after local images are inlined; export estimates the inlined size and
+refuses to write `viewer.html` when the estimate exceeds that ceiling. It still
+writes `standalone.html` and reports its path so the user can open it locally
+or use a host with a larger limit. This 25 MiB figure is not a general
+HTML-host limit.
 
 The same export also writes `standalone.html`, which opens directly from disk
 with the viewer and original scene embedded. No daemon or internet connection
