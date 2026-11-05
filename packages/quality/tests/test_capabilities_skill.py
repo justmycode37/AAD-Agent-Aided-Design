@@ -25,6 +25,8 @@ def test_guide_has_examples():
 def test_every_example_runs_and_builds_valid_geometry(source):
     pytest.importorskip("build123d")
     pytest.importorskip("bd_warehouse")
+    if "aad_drafting" in source:
+        pytest.importorskip("aad_drafting")
     from aad import cad
     from aad.modeling import configure_modeling, named_shape
 

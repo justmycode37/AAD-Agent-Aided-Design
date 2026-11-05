@@ -1,6 +1,7 @@
 """Exercise actual catalog routing, bounded lookup and installed-resource behavior."""
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import sys
@@ -109,8 +110,9 @@ def test_main_skill_is_served_as_the_guide_and_its_examples_build(tmp_path):
     exec("from aad import *\n" + assembly, namespace)
     assert namespace["result"].bom()[0]["quantity"] == 3
     assert len(namespace["result"].compound().solids()) == 4 and namespace["result"].compound().is_valid
-    exec(sheet, namespace)
-    assert namespace["plate"].to_face().area > 0
+    if importlib.util.find_spec("aad_drafting"):
+        exec(sheet, namespace)
+        assert namespace["plate"].to_face().area > 0
     exec("from aad import *\n" + gears, namespace)
     assert namespace["pinion"].is_valid and not (namespace["pinion"] & namespace["wheel"])
 
