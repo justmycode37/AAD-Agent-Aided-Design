@@ -8,6 +8,7 @@ import json
 import os
 import selectors
 import signal
+import stat
 import subprocess
 import sys
 import time
@@ -22,7 +23,7 @@ from aad_render.render_limits import (
     MAX_WORKER_STDOUT_BYTES,
 )
 
-from ..ops import RESULT_MARKER, _render_result
+from ..ops import PREPARED_RENDER_FILENAME, RESULT_MARKER, _render_result
 
 DEFAULT_TIMEOUT_S = 120.0
 
@@ -94,25 +95,32 @@ def _run_mesh_render(request: dict[str, Any], timeout_s: float, sandbox: Any) ->
     deadline = time.monotonic() + timeout_s
     prepare_request = {**request, "op": "render_prepare"}
     prepared_result = _run_worker(prepare_request, timeout_s, sandbox)
+    out = Path(request["out_dir"])
+    payload_path = out / PREPARED_RENDER_FILENAME
     if not prepared_result.get("ok"):
+        _discard_prepared_render_payload(payload_path)
         return _as_render_failure(prepared_result)
     prepared = prepared_result.get("prepared_render")
-    if not isinstance(prepared, dict) or not isinstance(prepared.get("render"), dict):
+    if (
+        not isinstance(prepared, dict)
+        or set(prepared) != {"version", "render", "inspection", "render_payload_file"}
+        or prepared.get("version") != 1
+        or prepared.get("render_payload_file") != PREPARED_RENDER_FILENAME
+        or not isinstance(prepared.get("render"), dict)
+        or not isinstance(prepared["render"].get("request"), dict)
+    ):
+        _discard_prepared_render_payload(payload_path)
         return _crash("WORKER_CRASH", "render", "The sandboxed worker returned no prepared mesh payload.")
     try:
-        input_data = json.dumps(
-            {"render": prepared["render"]}, separators=(",", ":"), allow_nan=False
-        ).encode("utf-8")
-    except (TypeError, ValueError) as exc:
-        return _crash("INVALID_RENDER_PAYLOAD", "render", f"The sandboxed worker returned invalid render JSON: {exc}")
-    if len(input_data) > MAX_RENDER_PAYLOAD_BYTES:
-        return _crash(
-            "RENDER_PAYLOAD_TOO_LARGE",
-            "render",
-            f"The prepared render payload exceeds the {MAX_RENDER_PAYLOAD_BYTES}-byte limit.",
-        )
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return _crash("TIMEOUT", "timeout", f"The operation did not finish within {timeout_s:.0f} s.")
+        input_data = _read_prepared_render_payload(payload_path)
+    except (OSError, ValueError) as exc:
+        return _crash("INVALID_RENDER_PAYLOAD", "render", f"Could not read the sandboxed render payload: {exc}")
+    finally:
+        _discard_prepared_render_payload(payload_path)
 
-    out = Path(request["out_dir"])
     remaining = deadline - time.monotonic()
     if remaining <= 0:
         return _crash("TIMEOUT", "timeout", f"The operation did not finish within {timeout_s:.0f} s.")
@@ -150,6 +158,36 @@ def _run_mesh_render(request: dict[str, Any], timeout_s: float, sandbox: Any) ->
         return {"ok": True, **_render_result(paths)}
     except Exception as exc:
         return _crash("RENDER_FAILED", "render", f"The render report could not be completed: {exc}")
+
+
+def _read_prepared_render_payload(path: Path) -> bytes:
+    """Read the sandboxed mesh sidecar once, with a fixed cap and no link following."""
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    if nofollow is None:
+        raise ValueError("safe render payload reads require O_NOFOLLOW support")
+    fd = os.open(path, os.O_RDONLY | nofollow)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_RENDER_PAYLOAD_BYTES:
+            raise ValueError(f"render payload is not a regular file within the {MAX_RENDER_PAYLOAD_BYTES}-byte limit")
+        data = bytearray()
+        while len(data) <= MAX_RENDER_PAYLOAD_BYTES:
+            chunk = os.read(fd, min(64 * 1024, MAX_RENDER_PAYLOAD_BYTES + 1 - len(data)))
+            if not chunk:
+                break
+            data.extend(chunk)
+        if len(data) > MAX_RENDER_PAYLOAD_BYTES:
+            raise ValueError(f"render payload exceeds the {MAX_RENDER_PAYLOAD_BYTES}-byte limit")
+        return bytes(data)
+    finally:
+        os.close(fd)
+
+
+def _discard_prepared_render_payload(path: Path) -> None:
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 def _as_render_failure(result: dict[str, Any]) -> dict[str, Any]:

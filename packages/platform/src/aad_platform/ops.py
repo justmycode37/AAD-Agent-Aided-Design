@@ -21,6 +21,7 @@ from typing import Any
 
 RESULT_MARKER = b"AAD_OPS_RESULT:"
 NOT_READY = "NOT_READY"
+PREPARED_RENDER_FILENAME = "prepared-render.json"
 
 
 class OpFailure(Exception):
@@ -176,9 +177,49 @@ def op_render_prepare(ctx: Any, args: dict[str, Any], _out: Path) -> dict[str, A
         raise ValueError("render preparation returned a malformed bundle")
     json_size_limited(prepared["render"], MAX_RENDER_PAYLOAD_BYTES, "render payload")
     json_size_limited(prepared["inspection"], MAX_INSPECTION_JSON_BYTES, "render inspection")
-    # ops.main uses json.dumps with its default whitespace separators.
-    json_size_limited(prepared, MAX_PREPARED_RENDER_BYTES, "prepared render bundle", compact=False)
-    return {"prepared_render": prepared}
+    render_bytes = json.dumps(
+        {"render": prepared["render"]}, separators=(",", ":"), allow_nan=False
+    ).encode("utf-8")
+    if len(render_bytes) > MAX_RENDER_PAYLOAD_BYTES:
+        raise ValueError(f"render payload exceeds the {MAX_RENDER_PAYLOAD_BYTES}-byte limit")
+
+    # The large mesh bypasses worker stdout and the parent's JSON decoder. The
+    # fixed sidecar lives in the operation's write-only job directory; stdout
+    # returns just the exact report and the request needed to finish it.
+    render_request = prepared["render"].get("request")
+    if not isinstance(render_request, dict):
+        raise ValueError("render preparation returned no render request")
+    metadata = {
+        "version": prepared["version"],
+        "render": {"request": render_request},
+        "inspection": prepared["inspection"],
+        "render_payload_file": PREPARED_RENDER_FILENAME,
+    }
+    json_size_limited(metadata, MAX_PREPARED_RENDER_BYTES, "prepared render result")
+    _write_prepared_render_payload(_out, render_bytes)
+    return {"prepared_render": metadata}
+
+
+def _write_prepared_render_payload(out: Path, data: bytes) -> None:
+    """Create the fixed mesh sidecar without following or replacing a link."""
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    if nofollow is None:
+        raise ValueError("safe render payload writes require O_NOFOLLOW support")
+    path = Path(out) / PREPARED_RENDER_FILENAME
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow, 0o600)
+    try:
+        remaining = memoryview(data)
+        while remaining:
+            written = os.write(fd, remaining)
+            if written <= 0:
+                raise OSError("could not write the prepared render payload")
+            remaining = remaining[written:]
+    except BaseException:
+        os.close(fd)
+        path.unlink(missing_ok=True)
+        raise
+    else:
+        os.close(fd)
 
 
 def _render_request(args: dict[str, Any]) -> Any:
@@ -627,7 +668,12 @@ def main() -> int:
             payload = CONTEXT_FREE[op](None, dict(request["args"]), out)
         else:
             payload = OPS[op](load_context(request), dict(request["args"]), out)
-        result: dict[str, Any] = {"ok": True, **_plain(payload)}
+        if op == "render_prepare":
+            if not isinstance(payload, dict):
+                raise ValueError("render preparation returned a malformed result")
+            result: dict[str, Any] = {"ok": True, **payload}
+        else:
+            result = {"ok": True, **_plain(payload)}
     except OpFailure as exc:
         result = {"ok": False, "failure": exc.failure}
     except ImportError as exc:
@@ -637,7 +683,7 @@ def main() -> int:
         }
     except Exception as exc:
         result = {"ok": False, "failure": _classify(exc)}
-    os.write(protocol, RESULT_MARKER + json.dumps(result, default=str).encode() + b"\n")
+    os.write(protocol, RESULT_MARKER + json.dumps(result, default=str, separators=(",", ":")).encode() + b"\n")
     return 0
 
 
