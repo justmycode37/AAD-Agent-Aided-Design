@@ -11,6 +11,8 @@ describe("display style and component visibility", () => {
     expect(states).toEqual(original);
   });
   it("preserves absent surfaces and edges", () => {
-    expect(displayStates({ curve: [3, 1], surface: [1, 3] }, "shaded-edges")).toEqual({ curve: [3, 1], surface: [1, 3] });
+    for (const mode of ["shaded-edges", "transparent"] as const) {
+      expect(displayStates({ curve: [3, 1], surface: [1, 3] }, mode)).toEqual({ curve: [3, 1], surface: [1, 3] });
+    }
   });
 });
