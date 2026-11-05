@@ -27,7 +27,7 @@ def _number(value: Any, name: str) -> float:
 
 def normalize_presentation(value: Any, parts: list[dict[str, Any]]) -> dict[str, Any]:
     """Resolve unique part names/group paths to existing leaf paths; never guess."""
-    value = _object(value, {"isolate", "hide", "style", "projection", "section", "explode", "grid"}, "presentation")
+    value = _object(value, {"isolate", "hide", "style", "projection", "section", "explode", "grid", "inside"}, "presentation")
     result: dict[str, Any] = {}
     for key in ("isolate", "hide"):
         if key not in value:
@@ -90,4 +90,12 @@ def normalize_presentation(value: Any, parts: list[dict[str, Any]]) -> dict[str,
         if not isinstance(section.get("intersection", False), bool):
             raise ValueError("intersection must be true or false")
         result["section"] = {"planes": normalized, "intersection": section.get("intersection", False)}
+    if "inside" in value:
+        inside = _object(value["inside"], {"hide", "section"}, "inside")
+        if not inside:
+            raise ValueError("inside needs cover parts to hide or a section through an existing cavity")
+        prepared = normalize_presentation(inside, parts)
+        if "hide" in prepared and not {p["path"] for p in parts} - set(prepared["hide"]):
+            raise ValueError("inside must leave at least one interior part visible")
+        result["inside"] = prepared
     return result

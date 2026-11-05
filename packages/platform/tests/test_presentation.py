@@ -40,6 +40,9 @@ def test_rejects_ambiguous_names_instead_of_hiding_the_wrong_part():
     {"section": {"planes": [{"plane": "XY", "offset": 10 ** 400}] }},
     {"section": {"planes": [{"plane": "XY", "flipped": 1}] }},
     {"section": {"planes": [{"plane": "XY"}], "intersection": "yes"}},
+    {"inside": {}}, {"inside": {"hide": []}}, {"inside": {"hide": ["missing"]}},
+    {"inside": {"hide": ["/Group"]}}, {"inside": {"style": "transparent"}},
+    {"inside": {"section": {"planes": [{"normal": [0, 0, 0]}]}}},
 ])
 def test_rejects_invalid_agent_view_settings(settings):
     with pytest.raises(ValueError):
@@ -50,6 +53,12 @@ def test_preserves_section_offsets_and_normalizes_custom_normals():
     assert normalize_presentation({"section": {"planes": [{"normal": [0, 0, 2], "offset": -1}]}}, PARTS) == {
         "section": {"planes": [{"normal": [0.0, 0.0, 1.0], "offset": -1, "flipped": False}], "intersection": False}
     }
+
+
+def test_inside_view_resolves_covers_and_supports_a_real_cavity_section():
+    result = normalize_presentation({"inside": {"hide": ["housing"], "section": {"planes": [{"plane": "XY", "offset": 2}]}}}, PARTS)
+    assert result == {"inside": {"hide": ["/Group/housing"], "section": {"planes": [{"plane": "XY", "offset": 2, "flipped": False}], "intersection": False}}}
+    assert "hide" not in result  # Declaring an inside view does not activate it.
 
 
 def test_show_updates_an_open_window_and_keeps_settings_on_reload(tmp_path, monkeypatch):

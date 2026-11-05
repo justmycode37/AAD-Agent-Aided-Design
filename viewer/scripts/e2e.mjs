@@ -18,8 +18,9 @@ const check = (ok, label, detail = "") => {
 };
 
 async function scenario(name, opts, fn) {
-  const { fakeOpts, scene = fixture, ...hostOpts } = opts;
+  const { fakeOpts, scene = fixture, viewer, ...hostOpts } = opts;
   const mcp = fakeMcp(scene, fakeOpts);
+  if (viewer) mcp.toolResult.structuredContent.viewer = { mode: "inline", ...viewer };
   const host = await openRefHost({ html, toolResult: mcp.toolResult, onRequest: mcp.onRequest, gpu, ...hostOpts });
   try {
     const diag = await host.waitReady();
@@ -54,6 +55,7 @@ await scenario("small-part-t3-limits", {}, async ({ host, mcp, diag }) => {
   check(state.sized >= 500 && state.sized < 600, "requests its complete inline height", String(state.sized));
   check(state.tooLarge === 0, "no app message over 256 KiB");
   check(mcp.stats.chunks === 1, "one chunk for a small scene", String(mcp.stats.chunks));
+  check(await host.frame().getByRole("button", { name: "Show inside", exact: true }).count() === 0, "part without an interior view has no inside button");
   const marker = await host.frame().evaluate(() => {
     const v = globalThis.__viewer, marker = v.rendered.orientationMarker;
     const calls = [], original = v.renderer.setViewport;
@@ -110,15 +112,34 @@ await scenario("simple-controls-and-agent-views", { scene: assembly, strictCsp: 
   const beforeExplode = await camera();
   await button("Pull apart").click();
   check(await frame.evaluate(() => globalThis.__viewer.state.get("animationMode") === "explode" && globalThis.__viewer.getRelativeTime() > 0.99), "pull apart separates the pieces immediately");
-  check(sameCamera(beforeExplode, await camera()), "pull apart preserves the user's zoom and camera");
+  const explodedCamera = await camera();
+  check(explodedCamera[0] < beforeExplode[0], "pull apart zooms out to fit the separated pieces");
   await frame.evaluate(() => globalThis.__viewer.setCameraZoom(globalThis.__viewer.getCameraZoom() * 0.8));
-  const beforeAssemble = await camera();
   await button("Put together").click();
   check(await frame.evaluate(() => globalThis.__viewer.state.get("animationMode") !== "explode"), "put together restores assembly");
-  check(sameCamera(beforeAssemble, await camera()), "put together preserves zoom changes made while exploded");
+  check(sameCamera(beforeExplode, await camera()), "put together restores the assembled zoom and framing");
   await button("Show grid").click();
   check(await frame.evaluate(() => globalThis.__viewer.getGrids().every(Boolean) && globalThis.__viewer.getAxes()), "one button shows all XYZ grids and axes");
   await button("Hide grid").click();
+  await update({ presentation: { inside: { hide: ["/Group/main"] } } });
+  await button("Show inside").waitFor();
+  const outsideCamera = await camera();
+  await button("Show inside").click();
+  check(await frame.evaluate(() => globalThis.__viewer.getState("/Group/main").every(v => v === 0) && globalThis.__viewer.getState("/Group/second")[0] === 1), "inside toggle hides the cover and keeps the interior mesh");
+  await button("Show outside").click();
+  check(await frame.evaluate(() => Object.values(globalThis.__viewer.getStates()).every(s => s[0] === 1)), "outside toggle restores the cover");
+  check(sameCamera(outsideCamera, await camera()), "outside toggle restores the complete model's camera");
+  await button("Show inside").click();
+  await button("Reset").click();
+  check(await button("Show inside").getAttribute("aria-pressed") === "false" && await frame.evaluate(() => Object.values(globalThis.__viewer.getStates()).every(s => s[0] === 1)), "reset returns from inside to the prepared outside view");
+  await update({ presentation: { isolate: ["/Group/second"], inside: { hide: ["/Group/main"] } } });
+  await frame.waitForFunction(() => globalThis.__viewer.getState("/Group/main").every(v => v === 0));
+  check(await button("Show inside").count() === 0, "inside control disappears when the current selection has no visible cover");
+  await update({ presentation: { inside: { section: { planes: [{ plane: "XY", offset: 2 }] } } } });
+  await button("Show inside").click();
+  check(await frame.evaluate(() => globalThis.__viewer.getClipSlider(0) === 2 && globalThis.__viewer.state.get("activeTab") === "clip"), "declared cavity view can use a section instead of hiding a cover");
+  await button("Show outside").click();
+  check(await frame.evaluate(() => globalThis.__viewer.state.get("activeTab") === "tree"), "outside toggle clears the temporary cavity section");
   await update({ presentation: { isolate: ["/Group/second"] }, title: "One piece" });
   await frame.waitForFunction(() => globalThis.__viewer.getState("/Group/main").every(v => v === 0));
   check(await frame.evaluate(() => globalThis.__viewer.getState("/Group/second")[0] === 1), "agent isolates a requested piece on the existing mesh");
@@ -143,17 +164,20 @@ await scenario("simple-controls-and-agent-views", { scene: assembly, strictCsp: 
   await button("Make smaller").click();
 });
 
-for (const width of [320, 390]) await scenario(`mobile-layout-${width}`, { width, height: 700, scene: assembly }, async ({ host }) => {
+for (const width of [320, 390]) await scenario(`mobile-layout-${width}`, { width, height: 700, scene: assembly,
+  viewer: { title: "Gearbox", presentation: { inside: { hide: ["/Group/main"] } } } }, async ({ host }) => {
   const layout = await host.frame().evaluate(() => {
     const frame = document.querySelector(".aad-frame").getBoundingClientRect();
     const footer = document.querySelector(".aad-hint").getBoundingClientRect();
     const canvas = document.querySelector(".tcv_cad_viewer").getBoundingClientRect();
     const stage = document.querySelector(".aad-stage").getBoundingClientRect();
     const caption = document.querySelector('.aad-caption').getBoundingClientRect();
-    const iconsFit = [...document.querySelectorAll('.aad-toolbar button')].every(button => {
+    const buttons = [...document.querySelectorAll('.aad-toolbar button')].filter(b => !b.hidden);
+    const iconsFit = buttons.length === 4 && buttons.every(button => {
       const icon = button.querySelector('svg').getBoundingClientRect(), bounds = button.getBoundingClientRect();
-      return !button.textContent.trim() && !!button.getAttribute('aria-label') && !!button.title && bounds.top > caption.bottom
-        && bounds.width >= 44 && bounds.height >= 44 && bounds.right <= stage.right
+      return !button.textContent.trim() && !!button.getAttribute('aria-label') && !!button.title && bounds.left >= caption.right
+        && Math.abs((bounds.top + bounds.bottom) / 2 - (caption.top + caption.bottom) / 2) < 1
+        && bounds.width === 32 && bounds.height === 32 && bounds.right <= stage.right - 44
         && icon.left >= bounds.left && icon.right <= bounds.right && icon.bottom <= bounds.bottom;
     });
     return { height: document.documentElement.getBoundingClientRect().height, frame: frame.bottom, footer: footer.bottom, iconsFit,
@@ -161,7 +185,7 @@ for (const width of [320, 390]) await scenario(`mobile-layout-${width}`, { width
   });
   check(layout.height >= layout.footer && layout.frame >= layout.footer, "mobile frame includes the complete bottom edge", JSON.stringify(layout));
   check(layout.overflow <= 1 && layout.canvasRight <= layout.stageRight + 1, "mobile CAD viewport has no horizontal clipping");
-  check(layout.iconsFit, "three accessible icon buttons fit below the title at phone width");
+  check(layout.iconsFit, "four small icon buttons fit beside the title at phone width");
   await host.frame().getByRole("button", { name: "Pull apart", exact: true }).click();
   check(await host.frame().getByRole("button", { name: "Put together", exact: true }).count() === 1, "phone control responds to a real tap target click");
 });

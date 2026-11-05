@@ -27,6 +27,7 @@ export interface Presentation {
   style?: "shaded-edges" | "shaded" | "wireframe" | "transparent";
   projection?: "orthographic" | "perspective";
   section?: { planes: { plane?: "XY" | "XZ" | "YZ"; normal?: [number, number, number]; offset?: number; flipped?: boolean }[]; intersection?: boolean };
+  inside?: { hide?: string[]; section?: Presentation["section"] };
   explode?: boolean;
   grid?: boolean;
 }

@@ -8,16 +8,16 @@ html, body { background:transparent !important; overflow:visible; }
 /* The CAD engine still supports agent-directed inspection, without showing
    its toolbars, part tree, property panes, or keyboard-accessible panels. */
 .aad-cad .tcv_cad_toolbar, .aad-cad .tcv_cad_navigation, .aad-cad .tcv_cad_animation, .aad-cad .tcv_cad_tools, .aad-cad .tcv_status_line, .aad-cad .tcv_toggle_tools_wrapper { display:none !important; }
-.aad-heading { position:absolute; top:16px; left:16px; z-index:200; max-width:calc(100% - 88px); pointer-events:none; }
-.aad-toolbar { display:flex; gap:8px; padding:0; margin:10px 0 0; border:0; min-width:0; pointer-events:auto; }
-.aad-frame button { display:inline-flex; justify-content:center; align-items:center; width:44px; height:44px; padding:10px; border:1px solid var(--border,var(--aad-border)); border-radius:10px; color:inherit; background:var(--secondary,var(--aad-control)); font:inherit; cursor:pointer; touch-action:manipulation; }
-.aad-frame button svg { width:21px; height:21px; flex-shrink:0; }
-.aad-frame button:hover { border-color:var(--ring,#7598ce); }
-.aad-frame button[aria-pressed=true] { background:var(--accent-surface,#304869); border-color:var(--accent,#82ace5); }
-.aad-frame button:focus-visible { outline:3px solid var(--ring,#82ace5); outline-offset:2px; }
+.aad-heading { position:absolute; top:12px; left:16px; z-index:200; display:flex; align-items:center; gap:10px; max-width:calc(100% - 72px); pointer-events:none; }
+.aad-toolbar { display:flex; flex-shrink:0; gap:4px; padding:0; margin:0; border:0; min-width:0; pointer-events:auto; }
+.aad-frame button { display:inline-flex; justify-content:center; align-items:center; flex-shrink:0; width:32px; height:32px; padding:6px; border:1px solid #fff; border-radius:8px; color:inherit; background:var(--secondary,var(--aad-control)); font:inherit; cursor:pointer; touch-action:manipulation; }
+.aad-frame button svg { width:18px; height:18px; flex-shrink:0; }
+.aad-frame button:hover { background:color-mix(in srgb,var(--secondary,var(--aad-control)) 85%,var(--foreground,var(--aad-text)) 15%); }
+.aad-frame button[aria-pressed=true] { background:color-mix(in srgb,var(--secondary,var(--aad-control)) 65%,var(--foreground,var(--aad-text)) 35%); }
+.aad-frame button:focus-visible { outline:2px solid #fff; outline-offset:2px; }
 .aad-frame button:disabled { opacity:.45; cursor:default; }
-.aad-frame .aad-expand { position:absolute; top:12px; right:12px; z-index:200; width:44px; padding:9px; }
-.aad-caption { font-weight:600; overflow-wrap:anywhere; }
+.aad-frame .aad-expand { position:absolute; top:12px; right:12px; z-index:200; }
+.aad-caption { min-width:0; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .aad-progress { position:absolute; top:45%; left:15%; width:70%; text-align:center; pointer-events:none; }
 .aad-progress progress { display:block; width:100%; margin-top:12px; }
 .aad-hint { margin:10px 0 2px; text-align:center; color:var(--muted-foreground,var(--aad-muted)); font-size:12px; }

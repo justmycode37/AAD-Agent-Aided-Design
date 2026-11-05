@@ -321,7 +321,8 @@ type SceneManifest = {
 The viewer only displays (`PLAN.md` D17). Picking, sliders, the Ask box and review tools are not built. `Selection`, `aad_set_param`, `aad_pick_info` and `POST /context` stay reserved so that their names and shapes don't change if the user later asks for them.
 
 **User controls:** pull apart/put together, XYZ grid, reset to the agent-prepared
-view, and fullscreen. Detailed inspection is prepared by the agent through the
+view, fullscreen, and an optional inside/outside toggle. Small icon controls sit
+beside the title. Detailed inspection is prepared by the agent through the
 additive `aad_show.presentation` field; CAD panels and action shortcuts stay
 hidden. No model-editing tools are called by these controls.
 
@@ -334,6 +335,8 @@ type ViewerPresentation = {
                       { offset?: number, flipped?: boolean })[],
               intersection?: boolean }; // 1–3 planes
   explode?: boolean; grid?: boolean;
+  inside?: { hide?: string[], section?: ViewerPresentation["section"] };
+  // At least one of hide/section. Declare only for actual internal components or a cavity.
 };
 ```
 
@@ -343,6 +346,10 @@ Invalid/ambiguous part names, zero normals, and non-finite offsets return
 must apply new settings for the same scene without fetching its mesh again.
 Reset preserves the agent's part filter and section. Local windows receive
 presentation updates through the existing WebSocket result envelope.
+An `inside` declaration enables the optional toggle without activating it.
+It names covers to hide or a section through an existing cavity. Omit it for
+models without an interior. Cover-only toggles need visible cover parts and
+remaining visible interior parts; they disappear for selections without either.
 
 **Transport interface** (S3 defines it in TypeScript; there is one UI over three implementations):
 
@@ -453,6 +460,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 ## 11. Changelog
 
 - 2026-11-05: S2/S3 added optional agent-controlled viewer presentations to `aad_show` and its result, following the user’s request for simple user controls and detailed views prepared through chat.
+- 2026-11-05: S2/S3 added optional `presentation.inside` to describe a real interior view and conditionally expose an inside/outside button, at the user's request.
 
 - 2026-11-04: Marked the viewer as display-only in section 8, following the user's direction in issue #35. No interface was removed.
 - 2026-11-04: S2 added optional tool-specific fields to the envelope in section 6, so that results of query, measure, inspect, history, import and library have named places.

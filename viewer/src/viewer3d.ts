@@ -94,6 +94,7 @@ export function mountCad3d(
       try { action(); } finally { batchDepth--; viewer.renderer.render = render; viewer.update(true, false); }
     };
     const initialStates = structuredClone(viewer.getStates());
+    let assembledCamera = viewer.getCameraLocationSettings();
     const fit = () => {
       const bounds = (viewer.bbox! as any).clone().makeEmpty();
       for (const [id, state] of Object.entries(viewer.getStates())) {
@@ -107,9 +108,12 @@ export function mountCad3d(
     const setExploded = (flag: boolean) => {
       if (flag === (viewer.state.get("animationMode") === "explode")) return;
       if (flag) {
+        assembledCamera = viewer.getCameraLocationSettings();
         viewer.setExplode(true); viewer.setRelativeTime(1);
+        fit();
       } else {
         viewer.setExplode(false);
+        viewer.setCameraLocationSettings(assembledCamera.position, assembledCamera.quaternion, assembledCamera.target, assembledCamera.zoom);
       }
     };
     const isolateParts = (ids: string[]) => {

@@ -99,7 +99,8 @@ try {
   check(resource.contents[0].mimeType === "text/html;profile=mcp-app", "ui://aad/viewer has the MCP Apps mime type");
   check(html.includes("three-cad-viewer") || html.length > 1_000_000, "ui://aad/viewer serves the real bundle", `${(html.length / 1048576).toFixed(2)} MiB`);
   let reads = 0;
-  const presentation = { section: { planes: [{ plane: "YZ", offset: -1 }] }, style: "transparent", projection: "orthographic" };
+  const presentation = { section: { planes: [{ plane: "YZ", offset: -1 }] }, style: "transparent", projection: "orthographic",
+    inside: { section: { planes: [{ plane: "XY", offset: 2 }] } } };
   const onRequest = async (method, params) => {
     if (method !== "tools/call") return {};
     if (params.name === "aad_scene_read") reads++;
@@ -121,6 +122,10 @@ try {
       await host.page.evaluate(result => document.getElementById("f").contentWindow.postMessage({ jsonrpc: "2.0", method: "ui/notifications/tool-result", params: result }, "*"), prepared);
       await host.frame().waitForFunction(() => globalThis.__viewer.getClipSlider(0) === -1 && globalThis.__viewer.getOrtho());
       check(reads === before && await host.frame().evaluate(() => globalThis.__aad.loads === 1 && globalThis.__viewer.getTransparent()), `${name}: real agent section updates without another mesh load`);
+      await host.frame().getByRole("button", { name: "Show inside", exact: true }).click();
+      check(await host.frame().evaluate(() => globalThis.__viewer.getClipSlider(0) === 2), `${name}: real MCP declares the optional cavity view`);
+      await host.frame().getByRole("button", { name: "Show outside", exact: true }).click();
+      check(await host.frame().evaluate(() => globalThis.__viewer.getClipSlider(0) === -1), `${name}: outside restores the prepared section`);
       await host.frame().getByRole("button", { name: "Reset", exact: true }).click();
       check(await host.frame().evaluate(() => globalThis.__viewer.getClipSlider(0) === -1), `${name}: reset keeps the requested section`);
       check(host.requests.length === 0, `${name}: no network requests`, host.requests.join(" "));
@@ -149,6 +154,7 @@ try {
   const state = await page.evaluate(() => globalThis.__aad);
   check(state.state === "ready", "standalone page reaches ready", state.error ?? "");
   check(await page.evaluate(() => globalThis.__viewer.getClipSlider(0) === -1 && globalThis.__viewer.getOrtho() && globalThis.__viewer.getTransparent()), "standalone page keeps the prepared inspection view");
+  check(await page.getByRole("button", { name: "Show inside", exact: true }).count() === 1, "standalone export keeps the optional interior control");
   const colors = await colorCount(page);
   check(colors > 20, "standalone page shows the prepared translucent section", `${colors} colors`);
   check(offline.length === 0, "standalone page makes no requests", offline.join(" "));

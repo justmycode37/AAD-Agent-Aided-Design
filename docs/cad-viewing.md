@@ -1,16 +1,26 @@
 # Simple viewing, agent-controlled inspection
 
-The user sees three icon buttons below the model title. Hover hints and
+The user sees small icon buttons beside the model title. Hover hints and
 accessible labels name each action:
 
-- **Pull apart / Put together** separates an assembly and brings it back together, preserving the current zoom and camera in both directions.
+- **Pull apart / Put together** separates an assembly and zooms to fit the pieces, then brings it back together at the previous assembled zoom and framing.
 - **Show grid / Hide grid** toggles the XYZ grids and axes.
+- **Show inside / Show outside** reveals an existing interior and restores the cover or outside section. This button appears only when an interior view is defined for the current selection.
 - **Reset** returns to the view prepared by the agent.
 
 The corner button makes the view bigger. Drag to turn, scroll or pinch to zoom,
 and Shift-drag or right-drag to pan. The CAD toolbars, part tree, menus,
 measurement panels, and their keyboard shortcuts are not exposed to the user.
 A model with one visible piece disables Pull apart.
+
+For an assembly with covers, the agent enables the optional inside button with
+`presentation={"inside":{"hide":["housing_upper","housing_lower"]}}`.
+The model initially stays complete. For a hollow part, use
+`presentation={"inside":{"section":{"planes":[{"plane":"YZ"}]}}}`
+to reveal its existing cavity. Omit `inside` for models without an interior;
+the viewer does not guess that every solid is hollow. An inside toggle keeps
+the agent's part selection, preserves the grid, and restores the outside camera
+when toggled back. Reset returns to the prepared outside view.
 
 Users ask the agent for detailed views in ordinary language:
 

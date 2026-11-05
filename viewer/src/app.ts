@@ -1,7 +1,7 @@
 import { gunzipToText, readScene } from "./loader";
 import type { Envelope, Transport } from "./transport/types";
 import { mountCad3d, type Cad3dView } from "./viewer3d";
-import { applyPresentation } from "./presentation";
+import { applyPresentation, resolveParts } from "./presentation";
 import "./style.css";
 
 const STAGE_HEIGHT = 480;
@@ -39,6 +39,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
           <div class="aad-caption">3D model</div>
           <fieldset class="aad-toolbar" aria-label="View the model" disabled>
             <button type="button" data-control="explode" aria-label="Pull apart" title="Pull apart" aria-pressed="false">${icon('<path d="m3 8 4-2 4 2v7l-4 2-4-2Zm10 1 4-2 4 2v7l-4 2-4-2M7 10v7m10-6v7M3 8l4 2 4-2m2 1 4 2 4-2"/>')}</button>
+            <button type="button" data-control="inside" aria-label="Show inside" title="Show inside" aria-pressed="false" hidden>${icon('<path d="m3 7 9-5 9 5v10l-9 5-9-5Zm0 0 9 5 9-5M12 12v10"/><path d="m8 10 4-2 4 2v6l-4 2-4-2Z"/>')}</button>
             <button type="button" data-control="grid" aria-label="Show grid" title="Show grid" aria-pressed="false">${icon('<path d="m3 15 9-5 9 5-9 5Zm4-2 9 5M7 17l9-5M12 10V3m0 0-2 2m2-2 2 2"/>')}</button>
             <button type="button" data-control="reset" aria-label="Reset" title="Reset">${icon('<path d="M4 10a8 8 0 1 1 1 9M4 10V4m0 6h6"/>')}</button>
           </fieldset>
@@ -63,12 +64,29 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
   let requestKey = "";
   let unsubscribe = () => {};
   let loading: Promise<void> = Promise.resolve();
+  let insideShown = false;
+  let insideAvailable = false;
+  let outsideCamera: ReturnType<Cad3dView["viewer"]["getCameraLocationSettings"]> | undefined;
+  let outsideExploded = false;
+  const configureInside = () => {
+    insideShown = false; outsideCamera = undefined; outsideExploded = false;
+    const config = requested.presentation?.inside;
+    const states = view!.viewer.getStates();
+    const covers = new Set(config?.hide ? resolveParts(config.hide, Object.keys(states)) : []);
+    const visible = Object.keys(states).filter(id => states[id].includes(1));
+    insideAvailable = !!config && visible.some(id => !covers.has(id))
+      && (!!config.section || visible.some(id => covers.has(id)));
+  };
   const syncControls = () => {
     if (!view) return;
     const exploded = view.viewer.state.get("animationMode") === "explode";
     const grid = view.viewer.getGrids().some(Boolean);
     control("explode").setAttribute("aria-pressed", String(exploded));
     control("grid").setAttribute("aria-pressed", String(grid));
+    control("inside").hidden = !insideAvailable;
+    control("inside").setAttribute("aria-pressed", String(insideShown));
+    const insideLabel = insideShown ? "Show outside" : "Show inside";
+    control("inside").setAttribute("aria-label", insideLabel); control("inside").title = insideLabel;
     const explodeLabel = exploded ? "Put together" : "Pull apart";
     const gridLabel = grid ? "Hide grid" : "Show grid";
     control("explode").setAttribute("aria-label", explodeLabel);
@@ -95,12 +113,35 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
       if (requested.view) view!.viewer.presetCamera(requested.view);
     });
     q(".aad-caption").textContent = requested.title || env.project;
+    configureInside();
     syncControls();
   };
   control("explode").addEventListener("click", () => {
     if (view) view.batch(() => view!.setExploded(view!.viewer.state.get("animationMode") !== "explode"));
   });
   control("grid").addEventListener("click", () => { if (view) view.batch(() => view!.setGrid(!view!.viewer.getGrids().some(Boolean))); });
+  control("inside").addEventListener("click", () => {
+    const config = requested.presentation?.inside;
+    if (!view || !config || !insideAvailable) return;
+    view.batch(() => {
+      const exploded = view!.viewer.state.get("animationMode") === "explode";
+      view!.setExploded(false);
+      const { inside: _inside, grid: _grid, explode: _explode, ...base } = requested.presentation!;
+      if (!insideShown) {
+        outsideCamera = view!.viewer.getCameraLocationSettings(); outsideExploded = exploded;
+        applyPresentation(view!, { ...base, hide: config.hide ? [...(base.hide ?? []), ...config.hide] : base.hide,
+          section: config.section ?? base.section, explode: false });
+        insideShown = true;
+        if (exploded && view!.canExplode()) view!.setExploded(true);
+      } else {
+        applyPresentation(view!, { ...base, explode: false });
+        if (outsideCamera) view!.viewer.setCameraLocationSettings(outsideCamera.position, outsideCamera.quaternion, outsideCamera.target, outsideCamera.zoom);
+        insideShown = false;
+        if ((exploded || outsideExploded) && view!.canExplode()) view!.setExploded(true);
+      }
+    });
+    syncControls();
+  });
   control("reset").addEventListener("click", () => {
     if (!view) return;
     view.batch(() => {
@@ -108,6 +149,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
       applyPresentation(view!, { ...requested?.presentation, explode: requested?.presentation?.explode ?? false, grid: requested?.presentation?.grid ?? false });
       view!.viewer.presetCamera(requested?.view ?? "iso");
     });
+    configureInside();
     syncControls();
   });
   control("fullscreen").hidden = !transport.caps.fullscreen;

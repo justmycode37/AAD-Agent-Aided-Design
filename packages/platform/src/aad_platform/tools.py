@@ -27,6 +27,18 @@ def _enum(*values: str, **extra: Any) -> dict[str, Any]:
     return {"type": "string", "enum": list(values), **extra}
 
 
+_VIEW_PARTS = {"type": "array", "items": {"type": "string", "maxLength": 256}, "minItems": 1, "maxItems": 256}
+_VIEW_SECTION = _schema({
+    "planes": {"type": "array", "minItems": 1, "maxItems": 3, "items": {
+        **_schema({"plane": _enum("XY", "XZ", "YZ"), "normal": _VECTOR3,
+                   "offset": {"type": "number", "description": "Signed distance from the model center in model units. Default 0."},
+                   "flipped": {"type": "boolean"}}),
+        "oneOf": [{"required": ["plane"]}, {"required": ["normal"]}],
+    }},
+    "intersection": {"type": "boolean", "description": "Use the clipping engine's intersection mode. Default false."},
+}, ["planes"])
+
+
 TOOLS: list[dict[str, Any]] = [
     {
         "name": "aad_new",
@@ -199,6 +211,8 @@ TOOLS: list[dict[str, Any]] = [
             "Show the user a revision inline, in an interactive 3D or 2D viewer. Call this only when the "
             "user asks to see the part, never as a routine step. Use presentation to show only requested parts, "
             "hide a housing, cut sections, or choose a display style; the user sees simple viewing controls. "
+            "For a model with internal components or a cavity, define presentation.inside to enable its Show inside button: "
+            "name the covers to hide or a section through the existing cavity. Omit inside for models without an interior. "
             "Part selectors are exact names or paths from scene.parts. Hosts without inline support get a local URL to offer."
         ),
         "inputSchema": _schema(
@@ -209,20 +223,15 @@ TOOLS: list[dict[str, Any]] = [
                 "title": {"type": "string", "maxLength": 160},
                 "view": _enum("iso", "front", "rear", "left", "right", "top", "bottom"),
                 "presentation": _schema({
-                    "isolate": {"type": "array", "items": {"type": "string", "maxLength": 256}, "minItems": 1, "maxItems": 256,
+                    "isolate": {**_VIEW_PARTS,
                                 "description": "Show only these exact part names, leaf paths, or group paths."},
-                    "hide": {"type": "array", "items": {"type": "string", "maxLength": 256}, "minItems": 1, "maxItems": 256},
+                    "hide": _VIEW_PARTS,
                     "style": _enum("shaded-edges", "shaded", "wireframe", "transparent"),
                     "projection": _enum("orthographic", "perspective"),
-                    "section": _schema({
-                        "planes": {"type": "array", "minItems": 1, "maxItems": 3, "items": {
-                            **_schema({"plane": _enum("XY", "XZ", "YZ"), "normal": _VECTOR3,
-                                       "offset": {"type": "number", "description": "Signed distance from the model center in model units. Default 0."},
-                                       "flipped": {"type": "boolean"}}),
-                            "oneOf": [{"required": ["plane"]}, {"required": ["normal"]}],
-                        }},
-                        "intersection": {"type": "boolean", "description": "Use the clipping engine's intersection mode. Default false."},
-                    }, ["planes"]),
+                    "section": _VIEW_SECTION,
+                    "inside": {**_schema({"hide": _VIEW_PARTS, "section": _VIEW_SECTION}),
+                               "anyOf": [{"required": ["hide"]}, {"required": ["section"]}],
+                               "description": "Enable Show inside only for an actual interior: hide covers or section an existing cavity."},
                     "explode": {"type": "boolean"}, "grid": {"type": "boolean"},
                 }),
             },
