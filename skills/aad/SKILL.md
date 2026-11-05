@@ -350,7 +350,7 @@ requirements:
 | `symmetric` | `{plane: XY, XZ or YZ, tolerance}` | Exact matching planar-face/straight-edge signatures plus zero symmetric-difference volume pass; a separated mirror beyond tolerance fails | A zero-volume boolean alone is insufficient. Curved or near-symmetric geometry stays `skip` unless its maximum deviation is proven |
 | `min_wall` | `n` | Sampled rays can catch a local wall below the limit | No sampled violation stays `skip`: finite samples cannot prove the global minimum wall |
 
-Unknown requirement types return `skip`, never a silent pass. Duplicate IDs and malformed values are rejected.
+Unknown requirement types return `skip`, never a silent pass. After YAML parsing, duplicate IDs and malformed requirement fields (such as invalid `covers`) produce error-level `skip` checks. If the rest of the build succeeds, it can commit as `draft` and advance the head. YAML syntax errors and duplicate YAML keys fail input parsing with `BAD_INPUT`.
 
 **A failed `error` requirement fails the build, and the head stays where it was.** This includes param edits: when you change a dimension, update the spec in the same call.
 

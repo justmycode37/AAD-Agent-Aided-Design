@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+from dataclasses import asdict
+from types import SimpleNamespace
 
 from aad_platform.daemon import backend
 from aad_platform.daemon.handlers import Handlers
 from aad_platform.daemon.projects import open_project
 from aad_platform.tools import TOOLS
+from aad_quality.spec import spec_checks
 
 
 def _successful_build(*, job_dir, **_):
@@ -140,6 +143,67 @@ def test_failed_build_next_hints_still_report_request_review(tmp_path, monkeypat
     assert failed["request_review"]["not_checked"] == request["not_checked"]
     assert failed["request_review"]["open_questions"] == request["open_questions"]
     assert open_project("failed_plate").head_rev is None
+
+
+def test_malformed_requirement_specs_commit_draft_with_skip_checks(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("AAD_HOME", str(tmp_path / ".aad"))
+    (tmp_path / ".aad").mkdir()
+    monkeypatch.setattr(backend, "engine_available", lambda: True)
+
+    def _build_with_spec_diagnostics(*, spec, **_):
+        context = SimpleNamespace(
+            spec=spec,
+            shape=None,
+            units="mm",
+            features=[],
+            params={},
+            metrics={},
+            process=None,
+            material=None,
+            meta={},
+        )
+        checks = [asdict(check) for check in spec_checks(context)]
+        return {
+            "ok": True,
+            "status": "draft",
+            "summary": "Spec diagnostics remain unproven.",
+            "checks": checks,
+            "checks_summary": {"pass": 0, "fail": 0, "warn": 0, "skip": len(checks)},
+            "context": {"params": {}, "features": [], "meta": {}},
+        }
+
+    monkeypatch.setattr(backend, "run_build", _build_with_spec_diagnostics)
+    cases = (
+        (
+            "duplicate_ids",
+            "requirements:\n  - id: repeated\n    solids: 1\n  - id: repeated\n    solids: 1\n",
+            "duplicate requirement id",
+        ),
+        (
+            "malformed_covers",
+            "requirements:\n  - id: bad_covers\n    solids: 1\n    covers: []\n",
+            "covers must be a non-empty list",
+        ),
+    )
+    handler = Handlers()
+    for name, spec, diagnostic in cases:
+        created = _call(handler, "aad_new", {"name": name})
+        assert created["ok"]
+
+        build = _call(handler, "aad_build", {
+            "project": name,
+            "source": "result = Box(1, 1, 1)\n",
+            "spec": spec,
+        })
+
+        assert build["ok"] is True
+        assert build["status"] == "draft"
+        assert build["rev"] == build["head_rev"] == 1
+        assert build["checks"]
+        assert all(check["level"] == "error" and check["status"] == "skip" for check in build["checks"])
+        assert any(diagnostic in check["actual"] for check in build["checks"])
+        assert open_project(name).head_rev == 1
 
 
 def test_invalid_request_is_rejected_without_creating_project(tmp_path, monkeypatch):
