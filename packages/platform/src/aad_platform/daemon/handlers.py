@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 from .. import config, paths, viewer
 from ..rpc import INVALID_PARAMS, RpcError
-from ..presentation import VIEWS, normalize_presentation
+from ..presentation import VIEWS, normalize_presentation, normalize_views
 from . import backend, scenes
 from .envelope import compact, failure_envelope, sort_checks, text_for
 from .ops_client import job_request, run_op
@@ -382,7 +382,7 @@ class Handlers:
         project = open_project(params.get("project", ""), params.get("client"))
         head = project.head_rev
         cached = self._view_settings.get(str(project.path))
-        from_window = params.get("client") is None and not any(k in params for k in ("view", "presentation", "title", "rev"))
+        from_window = params.get("client") is None and not any(k in params for k in ("view", "views", "presentation", "title", "rev"))
         rev = params.get("rev") or (cached[0] if from_window and cached else head)
         if rev is None:
             return reply(failure_envelope(project.name, "BAD_INPUT", "input", NOT_BUILT_YET))
@@ -404,6 +404,8 @@ class Handlers:
                 if params["view"] not in VIEWS:
                     raise ValueError("Unknown camera view")
                 settings["view"] = params["view"]
+            if "views" in params:
+                settings["views"] = normalize_views(params["views"], scene.get("parts", []))
             if "title" in params:
                 if not isinstance(params["title"], str) or len(params["title"]) > 160:
                     raise ValueError("title must be a string of at most 160 characters")

@@ -32,6 +32,7 @@ export interface WindowConfig {
 
 /** Same-origin routes from CONTRACTS section 8. */
 export class WindowTransport extends PageTransport {
+  readonly controls = "cad";
   constructor(private readonly config: WindowConfig) {
     super();
     // Keep the token out of the address bar and history once the page has it.
@@ -80,6 +81,8 @@ export interface BundledScene {
   presentation?: import("./types").Presentation;
   view?: import("./types").CameraView;
   title?: string;
+  views?: import("./types").NamedView[];
+  controls?: "simple" | "cad";
 }
 
 /** Local-asset transport for HTML chat hosts; preserves the original gzip bytes. */
@@ -111,11 +114,13 @@ export class EmbeddedTransport extends PageTransport {
 }
 
 export class BundledTransport extends EmbeddedTransport {
+  readonly controls: "simple" | "cad";
   constructor(bundle: BundledScene) {
     super({ scene_b64: "", envelope: {
       ok: true, project: bundle.manifest.project, rev: bundle.manifest.rev,
       status: bundle.manifest.status, summary: "Saved scene", scene: bundle.manifest,
-      viewer: { mode: "inline", presentation: bundle.presentation, view: bundle.view, title: bundle.title },
+      viewer: { mode: "inline", presentation: bundle.presentation, view: bundle.view, title: bundle.title, views: bundle.views },
     } }, decodeSceneAsset(bundle.asset));
+    this.controls = bundle.controls ?? "simple";
   }
 }

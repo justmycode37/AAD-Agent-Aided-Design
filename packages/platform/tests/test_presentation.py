@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from aad_platform.presentation import normalize_presentation
+from aad_platform.presentation import normalize_presentation, normalize_views
 from aad_platform.daemon import handlers
 
 
@@ -61,6 +61,38 @@ def test_inside_view_resolves_covers_and_supports_a_real_cavity_section():
     assert "hide" not in result  # Declaring an inside view does not activate it.
 
 
+def test_named_views_resolve_parts_and_keep_analysis_provenance():
+    views = normalize_views([
+        {"id": "interior", "label": "Interior", "presentation": {"hide": ["housing"]}},
+        {"id": "stress", "label": "Stress", "analysis": {"quantity": "Maximum von Mises stress", "units": "MPa",
+         "source": "fixture-solver-result.json", "values": [{"part": "gear", "value": 12}, {"part": "shaft", "value": 25}]}},
+    ], PARTS)
+    assert views[0]["presentation"] == {"hide": ["/Group/housing"]}
+    assert views[1]["analysis"]["range"] == [12, 25]
+    assert views[1]["analysis"]["values"][0]["part"] == "/Group/gears/gear"
+    assert views[1]["analysis"]["source"] == "fixture-solver-result.json"
+
+
+@pytest.mark.parametrize("views", [
+    {}, [{"id": "original", "label": "Other"}], [{"id": "x", "label": "Original"}],
+    [{"id": "x", "label": "X"}] * 2, [{"id": "x", "label": ""}],
+    [{"id": "x", "label": "X", "presentation": {"hide": ["unknown"]}}],
+    [{"id": "x", "label": "X", "analysis": {"quantity": "Stress", "units": "MPa", "values": [{"part": "gear", "value": 2}]}}],
+    [{"id": "x", "label": "X", "analysis": {"quantity": "Stress", "units": "MPa", "source": "test", "values": [{"part": "gear", "value": float("nan")}]}}],
+    [{"id": "x", "label": "X", "analysis": {"quantity": "Stress", "units": "MPa", "source": "test", "values": [{"part": "gear", "value": 2}], "range": [0, 1]}}],
+    [{"id": "x", "label": "X", "analysis": {"quantity": "Stress", "units": "MPa", "source": "test", "values": [{"part": "gear", "value": 2}, {"part": "gear", "value": 3}]}}],
+])
+def test_named_views_reject_invalid_recipes_or_unsourced_analysis(views):
+    with pytest.raises(ValueError):
+        normalize_views(views, PARTS)
+
+
+def test_named_views_bound_the_host_message_size():
+    parts = [{"name": str(i), "path": "/Group/" + str(i) + "a" * 200} for i in range(500)]
+    with pytest.raises(ValueError, match="64 KiB"):
+        normalize_views([{"id": "x", "label": "X", "presentation": {"isolate": ["/Group"]}}], parts)
+
+
 def test_show_updates_an_open_window_and_keeps_settings_on_reload(tmp_path, monkeypatch):
     scene_dir = tmp_path / "scene"
     scene_dir.mkdir()
@@ -83,9 +115,10 @@ def test_show_updates_an_open_window_and_keeps_settings_on_reload(tmp_path, monk
     async def viewer_for(*args): return {"mode": "inline"}
     monkeypatch.setattr(h, "_viewer_for", viewer_for)
 
-    shown = asyncio.run(h.aad_show({"project": "gearbox", "presentation": {"hide": ["housing"]}, "view": "left", "client": {"supports_ui": True}}))["structured"]
+    shown = asyncio.run(h.aad_show({"project": "gearbox", "presentation": {"hide": ["housing"]}, "views": [{"id": "gears", "label": "Gears", "presentation": {"isolate": ["gear"]}}], "view": "left", "client": {"supports_ui": True}}))["structured"]
     assert shown["viewer"]["presentation"] == {"hide": ["/Group/housing"]}
     assert shown["viewer"]["view"] == "left"
+    assert shown["viewer"]["views"][0]["presentation"] == {"isolate": ["/Group/gears/gear"]}
     assert len(sent) == 1
     assert shown["scene"]["scene_id"] == scene["scene_id"]
     reloaded = asyncio.run(h.aad_show({"project": "gearbox"}))["structured"]

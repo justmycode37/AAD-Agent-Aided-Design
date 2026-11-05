@@ -2,6 +2,7 @@
 import { Display, Viewer, logger } from "three-cad-viewer";
 import "three-cad-viewer/css";
 import { displayStates, type DisplayMode, type Visibility } from "./display-mode";
+import type { Analysis } from "./transport/types";
 
 const TREE_WIDTH = 220;
 const TREE_HEIGHT = 320;
@@ -27,33 +28,36 @@ export interface Cad3dView {
   fit(): void;
   batch(action: () => void): void;
   reset(): void;
+  setAnalysis(analysis?: Analysis): void;
+  readonly fullControls: boolean;
 }
 
 export function mountCad3d(
   host: HTMLElement,
   shapes: unknown,
-  opts: { width: number; height: number; theme: "light" | "dark"; view?: string },
+  opts: { width: number; height: number; theme: "light" | "dark"; view?: string; controls?: "simple" | "cad" },
 ): Cad3dView {
   logger.setLevel("warn");
+  const fullControls = opts.controls === "cad";
   const cadSize = (w: number, h: number) => ({
-    cadWidth: Math.max(MIN_WIDTH, Math.floor(w) - 6),
-    height: Math.max(MIN_HEIGHT, Math.floor(h) - 4),
+    cadWidth: Math.max(MIN_WIDTH, Math.floor(w) - 6 - (fullControls ? TREE_WIDTH : 0)),
+    height: Math.max(MIN_HEIGHT, Math.floor(h) - (fullControls ? 96 : 4)),
   });
   const base = {
     ...cadSize(opts.width, opts.height),
     treeWidth: TREE_WIDTH,
     treeHeight: TREE_HEIGHT,
     theme: opts.theme,
-    glass: true,
-    tools: false,
-    pinning: false,
-    measureTools: false,
+    glass: !fullControls,
+    tools: fullControls,
+    pinning: true,
+    measureTools: true,
     externalMeasurementBackend: false,
-    selectTool: false,
+    selectTool: true,
     explodeTool: true, // Enable assembly animation; its native UI stays hidden.
-    zebraTool: false,
-    zscaleTool: false,
-    studioTool: false,
+    zebraTool: true,
+    zscaleTool: true,
+    studioTool: true,
   };
   const display = new Display(host, base);
   const viewer = new Viewer(display, base, (() => {}) as never);
@@ -68,17 +72,17 @@ export function mountCad3d(
       { ambientIntensity: 1, directIntensity: 1.1, metalness: 0.3, roughness: 0.65, edgeColor: 0x303030, defaultOpacity: 0.5, normalLen: 0 } as never,
       { up: "Z", ortho: false, axes: false, grid: [false, false, false] } as never,
     );
-    viewer.glassMode(true);
+    viewer.glassMode(!fullControls);
     if (opts.view) viewer.presetCamera(opts.view as never);
     viewer.setCameraZoom(FIT_ZOOM);
     const markerCamera = viewer.rendered.orientationMarker.camera;
     if (markerCamera) { markerCamera.zoom = 0.8; markerCamera.updateProjectionMatrix(); }
-    viewer.showTools(false);
-    viewer.setPickHandler(false);
-    viewer.setSelectionInput(false);
+    viewer.showTools(fullControls);
+    viewer.setPickHandler(fullControls);
+    viewer.setSelectionInput(fullControls);
     // Keep keyboard navigation on the simple buttons. Hidden CAD actions must
     // not reappear when somebody presses a letter while turning the model.
-    viewer.setKeyMap(Object.fromEntries([
+    if (!fullControls) viewer.setKeyMap(Object.fromEntries([
       "axes", "axes0", "grid", "gridxy", "perspective", "transparent", "blackedges", "zscale", "reset", "resize", "iso", "front", "rear", "top", "bottom", "left", "right", "explode", "distance", "properties", "select", "help", "play", "stop", "tree", "clip", "material", "zebra", "studio",
     ].map(action => [action, ""])) as never);
     let mode: DisplayMode = "shaded-edges";
@@ -94,6 +98,34 @@ export function mountCad3d(
       try { action(); } finally { batchDepth--; viewer.renderer.render = render; viewer.update(true, false); }
     };
     const initialStates = structuredClone(viewer.getStates());
+    const painted: { mesh: any; material: any }[] = [];
+    const paintMaterials = new Set<any>();
+    const setAnalysis = (analysis?: Analysis) => {
+      for (const { mesh, material } of painted) mesh.material = material;
+      for (const material of paintMaterials) material.dispose();
+      painted.length = 0; paintMaterials.clear();
+      if (!analysis) return;
+      const [low, high] = analysis.range;
+      const palette = [0x315caa, 0x2aa89a, 0xe6cf53, 0xc84b4b];
+      for (const row of analysis.values) {
+        const group = viewer.rendered.nestedGroup.groups[row.part] as any; // The pinned d.ts omits inherited Three.js methods.
+        if (!group) throw new Error(`Analysis part is missing: ${row.part}`);
+        const t = high === low ? .5 : Math.max(0, Math.min(1, (row.value - low) / (high - low)));
+        const p = t * 3, i = Math.min(2, Math.floor(p)), fraction = p - i;
+        const rgb = [16, 8, 0].map(shift => Math.round(((palette[i] >> shift) & 255) * (1 - fraction) + ((palette[i + 1] >> shift) & 255) * fraction));
+        const color = `#${rgb.map(n => n.toString(16).padStart(2, "0")).join("")}`;
+        group.traverse((mesh: any) => {
+          if (!mesh.isMesh || !mesh.material) return;
+          const original = mesh.material;
+          const clone = (material: any) => {
+            const copy = material.clone();
+            copy.color?.set(color); paintMaterials.add(copy); return copy;
+          };
+          mesh.material = Array.isArray(original) ? original.map(clone) : clone(original);
+          painted.push({ mesh, material: original });
+        });
+      }
+    };
     let assembledCamera = viewer.getCameraLocationSettings();
     const fit = () => {
       const bounds = (viewer.bbox! as any).clone().makeEmpty();
@@ -130,6 +162,8 @@ export function mountCad3d(
     const view: Cad3dView = {
       viewer,
       display,
+      fullControls,
+      setAnalysis,
       setDisplayMode,
       setExploded,
       batch,
@@ -141,6 +175,7 @@ export function mountCad3d(
       isolatePart(id) { isolateParts([id]); },
       isolateParts,
       reset() {
+        setAnalysis();
         setExploded(false);
         viewer.resetClip();
         viewer.setActiveTab("tree");
@@ -158,7 +193,7 @@ export function mountCad3d(
         const s = cadSize(width, height);
         if (s.cadWidth === lastSize.cadWidth && s.height === lastSize.height) return;
         lastSize = s;
-        viewer.resizeCadView(s.cadWidth, TREE_WIDTH, s.height, true);
+        viewer.resizeCadView(s.cadWidth, TREE_WIDTH, s.height, !fullControls);
       },
       setTheme(theme) {
         display.setTheme(theme);
@@ -166,6 +201,7 @@ export function mountCad3d(
         if (camera) { camera.zoom = 0.8; camera.updateProjectionMatrix(); }
       },
       dispose() {
+        setAnalysis();
         viewer.dispose();
       },
     };

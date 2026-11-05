@@ -32,6 +32,23 @@ export interface Presentation {
   grid?: boolean;
 }
 
+export interface Analysis {
+  quantity: string;
+  units: string;
+  source: string;
+  values: { part: string; value: number }[];
+  range: [number, number];
+}
+
+export interface NamedView {
+  id: string;
+  label: string;
+  description?: string;
+  view?: CameraView;
+  presentation?: Presentation;
+  analysis?: Analysis;
+}
+
 export interface Envelope {
   ok: boolean;
   project: string;
@@ -39,7 +56,7 @@ export interface Envelope {
   status: Status;
   summary: string;
   scene?: SceneManifest;
-  viewer?: { mode: "inline" | "window" | "none"; url?: string; view?: CameraView; title?: string; presentation?: Presentation };
+  viewer?: { mode: "inline" | "window" | "none"; url?: string; view?: CameraView; title?: string; presentation?: Presentation; views?: NamedView[] };
   [key: string]: unknown;
 }
 
@@ -56,6 +73,7 @@ export interface TransportCaps {
 }
 
 export interface Transport {
+  readonly controls?: "simple" | "cad";
   readonly caps: TransportCaps;
   getInitialResult(): Promise<Envelope>;
   readChunk(sceneId: string, offset: number, length: number): Promise<Chunk>;

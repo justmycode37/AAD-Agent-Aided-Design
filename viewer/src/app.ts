@@ -1,7 +1,7 @@
 import { gunzipToText, readScene } from "./loader";
-import type { Envelope, Transport } from "./transport/types";
+import type { Envelope, Transport, NamedView } from "./transport/types";
 import { mountCad3d, type Cad3dView } from "./viewer3d";
-import { applyPresentation, resolveParts } from "./presentation";
+import { applyPresentation } from "./presentation";
 import "./style.css";
 
 const STAGE_HEIGHT = 480;
@@ -39,13 +39,15 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
           <div class="aad-caption">3D model</div>
           <fieldset class="aad-toolbar" aria-label="View the model" disabled>
             <button type="button" data-control="explode" aria-label="Pull apart" title="Pull apart" aria-pressed="false">${icon('<path d="m3 8 4-2 4 2v7l-4 2-4-2Zm10 1 4-2 4 2v7l-4 2-4-2M7 10v7m10-6v7M3 8l4 2 4-2m2 1 4 2 4-2"/>')}</button>
-            <button type="button" data-control="inside" aria-label="Show inside" title="Show inside" aria-pressed="false" hidden>${icon('<path d="m3 7 9-5 9 5v10l-9 5-9-5Zm0 0 9 5 9-5M12 12v10"/><path d="m8 10 4-2 4 2v6l-4 2-4-2Z"/>')}</button>
+            <button class="aad-views-button" type="button" data-control="views" aria-label="Views" title="Views" aria-haspopup="menu" aria-expanded="false" aria-controls="aad-view-menu">${icon('<path d="m3 7 9-5 9 5-9 5Zm0 5 9 5 9-5M3 17l9 5 9-5"/>')}<span>Views</span></button>
             <button type="button" data-control="grid" aria-label="Show grid" title="Show grid" aria-pressed="false">${icon('<path d="m3 15 9-5 9 5-9 5Zm4-2 9 5M7 17l9-5M12 10V3m0 0-2 2m2-2 2 2"/>')}</button>
             <button type="button" data-control="reset" aria-label="Reset" title="Reset">${icon('<path d="M4 10a8 8 0 1 1 1 9M4 10V4m0 6h6"/>')}</button>
           </fieldset>
+          <div id="aad-view-menu" class="aad-view-menu" role="menu" aria-label="Model views" hidden></div>
         </div>
         <button class="aad-expand" type="button" data-control="fullscreen" aria-label="Make bigger" title="Make bigger" hidden>${icon('<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>')}</button>
         <div class="aad-progress" role="status">Opening your model…<progress max="100" value="0"></progress></div>
+        <div class="aad-analysis" hidden><div class="aad-analysis-title"></div><div class="aad-analysis-ramp"></div><div class="aad-analysis-range"></div><div class="aad-analysis-source"></div></div>
       </div>
       <p class="aad-hint">Drag to turn · Scroll or pinch to zoom</p>
       <p class="aad-error" role="alert" hidden></p>
@@ -53,6 +55,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
   const q = <T extends HTMLElement>(s: string) => root.querySelector(s) as T;
   const control = <T extends HTMLElement>(name: string) => q<T>(`[data-control="${name}"]`);
   q(".aad-frame").dataset.theme = resolvedTheme(transport);
+  q(".aad-frame").dataset.controls = transport.controls ?? "simple";
   const fail = (error: unknown) => {
     diagnostics.state = "error"; diagnostics.error = String((error as Error)?.stack ?? error);
     q(".aad-progress").hidden = true; q(".aad-error").hidden = false;
@@ -64,18 +67,59 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
   let requestKey = "";
   let unsubscribe = () => {};
   let loading: Promise<void> = Promise.resolve();
-  let insideShown = false;
-  let insideAvailable = false;
-  let outsideCamera: ReturnType<Cad3dView["viewer"]["getCameraLocationSettings"]> | undefined;
-  let outsideExploded = false;
-  const configureInside = () => {
-    insideShown = false; outsideCamera = undefined; outsideExploded = false;
-    const config = requested.presentation?.inside;
-    const states = view!.viewer.getStates();
-    const covers = new Set(config?.hide ? resolveParts(config.hide, Object.keys(states)) : []);
-    const visible = Object.keys(states).filter(id => states[id].includes(1));
-    insideAvailable = !!config && visible.some(id => !covers.has(id))
-      && (!!config.section || visible.some(id => covers.has(id)));
+  let presets: NamedView[] = [];
+  let selectedId = "original";
+  const closeMenu = (focus = false) => {
+    q(".aad-view-menu").hidden = true;
+    control("views").setAttribute("aria-expanded", "false");
+    if (focus) control("views").focus();
+  };
+  const applySelected = () => {
+    if (!view) return;
+    const selected = presets.find(p => p.id === selectedId);
+    view.batch(() => {
+      view!.reset();
+      const zoom = view!.viewer.getCameraZoom();
+      view!.viewer.presetCamera(selected?.view ?? requested.view ?? "iso");
+      view!.viewer.setCameraZoom(zoom);
+      applyPresentation(view!, { grid: false, explode: false, ...(selected ? selected.presentation : requested.presentation) });
+      view!.setAnalysis(selected?.analysis);
+    });
+    const analysis = selected?.analysis;
+    q(".aad-analysis").hidden = !analysis;
+    if (analysis) {
+      q(".aad-analysis-title").textContent = `${analysis.quantity} by part (${analysis.units})`;
+      q(".aad-analysis-range").textContent = analysis.range.map(n => new Intl.NumberFormat(undefined, { maximumSignificantDigits: 4 }).format(n)).join(" — ");
+      q(".aad-analysis-source").textContent = `Source: ${analysis.source}`;
+      q(".aad-analysis-source").title = analysis.source;
+    }
+    for (const item of q(".aad-view-menu").querySelectorAll<HTMLElement>("[data-view-id]")) {
+      item.setAttribute("aria-checked", String(item.dataset.viewId === selectedId));
+    }
+    control("views").title = `Views: ${selected?.label ?? "Original"}`;
+    syncControls();
+  };
+  const configureViews = () => {
+    presets = requested.views ?? [];
+    // Preserve old callers as a named view; no separate Interior button.
+    if (requested.views === undefined && requested.presentation?.inside) {
+      const { inside, ...base } = requested.presentation;
+      presets = [{ id: "interior", label: "Interior", presentation: { ...base,
+        hide: inside.hide ? [...(base.hide ?? []), ...inside.hide] : base.hide, section: inside.section ?? base.section } }];
+    }
+    if (!presets.some(p => p.id === selectedId)) selectedId = "original";
+    closeMenu();
+    q(".aad-view-menu").replaceChildren();
+    for (const preset of [{ id: "original", label: "Original", description: "Prepared starting view" }, ...presets]) {
+      const item = document.createElement("button");
+      item.type = "button"; item.role = "menuitemradio"; item.tabIndex = -1; item.dataset.viewId = preset.id;
+      item.setAttribute("aria-label", preset.label);
+      const label = document.createElement("span"); label.textContent = preset.label; item.append(label);
+      if (preset.description) { const description = document.createElement("small"); description.textContent = preset.description; item.append(description); }
+      item.addEventListener("click", () => { selectedId = preset.id; applySelected(); closeMenu(true); });
+      q(".aad-view-menu").append(item);
+    }
+    control<HTMLButtonElement>("views").disabled = !presets.length;
   };
   const syncControls = () => {
     if (!view) return;
@@ -83,10 +127,6 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
     const grid = view.viewer.getGrids().some(Boolean);
     control("explode").setAttribute("aria-pressed", String(exploded));
     control("grid").setAttribute("aria-pressed", String(grid));
-    control("inside").hidden = !insideAvailable;
-    control("inside").setAttribute("aria-pressed", String(insideShown));
-    const insideLabel = insideShown ? "Show outside" : "Show inside";
-    control("inside").setAttribute("aria-label", insideLabel); control("inside").title = insideLabel;
     const explodeLabel = exploded ? "Put together" : "Pull apart";
     const gridLabel = grid ? "Hide grid" : "Show grid";
     control("explode").setAttribute("aria-label", explodeLabel);
@@ -100,64 +140,48 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
   const size = () => {
     const fullscreen = transport.displayMode?.() === "fullscreen";
     const other = q(".aad-frame").offsetHeight - q(".aad-stage").offsetHeight;
-    q(".aad-stage").style.height = `${fullscreen ? Math.max(240, innerHeight - other - 16) : STAGE_HEIGHT}px`;
-    const bounds = q(".aad-stage").getBoundingClientRect(); view?.resize(bounds.width, bounds.height);
+    q(".aad-stage").style.height = `${fullscreen ? Math.max(300, innerHeight - other - 16) : transport.controls === "cad" ? 640 : STAGE_HEIGHT}px`;
+    const bounds = q(".aad-cad").getBoundingClientRect(); view?.resize(bounds.width, bounds.height);
     if (!fullscreen) transport.requestSize(Math.ceil(document.documentElement.getBoundingClientRect().height));
     syncControls();
   };
   const applyRequest = (env: Envelope) => {
     if (!view) return;
     requested = structuredClone(env.viewer ?? {});
-    view.batch(() => {
-      applyPresentation(view!, requested.presentation);
-      if (requested.view) view!.viewer.presetCamera(requested.view);
-    });
     q(".aad-caption").textContent = requested.title || env.project;
-    configureInside();
-    syncControls();
+    configureViews();
+    applySelected();
   };
   control("explode").addEventListener("click", () => {
     if (view) view.batch(() => view!.setExploded(view!.viewer.state.get("animationMode") !== "explode"));
   });
   control("grid").addEventListener("click", () => { if (view) view.batch(() => view!.setGrid(!view!.viewer.getGrids().some(Boolean))); });
-  control("inside").addEventListener("click", () => {
-    const config = requested.presentation?.inside;
-    if (!view || !config || !insideAvailable) return;
-    view.batch(() => {
-      const exploded = view!.viewer.state.get("animationMode") === "explode";
-      view!.setExploded(false);
-      const { inside: _inside, grid: _grid, explode: _explode, ...base } = requested.presentation!;
-      if (!insideShown) {
-        outsideCamera = view!.viewer.getCameraLocationSettings(); outsideExploded = exploded;
-        applyPresentation(view!, { ...base, hide: config.hide ? [...(base.hide ?? []), ...config.hide] : base.hide,
-          section: config.section ?? base.section, explode: false });
-        insideShown = true;
-        if (exploded && view!.canExplode()) view!.setExploded(true);
-      } else {
-        applyPresentation(view!, { ...base, explode: false });
-        if (outsideCamera) view!.viewer.setCameraLocationSettings(outsideCamera.position, outsideCamera.quaternion, outsideCamera.target, outsideCamera.zoom);
-        insideShown = false;
-        if ((exploded || outsideExploded) && view!.canExplode()) view!.setExploded(true);
-      }
-    });
-    syncControls();
+  control("views").addEventListener("click", () => {
+    const menu = q(".aad-view-menu");
+    if (!menu.hidden) { closeMenu(); return; }
+    menu.hidden = false; control("views").setAttribute("aria-expanded", "true");
+    (menu.querySelector<HTMLElement>('[aria-checked="true"]') ?? menu.firstElementChild as HTMLElement)?.focus();
   });
-  control("reset").addEventListener("click", () => {
-    if (!view) return;
-    view.batch(() => {
-      view!.reset();
-      applyPresentation(view!, { ...requested?.presentation, explode: requested?.presentation?.explode ?? false, grid: requested?.presentation?.grid ?? false });
-      view!.viewer.presetCamera(requested?.view ?? "iso");
-    });
-    configureInside();
-    syncControls();
+  q(".aad-view-menu").addEventListener("keydown", event => {
+    const items = [...q(".aad-view-menu").querySelectorAll<HTMLElement>("button")];
+    let i = items.indexOf(document.activeElement as HTMLElement);
+    if (event.key === "Escape") { event.preventDefault(); closeMenu(true); return; }
+    if (event.key === "Tab") { closeMenu(); return; }
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    i = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (i + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+    items[i]?.focus();
   });
+  document.addEventListener("pointerdown", event => {
+    if (!q(".aad-view-menu").contains(event.target as Node) && !control("views").contains(event.target as Node)) closeMenu();
+  });
+  control("reset").addEventListener("click", applySelected);
   control("fullscreen").hidden = !transport.caps.fullscreen;
   control("fullscreen").addEventListener("click", () => void transport.requestFullscreen().then(size).catch(fail));
 
   const present = async (env: Envelope) => {
     if (!env.scene) throw new Error(env.summary || "The result has no model.");
-    const nextKey = JSON.stringify({ presentation: env.viewer?.presentation ?? {}, view: env.viewer?.view, title: env.viewer?.title });
+    const nextKey = JSON.stringify({ presentation: env.viewer?.presentation ?? {}, view: env.viewer?.view, title: env.viewer?.title, views: env.viewer?.views ?? [] });
     if (env.scene.scene_id === diagnostics.shownScene) {
       if (requestKey !== nextKey) { applyRequest(env); requestKey = nextKey; }
       return;
@@ -175,8 +199,9 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
     const triangles = triangleCount(shapes);
     if (manifest.triangles !== undefined && triangles !== manifest.triangles) throw new Error(`Expected ${manifest.triangles} triangles, got ${triangles}`);
     const parsedAt = performance.now(); unsubscribe(); view?.dispose(); q(".aad-cad").replaceChildren();
-    const bounds = q(".aad-stage").getBoundingClientRect();
-    view = mountCad3d(q(".aad-cad"), shapes, { width: bounds.width, height: bounds.height, theme: resolvedTheme(transport), view: env.viewer?.view });
+    selectedId = "original";
+    const bounds = q(".aad-cad").getBoundingClientRect();
+    view = mountCad3d(q(".aad-cad"), shapes, { width: bounds.width, height: bounds.height, theme: resolvedTheme(transport), view: env.viewer?.view, controls: transport.controls });
     (globalThis as { __viewer?: unknown }).__viewer = view.viewer;
     unsubscribe = view.viewer.state.subscribeAll(syncControls);
     applyRequest(env); requestKey = nextKey;

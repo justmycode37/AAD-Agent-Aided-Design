@@ -55,7 +55,7 @@ await scenario("small-part-t3-limits", {}, async ({ host, mcp, diag }) => {
   check(state.sized >= 500 && state.sized < 600, "requests its complete inline height", String(state.sized));
   check(state.tooLarge === 0, "no app message over 256 KiB");
   check(mcp.stats.chunks === 1, "one chunk for a small scene", String(mcp.stats.chunks));
-  check(await host.frame().getByRole("button", { name: "Show inside", exact: true }).count() === 0, "part without an interior view has no inside button");
+  check(await host.frame().getByRole("button", { name: "Views", exact: true }).isDisabled(), "Views is disabled until the agent supplies recipes");
   const marker = await host.frame().evaluate(() => {
     const v = globalThis.__viewer, marker = v.rendered.orientationMarker;
     const calls = [], original = v.renderer.setViewport;
@@ -107,7 +107,8 @@ await scenario("simple-controls-and-agent-views", { scene: assembly, strictCsp: 
     });
   };
   check(diag.triangles === assembly.manifest.triangles && diag.verified, "all original assembly triangles verified");
-  check(await frame.getByRole("button").count() === 4 && await frame.getByRole("combobox").count() === 0, "only three simple actions and a bigger-view button are visible");
+  check(await frame.getByRole("button").count() === 5 && await frame.getByRole("combobox").count() === 0, "only simple actions, Views, and a bigger-view button are visible");
+  check(await frame.locator('.aad-cad input:visible, .aad-cad select:visible').count() === 0, "full engine capabilities expose no native inputs in chat");
   await frame.evaluate(() => globalThis.__viewer.setCameraZoom(globalThis.__viewer.getCameraZoom() * 1.25));
   const beforeExplode = await camera();
   await button("Pull apart").click();
@@ -121,25 +122,38 @@ await scenario("simple-controls-and-agent-views", { scene: assembly, strictCsp: 
   await button("Show grid").click();
   check(await frame.evaluate(() => globalThis.__viewer.getGrids().every(Boolean) && globalThis.__viewer.getAxes()), "one button shows all XYZ grids and axes");
   await button("Hide grid").click();
-  await update({ presentation: { inside: { hide: ["/Group/main"] } } });
-  await button("Show inside").waitFor();
-  const outsideCamera = await camera();
-  await button("Show inside").click();
-  check(await frame.evaluate(() => globalThis.__viewer.getState("/Group/main").every(v => v === 0) && globalThis.__viewer.getState("/Group/second")[0] === 1), "inside toggle hides the cover and keeps the interior mesh");
-  await button("Show outside").click();
-  check(await frame.evaluate(() => Object.values(globalThis.__viewer.getStates()).every(s => s[0] === 1)), "outside toggle restores the cover");
-  check(sameCamera(outsideCamera, await camera()), "outside toggle restores the complete model's camera");
-  await button("Show inside").click();
+  const recipes = [
+    { id: "interior", label: "Interior", description: "Cover hidden", presentation: { hide: ["/Group/main"] } },
+    { id: "section", label: "Section", view: "front", presentation: { section: { planes: [{ plane: "XY", offset: 2 }] } } },
+    { id: "stress", label: "Stress", analysis: { quantity: "Fixture maximum stress", units: "MPa", source: "Synthetic browser-test fixture", range: [10, 30],
+      values: [{ part: "/Group/main", value: 10 }, { part: "/Group/second", value: 30 }] } },
+  ];
+  const choose = async label => { await button("Views").click(); await frame.getByRole("menuitemradio", { name: label, exact: true }).click(); };
+  const colors = () => frame.evaluate(() => Object.fromEntries(Object.keys(globalThis.__viewer.getStates()).map(id => {
+    const colors = []; globalThis.__viewer.rendered.nestedGroup.groups[id].traverse(m => { if(m.isMesh && m.material?.color) colors.push(m.material.color.getHexString()); });
+    return [id, colors];
+  })));
+  const originalColors = await colors();
+  await update({ views: recipes });
+  await choose("Interior");
+  check(await frame.evaluate(() => globalThis.__viewer.getState("/Group/main").every(v => v === 0) && globalThis.__viewer.getState("/Group/second")[0] === 1), "Interior preset reveals the original internal component");
   await button("Reset").click();
-  check(await button("Show inside").getAttribute("aria-pressed") === "false" && await frame.evaluate(() => Object.values(globalThis.__viewer.getStates()).every(s => s[0] === 1)), "reset returns from inside to the prepared outside view");
-  await update({ presentation: { isolate: ["/Group/second"], inside: { hide: ["/Group/main"] } } });
-  await frame.waitForFunction(() => globalThis.__viewer.getState("/Group/main").every(v => v === 0));
-  check(await button("Show inside").count() === 0, "inside control disappears when the current selection has no visible cover");
-  await update({ presentation: { inside: { section: { planes: [{ plane: "XY", offset: 2 }] } } } });
-  await button("Show inside").click();
-  check(await frame.evaluate(() => globalThis.__viewer.getClipSlider(0) === 2 && globalThis.__viewer.state.get("activeTab") === "clip"), "declared cavity view can use a section instead of hiding a cover");
-  await button("Show outside").click();
-  check(await frame.evaluate(() => globalThis.__viewer.state.get("activeTab") === "tree"), "outside toggle clears the temporary cavity section");
+  check(await frame.evaluate(() => globalThis.__viewer.getState("/Group/main").every(v => v === 0)), "reset preserves the selected Interior recipe");
+  await choose("Section");
+  check(await frame.evaluate(() => globalThis.__viewer.getClipSlider(0) === 2 && globalThis.__viewer.state.get("activeTab") === "clip"), "Section preset applies its plane and camera");
+  await choose("Stress");
+  check(JSON.stringify(originalColors) !== JSON.stringify(await colors()), "supplied analysis values color the original component materials");
+  check(await frame.locator(".aad-analysis").isVisible() && (await frame.locator(".aad-analysis").innerText()).includes("Synthetic browser-test fixture"), "analysis view shows quantity, units, range and actual source");
+  await choose("Original");
+  check(JSON.stringify(originalColors) === JSON.stringify(await colors()), "Original restores component materials after analysis");
+  check(await frame.evaluate(() => Object.values(globalThis.__viewer.getStates()).every(s => s[0] === 1) && globalThis.__viewer.state.get("activeTab") === "tree"), "Original restores all parts and clears clipping");
+  check(await frame.locator(".aad-analysis").isHidden(), "Original clears the analysis legend");
+  await button("Views").press("Enter");
+  await frame.getByRole("menuitemradio", { name: "Original", exact: true }).press("ArrowDown");
+  await frame.getByRole("menuitemradio", { name: "Interior", exact: true }).press("Enter");
+  check((await button("Views").getAttribute("title")).includes("Interior"), "view recipes support keyboard navigation and selection");
+  await button("Views").click(); await frame.locator(".aad-view-menu").press("Escape");
+  check(await frame.locator(".aad-view-menu").isHidden(), "Escape dismisses Views without exposing CAD controls");
   await update({ presentation: { isolate: ["/Group/second"] }, title: "One piece" });
   await frame.waitForFunction(() => globalThis.__viewer.getState("/Group/main").every(v => v === 0));
   check(await frame.evaluate(() => globalThis.__viewer.getState("/Group/second")[0] === 1), "agent isolates a requested piece on the existing mesh");
@@ -152,11 +166,13 @@ await scenario("simple-controls-and-agent-views", { scene: assembly, strictCsp: 
   await update({ presentation: { section: { planes: [{ plane: "YZ", offset: -1 }, { normal: [0, -1, 0], offset: 0 }] }, projection: "orthographic", style: "transparent" }, view: "front" });
   await frame.waitForFunction(() => globalThis.__viewer.getClipSlider(0) === -1);
   check(await frame.evaluate(() => globalThis.__viewer.state.get("activeTab") === "clip" && globalThis.__viewer.getOrtho() && globalThis.__viewer.getTransparent()), "agent selects sections, projection, transparency and camera");
-  check(await frame.getByRole("button").count() === 4 && await frame.getByRole("combobox").count() === 0, "advanced view settings never expose CAD controls");
+  check(await frame.getByRole("button").count() === 5 && await frame.getByRole("combobox").count() === 0, "advanced view settings never expose CAD controls");
+  check(await frame.locator('.aad-cad input:visible, .aad-cad select:visible').count() === 0, "sections and analysis do not reveal native sliders or panels");
   await update({ presentation: {} });
   await frame.waitForFunction(() => globalThis.__viewer.state.get("activeTab") === "tree");
   check(await frame.evaluate(() => Object.values(globalThis.__viewer.getStates()).every(s => s[0] === 1)), "agent can restore all pieces");
   check(mcp.stats.chunks === 1 && await frame.evaluate(() => globalThis.__aad.loads === 1), "agent view changes do not reload or simplify the original scene");
+  check(await button("Views").isDisabled(), "replacement result clears obsolete recipes");
   await frame.locator("body").press("t");
   check(await frame.evaluate(() => !globalThis.__viewer.getTransparent()), "hidden CAD shortcuts cannot surprise the user");
   await button("Make bigger").click();
@@ -165,7 +181,7 @@ await scenario("simple-controls-and-agent-views", { scene: assembly, strictCsp: 
 });
 
 for (const width of [320, 390]) await scenario(`mobile-layout-${width}`, { width, height: 700, scene: assembly,
-  viewer: { title: "Gearbox", presentation: { inside: { hide: ["/Group/main"] } } } }, async ({ host }) => {
+  viewer: { title: "Gearbox", views: [{ id: "interior", label: "Interior", presentation: { hide: ["/Group/main"] } }] } }, async ({ host }) => {
   const layout = await host.frame().evaluate(() => {
     const frame = document.querySelector(".aad-frame").getBoundingClientRect();
     const footer = document.querySelector(".aad-hint").getBoundingClientRect();
@@ -175,9 +191,9 @@ for (const width of [320, 390]) await scenario(`mobile-layout-${width}`, { width
     const buttons = [...document.querySelectorAll('.aad-toolbar button')].filter(b => !b.hidden);
     const iconsFit = buttons.length === 4 && buttons.every(button => {
       const icon = button.querySelector('svg').getBoundingClientRect(), bounds = button.getBoundingClientRect();
-      return !button.textContent.trim() && !!button.getAttribute('aria-label') && !!button.title && bounds.left >= caption.right
+      return (button.dataset.control === 'views' || !button.textContent.trim()) && !!button.getAttribute('aria-label') && !!button.title && bounds.left >= caption.right
         && Math.abs((bounds.top + bounds.bottom) / 2 - (caption.top + caption.bottom) / 2) < 1
-        && bounds.width === 32 && bounds.height === 32 && bounds.right <= stage.right - 44
+        && bounds.width === (button.dataset.control === 'views' ? 80 : 32) && bounds.height === 32 && bounds.right <= stage.right - 44
         && icon.left >= bounds.left && icon.right <= bounds.right && icon.bottom <= bounds.bottom;
     });
     return { height: document.documentElement.getBoundingClientRect().height, frame: frame.bottom, footer: footer.bottom, iconsFit,
@@ -186,6 +202,10 @@ for (const width of [320, 390]) await scenario(`mobile-layout-${width}`, { width
   check(layout.height >= layout.footer && layout.frame >= layout.footer, "mobile frame includes the complete bottom edge", JSON.stringify(layout));
   check(layout.overflow <= 1 && layout.canvasRight <= layout.stageRight + 1, "mobile CAD viewport has no horizontal clipping");
   check(layout.iconsFit, "four small icon buttons fit beside the title at phone width");
+  await host.frame().getByRole("button", { name: "Views", exact: true }).click();
+  const menuFits = await host.frame().locator('.aad-view-menu').evaluate(e => { const r=e.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; });
+  check(menuFits, "Views menu fits inside the phone viewport");
+  await host.frame().getByRole("menuitemradio", { name: "Original", exact: true }).click();
   await host.frame().getByRole("button", { name: "Pull apart", exact: true }).click();
   check(await host.frame().getByRole("button", { name: "Put together", exact: true }).count() === 1, "phone control responds to a real tap target click");
 });

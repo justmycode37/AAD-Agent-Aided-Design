@@ -77,13 +77,16 @@ def test_bundle_manifest_cannot_end_its_script(saved_scene, tmp_path):
 def test_bundle_keeps_prepared_view_in_both_exports(saved_scene, tmp_path):
     source, payload, _ = saved_scene
     title = 'Inside </script><script>alert("injected")</script>'
-    viewer = export_bundle(source, tmp_path / "export", presentation={"isolate": ["gear"]}, view="rear", title=title)
+    viewer = export_bundle(source, tmp_path / "export", presentation={"isolate": ["gear"]}, view="rear", title=title,
+                           views=[{"id": "detail", "label": "Gear", "presentation": {"isolate": ["gear"]}}], controls="cad")
     for file in (viewer, viewer.parent / "standalone.html"):
         config_text = file.read_text(encoding="utf-8").split("window.__AAD_EMBEDDED_SCENE__ = ", 1)[1].split(";</script>", 1)[0]
         config = json.loads(config_text)
         assert config["presentation"] == {"isolate": ["/gear"]}
         assert config["view"] == "rear"
         assert config["title"] == title
+        assert config["views"][0]["presentation"] == {"isolate": ["/gear"]}
+        assert config.get("controls", "simple") == ("cad" if file.name == "standalone.html" else "simple")
         assert "</script>" not in config_text
     assert (source / "scene.bin.gz").read_bytes() == payload
 

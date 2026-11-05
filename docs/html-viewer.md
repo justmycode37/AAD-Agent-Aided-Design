@@ -26,24 +26,23 @@ It reports a missing asset instead of substituting a different mesh.
 
 The same export also writes `standalone.html`, which opens directly from disk
 with the viewer and original scene embedded. No daemon or internet connection
-is needed. Both exports use the same simple controls as the MCP App: pull
-apart, show the XYZ grid, reset, and a bigger view. An optional inside/outside
-button appears when `presentation.inside` defines an interior. Detailed inspection is
-prepared by the agent rather than exposed as CAD toolbars.
+is needed. Chat exports use the simple MCP App interface, including a wider
+Views menu of agent-provided recipes. `--controls cad` enables the full native
+inspection interface in `standalone.html`; `viewer.html` remains simple for chat.
 
-Prepare an inside view without editing the model:
+Offer an Interior recipe without editing the model:
 
 ```sh
 uv run python -m aad_platform.viewer.bundle \
   ~/AAD/mechanik-getriebe/.aad/revs/000003/scene \
   ~/AAD/mechanik-getriebe/exports/inside \
-  --presentation '{"inside":{"hide":["housing_upper","housing_lower"]}}' \
+  --views '[{"id":"interior","label":"Interior","presentation":{"hide":["housing_upper","housing_lower"]}}]' \
   --title 'Gearbox'
 ```
 
-`--presentation` accepts the same settings as `aad_show`; see
+`--presentation` and `--views` accept the same settings as `aad_show`; see
 [CAD viewing](cad-viewing.md). `--view` selects a standard camera direction.
-Reset preserves the prepared part selection and section.
+Reset restores the selected recipe; Original restores the base presentation.
 
 Allow content to determine the frame height. Do not set `height: 100%` on the
 document roots: a host may add padding around the viewer. Pass the measured

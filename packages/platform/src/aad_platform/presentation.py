@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import math
+import re
+import json
 from typing import Any
 
 VIEWS = ("iso", "front", "rear", "left", "right", "top", "bottom")
@@ -98,4 +100,64 @@ def normalize_presentation(value: Any, parts: list[dict[str, Any]]) -> dict[str,
         if "hide" in prepared and not {p["path"] for p in parts} - set(prepared["hide"]):
             raise ValueError("inside must leave at least one interior part visible")
         result["inside"] = prepared
+    return result
+
+
+def normalize_views(value: Any, parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Validate named, reproducible views of the same original scene."""
+    if not isinstance(value, list) or len(value) > 24:
+        raise ValueError("views must be an array of at most 24 named views")
+    result, seen, labels = [], {"original"}, {"original"}
+    for item in value:
+        item = _object(item, {"id", "label", "description", "view", "presentation", "analysis"}, "view preset")
+        key, label = item.get("id"), item.get("label")
+        if not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", key) or key in seen:
+            raise ValueError("View IDs must be unique; 'original' is reserved")
+        if not isinstance(label, str) or not label.strip() or len(label) > 48 or label.strip().casefold() in labels:
+            raise ValueError("Each view needs a label of 1 to 48 characters")
+        seen.add(key)
+        labels.add(label.strip().casefold())
+        prepared = {"id": key, "label": label, "presentation": normalize_presentation(item.get("presentation", {}), parts)}
+        if "inside" in prepared["presentation"]:
+            raise ValueError("Named views use hide or section directly, not the legacy inside field")
+        if "description" in item:
+            if not isinstance(item["description"], str) or len(item["description"]) > 240:
+                raise ValueError("View descriptions must be at most 240 characters")
+            prepared["description"] = item["description"]
+        if "view" in item:
+            if item["view"] not in VIEWS:
+                raise ValueError("Unknown camera view")
+            prepared["view"] = item["view"]
+        if "analysis" in item:
+            analysis = _object(item["analysis"], {"quantity", "units", "source", "values", "range"}, "analysis")
+            normalized = {}
+            for field, maximum in (("quantity", 80), ("units", 24), ("source", 512)):
+                text = analysis.get(field)
+                if not isinstance(text, str) or not text.strip() or len(text) > maximum:
+                    raise ValueError(f"analysis.{field} must be a non-empty string of at most {maximum} characters")
+                normalized[field] = text
+            rows = analysis.get("values")
+            if not isinstance(rows, list) or not 1 <= len(rows) <= 2048:
+                raise ValueError("analysis.values needs 1 to 2048 sourced part values")
+            values, assigned = [], set()
+            for row in rows:
+                row = _object(row, {"part", "value"}, "analysis value")
+                paths = normalize_presentation({"isolate": [row.get("part")]}, parts)["isolate"]
+                number = _number(row.get("value"), "analysis value")
+                for path in paths:
+                    if path in assigned:
+                        raise ValueError("Each analysis part may have only one value")
+                    assigned.add(path)
+                    values.append({"part": path, "value": number})
+            limits = analysis.get("range", [min(r["value"] for r in values), max(r["value"] for r in values)])
+            if not isinstance(limits, list) or len(limits) != 2:
+                raise ValueError("analysis.range needs two finite limits")
+            low, high = [_number(n, "analysis range") for n in limits]
+            if low > high or not math.isfinite(high - low) or any(not low <= row["value"] <= high for row in values):
+                raise ValueError("analysis.range must contain every supplied value")
+            normalized.update(values=values, range=[low, high])
+            prepared["analysis"] = normalized
+        result.append(prepared)
+    if len(json.dumps(result, ensure_ascii=True).encode("utf-8")) > 64 * 1024:
+        raise ValueError("View metadata exceeds 64 KiB; provide fewer views or analysis values")
     return result

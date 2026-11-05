@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 
 from . import viewer_path
-from ..presentation import VIEWS, normalize_presentation
+from ..presentation import VIEWS, normalize_presentation, normalize_views
 
 
 def _asset(path: Path, payload: bytes, element_id: str, encoding: str = "base64+gzip") -> Path:
@@ -29,7 +29,7 @@ def _script_json(value: object) -> str:
     return json.dumps(value, ensure_ascii=True).replace("<", r"\u003c").replace(">", r"\u003e").replace("&", r"\u0026")
 
 
-def export_bundle(scene_dir: Path, output_dir: Path, *, presentation: dict | None = None, view: str | None = None, title: str | None = None) -> Path:
+def export_bundle(scene_dir: Path, output_dir: Path, *, presentation: dict | None = None, view: str | None = None, title: str | None = None, views: list | None = None, controls: str = "simple") -> Path:
     """Write viewer.html and a lossless SVG metadata asset for one saved scene.
 
     Pass viewer.html's text to an HTML host with local image inlining support.
@@ -43,6 +43,10 @@ def export_bundle(scene_dir: Path, output_dir: Path, *, presentation: dict | Non
     if hashlib.sha256(payload).hexdigest() != manifest["scene_id"]:
         raise ValueError("Scene hash does not match the manifest")
     settings = {}
+    if controls not in ("simple", "cad"):
+        raise ValueError("controls must be simple or cad")
+    if views is not None:
+        settings["views"] = normalize_views(views, manifest.get("parts", []))
     if presentation is not None:
         settings["presentation"] = normalize_presentation(presentation, manifest.get("parts", []))
     if view is not None:
@@ -96,7 +100,7 @@ try {
 </script></body></html>'''
     html_bundle = bootstrap.replace("CONFIG", config, 1).replace("RUNTIME", _script_json(str(runtime_asset)), 1)
     # A separate, genuinely standalone file also opens with no chat host/server.
-    standalone_config = _script_json({"manifest": manifest, "asset": "data:image/svg+xml;base64," + base64.b64encode(asset.read_bytes()).decode("ascii"), **settings})
+    standalone_config = _script_json({"manifest": manifest, "asset": "data:image/svg+xml;base64," + base64.b64encode(asset.read_bytes()).decode("ascii"), "controls": controls, **settings})
     standalone = html.replace("<head>", f"<head>\n<script>window.__AAD_EMBEDDED_SCENE__ = {standalone_config};</script>", 1)
     (output_dir / "standalone.html").write_text(standalone, encoding="utf-8")
     target = output_dir / "viewer.html"
@@ -113,5 +117,7 @@ if __name__ == "__main__":
     parser.add_argument("--presentation", type=json.loads, help="Agent-controlled view settings as JSON")
     parser.add_argument("--view", choices=VIEWS)
     parser.add_argument("--title")
+    parser.add_argument("--views", type=json.loads, help="Named user-selectable view recipes as JSON")
+    parser.add_argument("--controls", choices=("simple", "cad"), default="simple", help="Standalone controls; chat exports always remain simple")
     args = parser.parse_args()
-    print(export_bundle(args.scene_dir, args.output_dir, presentation=args.presentation, view=args.view, title=args.title))
+    print(export_bundle(args.scene_dir, args.output_dir, presentation=args.presentation, view=args.view, title=args.title, views=args.views, controls=args.controls))

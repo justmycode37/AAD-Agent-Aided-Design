@@ -41,5 +41,5 @@ export function applyPresentation(view: Cad3dView, presentation: Presentation = 
   }
   if (presentation.grid !== undefined) view.setGrid(presentation.grid);
   view.setExploded((presentation.explode ?? wasExploded) && view.canExplode());
-  viewer.showTools(false); viewer.setPickHandler(false);
+  viewer.showTools(view.fullControls); viewer.setPickHandler(view.fullControls);
 }
