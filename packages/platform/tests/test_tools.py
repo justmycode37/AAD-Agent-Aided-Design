@@ -1,5 +1,7 @@
 from aiad_platform.tools import TOOL_NAMES, TOOLS, VIEWER_URI
 
+import pytest
+
 
 def test_thirteen_model_visible_and_four_app_only_tools():
     app_only = {t["name"] for t in TOOLS if t.get("_meta", {}).get("ui", {}).get("visibility") == ["app"]}
@@ -25,20 +27,22 @@ def test_builds_are_not_marked_read_only():
     assert annotations["aiad_scene_read"]["readOnlyHint"] is True
 
 
-def test_stray_stdout_cannot_corrupt_the_mcp_stream(tmp_path):
+@pytest.mark.parametrize("resource_delay_s", [0.0, 0.05])
+def test_stray_stdout_cannot_corrupt_the_mcp_stream(tmp_path, resource_delay_s):
     """Issue #11: native code writing to fd 1 must not land in the protocol stream."""
     import json
+    import asyncio
     import os
-    import subprocess
     import sys
 
-    script = """
-import asyncio, os
+    script = f"""
+import asyncio, os, time
 from aiad_platform import adapter, viewer
 real = viewer.load_html
 def noisy():
     os.write(1, b"native library noise\\n")
     print("python noise")
+    time.sleep({resource_delay_s})
     return real()
 viewer.load_html = noisy
 asyncio.run(adapter.serve_stdio())
@@ -48,15 +52,51 @@ asyncio.run(adapter.serve_stdio())
         {"jsonrpc": "2.0", "method": "notifications/initialized"},
         {"jsonrpc": "2.0", "id": 2, "method": "resources/read", "params": {"uri": "ui://aiad/viewer"}},
     ]
-    done = subprocess.run(
-        [sys.executable, "-c", script],
-        input="".join(json.dumps(r) + "\n" for r in requests),
-        capture_output=True,
-        text=True,
-        timeout=60,
-        env={**os.environ, "HOME": str(tmp_path), "AIAD_HOME": str(tmp_path)},
-    )
-    lines = [line for line in done.stdout.splitlines() if line.strip()]
-    messages = [json.loads(line) for line in lines]  # Any noise here fails the parse.
-    assert any(m.get("id") == 2 and "contents" in m.get("result", {}) for m in messages), done.stderr[-500:]
-    assert "native library noise" in done.stderr
+    async def exchange():
+        process = await asyncio.create_subprocess_exec(
+            sys.executable, "-c", script,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            limit=16 * 1024 * 1024,
+            env={**os.environ, "HOME": str(tmp_path), "AIAD_HOME": str(tmp_path)},
+        )
+        messages = []
+
+        async def send(request):
+            process.stdin.write((json.dumps(request) + "\n").encode("utf-8"))
+            await process.stdin.drain()
+
+        async def receive(request_id):
+            while True:
+                line = await process.stdout.readline()
+                assert line, f"adapter exited before response {request_id}: {messages!r}"
+                message = json.loads(line)  # Any protocol noise fails the parse.
+                messages.append(message)
+                if message.get("id") == request_id:
+                    return message
+
+        try:
+            async with asyncio.timeout(60):
+                await send(requests[0])
+                initialized = await receive(1)
+                assert "result" in initialized, initialized
+                await send(requests[1])
+                await send(requests[2])
+                await receive(2)
+                # Keep the connection open until the handler has replied;
+                # EOF can cancel outstanding server response tasks.
+                process.stdin.close()
+                remaining, stderr = await process.communicate()
+                messages.extend(json.loads(line) for line in remaining.splitlines() if line.strip())
+                assert process.returncode == 0, stderr[-500:]
+                return messages, stderr.decode("utf-8")
+        finally:
+            if process.returncode is None:
+                process.kill()
+                await process.communicate()
+
+    messages, stderr = asyncio.run(exchange())
+    assert any(m.get("id") == 2 and "contents" in m.get("result", {}) for m in messages), (messages, stderr[-500:])
+    assert "native library noise" in stderr
+    assert "python noise" in stderr

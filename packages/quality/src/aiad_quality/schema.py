@@ -29,6 +29,13 @@ _TOLERANCED = re.compile(
 class _UniqueSafeLoader(yaml.SafeLoader):
     """SafeLoader variant that rejects duplicate keys, including YAML merges."""
 
+    def fetch_flow_collection_start(self, TokenClass):
+        # Scanner key lookahead can consume many nested '['/'{' tokens before
+        # composition starts. Bound that work before recording another level.
+        if self.flow_level >= 64:
+            raise yaml.YAMLError("spec exceeds the 64-level flow nesting input limit")
+        return super().fetch_flow_collection_start(TokenClass)
+
     def compose_node(self, parent, index):
         # Bound work before Python recursion or YAML merge construction can expand it.
         if self.check_event(yaml.AliasEvent):

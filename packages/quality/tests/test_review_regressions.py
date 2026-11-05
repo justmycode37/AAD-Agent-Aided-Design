@@ -70,10 +70,20 @@ def test_ambiguous_yaml_11_numbers_are_rejected(text):
 
 
 @pytest.mark.timeout(3)
-def test_deep_yaml_is_a_diagnostic_instead_of_a_crash():
+@pytest.mark.parametrize('source', ['[' * 5000, '{' * 5000, 'requirements: ' + '[' * 5000 + '0' + ']' * 5000])
+def test_deep_yaml_is_a_diagnostic_instead_of_a_crash(source):
     with pytest.raises(SpecValidationError):
-        load_spec('[' * 5000)
-    assert spec_checks(SimpleNamespace(spec='[' * 5000, units='mm', shape=None))[0].status == 'skip'
+        load_spec(source)
+    assert spec_checks(SimpleNamespace(spec=source, units='mm', shape=None))[0].status == 'skip'
+
+
+@pytest.mark.parametrize('style', ['quoted', 'block'])
+def test_brackets_inside_yaml_scalar_text_are_not_nesting(style):
+    import json
+
+    text = '[' * 5000 + '{' * 5000
+    scalar = json.dumps(text) if style == 'quoted' else '|-\n  ' + text
+    assert load_spec('material: ' + scalar + '\nrequirements: []\n')['material'] == text
 
 
 @pytest.mark.timeout(3)
