@@ -82,8 +82,8 @@ function setup() {
     rendered: { nestedGroup, controls: { isInteracting: () => interacting.value } },
     pickingController,
   };
-  const onSelection = vi.fn(), onReference = vi.fn();
-  const selection = installPartSelection(viewer as unknown as PartSelectionViewer, { onSelection, onReference });
+  const onSelection = vi.fn(), onReference = vi.fn(), onHover = vi.fn();
+  const selection = installPartSelection(viewer as unknown as PartSelectionViewer, { onSelection, onReference, onHover });
   const pointer = (type: string, x: number, init: Record<string, unknown> = {}) => {
     const event = Object.assign(new Event(type), { pointerId: 1, pointerType: "mouse", clientX: x, clientY: 50, button: 0, buttons: type === "pointerup" ? 0 : 1, shiftKey: false, altKey: false, ctrlKey: false, metaKey: false, ...init });
     if (type === "pointerdown") { const press = new Event(type); Object.defineProperty(press, "target", { value: canvas }); win.dispatchEvent(press); canvas.dispatchEvent(event); }
@@ -98,7 +98,7 @@ function setup() {
     doc.dispatchEvent(event);
     return event;
   };
-  return { viewer, canvas, win, doc, selection, onSelection, onReference, flags, hidden, pointer, click, dblclick, hover, key, pickAt, idPicker, highlight, nestedGroup, group, interacting, pickingController };
+  return { viewer, canvas, win, doc, selection, onSelection, onReference, onHover, flags, hidden, pointer, click, dblclick, hover, key, pickAt, idPicker, highlight, nestedGroup, group, interacting, pickingController };
 }
 
 const withBit = (flags: Map<number, number>, bit: number) => [...flags].filter(([, value]) => value & bit).map(([id]) => id).sort();
@@ -111,6 +111,22 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("hover", () => {
+  it("reports owning parts once and clears on blank, leave and disposal", () => {
+    const t = setup();
+    t.hover(100); t.hover(110);
+    expect(t.onHover.mock.calls).toEqual([[A]]);
+    t.hover(200);
+    expect(t.onHover).toHaveBeenLastCalledWith(B);
+    t.hover(50);
+    expect(t.onHover).toHaveBeenLastCalledWith(null);
+    t.hover(100);
+    t.canvas.dispatchEvent(new Event("pointerleave"));
+    expect(t.onHover).toHaveBeenLastCalledWith(null);
+    t.hover(100);
+    t.selection.dispose();
+    expect(t.onHover).toHaveBeenLastCalledWith(null);
+  });
+
   it("flags every face and edge of the owning part, whichever face is under the pointer", () => {
     const t = setup();
     t.hover(100);
@@ -452,9 +468,11 @@ describe("lifecycle", () => {
   it("refresh() drops parts missing from a rebuilt scene and follows a new highlight controller", () => {
     const t = setup();
     t.click(100);
+    t.hover(100);
     t.nestedGroup.highlight = { ...t.highlight };
     t.selection.refresh();
     expect(t.onSelection).toHaveBeenLastCalledWith([]);
+    expect(t.onHover).toHaveBeenLastCalledWith(null);
     t.click(100);
     expect(t.selection.paths()).toEqual([A]);
   });

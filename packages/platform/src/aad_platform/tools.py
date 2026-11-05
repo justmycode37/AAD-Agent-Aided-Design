@@ -436,5 +436,8 @@ INSTRUCTIONS = (
     "agents supply named views with aad_show.views. Full CAD controls remain in the local window. "
     "Before saying AAD cannot do something, check that guide. Playbook workflow.capabilities.v1 has working code for "
     "assemblies, sheet metal, surfaces, direct edits, standard parts and 2D. "
+    "Default to physical realism: model interiors, functional components, attachments and power/control paths "
+    "unless the user requests simplification. Check fit, critical interference and moving clearances; provide "
+    "interior views. Distinguish representative geometry and checked fit from validated performance. "
     "Fetch playbook viewer.presentation.v1 with aad_library for viewer capabilities, recipes and sourced analysis; never invent stress results."
 )

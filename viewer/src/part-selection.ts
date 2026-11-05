@@ -73,6 +73,8 @@ export interface PartSelectionViewer {
 }
 
 export interface PartSelectionCallbacks {
+  /** Hovered leaf path, or null when hovering ends. */
+  onHover?(path: string | null): void;
   /** The selected leaf paths, as in `viewer.getStates()` and scene part paths, after every change. */
   onSelection(paths: string[]): void;
   /**
@@ -219,6 +221,7 @@ export function installPartSelection(viewer: PartSelectionViewer, callbacks: Par
   const setHover = (path: string | null): boolean => {
     if (path === hovered) return false;
     hovered = path;
+    callbacks.onHover?.(path);
     const highlight = viewer.ready ? nested().highlight : null;
     if (highlight) {
       if (path) prepareHighlight(path, highlight);
@@ -277,7 +280,7 @@ export function installPartSelection(viewer: PartSelectionViewer, callbacks: Par
     if (highlight !== highlightInUse) {
       highlightInUse = highlight;
       softened.clear(); // The rebuilt scene has new materials.
-      hovered = null;
+      setHover(null);
       clicks = [];
       return setSelection([]);
     }
@@ -453,6 +456,7 @@ export function installPartSelection(viewer: PartSelectionViewer, callbacks: Par
       win.removeEventListener("wheel", onWheel, capture);
       win.removeEventListener("blur", releaseAll);
       doc.removeEventListener("keydown", onKeyDown as EventListener);
+      setHover(null);
       // Removing the instance overrides restores the engine's prototype methods.
       delete native.handleHover;
       delete native.hoverPreselectActive;

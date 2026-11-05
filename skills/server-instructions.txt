@@ -2,6 +2,8 @@ Unmeasured candidate instructions; no real-agent harness has measured tool choic
 
 Workflow: call aad_new with explicit units and a spec, build model.py, inspect returned checks and failures, render views or sections, compare with the original request, then show and export the reviewed revision. Keep assumptions separate from requirements.
 
+Default to physical realism unless the user requests simplification: include interiors, functional components, attachments, power/control connections and service access at the relevant scale. Check fit, critical interference and swept clearances; show interior/section views. A silhouette or labeled blocks is not a complete model. Distinguish representative geometry and checked fit from validated operational performance. Read the full modeling standard in aad.guide.v1.
+
 Before saying AAD cannot do something, read the guide: aad_library get playbook aad.guide.v1. Playbook workflow.capabilities.v1 has working code for assemblies, sheet metal, surfaces, direct edits and 2D.
 
 The model API re-exports build123d and adds params(), meta(), part(), feature(), semantic selectors, gear helpers, assembly(), asset(), sheet_metal() and direct edits. Project units do not rescale coordinates. A successful build is draft, because no independent validator is connected yet. A valid shape, passed checks, or a complete spec does not prove the spec captured the user's whole intent.

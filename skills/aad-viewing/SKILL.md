@@ -21,6 +21,10 @@ Know what the user sees:
 - **Navigation:** on Mac, click-drag rotates, two-finger scroll pans in both
   directions, pinch zooms, and Option-scroll is the zoom fallback. Other desktops
   scroll or pinch to zoom and Shift-drag or right-drag to pan.
+Hovering a part shows a muted `Part name · #number` line beneath the title.
+The one-based number follows the original scene manifest, stays fixed across
+views, and is revision-local. The label clears when hovering ends.
+
 - **Parts:** hover highlights the whole part with a soft blue tint; selection
   uses a stronger blue tint while retaining material and detail. Click selects; click the selected part again to deselect.
   Shift-click toggles additional parts; blank click or Escape clears selection.

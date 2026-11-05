@@ -17,6 +17,10 @@ Views menu, and fullscreen. Small white-outlined icons sit beside the title.
 Advanced CAD panels and action shortcuts are hidden. Local windows retain the
 native CAD engine's full toolset; standalone exports can opt into CAD controls.
 
+Hovering a part shows a muted `Part name · #number` line beneath the title.
+The one-based number follows the original scene manifest, stays fixed across
+views, and is revision-local. The label clears when hovering ends.
+
 Chat highlights an entire part with a soft blue hover tint and a stronger blue
 selection tint, preserving material and detail.
 Click selects; clicking a selected part removes it from the selection. Shift-click

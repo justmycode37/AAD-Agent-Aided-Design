@@ -11,6 +11,41 @@ This guide lists everything AAD can do. It was checked by running the tools. If 
 
 Contents: the loop · tools · model.py · spec.yaml · process checks · results · render · viewer · drawings · import and export · revisions · library · command line · Python-only features · what does not work yet · honesty rules.
 
+## Default to physical realism
+
+Unless the user asks for a simplified concept or exterior study, build a
+mechanically credible object with its interior and functional interfaces.
+A recognizable silhouette or a collection of labeled blocks is not a complete
+model. Choose detail at the scale needed to establish fit and function; a PCB
+can use a sourced component envelope without modeling semiconductor internals.
+
+- Model the actual construction: hollow housings, wall thickness, separate
+  manufactured parts, mounting features, fasteners, bearing/shaft fits and
+  assembly or service access where relevant. Fuse features belonging to one
+  manufactured part and check its intended solid count. Use smooth curves and
+  surfaces where the real part calls for them.
+- Include the systems the object needs to operate, such as actuators,
+  transmission, energy storage, power distribution, electronics and routed
+  interconnections. Check that they fit and attach; do not hide an absent
+  mechanism behind a solid outer shell or treat a named block as a verified
+  purchased component.
+- Prefer manufacturer dimensions and component data when choosing real
+  hardware. Record assumptions and representative geometry. Resolve missing
+  information that affects feasibility rather than silently inventing ratings,
+  loads, tolerances or compatibility.
+- Before handoff, inspect interior and section views, check relevant static
+  interference, moving/swept clearances, mounting and access, and correct
+  failures. State the scope of each check; a sampled or targeted check is not
+  an exhaustive proof. Provide useful interior and subsystem viewer views.
+- Separate modeled detail, checked geometry and validated performance. CAD
+  validity and visual detail do not prove electrical compatibility, strength,
+  thrust, thermal behavior or reliable operation. Never call the object
+  working, flightworthy or ready to manufacture without supporting evidence.
+
+Carry the requested object through build, review and delivery. When a
+necessary function remains unresolved, identify it explicitly instead of
+presenting an exterior mockup as the finished object.
+
 ## The loop
 
 1. **Turn the request into checks.** Call `aad_new` with a `spec` holding what can be measured. Keep assumptions separate, and tell the user what you assumed. Ask for missing fits, loads, materials or tolerances that matter instead of inventing them.
@@ -400,6 +435,11 @@ The `inspection` report holds exact B-rep facts: mass properties, bounding box, 
 Thickness is a sampled search, not a certified minimum. Heatmaps do not prove manufacturability. Playbook `review.render.v1` is a review checklist.
 
 ## Viewer
+
+Hovering a part shows a muted `Part name · #number` line beneath the title.
+The one-based number follows the original scene manifest, stays fixed across
+views, and is revision-local. The label clears when hovering ends.
+
 
 `aad_show` displays a revision for the user. Its result holds a scene manifest with `scene.parts`, whose exact names and paths you use in presentations. The original geometry is never simplified. Hiding, clipping, colors and exploding are display settings, not model changes.
 

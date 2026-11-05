@@ -7,7 +7,7 @@
   "scripts": {
     "build": "vite build && node scripts/finish-build.mjs",
     "test": "tsc --noEmit && vitest run && node scripts/audit-bundle.mjs && node scripts/check-packaged.mjs",
-    "test:e2e": "node scripts/e2e.mjs && node scripts/part-selection-checks.mjs",
+    "test:e2e": "node scripts/e2e.mjs && node scripts/part-selection-checks.mjs && node scripts/hover-label-checks.mjs",
     "test:real": "node scripts/e2e-real.mjs"
   },
   "dependencies": {
