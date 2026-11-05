@@ -588,7 +588,7 @@ Files land in `exports/<project>-r<rev>-drawing/`. `notes` is a list of strings,
 - `schema` or `step_schema`: `AP214` (default) or `AP242`.
 - `step_volume_tolerance`: allowed volume drift when writing STEP.
 
-Drafts need `allow_unverified`. Their files get `-UNVERIFIED` in the name, and you must tell the user. Verified revisions export without this flag and without the suffix. A build without requirements remains draft, so it still needs the flag.
+Drafts need `allow_unverified`. Their files get `-UNVERIFIED` in the name, and you must tell the user. A saved revision is rechecked before export; changed BREP, spec, kernel version or scene means it is treated as draft, and the response explains why. Verified revisions with intact receipts export without this flag and without the suffix. A build without requirements remains draft, so it still needs the flag.
 
 **Import** is described under `aad_import`.
 
@@ -727,7 +727,7 @@ These exist in the packages but have no MCP tool. Use them only if you can run P
 
 Say so plainly rather than working around it silently.
 
-- **Some checks cannot establish a positive result.** `min_wall` and `symmetric` can only disprove, so a build stays `draft` when either is skipped. Selector-based measurements that require worker feature records also stay unproven.
+- **Some checks cannot establish a positive result.** `min_wall` and `symmetric` can only disprove, so a build stays `draft` when either is skipped. Selector-based measurements that require worker feature records also stay unproven; the validator does not trust model-written selector metadata.
 - **Spec requirements are not evaluated on 2D sheets.**
 - **No global mate solver, general sheet metal unfolding, Class-A surfacing, or weldment, mold and harness tools.**
 - **A sampled `min_wall` cannot prove a global minimum.** It can fail on a local sampled shortfall, but without one it stays `skip`.

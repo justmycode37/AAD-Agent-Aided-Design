@@ -1,4 +1,7 @@
 import asyncio
+import hashlib
+from importlib import metadata as importlib_metadata
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -35,12 +38,10 @@ def test_rejects_symlinked_project_directories(project, tmp_path):
 
 
 def test_verified_export_needs_no_unverified_flag_or_suffix(project, tmp_path, monkeypatch):
-    revision = project.rev_dir(1)
-    revision.mkdir(parents=True)
-    (revision / "meta.json").write_text('{"status":"verified"}')
-    meta = project.meta()
-    meta["head_rev"] = 1
-    project.write_meta(meta)
+    _write_verified_revision(project)
+    inspected = asyncio.run(Handlers().aad_inspect({"project": "p", "what": "summary"}))["structured"]
+    assert inspected["status"] == "verified"
+    assert "body" in inspected["summary"]
     recorded = {}
 
     async def fake_op(_self, _project, _rev, _op, args, **_kwargs):
@@ -58,6 +59,131 @@ def test_verified_export_needs_no_unverified_flag_or_suffix(project, tmp_path, m
     assert "allow_unverified" not in recorded
     assert Path(envelope["artifacts"]["step"]).name == "p-r1.step"
     assert "UNVERIFIED" not in envelope["artifacts"]["step"]
+
+
+def test_committed_build_receipt_is_rechecked_for_inspect_and_export(project, tmp_path, monkeypatch):
+    result = asyncio.run(Handlers().aad_build({
+        "project": "p",
+        "source": "from build123d import Box\nresult = Box(10, 8, 4)\n",
+        "spec": "units: mm\nrequirements:\n  - {id: body, solids: 1}\n",
+    }))
+    envelope = result["structured"]
+    assert envelope["ok"] and envelope["status"] == "verified", envelope.get("summary")
+    assert "body" in envelope["summary"]
+    inspected = asyncio.run(Handlers().aad_inspect({"project": "p", "what": "summary"}))["structured"]
+    assert inspected["status"] == "verified"
+    assert "body" in inspected["summary"]
+
+    recorded = {}
+
+    async def fake_op(_self, _project, _rev, _op, args, **_kwargs):
+        recorded.update(args)
+        out = tmp_path / "committed-output"
+        out.mkdir()
+        source = out / "model.step"
+        source.write_text("step")
+        return {"ok": True, "files": {"step": str(source)}}, out
+
+    monkeypatch.setattr(Handlers, "_op", fake_op)
+    exported = asyncio.run(Handlers().aad_export({"project": "p", "formats": ["step"]}))["structured"]
+    assert exported["ok"] and exported["status"] == "verified"
+    assert "allow_unverified" not in recorded
+    assert "UNVERIFIED" not in exported["artifacts"]["step"]
+
+
+@pytest.mark.parametrize("tamper", ["spec", "brep"])
+def test_modified_verified_revision_is_downgraded_before_export(project, tmp_path, monkeypatch, tamper):
+    revision = _write_verified_revision(project)
+    if tamper == "spec":
+        (revision / "spec.yaml").write_text("requirements: [{id: altered, solids: 1}]\n")
+    else:
+        (revision / "part.brep").write_bytes(b"swapped BREP")
+
+    from aad_platform.daemon.handlers import _rev_meta
+    checked = _rev_meta(project, 1)
+    assert checked["status"] == "draft"
+    assert "hash" in checked["verification_invalid_reason"]
+    inspected = asyncio.run(Handlers().aad_inspect({"project": "p", "what": "summary"}))["structured"]
+    assert inspected["status"] == "draft"
+    assert "hash" in inspected["summary"]
+
+    response = asyncio.run(Handlers().aad_export({"project": "p", "formats": ["step"]}))
+    envelope = response["structured"]
+    assert not envelope["ok"]
+    assert envelope["failure"]["code"] == "NOT_VERIFIED"
+    assert envelope["status"] == "failed"
+    assert "treated as draft" in envelope["failure"]["message"]
+    assert "allow_unverified" in envelope["failure"]["message"]
+
+    recorded = {}
+    async def fake_op(_self, _project, _rev, _op, args, **_kwargs):
+        recorded.update(args)
+        out = tmp_path / "unverified-output"
+        out.mkdir(exist_ok=True)
+        source = out / "model.step"
+        source.write_text("step")
+        return {"ok": True, "files": {"step": str(source)}}, out
+
+    monkeypatch.setattr(Handlers, "_op", fake_op)
+    exported = asyncio.run(Handlers().aad_export({
+        "project": "p", "formats": ["step"], "allow_unverified": True,
+    }))["structured"]
+    assert exported["ok"] and exported["status"] == "draft"
+    assert recorded["stem"] == "p-r1-UNVERIFIED"
+    assert "no longer matches" in exported["summary"]
+
+
+def _write_verified_revision(project):
+    revision = project.rev_dir(1)
+    revision.mkdir(parents=True)
+    brep = b"saved BREP"
+    scene = b"saved clean scene"
+    (revision / "part.brep").write_bytes(brep)
+    (revision / "spec.yaml").write_text("requirements: [{id: body, solids: 1}]\n")
+    (revision / "scene.bin.gz").write_bytes(scene)
+    versions = {}
+    for package in ("build123d", "cadquery-ocp-novtk"):
+        try:
+            versions[package] = importlib_metadata.version(package)
+        except importlib_metadata.PackageNotFoundError:
+            versions[package] = "unavailable"
+    settings = {"units": "mm", "process": None}
+    canonical = lambda value: json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    digest = lambda value: hashlib.sha256(value).hexdigest()
+    spec = parse_spec((revision / "spec.yaml").read_text())
+    spec_hash = digest(canonical(spec))
+    validation_record = {
+        "protocol": 1, "snapshot_sha256": digest(brep), "spec_sha256": spec_hash,
+        "kernel_versions": versions,
+        "inputs": {"kind": "part", "units": "mm", "spec": spec},
+    }
+    claims = {
+        "requirement_results": [{"id": "body", "level": "error", "status": "pass"}],
+        "proven_requirement_ids": ["body"],
+        "proven_error_requirement_ids": ["body"],
+    }
+    receipt = {
+        "rev": 1,
+        "kind": "part",
+        "brep_sha256": digest(brep),
+        "spec_sha256": spec_hash,
+        "kernel_versions": versions,
+        "kernel_sha256": digest(canonical(versions)),
+        "validation_input_sha256": digest(canonical(validation_record)),
+        "project_settings": settings,
+        "project_settings_sha256": digest(canonical(settings)),
+        **claims,
+        "claims_sha256": digest(canonical(claims)),
+        "scene_id": digest(scene),
+    }
+    (revision / "meta.json").write_text(json.dumps({
+        "rev": 1, "status": "verified", "verification_receipt": receipt,
+        "scene": {"scene_id": receipt["scene_id"]},
+    }))
+    meta = project.meta()
+    meta["head_rev"] = 1
+    project.write_meta(meta)
+    return revision
 
 
 def test_import_replaces_destination_symlink_without_following_it(project, tmp_path, monkeypatch):

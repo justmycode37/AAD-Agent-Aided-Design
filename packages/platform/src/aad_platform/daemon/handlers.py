@@ -356,6 +356,12 @@ class Handlers:
         if params.get("dry_run"):
             project.discard_job(job_dir)
             envelope["head_rev"] = head
+            if status == "verified":
+                # A dry run has no immutable revision to carry its receipt.
+                # Keep the useful result but do not advertise durable status.
+                envelope["status"] = "draft"
+                envelope["summary"] = "Independent checks passed, but no revision was saved; the result remains draft."
+                envelope["next"] = _next_hints("draft")
             envelope["summary"] = f"Dry run of {project.name}: {envelope['summary']}"
             envelope["next"] = request_next_hints(
                 request_data,
@@ -378,6 +384,7 @@ class Handlers:
                         "checks": result.get("checks"),
                         "checks_summary": result.get("checks_summary"),
                         "scene": result.get("scene"),
+                        "verification_receipt": result.get("verification_receipt"),
                         "param_overrides": overrides,
                         "params": (result.get("context") or {}).get("params"),
                         "features": (result.get("context") or {}).get("features"),
@@ -403,6 +410,18 @@ class Handlers:
         # Imports are the source of these copies, so each revision does not keep another one.
         shutil.rmtree(job_dir / "assets", ignore_errors=True)
         rev = project.commit_revision(job_dir, source, spec_text, request_data)
+        if status == "verified":
+            # Re-check the revision after its files and receipt have been
+            # committed. All later reads repeat this check through _rev_meta.
+            committed_meta = _rev_meta(project, rev)
+            if committed_meta.get("status") != "verified":
+                status = "draft"
+                envelope["status"] = status
+                envelope["summary"] = committed_meta.get("verification_invalid_reason") or (
+                    "The verification receipt could not be re-checked; the revision is treated as draft."
+                )
+                if result.get("scene"):
+                    result["scene"]["status"] = "draft"
         envelope.update(
             rev=rev,
             head_rev=rev,
@@ -449,7 +468,7 @@ class Handlers:
         rev_dir = project.rev_dir(rev)
         if not rev_dir.is_dir():
             return reply(failure_envelope(project.name, "BAD_INPUT", "input", f"No revision {rev}.", head_rev=head))
-        meta = json.loads((rev_dir / "meta.json").read_text())
+        meta = _rev_meta(project, rev)
         scene = meta.get("scene")
         payload = _scene_payload(rev_dir)
         if not scene or payload is None:
@@ -477,6 +496,7 @@ class Handlers:
         scene["project"] = project.name
         scene["rev"] = rev
         status = meta.get("status", "draft")
+        scene["status"] = status
         summary = params.get("title") or f"{project.name} rev {rev}"
         envelope = {
             "ok": True,
@@ -484,7 +504,7 @@ class Handlers:
             "rev": rev,
             "head_rev": head,
             "status": status,
-            "summary": f"Showing {summary} ({status}) in the viewer.",
+            "summary": _verification_summary(meta, f"Showing {summary} ({status}) in the viewer."),
             "metrics": meta.get("metrics"),
             "checks_summary": meta.get("checks_summary"),
             "scene": scene,
@@ -680,7 +700,9 @@ class Handlers:
         if what == "diff":
             return self._history_diff(project, rev, params.get("against"))
         meta = _rev_meta(project, rev)
-        base = {"ok": True, "project": project.name, "rev": rev, "head_rev": project.head_rev, "status": meta.get("status", "draft")}
+        base = {"ok": True, "project": project.name, "rev": rev, "head_rev": project.head_rev,
+                "status": meta.get("status", "draft"),
+                "verification_invalid_reason": meta.get("verification_invalid_reason")}
         if what == "params":
             values = meta.get("params") or {}
             return reply({**base, "params": values, "summary": f"Rev {rev} params: {json.dumps(values, default=str)[:600]}"})
@@ -731,10 +753,11 @@ class Handlers:
                 f"open questions: {len(request_data['open_questions'])}; "
                 f"not checked: {len(request_data['not_checked'])}. Meaning is not assessed."
             )
+        status_summary = _verification_summary(meta, f"{project.name} rev {rev} ({base['status']}).")
         return reply(_request_response(
             {
                 **base,
-                "summary": f"{project.name} rev {rev} ({base['status']}). {review_summary}",
+                "summary": f"{status_summary} {review_summary}",
                 "metrics": meta.get("metrics"),
                 "checks": sort_checks(meta.get("checks") or []),
                 "checks_summary": meta.get("checks_summary"),
@@ -884,15 +907,18 @@ class Handlers:
         rev, failed = self._rev_or_failure(project, params)
         if failed:
             return failed
-        status = _rev_meta(project, rev).get("status", "draft")
+        revision_meta = _rev_meta(project, rev)
+        status = revision_meta.get("status", "draft")
         allowed = bool(params.get("allow_unverified"))
         if status != "verified" and not allowed:
+            reason = revision_meta.get("verification_invalid_reason")
+            explanation = f" {reason}" if reason else ""
             return reply(
                 failure_envelope(
                     project.name,
                     "NOT_VERIFIED",
                     "input",
-                    f"Rev {rev} is {status}, so it does not export by default. Meet the spec, or pass "
+                    f"Rev {rev} is {status}.{explanation} It does not export by default. Meet the spec, or pass "
                     "allow_unverified to export it marked as unverified.",
                     head_rev=project.head_rev,
                     base_rev=rev,
@@ -917,6 +943,8 @@ class Handlers:
         except (OSError, ValueError) as exc:
             return reply(failure_envelope(project.name, "EXPORT_FAILED", "runtime", str(exc), head_rev=project.head_rev))
         note = "" if status == "verified" else " Files are marked UNVERIFIED."
+        if revision_meta.get("verification_invalid_reason"):
+            note = f" Verification was withheld: {revision_meta['verification_invalid_reason']}" + note
         return reply(
             {
                 "ok": True,
@@ -1119,9 +1147,108 @@ def _publish_exports(exports: Path, out: Path, files: dict[str, str], stem: str)
 
 def _rev_meta(project: Project, rev: int) -> dict[str, Any]:
     try:
-        return json.loads((project.rev_dir(rev) / "meta.json").read_text())
+        value = json.loads((project.rev_dir(rev) / "meta.json").read_text())
     except (OSError, ValueError):
         return {}
+    if value.get("status") != "verified":
+        return value
+    reason = _verification_receipt_error(project, rev, value)
+    if reason:
+        value["status"] = "draft"
+        value["verification_invalid_reason"] = reason
+    return value
+
+
+def _verification_receipt_error(project: Project, rev: int, meta: dict[str, Any]) -> str | None:
+    """Re-check revision-bound evidence before reporting a saved revision verified."""
+    import hashlib
+    from importlib import metadata as importlib_metadata
+
+    receipt = meta.get("verification_receipt")
+    if not isinstance(receipt, dict):
+        return "The verification receipt is missing; this revision is treated as draft."
+    if receipt.get("rev") != rev or meta.get("rev") != rev:
+        return "The verification receipt does not match this revision; it is treated as draft."
+    rev_dir = project.rev_dir(rev)
+    try:
+        brep = rev_dir / "part.brep"
+        if brep.is_symlink() or not brep.is_file():
+            return "The saved BREP is missing or is not a regular revision file; this revision is treated as draft."
+        brep_hash = hashlib.sha256(brep.read_bytes()).hexdigest()
+        if brep_hash != receipt.get("brep_sha256"):
+            return "The saved BREP hash no longer matches its verification receipt; this revision is treated as draft."
+
+        from ..specs import parse_spec
+
+        spec_path = rev_dir / "spec.yaml"
+        saved_spec = parse_spec(spec_path.read_text() if spec_path.is_file() else None)
+        spec_hash = hashlib.sha256(_canonical_json(saved_spec)).hexdigest()
+        if spec_hash != receipt.get("spec_sha256"):
+            return "The saved spec hash no longer matches its verification receipt; this revision is treated as draft."
+
+        versions = {}
+        for distribution in ("build123d", "cadquery-ocp-novtk"):
+            try:
+                versions[distribution] = importlib_metadata.version(distribution)
+            except importlib_metadata.PackageNotFoundError:
+                versions[distribution] = "unavailable"
+        if versions != receipt.get("kernel_versions"):
+            return "The installed CAD kernel versions differ from the verification receipt; this revision is treated as draft."
+        kernel_hash = hashlib.sha256(_canonical_json(versions)).hexdigest()
+        if kernel_hash != receipt.get("kernel_sha256"):
+            return "The CAD kernel version hash does not match its verification receipt; this revision is treated as draft."
+
+        settings = receipt.get("project_settings")
+        if not isinstance(settings, dict) or hashlib.sha256(_canonical_json(settings)).hexdigest() != receipt.get("project_settings_sha256"):
+            return "The saved project settings do not match the verification receipt; this revision is treated as draft."
+        inputs = {"kind": receipt.get("kind"), "units": settings.get("units"), "spec": saved_spec}
+        if settings.get("process") is not None:
+            inputs["process"] = settings["process"]
+        validation_record = {
+            "protocol": 1, "snapshot_sha256": brep_hash, "spec_sha256": spec_hash,
+            "kernel_versions": versions, "inputs": inputs,
+        }
+        if hashlib.sha256(_canonical_json(validation_record)).hexdigest() != receipt.get("validation_input_sha256"):
+            return "The validation input hash no longer matches this revision's BREP, spec, kernel and settings; this revision is treated as draft."
+        claims = {key: receipt.get(key) for key in (
+            "requirement_results", "proven_error_requirement_ids", "proven_requirement_ids",
+        )}
+        if hashlib.sha256(_canonical_json(claims)).hexdigest() != receipt.get("claims_sha256"):
+            return "The recorded requirement outcomes no longer match their integrity hash; this revision is treated as draft."
+
+        scene = meta.get("scene")
+        scene_path = _scene_payload(rev_dir)
+        scene_id = receipt.get("scene_id")
+        if scene_id is None:
+            if scene is not None or scene_path is not None:
+                return "An unattested scene is present on a verified revision; this revision is treated as draft."
+        else:
+            saved_scene_id = scene.get("scene_id") if isinstance(scene, dict) else None
+            if not scene_path or not isinstance(saved_scene_id, str) or saved_scene_id != scene_id:
+                return "The verified scene is missing or no longer matches its receipt; this revision is treated as draft."
+            if hashlib.sha256(scene_path.read_bytes()).hexdigest() != scene_id:
+                return "The saved scene bytes no longer match the verification receipt; this revision is treated as draft."
+    except Exception as exc:
+        return f"Revision evidence could not be re-checked ({type(exc).__name__}: {exc}); this revision is treated as draft."
+    return None
+
+
+def _canonical_json(value: Any) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
+
+
+def _verification_summary(meta: dict[str, Any], prefix: str) -> str:
+    if meta.get("status") == "verified":
+        receipt = meta.get("verification_receipt") or {}
+        error_ids = receipt.get("proven_error_requirement_ids") or []
+        results = receipt.get("requirement_results") or []
+        advisory = [f"{item.get('id')} ({item.get('status')})" for item in results
+                    if isinstance(item, dict) and item.get("level") == "warn"]
+        error_names = ", ".join(str(name) for name in error_ids) if error_ids else "none (advisory requirements only)"
+        advisory_names = ", ".join(advisory) if advisory else "none"
+        return f"{prefix} Error-level requirements proven: {error_names}. Advisory requirements evaluated: {advisory_names}."
+    reason = meta.get("verification_invalid_reason")
+    return f"{prefix} {reason}" if reason else prefix
 
 
 def _head_status(project: Project) -> str:

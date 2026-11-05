@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import os
 import re
@@ -200,7 +201,7 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
         result.build_ms = elapsed_ms
         result = _constrain_worker_evidence(result, job_dir, project_dir, kind=request.kind,
                                             spec=request.spec, process=request.process, units=request.units,
-                                            timeout_s=_VALIDATION_TIMEOUT_S)
+                                            rev=request.rev, timeout_s=_VALIDATION_TIMEOUT_S)
     except (KeyError, TypeError, ValueError, AttributeError) as exc:
         return _failed(
             Failure(
@@ -217,6 +218,7 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
         )
 
     if result.ok and request.kind in {"part", "assembly"} and "part.brep" in result.artifacts:
+        scene_started = time.perf_counter()
         try:
             from .scene import render_brep_scene
 
@@ -236,6 +238,13 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
             if result.verification_receipt is not None and result.scene is not None:
                 result.verification_receipt["scene_id"] = result.scene.scene_id
         except Exception as exc:
+            if result.status == "verified":
+                # A verified BREP remains usable in engine-only installs that
+                # do not include the optional viewer renderer. No scene is
+                # published or attested in this case.
+                if result.verification_receipt is not None:
+                    result.verification_receipt["scene_id"] = None
+                result.summary += " Clean viewer scene unavailable; no scene was published."
             result.checks.append(
                 Check(
                     id="scene_generation_failed",
@@ -247,6 +256,8 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
                 )
             )
             result.checks_summary = _detail_counts(result.checks)
+        finally:
+            result.metrics["scene_ms"] = _elapsed_ms(scene_started)
     preview_started = time.perf_counter()
     if request.preview and "part.brep" in result.artifacts:
         from ._preview import add_preview
@@ -389,9 +400,14 @@ def _detail_counts(checks: list[Check]) -> dict[str, int]:
 
 def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: Path, *, kind: str = "part",
                                spec: Mapping[str, Any] | None = None, process: str | None = None,
-                               units: str = "mm", timeout_s: float = _VALIDATION_TIMEOUT_S) -> BuildResult:
+                               units: str = "mm", rev: int = 0, timeout_s: float = _VALIDATION_TIMEOUT_S) -> BuildResult:
     # A model's pipe result is not a trusted validation receipt.
     worker_claimed_verified = result.status == "verified"
+    result.checks = []
+    result.checks_summary = {}
+    if kind != "2d":
+        result.metrics = {}
+        result.scene = None
     # A sheet has no B-rep body: its source record is the artifact that must exist.
     required = "sheet.json" if kind == "2d" else "part.brep"
     part = _canonical_artifact(job_dir / required, job_dir)
@@ -404,12 +420,6 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
         result.summary = result.failure.message
         result.checks.append(Check(id="worker_artifact_required", suite="hard", level="error", status="fail",
                                    message=f"The required private {required} artifact was not available."))
-    failed_check = next((c for c in result.checks if c.level == "error" and c.status == "fail"), None)
-    if result.ok and failed_check is not None:
-        result.ok, result.status = False, "failed"
-        result.failure = Failure(code="NOT_VERIFIED", phase="validate", feature=failed_check.feature or "unknown",
-                                message=f"The worker reported a failed error-level check ({failed_check.id}); success was not accepted.")
-        result.summary = result.failure.message
     artifacts: dict[str, str] = {}
     rejected = 0
     for name, value in result.artifacts.items():
@@ -447,49 +457,117 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
     # Never use the worker's geometry metrics, feature records, or check outcomes
     # as verification evidence. Re-load the private BREP in the independent
     # validator and evaluate only requirements supported by native geometry.
+    evidence = None
     if result.ok and kind != "2d" and part is not None:
         try:
             import json
-            import yaml
-            from .validation import inspect_brep
+            from .validation import _canonical_json, inspect_brep
             project_path = project_dir / "project.json"
             project = json.loads(project_path.read_text()) if project_path.is_file() else {}
-            spec_path = project_dir / "spec.yaml"
-            saved_spec = yaml.safe_load(spec_path.read_text()) if spec_path.is_file() else {}
-            trusted_spec = dict(spec) if isinstance(spec, Mapping) else saved_spec
+            trusted_spec = dict(spec) if isinstance(spec, Mapping) else {}
             if not isinstance(trusted_spec, dict):
                 trusted_spec = {}
             trusted_process = process if process is not None else project.get("process")
             evidence = inspect_brep(part, candidate_dir=job_dir, kind=kind,
                                     units=project.get("units", units), spec=trusted_spec,
                                     process=trusted_process, timeout_s=timeout_s)
-            parent_warnings = [c for c in result.checks if c.level == "warn"]
-            result.checks = [*evidence.checks, *parent_warnings]
+            parent_checks = [check for check in result.checks if check.id == "worker_artifacts_rejected"]
+            result.checks = [*evidence.checks, *parent_checks]
             requirements = trusted_spec.get("requirements") or []
-            required_checks = [c for c in evidence.checks if c.suite in {"spec", "process"} and c.level == "error"]
+            requirements = requirements if isinstance(requirements, list) else []
+            requirement_results = _requirement_results(requirements, evidence.checks)
+            error_requirement_ids = [item["id"] for item in requirement_results if item["level"] == "error"]
+            advisory_ids = [item["id"] for item in requirement_results if item["level"] == "warn"]
+            missing_or_unrun = [item for item in requirement_results if item["status"] == "skip"]
+            incorrect_error = [item for item in requirement_results
+                               if item["level"] == "error" and item["status"] not in {"pass", "not_applicable"}]
+            incorrect_advisory = [item for item in requirement_results
+                                  if item["level"] == "warn" and item["status"] not in {"pass", "warn", "not_applicable"}]
             independent_failure = next((c for c in evidence.checks if c.level == "error" and c.status == "fail"), None)
-            if independent_failure is not None:
+            result.metrics = dict(evidence.metrics)
+            if evidence.failure is not None and evidence.failure.code == "TIMEOUT":
+                result.status = "draft"
+                result.metrics = dict(evidence.metrics)
+                result.checks.append(Check(id="trusted_validation_timeout", suite="hard", level="error", status="skip",
+                    message=f"The model built and its BREP was retained, but independent validation exceeded its {timeout_s:g} second budget. Rerun with `aad_build` to validate it again."))
+                result.summary = f"The model built successfully, but independent validation ran out of time after {evidence.elapsed_ms / 1000:.1f} seconds. The revision was retained as draft; rerun `aad_build` to try validation again."
+            elif independent_failure is not None:
                 result.ok, result.status = False, "failed"
                 result.failure = Failure(code="NOT_VERIFIED", phase="validate", feature=independent_failure.feature or "unknown",
                     message=f"Independent validation failed error-level check {independent_failure.id!r}.")
                 result.summary = result.failure.message
-            if (evidence.ok and requirements and required_checks
+            elif evidence.failure is not None and evidence.failure.code == "INVALID_SOLID":
+                result.ok, result.status = False, "failed"
+                result.failure = Failure(code="INVALID_SOLID", phase="validate",
+                    message="The saved BREP did not pass independent geometry validation.",
+                    kernel_message=evidence.failure.kernel_message or evidence.failure.message)
+                result.checks.append(Check(id="independent_brep_invalid", suite="hard", level="error", status="fail",
+                    message=result.failure.message, actual=result.failure.kernel_message))
+                result.summary = result.failure.message
+            elif evidence.failure is not None:
+                result.status = "draft"
+                result.metrics = dict(evidence.metrics)
+                result.checks.append(Check(id="trusted_validation_unavailable", suite="hard", level="error", status="skip",
+                    message="Independent validation could not be completed.", actual=evidence.failure.message))
+                result.summary = "The model built and its BREP was retained, but independent validation did not complete; the revision remains draft."
+            elif (evidence.ok and requirements and not missing_or_unrun and not incorrect_error and not incorrect_advisory
                     and independent_failure is None
-                    and all(c.status in {"pass", "not_applicable"} for c in required_checks)
-                    and not any(c.level == "error" and c.status in {"fail", "skip"} for c in evidence.checks)):
+                    and not any(c.level == "error" and c.status not in {"pass", "not_applicable"}
+                                for c in evidence.checks)):
                 result.status = "verified"
                 result.requirements_proven = True
-                result.summary = "The saved BREP passed independent geometry and requirement checks."
-            elif independent_failure is None:
+                error_summary = ", ".join(error_requirement_ids) if error_requirement_ids else "none (advisory requirements only)"
+                advisory_summary = ", ".join(f"{item['id']} ({item['status']})" for item in requirement_results
+                                               if item["level"] == "warn") or "none"
+                result.summary = ("The saved BREP passed the hard gate. Error-level requirements proven: "
+                                  f"{error_summary}. Advisory requirements evaluated: {advisory_summary}.")
+                settings = {"units": project.get("units", units)}
+                if trusted_process is not None:
+                    settings["process"] = trusted_process
+                settings_hash = hashlib.sha256(_canonical_json(settings)).hexdigest()
+                claims = {
+                    "requirement_results": requirement_results,
+                    "proven_error_requirement_ids": [item["id"] for item in requirement_results
+                                                     if item["level"] == "error" and item["status"] in {"pass", "not_applicable"}],
+                    "proven_requirement_ids": [item["id"] for item in requirement_results
+                                               if item["status"] in {"pass", "not_applicable"}],
+                }
+                result.verification_receipt = {
+                    "rev": rev,
+                    "kind": kind,
+                    "brep_sha256": evidence.snapshot_sha256,
+                    "spec_sha256": evidence.spec_sha256,
+                    "kernel_versions": dict(evidence.kernel_versions),
+                    "kernel_sha256": hashlib.sha256(_canonical_json(evidence.kernel_versions)).hexdigest(),
+                    "validation_input_sha256": evidence.input_sha256,
+                    "project_settings": settings,
+                    "project_settings_sha256": settings_hash,
+                    **claims,
+                    "claims_sha256": hashlib.sha256(_canonical_json(claims)).hexdigest(),
+                }
+            else:
                 result.status = "draft"
                 if worker_claimed_verified:
                     result.checks.append(Check(id="worker_verification_unattested", suite="hard", level="error", status="skip",
                         message="The model worker's verified claim was not independently proven."))
-            result.metrics = dict(evidence.metrics)
+                if evidence.failure is None:
+                    result.metrics = dict(evidence.metrics)
+                    if not requirements:
+                        result.summary = "The model built and passed the hard gate, but no requirements were declared; it remains draft."
+                    elif missing_or_unrun or incorrect_error:
+                        missing_ids = ", ".join(item["id"] for item in missing_or_unrun + incorrect_error)
+                        result.summary = f"The model built, but requirements were not fully proven ({missing_ids}); it remains draft."
+                    else:
+                        result.summary = "The model built, but independent evidence did not prove the required checks; it remains draft."
+            result.metrics.setdefault("validation_ms", evidence.elapsed_ms)
         except Exception as exc:
             result.status = "draft"
+            result.requirements_proven = False
+            result.verification_receipt = None
             result.checks.append(Check(id="trusted_validation_unavailable", suite="hard", level="error", status="skip",
                 message="Independent validation could not be completed.", actual=f"{type(exc).__name__}: {exc}"))
+    if evidence is not None and evidence.inspection_dir is not None:
+        shutil.rmtree(evidence.inspection_dir, ignore_errors=True)
     detail_counts = _detail_counts(result.checks)
     result.checks_summary = {status: detail_counts[status] for status in detail_counts}
     if result.scene is not None:
@@ -497,6 +575,21 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
         result.scene.compare = None
         result.scene.checks_summary = dict(result.checks_summary)
     return result
+
+
+def _requirement_results(requirements: list[Any], checks: list[Check]) -> list[dict[str, str]]:
+    results: list[dict[str, str]] = []
+    for index, requirement in enumerate(requirements):
+        req_id = requirement.get("id") if isinstance(requirement, Mapping) else None
+        if not isinstance(req_id, str) or not req_id.strip():
+            req_id = f"requirement_{index + 1}"
+        level = requirement.get("level", "error") if isinstance(requirement, Mapping) else "error"
+        if level not in {"error", "warn"}:
+            level = "error"
+        matches = [check for check in checks if check.suite == "spec" and check.id == req_id]
+        status = matches[0].status if len(matches) == 1 and matches[0].level == level else "skip"
+        results.append({"id": req_id, "level": level, "status": status})
+    return results
 
 
 def _validate_request(req: BuildRequest) -> None:

@@ -20,7 +20,7 @@ This document explains how AAD is built. `CONTRACTS.md` holds the exact interfac
          │ sandboxed worker per build, then independent verifier
          ▼
  ┌─────────────────┐
-         │ model worker    │   runs model.py, checks, scene and renders
+         │ model worker    │   runs model.py and saves the BREP
          │ (fresh per job) │   build123d → OCCT; a crash costs one job, never the model
  └─────────────────┘
          │ worker exits; saved BREP is reloaded in a clean process
@@ -29,9 +29,15 @@ This document explains how AAD is built. `CONTRACTS.md` holds the exact interfac
          │ BREP validator  │   hard gate + spec + process checks
          │ (no model code) │   sandboxed; evidence bound to BREP/spec/kernel hashes
          └─────────────────┘
+         │ validated BREP snapshot
+         ▼
+         ┌─────────────────┐
+         │ scene renderer  │   clean sandboxed BREP-derived viewer scene
+         │ (no model code) │
+         └─────────────────┘
 ```
 
-The three layers are separate processes because kernel crashes and hangs are expected, and the MCP handshake must not wait for kernel imports.
+The adapter, daemon, model worker, validator and scene renderer are separate processes because kernel crashes and hangs are expected, and the MCP handshake must not wait for kernel imports.
 
 Hosts that cannot reach a local process use `aad serve --http` instead of stdio. It speaks Streamable HTTP, authenticates with bearer tokens, and gives each user a private home and daemon. All daemons run as the account that started the server, so the worker sandbox is the boundary around model code.
 
@@ -55,17 +61,20 @@ Kernel versions are pinned in `packages/engine/pyproject.toml`.
 1. The agent calls `aad_build` with full source, a patch, or param overrides, plus the `base_rev` it edited. A stale `base_rev` is refused.
 2. The adapter forwards the call over the socket, and the daemon queues it per project.
 3. The daemon starts a new Python model worker under the OS sandbox: `sandbox-exec` on macOS, bubblewrap on Linux. It has no network and can write only to its job directory. Without a working sandbox the build fails with `SANDBOX_DENIED`; there is no unsandboxed fallback.
-4. The worker runs `model.py`, records feature metadata, runs its checks, tessellates a provisional scene, and optionally renders a preview. Its claims are provisional. Build metrics include per-phase elapsed times in milliseconds (`phase_timings_ms`), with one entry per hard-gate check plus model, spec, process, scene, render and write. The parent adds `other` as residual elapsed time not accounted for by those phases; it can include worker launch, protocol, parent validation and other uninstrumented work, so it does not identify a cause. A build over 20 seconds names its slowest measured phase in the summary. Assembly mesh checks mesh one private copy and validate each solid's triangle arrays separately. Scene generation builds assembly face and edge indexes once per scene.
-5. After the worker exits, the parent starts one clean sandboxed validator. It snapshots and loads the saved BREP once, reruns the hard gate, evaluates the parent-supplied spec and process settings, runs registered geometry-only checks, and generates the viewer scene from that same shape. It does not run model code or use worker metrics, checks, feature records or scenes as verification evidence. The validator has its own 600 s budget; `validation_ms` includes scene generation, while `validation_only_ms` excludes it. A timeout or scene failure retains the BREP as draft with trusted metrics and a reason.
-6. The model worker is killed at the time limit: 60 s by default, up to 600 s with `timeout_s`. The validator uses its separate budget. If the build outlasts `wait_s`, the call returns `running` with a job id, which the agent polls through `aad_history`.
-7. An accepted build becomes an immutable revision on disk. A failure never moves the head revision; a built candidate that failed a check is kept for inspection.
-8. The agent gets a short text summary, plus an image only when requested.
+4. The worker runs `model.py`, records provisional feature metadata and checks, writes the candidate BREP, and may create a provisional scene or preview. Worker claims, metrics, feature records and scenes are not verification evidence. Build metrics include per-phase elapsed times in milliseconds (`phase_timings_ms`), with one entry per hard-gate check plus model, spec, process, scene, render and write. The parent adds `other` as residual elapsed time not accounted for by those phases; it can include worker launch, protocol, parent validation and other uninstrumented work, so it does not identify a cause. A build over 20 seconds names its slowest measured phase in the summary. Assembly mesh checks mesh one private copy and validate each solid's triangle arrays separately. Scene generation builds assembly face and edge indexes once per scene.
+5. After the worker exits, the parent starts a clean sandboxed validator with its own 600 s budget. It snapshots and loads the saved BREP, reruns the hard gate, and evaluates the saved spec and project process settings without running model code or using worker metrics or feature records. The validator does not trust worker scene claims.
+6. The worker is killed at the model time limit: 60 s by default, up to 600 s with `timeout_s`. The validator uses its separate budget. If either phase times out, the call retains a built candidate as draft with trusted geometry metrics; a timeout while waiting returns `running` with a job id for `aad_history` to poll.
+7. A separate clean sandboxed renderer loads the validated BREP snapshot and creates the viewer scene, so the scene shown for a verified revision comes from the same geometry that was inspected.
+8. An accepted build becomes an immutable revision on disk. A failure never moves the head revision; a built candidate that failed a check is kept for inspection.
+9. The agent gets a short text summary, plus an image only when requested.
 
 Later operations such as render, check, measure, query, export, drawing and compare run in their own process through `aad_platform.ops`, against a stored revision. Check, measure, query, export, drawing and compare always use the OS sandbox. On local macOS and Linux 3D render, the worker loads the B-rep and computes inspection data inside that sandbox, then sends a versioned mesh and view payload to a clean one-shot VTK process outside it. The VTK process receives no project, revision or B-rep path. The sandbox policy is unchanged; 2D previews and all other operations still run entirely inside it. Remote mode continues to refuse render.
 
 ### Status
 
-Results report `failed`, `draft` or `verified`. The parent never accepts the model worker's `verified` claim. After the worker exits, a separate sandboxed validator loads a snapshot of the saved BREP, re-runs the hard gate and evaluates the parent-supplied spec and process settings. Its input is bound to the BREP and validation inputs. A build is `verified` only when the hard gate passes and every error-level requirement is independently evaluated and passes. Builds with no requirements, unresolved selector-based measurements, error-level skips or other unknown checks stay `draft`. Worker feature records are untrusted and are not used by the validator. `not_applicable` means the evaluator established that a check's subject is absent; it does not block verification. `skip` remains unknown and blocks at error level. Warn-level checks do not block. `min_wall` and `symmetric` remain disproof-only and blocking when skipped.
+Results report `failed`, `draft` or `verified`. The parent never accepts the model worker's `verified` claim. After the worker exits, a separate sandboxed validator loads a snapshot of the saved BREP, reruns the hard gate and evaluates the saved spec and process settings. Its receipt records hashes for the BREP and spec, the kernel versions, the revision, and the clean scene. Export and status-reporting operations compare those values with the saved revision before reporting `verified`. This catches changed BREP, spec, scene, or kernel versions while the receipt is unchanged. It is an integrity check, not a signed attestation: someone who can rewrite the whole project directory can also rewrite its receipt.
+
+A build is `verified` only when the hard gate passes, at least one requirement exists, and each error-level requirement is independently evaluated and passes. Warn-level requirements may report an advisory warning, but an unevaluated requirement stays draft. Builds with no requirements, unresolved selector-based measurements, error-level skips, or other unknown error-level checks stay `draft`. Worker feature records are untrusted and are not used by the validator. `not_applicable` means the evaluator established that a check's subject is absent; it does not block verification. `skip` remains unknown and blocks at error level. Other warn-level checks, including `render_not_requested`, do not block. `min_wall` and `symmetric` remain disproof-only and blocking when skipped. A verified summary and `aad_inspect` name the requirements the evaluator proved.
 
 ## Life of a view
 
@@ -145,7 +154,7 @@ The guide agents read is `skills/aad/SKILL.md`, which `aad_library` also serves 
 - A warm worker pool. Every job starts a new process.
 - An aggregate resident-memory ceiling for each whole job. Builds and operations now apply `aad.engine.memory` as a per-process `RLIMIT_AS` growth budget (`auto`: 16 GiB on Linux and macOS), but it is virtual address space rather than RSS; Linux child processes each get their own budget.
 - Use of the content-addressed cache in `aad.engine.cache` by the daemon.
-- Independent verification is conservative: selector-based measurements that need worker feature records remain unproven; `min_wall` and `symmetric` remain disproof-only and keep a build in draft when skipped.
+- Independent verification is conservative: selector-based measurements that need worker feature records remain unproven; `min_wall` and `symmetric` remain disproof-only and keep a build in draft when skipped. Validator timeouts retain a successful model build as draft and include trusted metrics; rerun `aad_build` to try the independent validation again.
 - A sandbox on Windows, so builds fail there with `SANDBOX_DENIED`.
 - Spec requirement types without a 2D meaning remain explicitly skipped on `kind="2d"` sheets.
 - A global mate solver. Assemblies place parts explicitly with `assembly()` and `at=`.

@@ -106,8 +106,13 @@ class EngineBootstrapTests(unittest.TestCase):
             self.assertEqual(result.metrics["solids"], 1)
             self.assertTrue(result.metrics["valid"])
             self.assertTrue(Path(result.artifacts["part.brep"]).is_file())
-            self.assertFalse(any(check.suite == "process" for check in result.checks))
-            self.assertTrue(any(check.id == "spec:empty" for check in result.checks))
+            process_checks = [check for check in result.checks if check.suite == "process"]
+            self.assertTrue(process_checks)
+            if importlib.util.find_spec("aad_quality") is None:
+                self.assertTrue(any(check.id == "process_evaluator_unavailable" and check.status == "skip"
+                                    for check in process_checks))
+            if importlib.util.find_spec("aad_quality") is not None:
+                self.assertTrue(any(check.id == "spec:empty" for check in result.checks))
 
     def test_syntax_and_runtime_failures_report_source_location(self) -> None:
         with tempfile.TemporaryDirectory(prefix="aad-engine-test-") as temporary:
@@ -204,9 +209,18 @@ result = Box(4, 5, 6)
             self.assertTrue(result.ok, result.summary)
             self.assertEqual(result.status, "draft")
             self.assertTrue(Path(result.artifacts["part.brep"]).is_file())
-            warnings = {check.id: check for check in result.checks if check.status == "warn"}
-            self.assertIn("spec_checks_hook_failed", warnings)
-            self.assertIn("scene_generation_failed", warnings)
+            self.assertIsNone(result.verification_receipt)
+            self.assertFalse(any(check.id == "spec_checks_hook_failed" for check in result.checks))
+            scene_failure = next((check for check in result.checks if check.id == "scene_generation_failed"), None)
+            if importlib.util.find_spec("aad_render") is None:
+                self.assertIsNotNone(scene_failure)
+                self.assertIn("clean scene", scene_failure.message)
+            else:
+                self.assertIsNone(scene_failure)
+            # The BREP is rendered by the clean parent-owned process, which
+            # ignores the model's forged aad_render module.
+            if result.scene is not None:
+                self.assertAlmostEqual(result.scene.bbox[3] - result.scene.bbox[0], 4.0)
 
     @unittest.skipUnless(os.name == "posix", "POSIX process-group cleanup")
     def test_cleanup_kills_descendants_after_the_worker_leader_exits(self) -> None:
@@ -288,21 +302,32 @@ result = Box(2, 3, 4)
             self.assertIsNotNone(built.context)
             self.assertEqual(built.status, "draft")
             self.assertTrue(Path(built.artifacts['part.brep']).is_file())
-            warnings = {c.id for c in built.checks if c.status == "warn"}
-            self.assertTrue({'spec_checks_hook_failed', 'process_checks_hook_failed',
-                             'scene_generation_failed'} <= warnings)
+            self.assertFalse(any(c.id in {'spec_checks_hook_failed', 'process_checks_hook_failed'}
+                                 for c in built.checks))
+            scene_failure = next((c for c in built.checks if c.id == 'scene_generation_failed'), None)
+            if importlib.util.find_spec("aad_render") is None:
+                self.assertIsNotNone(scene_failure)
+                self.assertIn("clean scene", scene_failure.message)
+            else:
+                self.assertIsNone(scene_failure)
+            if built.scene is not None:
+                self.assertAlmostEqual(built.scene.bbox[3] - built.scene.bbox[0], 2.0)
 
-    def test_empty_optional_outputs_warn_instead_of_reporting_success(self) -> None:
+    def test_empty_model_render_hook_does_not_replace_clean_scene(self) -> None:
         module = "def make_scene(ctx, out):\n    return {}\ndef render(ctx, req, out):\n    return []\n"
         source = "from pathlib import Path\nimport sys\n" + f"Path('aad_render.py').write_text({module!r})\n" + "sys.path.insert(0, str(Path.cwd()))\nresult = Box(2, 2, 2)\n"
         with tempfile.TemporaryDirectory(prefix="aad-engine-test-") as temporary:
             built = run_build(BuildRequest(source=source, project_dir=Path(temporary)))
             self.assertTrue(built.ok, built.summary)
-            self.assertIsNone(built.scene)
+            if built.scene is not None:
+                self.assertAlmostEqual(built.scene.bbox[3] - built.scene.bbox[0], 2.0)
             self.assertTrue(Path(built.artifacts['part.brep']).is_file())
-            checks = {c.id: c.status for c in built.checks}
-            self.assertEqual(checks['scene_generation_failed'], 'warn')
-            self.assertEqual(checks['render_not_requested'], 'skip')
+            scene_failure = next((c for c in built.checks if c.id == 'scene_generation_failed'), None)
+            if importlib.util.find_spec("aad_render") is None:
+                self.assertIsNotNone(scene_failure)
+                self.assertIn("clean scene", scene_failure.message)
+            else:
+                self.assertIsNone(scene_failure)
 
     def test_optional_render_hook_errors_and_empty_outputs_warn(self) -> None:
         from types import SimpleNamespace
@@ -419,7 +444,8 @@ result = Box(2, 3, 4)
             self.assertTrue(matched.ok, matched.summary)
             self.assertEqual(matched.status, "verified", [(c.id, c.status, c.message) for c in matched.checks])
             self.assertTrue(matched.requirements_proven)
-            self.assertTrue(any(c.id == "render_not_requested" and c.level == "warn" for c in matched.checks))
+            self.assertGreater(matched.checks_summary["pass"], 0)
+            self.assertFalse(any(c.id == "render_not_requested" for c in matched.checks))
 
     @unittest.skipUnless(importlib.util.find_spec("aad_quality"), "aad-quality is installed by the app, not aad-engine")
     def test_forged_worker_claim_and_metadata_cannot_replace_brep_evidence(self) -> None:
@@ -529,7 +555,8 @@ result = Box(2, 3, 4)
             external = root / 'external.txt'
             external.write_text('outside-fixture')
             counter = 0
-            def send(wire, preparation="Path('part.brep').write_text('not independently validated')", crash=False):
+            valid_brep = "from build123d import Box, export_brep\nexport_brep(Box(2, 3, 4), 'part.brep')"
+            def send(wire, preparation=valid_brep, crash=False):
                 nonlocal counter
                 counter += 1
                 job = root / f'job-{counter}'
@@ -545,14 +572,16 @@ result = Box(2, 3, 4)
             self.assertTrue(built.ok, built.summary)
             self.assertEqual(built.status, 'draft')
             self.assertFalse(built.requirements_proven)
-            self.assertEqual(built.scene.status, 'draft')
-            self.assertIsNone(built.scene.compare)
+            if built.scene is not None:
+                self.assertEqual(built.scene.status, 'draft')
+                self.assertIsNone(built.scene.compare)
             self.assertNotIn('outside', built.artifacts)
             self.assertTrue(any(c.id == 'worker_artifacts_rejected' and c.status == 'warn' for c in built.checks))
             self.assertTrue(any(c.id == 'worker_verification_unattested' and c.status == 'skip' for c in built.checks))
             wire['status'] = 'draft'
             draft_claim = send(wire)
-            self.assertEqual(draft_claim.scene.status, 'draft')
+            if draft_claim.scene is not None:
+                self.assertEqual(draft_claim.scene.status, 'draft')
             self.assertFalse(draft_claim.requirements_proven)
             wire['ok'] = False
             inconsistent = send(wire)
@@ -580,15 +609,15 @@ result = Box(2, 3, 4)
             popen.return_value.communicate.side_effect = communicate
             return run_build(BuildRequest(source='fixture', project_dir=root, job_dir=job))
 
-    def test_success_with_failed_error_check_is_not_accepted(self) -> None:
+    def test_worker_failed_claim_is_replaced_by_independent_brep_result(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             built = self.mocked_result({'ok': True, 'status': 'draft', 'stdout': 'model log',
                     'checks': [{'id': 'size', 'suite': 'spec', 'level': 'error', 'status': 'fail', 'message': 'size differs'}]}, Path(temporary))
-            self.assertFalse(built.ok)
-            self.assertEqual(built.status, 'failed')
-            self.assertEqual(built.failure.code, 'NOT_VERIFIED')
+            self.assertTrue(built.ok)
+            self.assertEqual(built.status, 'draft')
             self.assertEqual(built.stdout, 'model log')
-            self.assertEqual(built.checks[0].id, 'size')
+            self.assertNotIn('size', [check.id for check in built.checks])
+            self.assertTrue(any(check.id == 'trusted_validation_unavailable' for check in built.checks))
             self.assertTrue(Path(built.artifacts['part.brep']).exists())
 
     def test_job_artifact_cannot_be_reused_for_another_build(self) -> None:
@@ -618,8 +647,8 @@ result = Box(2, 3, 4)
                     'metrics': {'faces': 6}, 'checks': [{'id': 'note', 'level': 'warn', 'status': 'warn', 'message': 'retained'}]}, Path(temporary), make_part=False)
             self.assertFalse(built.ok)
             self.assertEqual((built.stdout, built.stderr), ('before failure', 'diagnostic detail'))
-            self.assertEqual(built.metrics['faces'], 6)
-            self.assertTrue(any(c.id == 'note' for c in built.checks))
+            self.assertNotIn('faces', built.metrics)
+            self.assertFalse(any(c.id == 'note' for c in built.checks))
 
     def test_artifact_paths_are_returned_canonical(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -638,8 +667,8 @@ result = Box(2, 3, 4)
                     'scene': {'status': 'verified', 'checks_summary': {'pass': 99}}}
             built = self.mocked_result(wire, Path(temporary))
             self.assertEqual(built.checks_summary, {'pass': 0, 'fail': 0, 'warn': 1, 'skip': 1, 'not_applicable': 0})
-            self.assertEqual(built.scene.checks_summary, built.checks_summary)
-            self.assertEqual(built.scene.status, 'draft')
+            self.assertIsNone(built.scene)
+            self.assertFalse(any(check.id == 'notice' for check in built.checks))
             self.assertNotIn('bbox', built.metrics)
 
     def test_invalid_json_values_are_bad_input_not_worker_crashes(self) -> None:
