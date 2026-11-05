@@ -323,7 +323,7 @@ def _validate_requirement(req: dict[str, Any], index: int, units: str) -> list[S
         key for key in type_fields
         if key in {
             "bbox", "solids", "holes", "min_wall", "clearance", "mass_g", "symmetric",
-            "measure", "material_at_point", "interference",
+            "measure", "material_at_point", "interference", "matches_reference",
         }
     ]
     if not known:
@@ -345,6 +345,7 @@ def _validate_requirement(req: dict[str, Any], index: int, units: str) -> list[S
         "measure": {"id", "level", "measure", "equals", "min", "max"},
         "material_at_point": {"id", "level", "material_at_point"},
         "interference": {"id", "level", "interference"},
+        "matches_reference": {"id", "level", "matches_reference"},
     }[field]
     try:
         _check_keys(req, allowed, path)
@@ -445,6 +446,27 @@ def _validate_requirement(req: dict[str, Any], index: int, units: str) -> list[S
                 threshold = _finite_number(values["volume_threshold_mm3"], path + (field, "volume_threshold_mm3"))
                 if threshold < 0:
                     raise ValueError(f"{_path_text(path + (field, 'volume_threshold_mm3'))} must be non-negative")
+        elif field == "matches_reference":
+            values = _require_mapping(body, path + (field,))
+            _check_keys(values, {"path", "f_score"}, path + (field,))
+            reference_path = values.get("path")
+            if not isinstance(reference_path, str) or not reference_path.strip():
+                raise ValueError(f"{_path_text(path + (field,))}.path must be a non-empty project-relative file path")
+            score = _require_mapping(values.get("f_score"), path + (field, "f_score"))
+            _check_keys(score, {"min", "tau_pct_of_diagonal"}, path + (field, "f_score"))
+            if "min" not in score:
+                raise ValueError(f"{_path_text(path + (field, 'f_score'))}.min is required")
+            minimum = _finite_number(score["min"], path + (field, "f_score", "min"))
+            if not 0.0 <= minimum <= 1.0:
+                raise ValueError(f"{_path_text(path + (field, 'f_score', 'min'))} must be between 0 and 1")
+            tau_pct = _finite_number(
+                score.get("tau_pct_of_diagonal", 0.1),
+                path + (field, "f_score", "tau_pct_of_diagonal"),
+            )
+            if not 0.0 < tau_pct <= 100.0:
+                raise ValueError(
+                    f"{_path_text(path + (field, 'f_score', 'tau_pct_of_diagonal'))} must be greater than 0 and at most 100"
+                )
     except (ValueError, TypeError, KeyError) as exc:
         issues.append(SpecIssue(str(exc), path, index))
     return issues

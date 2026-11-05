@@ -351,6 +351,99 @@ def test_remote_commands_are_json_and_forward_contract(monkeypatch, capsys, temp
     assert calls[0][1]["allow_unverified"] is True
 
 
+def test_compare_cli_uses_a_sandboxed_private_operation(monkeypatch, capsys, tmp_path):
+    from aad_platform.daemon import ops_client, projects
+
+    project_path = tmp_path / "part"
+    revision_dir = project_path / ".aad" / "revs" / "000003"
+    revision_dir.mkdir(parents=True)
+    reference = tmp_path / "reference.ply"
+    reference.write_text("mesh bytes are read by the worker")
+
+    class Project:
+        name = "part"
+        path = project_path
+        head_rev = 3
+
+        def rev_dir(self, rev):
+            return project_path / ".aad" / "revs" / f"{rev:06d}"
+
+        def meta(self):
+            return {"kind": "part", "units": "mm"}
+
+    request_seen = {}
+
+    async def fake_run_op(request, *, timeout_s):
+        request_seen["request"] = request
+        request_seen["timeout_s"] = timeout_s
+        return {
+            "ok": True,
+            "comparison": {"F@0.1%D": {"F": 0.958}, "selected_f_score": 0.958, "IoU": 0.925},
+        }
+
+    monkeypatch.setattr(projects, "open_project", lambda name: Project())
+    monkeypatch.setattr(ops_client, "run_op", fake_run_op)
+    assert cli.main(["compare", "part", str(reference), "--rev", "3", "--json"]) == 0
+    result = output_object(capsys)
+    assert result["ok"] is True
+    assert result["rev"] == 3
+    assert result["comparison"]["selected_f_score"] == 0.958
+    assert request_seen["request"]["op"] == "compare"
+    assert request_seen["request"]["args"] == {"reference_path": str(reference.resolve()), "tau_pct": 0.1}
+    assert str(reference.resolve()) in request_seen["request"]["read_paths"]
+    assert request_seen["timeout_s"] == 120.0
+
+
+def test_compare_cli_prints_surface_metrics_and_registration(monkeypatch, capsys, tmp_path):
+    from aad_platform.daemon import ops_client, projects
+
+    project_path = tmp_path / "part"
+    (project_path / ".aad" / "revs" / "000003").mkdir(parents=True)
+    reference = tmp_path / "reference.ply"
+    reference.write_text("mesh bytes are read by the worker")
+
+    class Project:
+        name = "part"
+        path = project_path
+        head_rev = 3
+
+        def rev_dir(self, rev):
+            return project_path / ".aad" / "revs" / f"{rev:06d}"
+
+        def meta(self):
+            return {"kind": "part", "units": "mm"}
+
+    comparison = {
+        "F@0.05%D": {"F": 0.89931},
+        "F@0.1%D": {"F": 0.95837, "precision": 0.97625, "recall": 0.94113},
+        "F@0.25%D": {"F": 0.97432},
+        "F@0.5%D": {"F": 0.98162},
+        "F@1%D": {"F": 0.99242},
+        "F@2%D": {"F": 0.99916},
+        "chamfer_mm": 0.3918,
+        "hausdorff_mm": 33.389,
+        "extent_model_mm": [442.07, 537.21, 548.05],
+        "extent_ref_mm": [442.32, 540.57, 547.87],
+        "area_ratio_model_over_ref": 0.947,
+        "IoU": "not available",
+        "iou_status": {"reason": "reference is open"},
+        "det_R": 1.0,
+        "rotation": [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+        "translation_mm": [1, 2, 3],
+    }
+    monkeypatch.setattr(projects, "open_project", lambda name: Project())
+
+    async def fake_run_op(_request, *, timeout_s):
+        return {"ok": True, "comparison": comparison}
+
+    monkeypatch.setattr(ops_client, "run_op", fake_run_op)
+    assert cli.main(["compare", "part", str(reference), "--rev", "3"]) == 0
+
+    output = capsys.readouterr().out
+    for value in ("F@0.05%D=0.89931", "F@2%D=0.99916", "Chamfer=0.3918 mm", "Hausdorff=33.389 mm", "area ratio", "IoU=not available", "det(R)=1.0", "translation_mm=[1, 2, 3]"):
+        assert value in output
+
+
 def test_show_prints_viewer_url(monkeypatch, capsys, temp_home):
     monkeypatch.setattr(
         cli,

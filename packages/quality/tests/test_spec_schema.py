@@ -27,8 +27,10 @@ def _ctx(spec):
     "requirements:\n  - id: x\n    bbox: {x: .inf}\n",
     "requirements:\n  - id: x\n    level: critical\n    solids: 1\n",
     "requirements:\n  - id: x\n    holes: {count: 2, diameter: 3, unknown: true}\n",
-        "requirements:\n  - id: x\n    interference: {volume_threshold_mm3: -1}\n",
-        "requirements:\n  - id: x\n    interference: {unknown: true}\n",
+    "requirements:\n  - id: x\n    interference: {volume_threshold_mm3: -1}\n",
+    "requirements:\n  - id: x\n    interference: {unknown: true}\n",
+    "requirements:\n  - id: ref\n    matches_reference: {path: assets/ref.step, f_score: {min: true}}\n",
+    "requirements:\n  - id: ref\n    matches_reference: {path: assets/ref.step, f_score: {min: 1.2}}\n",
 ])
 def test_load_spec_rejects_unsafe_or_invalid_documents(source):
     with pytest.raises(SpecValidationError):
@@ -132,3 +134,14 @@ def test_min_max_ranges_and_exact_counts_are_accepted():
 def test_load_spec_accepts_bytes_and_dict():
     assert load_spec(b"requirements: []\n")["units"] == "mm"
     assert load_spec({"requirements": []})["units"] == "mm"
+
+
+def test_matches_reference_spec_has_finite_unitless_threshold():
+    parsed = load_spec(
+        "requirements:\n"
+        "  - id: reference_shape\n"
+        "    matches_reference:\n"
+        "      path: assets/ref.ply\n"
+        "      f_score: {min: 0.99, tau_pct_of_diagonal: 0.1}\n"
+    )
+    assert parsed["requirements"][0]["matches_reference"]["f_score"]["min"] == 0.99

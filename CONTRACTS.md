@@ -117,6 +117,8 @@ requirements:
     min_wall: 2.0
   - id: motor_clearance
     clearance: {with: assets/motor.step, min: 0.3}
+  - id: matches_reference
+    matches_reference: {path: assets/ref.step, f_score: {min: 0.99, tau_pct_of_diagonal: 0.1}}
   - id: mass_limit
     mass_g: {max: 120}
   - id: mirror_x
@@ -128,6 +130,8 @@ requirements:
   - id: no_interference
     interference: {volume_threshold_mm3: 1e-6}
 ```
+
+`matches_reference` compares the built model to a project-contained STEP, STL, PLY, or OBJ surface. It uses area-weighted fixed-seed samples and exact point-to-triangle distances after proper rigid registration (determinant +1; no scaling or mirroring). The default threshold is F@0.1% of the reference bbox diagonal; `f_score.min` is required and `tau_pct_of_diagonal` defaults to `0.1`. `aad compare <project> <reference> [--rev N] [--tau-pct 0.1] [--json]` is a CLI operation through the sandboxed worker, not a model-visible MCP tool.
 
 S5 owns the evaluator and may add requirement types. Unknown types return a `skip` check, never a silent pass.
 The optional `interference` requirement runs the same exact solid-pair check as
@@ -300,7 +304,7 @@ type Failure = {
 
 **Failure codes:** `SYNTAX_ERROR`, `RUNTIME_ERROR`, `SANDBOX_DENIED`, `SELECTOR_EMPTY`, `SELECTOR_AMBIGUOUS`, `KERNEL_BOOLEAN_FAILED`, `KERNEL_FILLET_FAILED`, `KERNEL_CHAMFER_FAILED`, `KERNEL_SHELL_FAILED`, `KERNEL_SWEEP_FAILED`, `KERNEL_OTHER`, `INVALID_SOLID`, `TIMEOUT`, `OUT_OF_MEMORY`, `WORKER_CRASH`, `BASE_REV_CONFLICT`, `NOT_VERIFIED`, `BAD_INPUT`, `IMPORT_FAILED`, `EXPORT_FAILED`.
 
-**Honesty rules:** unknown stays `unknown` or is omitted. Never invent a limit, an edge name or a cause. `probes` holds only values actually tested.
+**Honesty rules:** unknown stays `unknown` or is omitted. Never invent a limit, an edge name or a cause. `probes` holds only values actually tested. A high reference F-score measures geometric closeness to that reference only; it proves nothing about function and is meaningless if the reference was traced into the model. Two scans of one object scored F@0.1%D = 0.958 with volumetric IoU = 0.925, showing that scan noise can keep the score below 0.99. Scores also depend on which surfaces each side contains, including internal parts, cast detail, and scan coverage. Closed-solid-only metrics such as IoU are reported as unavailable when closure is not established.
 
 **`verified`** means the hard gate passes, at least one requirement exists, and no `error`-level check fails. Every `error`-level requirement must also have been evaluated: an `error`-level `skip` or `warn`, a missing result, a duplicate requirement ID, a malformed spec, a non-finite measurement or an evaluator exception leaves the revision `draft`.
 
@@ -500,6 +504,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 
 ## 11. Changelog
 
+- 2026-11-05: S5 added rigid reference-model comparison as a spec requirement and sandboxed CLI operation, with explicit geometric-only evidence limits.
 - 2026-11-05: S1/S3/S5 added an opt-in interference spec requirement with a reported mm³ threshold, bounded pair details and explicit unknowns, and documented the render edge-classification cap so large assemblies can render without dropping B-rep curve facts.
 - 2026-11-05: S1 added the first-party gear helpers to the `from aad import *` modeling API, with degree-based angles and normal module.
 - 2026-11-05: Added optional `timeout_s` to `aad_build` in section 5, because the fixed 60 second kill limit stopped a full gearbox assembly that needed about 80 seconds.

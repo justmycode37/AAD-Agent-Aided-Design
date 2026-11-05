@@ -102,6 +102,9 @@ def _crash(code: str, phase: str, message: str) -> dict[str, Any]:
 
 def job_request(project: Any, rev: int, op: str, args: dict[str, Any], out_dir: Path) -> dict[str, Any]:
     meta = project.meta()
+    read_paths = [str(project.path / ".aad" / "revs"), *_extra_reads(args)]
+    if op == "check":
+        read_paths.extend(_spec_reference_reads(project, rev, args))
     return {
         "op": op,
         "project_dir": str(project.path),
@@ -113,11 +116,52 @@ def job_request(project: Any, rev: int, op: str, args: dict[str, Any], out_dir: 
         "process": meta.get("process"),
         "args": args,
         "out_dir": str(out_dir),
-        "read_paths": [str(project.path / ".aad" / "revs"), *_extra_reads(args)],
+        "read_paths": list(dict.fromkeys(read_paths)),
     }
 
 
 def _extra_reads(args: dict[str, Any]) -> list[str]:
-    """Import reads one staged file, and nothing else outside the revisions."""
+    """Operations read one explicitly selected file, and nothing else outside revisions."""
     path = args.get("path")
-    return [str(path)] if path else []
+    reference = args.get("reference_path")
+    reads = [str(path)] if path else []
+    if reference:
+        try:
+            resolved = Path(reference).expanduser().resolve(strict=True)
+            if resolved.is_file():
+                reads.append(str(resolved))
+        except (OSError, RuntimeError, TypeError, ValueError):
+            pass
+    return reads
+
+
+def _spec_reference_reads(project: Any, rev: int, args: dict[str, Any]) -> list[str]:
+    suites = args.get("suites")
+    if suites is not None and "spec" not in suites:
+        return []
+    spec_path = project.path / ".aad" / "revs" / f"{rev:06d}" / "spec.yaml"
+    try:
+        if spec_path.stat().st_size > 1_048_576:
+            return []
+        from aad_quality.compare import resolve_project_reference
+        from aad_quality.schema import load_spec
+
+        document = load_spec(spec_path.read_bytes())
+    except Exception:
+        return []
+    requirements = document.get("requirements")
+    if not isinstance(requirements, list):
+        return []
+    result: set[str] = set()
+    for requirement in requirements:
+        if not isinstance(requirement, dict):
+            continue
+        body = requirement.get("matches_reference")
+        if not isinstance(body, dict):
+            continue
+        try:
+            result.add(str(resolve_project_reference(project.path, body.get("path"))))
+        except Exception:
+            # The evaluator emits a visible skip; unsafe paths never enter the sandbox allowlist.
+            continue
+    return sorted(result)

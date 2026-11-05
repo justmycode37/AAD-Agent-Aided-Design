@@ -10,6 +10,7 @@ import os
 import shutil
 import subprocess
 import sys
+import uuid
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -84,6 +85,13 @@ def _parser() -> argparse.ArgumentParser:
     export.add_argument("--rev", type=int)
     export.add_argument("--allow-unverified", action="store_true")
     export.add_argument("--json", action="store_true", help="machine-readable output")
+
+    compare = sub.add_parser("compare", help="compare a project revision with a reference model")
+    compare.add_argument("project")
+    compare.add_argument("reference")
+    compare.add_argument("--rev", type=int)
+    compare.add_argument("--tau-pct", type=float, default=0.1, help="distance threshold as percent of reference bbox diagonal")
+    compare.add_argument("--json", action="store_true", help="machine-readable output")
 
     update = sub.add_parser("update", help="show or run the uv tool upgrade command")
     update.add_argument("--run", action="store_true", help="run the upgrade")
@@ -530,6 +538,101 @@ def _remote_command(args: argparse.Namespace) -> int:
     return _finish({"ok": ok, "message": message}, False)
 
 
+def _compare_command(args: argparse.Namespace) -> int:
+    """Run the private compare op through the same sandboxed worker as other kernel ops."""
+    from .daemon.ops_client import job_request, run_op
+    from .daemon.projects import ProjectError, open_project
+
+    try:
+        project = open_project(args.project)
+        revision = args.rev if args.rev is not None else project.head_rev
+        if revision is None:
+            raise ProjectError("BAD_INPUT", "Project has no built revision to compare.")
+        if not project.rev_dir(revision).is_dir():
+            raise ProjectError("BAD_INPUT", f"Project has no revision {revision}.")
+        raw_reference = Path(args.reference).expanduser()
+        if not raw_reference.is_absolute() and not raw_reference.exists():
+            raw_reference = project.path / raw_reference
+        reference = raw_reference.resolve(strict=True)
+        if not reference.is_file():
+            raise ValueError("reference is not a regular file")
+        out = project.path / ".aad" / "cache" / "ops" / uuid.uuid4().hex[:12]
+        request = job_request(
+            project,
+            revision,
+            "compare",
+            {"reference_path": str(reference), "tau_pct": args.tau_pct},
+            out,
+        )
+        result = asyncio.run(run_op(request, timeout_s=120.0))
+    except ProjectError as exc:
+        return _finish({"ok": False, "error": exc.message, "code": exc.code}, args.json)
+    except Exception as exc:
+        return _finish({"ok": False, "error": f"Comparison could not start: {type(exc).__name__}: {exc}"}, args.json)
+
+    if result.get("ok") is not True:
+        failure = result.get("failure") or {"message": "The comparison worker returned no result."}
+        message = str(failure.get("message") or "Reference comparison failed.")
+        return _finish(
+            {"ok": False, "project": project.name, "rev": revision, "failure": failure},
+            args.json,
+            f"Comparison failed for {project.name} rev {revision}: {message}",
+        )
+
+    comparison = result.get("comparison") or {}
+    key = f"F@{args.tau_pct:g}%D"
+    selected = comparison.get(key) or {}
+    score = selected.get("F", comparison.get("selected_f_score"))
+    f_scores = [
+        f"{name}={comparison[name].get('F')}"
+        for name in ("F@0.05%D", "F@0.1%D", "F@0.25%D", "F@0.5%D", "F@1%D", "F@2%D")
+        if isinstance(comparison.get(name), dict)
+    ]
+    if score is not None and key not in comparison:
+        f_scores.append(f"{key}={score}")
+    precision = selected.get("precision")
+    recall = selected.get("recall")
+    if precision is not None or recall is not None:
+        f_scores.append(f"selected precision={precision}, recall={recall}")
+    lines = [
+        f"Compared {project.name} rev {revision} with {reference.name}.",
+        "F scores: " + (", ".join(f_scores) if f_scores else "unavailable"),
+    ]
+    if "chamfer_mm" in comparison or "hausdorff_mm" in comparison:
+        lines.append(
+            f"Chamfer={comparison.get('chamfer_mm', 'unavailable')} mm; "
+            f"Hausdorff={comparison.get('hausdorff_mm', 'unavailable')} mm."
+        )
+    if "extent_model_mm" in comparison or "extent_ref_mm" in comparison:
+        lines.append(
+            f"Extents (model/reference)={comparison.get('extent_model_mm', 'unavailable')} / "
+            f"{comparison.get('extent_ref_mm', 'unavailable')} mm; "
+            f"area ratio (model/reference)={comparison.get('area_ratio_model_over_ref', 'unavailable')}."
+        )
+    iou = comparison.get("IoU", "not computed")
+    iou_status = comparison.get("iou_status") or {}
+    iou_reason = iou_status.get("reason") or comparison.get("iou_reason")
+    lines.append(f"Volumetric IoU={iou}" + (f" ({iou_reason})" if iou_reason else "."))
+    if "rotation" in comparison or "translation_mm" in comparison:
+        lines.append(
+            f"Rigid registration: det(R)={comparison.get('det_R', 'unavailable')}; "
+            f"rotation={comparison.get('rotation', 'unavailable')}; "
+            f"translation_mm={comparison.get('translation_mm', 'unavailable')}."
+        )
+    human = "\n".join(lines)
+    return _finish(
+        {
+            "ok": True,
+            "project": project.name,
+            "rev": revision,
+            "reference": str(reference),
+            "comparison": comparison,
+        },
+        args.json,
+        human,
+    )
+
+
 def _update(args: argparse.Namespace) -> int:
     command = ["uv", "tool", "upgrade", "aad-design"]
     if not args.run:
@@ -603,6 +706,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _daemon_command(args)
     if args.command in {"build", "show", "export"}:
         return _remote_command(args)
+    if args.command == "compare":
+        return _compare_command(args)
     if args.command == "update":
         return _update(args)
     if args.command == "serve":
