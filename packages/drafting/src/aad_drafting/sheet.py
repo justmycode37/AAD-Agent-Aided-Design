@@ -1094,15 +1094,26 @@ def _draw_cylinder_diameter_callouts(entities, placed, dimensions, units):
 def _section_geometry_dimensions(shape, bounds, views, units):
     """Measure orthogonal cavity walls and depth from section bounding planes."""
     from OCP.BRepAdaptor import BRepAdaptor_Surface
+    from OCP.BRepClass3d import BRepClass3d_SolidClassifier
     from OCP.GeomAbs import GeomAbs_Plane
-    from OCP.TopAbs import TopAbs_REVERSED
+    from OCP.TopAbs import TopAbs_IN, TopAbs_REVERSED
+    from OCP.gp import gp_Pnt
 
     sections = [view for view in views if view.kind == "section"]
     if not sections:
         return []
+    try:
+        solids = list(shape.solids())
+    except Exception:
+        return []
+    # Face ownership and inside tests are ambiguous when components are loose.
+    if len(solids) != 1:
+        return []
+    solid = getattr(solids[0], "wrapped", solids[0])
+    faces = list(shape.faces())
     section_planes = {str(getattr(view, "plane", "") or "").upper() for view in sections}
     planes: dict[int, list[tuple[float, int, float, int]]] = {0: [], 1: [], 2: []}
-    for index, face in enumerate(shape.faces()):
+    for index, face in enumerate(faces):
         surface = BRepAdaptor_Surface(getattr(face, "wrapped", face))
         if surface.GetType() != GeomAbs_Plane:
             continue
@@ -1116,8 +1127,8 @@ def _section_geometry_dimensions(shape, bounds, views, units):
         orientation = -1.0 if getattr(face, "wrapped", face).Orientation() == TopAbs_REVERSED else 1.0
         planes[axis].append((float(position), index, vector[axis] * orientation, len(face.wires())))
 
-    open_cavity_top = False
-    for face in shape.faces():
+    opening = None
+    for face_index, face in enumerate(faces):
         surface = BRepAdaptor_Surface(getattr(face, "wrapped", face))
         if surface.GetType() != GeomAbs_Plane:
             continue
@@ -1128,11 +1139,12 @@ def _section_geometry_dimensions(shape, bounds, views, units):
         for wire in face.wires()[1:]:
             wire_size = wire.bounding_box().size
             if wire_size.X >= bounds.size[0] * 0.5 and wire_size.Y >= bounds.size[1] * 0.5:
-                open_cavity_top = True
+                orientation = -1.0 if getattr(face, "wrapped", face).Orientation() == TopAbs_REVERSED else 1.0
+                opening = (face_index, wire.bounding_box(), direction.Z() * orientation)
                 break
-        if open_cavity_top:
+        if opening:
             break
-    if not open_cavity_top:
+    if not opening:
         return []
 
     result = []
@@ -1147,34 +1159,66 @@ def _section_geometry_dimensions(shape, bounds, views, units):
         gaps = [(right-left, left, right, groups[left][0], groups[right][0])
                 for left, right in zip(positions, positions[1:])
                 if right-left > 0.5 and normals[left] * normals[right] < 0]
-        if gaps:
-            value, low, high, low_face, high_face = min(gaps)
-            a = [0.0, 0.0, (bounds.zmin+bounds.zmax)/2]
-            b = list(a); a[axis] = low; b[axis] = high
+        proven = []
+        for gap in sorted(gaps):
+            value, low, high, low_face, high_face = gap
+            first_box, second_box = faces[low_face].bounding_box(), faces[high_face].bounding_box()
+            mins = (max(first_box.min.X, second_box.min.X), max(first_box.min.Y, second_box.min.Y), max(first_box.min.Z, second_box.min.Z))
+            maxs = (min(first_box.max.X, second_box.max.X), min(first_box.max.Y, second_box.max.Y), min(first_box.max.Z, second_box.max.Z))
+            other_axes = [i for i in range(3) if i != axis]
+            if any(maxs[i] <= mins[i] + 1e-6 for i in other_axes):
+                continue
+            point = [0.0, 0.0, 0.0]
+            point[axis] = (low + high) / 2
+            for i in other_axes:
+                point[i] = (mins[i] + maxs[i]) / 2
+            classifier = BRepClass3d_SolidClassifier(solid)
+            classifier.Perform(gp_Pnt(*point), 1e-7)
+            if classifier.State() == TopAbs_IN:
+                proven.append((gap, point))
+        if proven:
+            (value, low, high, low_face, high_face), middle = proven[0]
+            a, b = list(middle), list(middle)
+            a[axis], b[axis] = low, high
             result.append({"kind": "wall_thickness", "value": value, "axis": "xyz"[axis],
                 "unit": units, "display": f"WALL {value:g}", "id": f"wall.{'xyz'[axis]}.{low_face}.{high_face}",
                 "source": {"type": "distance_between_parallel_planar_faces", "face_indices": [low_face, high_face], "measurement": "absolute plane offset difference", "points": [a,b]}})
             break
 
-    z_groups: dict[float, list[int]] = {}
-    z_normals: dict[float, float] = {}
-    z_wires: dict[float, int] = {}
-    for position, index, normal, wire_count in planes[2]:
-        z_groups.setdefault(round(position, 6), []).append(index)
-        z_normals[round(position, 6)] = normal
-        z_wires[round(position, 6)] = max(z_wires.get(round(position, 6), 0), wire_count)
-    z_positions = sorted(z_groups)
-    top_z = max(z_positions) if z_positions else None
-    z_gaps = [(right-left, left, right, z_groups[left][0], z_groups[right][0])
-              for left, right in zip(z_positions, z_positions[1:])
-              if right-left > 0.5 and right == top_z and z_wires[right] > 1
-              and z_normals[left] * z_normals[right] > 0]
-    if z_gaps and ("XZ" in section_planes or "YZ" in section_planes):
-        value, low, high, low_face, high_face = max(z_gaps)
-        points = [[0.0, 0.0, low], [0.0, 0.0, high]]
-        result.append({"kind": "cavity_depth", "value": value, "axis": "z", "unit": units,
-            "display": f"CAVITY {value:g}", "id": f"cavity.z.{low_face}.{high_face}",
-            "source": {"type": "distance_between_parallel_planar_faces", "face_indices": [low_face, high_face], "measurement": "section top plane - cavity floor plane", "points": points}})
+    if opening and ("XZ" in section_planes or "YZ" in section_planes):
+        top_face_index, opening_box, top_normal = opening
+        top_z = planes[2]
+        top_position = max((record[0] for record in top_z), default=None)
+        floors = []
+        for position, face_index, normal, _ in top_z:
+            if position >= top_position - 1e-6 or normal * top_normal <= 0:
+                continue
+            floor_box = faces[face_index].bounding_box()
+            if (floor_box.min.X > opening_box.min.X + 1e-5 or
+                    floor_box.max.X < opening_box.max.X - 1e-5 or
+                    floor_box.min.Y > opening_box.min.Y + 1e-5 or
+                    floor_box.max.Y < opening_box.max.Y - 1e-5):
+                continue
+            floor_sample = gp_Pnt(
+                (opening_box.min.X + opening_box.max.X) / 2,
+                (opening_box.min.Y + opening_box.max.Y) / 2,
+                position - normal * 1e-4,
+            )
+            classifier = BRepClass3d_SolidClassifier(solid)
+            classifier.Perform(floor_sample, 1e-7)
+            if classifier.State() != TopAbs_IN:
+                continue
+            floors.append((position, face_index))
+        if floors:
+            low, low_face = max(floors)
+            value, high, high_face = top_position - low, top_position, top_face_index
+            points = [[(opening_box.min.X+opening_box.max.X)/2,
+                       (opening_box.min.Y+opening_box.max.Y)/2, low],
+                      [(opening_box.min.X+opening_box.max.X)/2,
+                       (opening_box.min.Y+opening_box.max.Y)/2, high]]
+            result.append({"kind": "cavity_depth", "value": value, "axis": "z", "unit": units,
+                "display": f"CAVITY {value:g}", "id": f"cavity.z.{low_face}.{high_face}",
+                "source": {"type": "distance_between_parallel_planar_faces", "face_indices": [low_face, high_face], "measurement": "section top plane - cavity floor plane", "points": points}})
     return result
 
 

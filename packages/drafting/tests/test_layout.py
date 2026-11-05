@@ -83,6 +83,29 @@ def test_housing_drawing_has_measured_hole_section_and_revision_callouts(tmp_pat
     assert result.preview.is_file()
 
 
+def test_section_wall_and_cavity_callouts_skip_separate_solids_and_through_openings(tmp_path):
+    from build123d import Compound, Pos
+
+    request = {
+        "sheet": "A3",
+        "views": ["front", {"name": "A", "kind": "section", "plane": "XZ", "offset": 0}],
+        "dimensions": "auto",
+        "formats": ["svg"],
+    }
+    frame = Pos(0, 0, 5) * (Box(100, 100, 10) - Box(60, 60, 12))
+    loose_insert = Pos(0, 0, 8) * Box(60, 60, 2)
+    frame_and_insert = Compound(children=[frame, loose_insert])
+    assert len(frame_and_insert.solids()) == 2
+    result = make_drawing(SimpleNamespace(shape=frame_and_insert, units="mm"), request, tmp_path / "separate")
+    assert not any(d["kind"] in {"wall_thickness", "cavity_depth"} for d in result.dimensions)
+
+    # The same frame by itself has 20 mm rails, but its opening passes through;
+    # it must not be called a cavity without a floor on that solid.
+    result = make_drawing(SimpleNamespace(shape=frame, units="mm"), request, tmp_path / "through")
+    assert ("wall_thickness", 20.0) in {(d["kind"], d["value"]) for d in result.dimensions}
+    assert not any(d["kind"] == "cavity_depth" for d in result.dimensions)
+
+
 def test_notes_revision_table_title_and_bom_wrap_without_truncation(tmp_path):
     context = build_two_part_assembly()
     context.children[0]["quantity"] = 99  # ignored; only child instances set the count
