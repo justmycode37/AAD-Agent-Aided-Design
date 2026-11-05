@@ -366,8 +366,23 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
         unavailable_message="Process checks are unavailable because aad_quality is not installed.",
     )
     checks.extend(process_checks)
+    scene, scene_check = _optional_scene(context)
+    checks.append(scene_check)
+
+    render_artifacts, render_check = _optional_render(context, bool(payload.get("preview", False)))
+    checks.append(render_check)
+    artifacts.update(render_artifacts)
+
+    # Run interference last, after the BREP and scene are safely written.
+    # The parent starts its kill timer before sandbox startup, so reserve extra
+    # time here for startup plus returning and serializing the worker result.
     if len(list(shape.solids())) > 1:
-        interference = interference_checks(context, time_budget_s=45.0)
+        timeout_s = payload.get("timeout_s", 60.0)
+        elapsed_s = time.monotonic() - started
+        remaining_s = max(0.0, float(timeout_s) - 5.0 - elapsed_s)
+        available_s = max(0.0, remaining_s - 5.0)
+        time_budget_s = min(45.0, available_s * 0.4)
+        interference = interference_checks(context, time_budget_s=time_budget_s)
         for check in interference:
             check.level = "warn"
             if check.status == "fail":
@@ -375,14 +390,8 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
                 check.message = "Build interference warning: " + check.message
             elif check.status == "skip":
                 check.message = "Build interference result is unknown: " + check.message
+                check.message += ' Run aad_check(suites=["interference"]) or raise timeout_s for a longer build budget.'
         checks.extend(interference)
-
-    scene, scene_check = _optional_scene(context)
-    checks.append(scene_check)
-
-    render_artifacts, render_check = _optional_render(context, bool(payload.get("preview", False)))
-    checks.append(render_check)
-    artifacts.update(render_artifacts)
 
     requirements_proven, coverage_check = _requirements_proven(
         context.spec,

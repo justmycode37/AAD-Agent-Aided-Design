@@ -336,6 +336,16 @@ class GeometricGateTests(unittest.TestCase):
         self.assertTrue(any(check.id == "interference_pairs" and check.status == "warn" for check in result.checks))
         self.assertIn("BUILD INTERFERENCE REVIEW REQUIRED", result.summary)
 
+    def test_short_timeout_build_returns_revision_with_unknown_interference(self) -> None:
+        source = "import time\ntime.sleep(12)\nresult = Compound(children=[Box(2,2,2), Pos(1,0,0) * Box(2,2,2)])"
+        with tempfile.TemporaryDirectory(prefix="aad-short-build-timeout-") as temporary:
+            result = run_build(BuildRequest(source=source, project_dir=Path(temporary), kind="assembly", timeout_s=20))
+        self.assertTrue(result.ok, result.failure.message if result.failure else result.summary)
+        self.assertIn("part.brep", result.artifacts)
+        check = next(check for check in result.checks if check.id == "interference_pairs")
+        self.assertEqual(check.status, "skip")
+        self.assertIn("aad_check(suites=[\"interference\"])", check.message)
+
     def test_interference_recognizes_clear_nested_parts(self) -> None:
         outer = Box(10, 10, 10) - Box(8, 8, 8)
         inner = Box(6, 6, 6)

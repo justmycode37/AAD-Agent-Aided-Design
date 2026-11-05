@@ -507,7 +507,7 @@ def aad_quality.process_checks(ctx: ModelContext) -> list[Check]
 def aad_quality.library(action: str, **kw) -> dict
 ```
 
-**Worker pipeline:** run `model.py` → `hard_checks` → `spec_checks` → `process_checks` (or `aad_drafting.checks` for 2D) → `make_scene` → optional `render` → return `BuildResult`. A failure in an optional step becomes a `warn` check, and must never discard a built revision.
+**Worker pipeline:** run `model.py` → `hard_checks` → `spec_checks` → `process_checks` (or `aad_drafting.checks` for 2D) → `make_scene` → optional `render` → bounded interference check for multi-solid 3D builds → return `BuildResult`. The interference budget derives from remaining build time and reserves time for returning the result; when too short, it returns unknown with a rerun/timeout hint. A failure in an optional step becomes a `warn` check, and must never discard a built revision.
 
 `render` returns PNG paths plus `inspection.json` and optional `labels.json`. The platform emits
 only PNGs as image blocks; it includes the JSON data in structured `inspection` and `labels`
@@ -538,6 +538,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 - 2026-11-05: S2 made the structured `aad_render` report compact by default, with `inspection="full"` for the rest, because it reached 2.6 MB on a 492-part assembly.
 - 2026-11-05: S1 added `REQUIREMENT_FAILED`, because a failed spec or process check reached agents as `RUNTIME_ERROR`, and began emitting the documented `KERNEL_*` codes from model builds.
 - 2026-11-05: S1 runs bounded exact interference checks on multi-solid builds, warns by default, and records named intended-contact claims in assembly metadata.
+- 2026-11-05: S1 moved build interference checks after BREP and scene creation, deriving their budget from remaining worker time with startup/result-return reserves so a short check budget reports unknown instead of consuming the build deadline.
 - 2026-11-05: S3 specified whole-part toggle selection, subtle highlighting, exact scene-scoped references, negotiated selection context and capability-gated unsent composer insertion; unsupported hosts keep local selection without a clipboard workflow, and server editing routes remain reserved.
 - 2026-11-05: Replaced `PLAN.md` with `ARCHITECTURE.md` at the user's request. Scope, sector and milestone text remains in git history.
 - 2026-11-05: S5 added rigid reference-model comparison as a spec requirement and sandboxed CLI operation, with explicit geometric-only evidence limits.
