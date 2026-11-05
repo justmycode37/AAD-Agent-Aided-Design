@@ -436,6 +436,10 @@ Thickness is a sampled search, not a certified minimum. Heatmaps do not prove ma
 
 ## Viewer
 
+Grid spacing follows zoom using round 1/2/5 intervals. Coordinate labels stay
+small and horizontal; overlapping or offscreen labels are hidden, with space
+reserved for the title and XYZ marker. Zooming in reveals finer intervals.
+
 Hovering a part shows a muted `Part name · #number` line beneath the title.
 The one-based number follows the original scene manifest, stays fixed across
 views, and is revision-local. The label clears when hovering ends.

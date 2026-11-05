@@ -21,6 +21,10 @@ Know what the user sees:
 - **Navigation:** on Mac, click-drag rotates, two-finger scroll pans in both
   directions, pinch zooms, and Option-scroll is the zoom fallback. Other desktops
   scroll or pinch to zoom and Shift-drag or right-drag to pan.
+Grid spacing follows zoom using round 1/2/5 intervals. Coordinate labels stay
+small and horizontal; overlapping or offscreen labels are hidden, with space
+reserved for the title and XYZ marker. Zooming in reveals finer intervals.
+
 Hovering a part shows a muted `Part name · #number` line beneath the title.
 The one-based number follows the original scene manifest, stays fixed across
 views, and is revision-local. The label clears when hovering ends.

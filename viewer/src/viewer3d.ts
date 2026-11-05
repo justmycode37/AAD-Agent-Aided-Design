@@ -6,6 +6,7 @@ import type { Analysis } from "./transport/types";
 import { installNavigation } from "./navigation";
 import { planExplodeLayout, type ExplodePart } from "./explode-layout";
 import { cameraFit } from "./camera-fit";
+import { installAdaptiveGrid } from "./adaptive-grid";
 
 const TREE_WIDTH = 220;
 const TREE_HEIGHT = 320;
@@ -84,6 +85,7 @@ export function mountCad3d(
     viewer.setPickHandler(fullControls);
     viewer.setSelectionInput(fullControls);
     const disposeNavigation = installNavigation(viewer as never);
+    const disposeAdaptiveGrid = installAdaptiveGrid(viewer);
     // Keep keyboard navigation on the simple buttons. Hidden CAD actions must
     // not reappear when somebody presses a letter while turning the model.
     if (!fullControls) viewer.setKeyMap(Object.fromEntries([
@@ -315,6 +317,7 @@ export function mountCad3d(
       },
       dispose() {
         disposeNavigation();
+        disposeAdaptiveGrid();
         unsubscribeExplode();
         setAnalysis();
         viewer.dispose();
