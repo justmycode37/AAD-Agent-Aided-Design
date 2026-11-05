@@ -321,7 +321,11 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "aad_drawing",
-        "description": "Create a dimensioned engineering drawing from a revision and return a preview plus SVG, DXF or PDF files.",
+        "description": (
+            "Create an engineering drawing from a revision. Failed checks include fix hints and suppress all files. "
+            "Assemblies default to overall X/Y/Z dimensions plus a BOM; choose a larger sheet, reduce content, or "
+            "split the drawing when layout checks fail."
+        ),
         "inputSchema": _schema(
             {
                 "project": _PROJECT,
@@ -335,7 +339,7 @@ TOOLS: list[dict[str, Any]] = [
                 "revisions": {"type": "array", "items": {"type": "object"},
                               "description": "Revision table rows: revision, date, description, by."},
                 "bom": {"type": "boolean", "description": "Add a bill of materials from the assembly's components."},
-                "formats": {"type": "array", "items": _enum("svg", "dxf", "pdf")},
+                "formats": {"type": "array", "items": _enum("svg", "dxf", "pdf", "png")},
             },
             ["project"],
         ),

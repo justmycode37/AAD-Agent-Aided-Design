@@ -87,6 +87,46 @@ def _value(source: Any, name: str, default: Any = None) -> Any:
     return getattr(source, name, default)
 
 
+def _request_field_is_omitted(request: Any, name: str, default: Any) -> bool:
+    if request is None:
+        return True
+    if isinstance(request, Mapping):
+        return name not in request or request[name] is None
+    return getattr(request, name, default) == default
+
+
+def _drawing_fix_hint(check_id: str) -> str:
+    if check_id == "minimum_text_height":
+        return "Use a larger sheet or reduce content so all model and drawing text is at least 2.5 mm high."
+    if check_id == "2d.undimensioned_features":
+        return (
+            "Use dimensions='none' for an intentional geometry-only sheet, or redraw unsupported contours "
+            "as circles, rectangles, or obrounds for automatic dimensions."
+        )
+    if check_id == "dimension_coverage":
+        return "Request fewer dimensions or select dimensions that fit the available views, then retry."
+    if check_id == "bom_quantities":
+        return "Correct the assembly child quantities or omit the BOM, then retry."
+    if check_id in {
+        "layout_fit",
+        "sheet_margins",
+        "text_margins",
+        "schedule_bounds",
+        "schedule_text_overflow",
+        "title_block_bounds",
+        "title_block_text_overflow",
+        "view_view_collisions",
+        "view_auxiliary_collisions",
+        "dimension_text_collisions",
+        "dimension_view_collisions",
+        "text_view_geometry_collisions",
+        "hole_leader_collisions",
+        "table_rule_collisions",
+    }:
+        return "Choose a larger sheet, reduce views or annotations, or split the content across drawings, then retry."
+    return "Correct the condition described by this check and rerun aad_drawing."
+
+
 def _coerce_view(value: Any) -> DrawingView:
     if isinstance(value, DrawingView):
         view = value
@@ -1758,6 +1798,14 @@ def _drawing_checks(
 def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
     """Project a structural model context onto a composed drawing sheet."""
     request = _normalize_request(req)
+    if context_value(ctx, "kind") == "assembly":
+        defaults = {}
+        if _request_field_is_omitted(req, "dimensions", "auto"):
+            defaults["dimensions"] = tuple(DimensionSpec("overall", axis=axis) for axis in ("x", "y", "z"))
+        if _request_field_is_omitted(req, "bom", False):
+            defaults["bom"] = True
+        if defaults:
+            request = replace(request, **defaults)
     planar = None
     if context_value(ctx, "kind") == "2d" or (context_value(ctx, "sheet") is not None and context_value(ctx, "shape") is None):
         from .drawing2d import prepare
@@ -1900,27 +1948,40 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
     if planar:
         checks.extend(planar["checks"])
 
-    output_dir = Path(out)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    preview = output_dir / "drawing.png"
-    artifacts: dict[str, Path] = {}
-    writers = {
-        "svg": ("drawing.svg", "write_svg"),
-        "dxf": ("drawing.dxf", "write_dxf"),
-        "pdf": ("drawing.pdf", "write_pdf"),
-    }
-    from . import export as export_module
+    failed_checks = [check for check in checks if check.get("status") == "fail"]
+    for check in failed_checks:
+        check["fix_hint"] = _drawing_fix_hint(str(check.get("id", "")))
+    all_passed = not failed_checks
 
-    for format_name in request.formats:
-        if format_name == "png":
-            artifacts["png"] = preview
-            continue
-        filename, writer_name = writers[format_name]
-        file_path = output_dir / filename
-        writer = getattr(export_module, writer_name)
-        writer(file_path, page_width, page_height, entities)
-        artifacts[format_name] = file_path
-    export_module.write_png(preview, page_width, page_height, entities)
+    output_dir = Path(out)
+    preview = output_dir / "drawing.png" if all_passed else None
+    artifacts: dict[str, Path] = {}
+    if all_passed:
+        assert preview is not None
+        output_dir.mkdir(parents=True, exist_ok=True)
+        writers = {
+            "svg": ("drawing.svg", "write_svg"),
+            "dxf": ("drawing.dxf", "write_dxf"),
+            "pdf": ("drawing.pdf", "write_pdf"),
+        }
+        from . import export as export_module
+
+        for format_name in request.formats:
+            if format_name == "png":
+                artifacts["png"] = preview
+                continue
+            filename, writer_name = writers[format_name]
+            file_path = output_dir / filename
+            writer = getattr(export_module, writer_name)
+            writer(file_path, page_width, page_height, entities)
+            artifacts[format_name] = file_path
+        export_module.write_png(preview, page_width, page_height, entities)
+    elif output_dir.is_dir():
+        for filename in ("drawing.svg", "drawing.dxf", "drawing.pdf", "drawing.png"):
+            try:
+                (output_dir / filename).unlink()
+            except FileNotFoundError:
+                pass
 
     view_results = [
         {
@@ -1943,7 +2004,6 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
         }
         for name, view in placed.items()
     ]
-    all_passed = all(check["status"] in {"pass", "warn", "skip"} for check in checks)
     scale_text = _scale_label(plan.scale)
     format_summary = ", ".join(
         (*[format_name for format_name in request.formats if format_name != "png"], "png preview")
@@ -1956,11 +2016,19 @@ def make_drawing(ctx: Any, req: Any, out: str | Path) -> DrawingResult:
     if request.bom:
         extras.append(f"{len(bom)} BOM rows from assembly children")
     extra_summary = f"; {', '.join(extras)}" if extras else ""
-    summary = (
-        f"{request.sheet} {request.style.upper()} sheet at {scale_text}; "
-        f"{len(placed)} views, {len(dimensions)} geometry-derived dimensions{extra_summary}; "
-        f"{format_summary}."
-    )
+    if all_passed:
+        summary = (
+            f"{request.sheet} {request.style.upper()} sheet at {scale_text}; "
+            f"{len(placed)} views, {len(dimensions)} geometry-derived dimensions{extra_summary}; "
+            f"{format_summary}."
+        )
+    else:
+        failed_ids = ", ".join(str(check.get("id", "unknown")) for check in failed_checks)
+        hints = list(dict.fromkeys(str(check["fix_hint"]) for check in failed_checks))
+        summary = (
+            f"Drawing not written for {request.sheet} {request.style.upper()} sheet at {scale_text}; "
+            f"failed checks: {failed_ids}. Next steps: {' '.join(hints)}"
+        )
     return DrawingResult(
         artifacts=artifacts,
         preview=preview,

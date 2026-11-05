@@ -85,7 +85,7 @@ class DrawingResult:
     """Output of make_drawing with paths and geometry provenance."""
 
     artifacts: dict[str, Path]
-    preview: Path
+    preview: Path | None
     dimensions: list[dict[str, Any]]
     checks: list[dict[str, Any]]
     sheet: dict[str, Any]
