@@ -135,7 +135,7 @@ On a 2D sheet, only whole-sheet `area` and `bbox` work, and they return the shee
 
 ### aad_check: rerun checks on a revision
 
-`suites` is a list of `hard`, `spec`, `process`, `interference` and `2d`. The default is hard, spec and process. `2d` applies only to 2D projects.
+`suites` is a list of `hard`, `spec`, `process`, `interference` and `2d`. The default is hard, spec and process for 3D projects, and only `2d` for a 2D sheet. On a sheet, `hard`, `process` and `interference` are returned as skips with a reason; `spec` still evaluates requirements that have 2D evidence. The `2d` suite on a 3D project also skips with a reason.
 
 `interference` intersects every pair of solids whose boxes overlap. It reports the 20 largest overlaps by part label and volume, and the total count. Touching is not interference. A boolean failure, or running out of its 60 second budget, is reported as unknown and never as a pass.
 
@@ -379,7 +379,7 @@ Set `process` and `process_settings`. These are heuristic screens, not manufactu
 | `sla` | Overhang, walls | `build_direction` (+Z), `min_downward_slope_deg` (45), `min_wall_mm` |
 | `cnc_3axis` | Tool access at openings, axis alignment, internal corner radii | `tool_axis`, `tool_axis_tolerance_deg` (2), `tool_diameter_mm` or `tool_radius_mm`, `approach_probe_radius_mm`, `approach_length_mm` (25), `approach_clearance_mm` (0.25), `minimum_internal_radius_mm` |
 | `sheet_metal` | Bend radii | `stock_thickness_mm`, `minimum_inside_bend_radius_mm` |
-| `laser` | Circular cut size | `kerf_mm`, `minimum_feature_mm` |
+| `laser` | Circular cut size; on 2D sheets, circular, rectangular and obround cutout widths | `kerf_mm`, `minimum_feature_mm` |
 | `injection` | Draft of planar side faces | `pull_direction` (+Z), `min_draft_deg` (1) |
 
 None of them covers everything their name suggests: no slicer analysis, fixtures, flat patterns, mold strategy and so on. Fetch playbook `process.<name>.v1` for design guidance.
@@ -695,7 +695,7 @@ plate.rectangle("outline", 80, 40, origin=(0, 0))
 plate.circle("hole", (10, 10), 2.5)
 ```
 
-Sheets offer `point`, `line`, `circle`, `arc`, `polyline`, `rectangle`, `bezier`, `ellipse` and `text`, layers `cut`, `score` and `engrave`, booleans, offsets, patterns, and named constraints. See `packages/drafting/docs/`. An open cut contour fails the build. 2D specs measure `bbox` x/y, closed circular cut-contour hole counts and diameters (including expanded pattern copies), filled cut `area` and whole-sheet `measure: {kind: area}`, plus component catalog requirements. `holes.through: false` skips because a sheet has no depth evidence; nested circular contours skip because their void/island topology is ambiguous. A z bbox, selector-based measurement, and requirement types without a 2D meaning are also skipped with an explicit explanation. Laser process settings remain available to 2D process checks. Successful 2D builds remain `draft` while verification is unavailable.
+Sheets offer `point`, `line`, `circle`, `arc`, `polyline`, `rectangle`, `bezier`, `ellipse` and `text`, layers `cut`, `score` and `engrave`, booleans, offsets, patterns, and named constraints. See `packages/drafting/docs/`. An open cut contour fails the build. 2D specs measure `bbox` x/y, closed circular cut-contour hole counts and diameters (including expanded pattern copies), filled cut `area` and whole-sheet `measure: {kind: area}`, plus component catalog requirements. `holes.through: false` skips because a sheet has no depth evidence; nested circular contours skip because their void/island topology is ambiguous. A z bbox, selector-based measurement, and requirement types without a 2D meaning are also skipped with an explicit explanation. The default `aad_check` runs this sheet-aware suite. For laser sheets, `kerf_mm` screens contour clearance and `minimum_feature_mm` screens measured interior opening widths; the minimum width uses `max(2 × kerf_mm, minimum_feature_mm)` when both are supplied. Exact circles, rectangles and obrounds are measured; unsupported contours stay unknown. These millimeter settings are converted to the sheet's native units. Successful 2D builds remain `draft` while verification is unavailable.
 
 ## Python-only features
 

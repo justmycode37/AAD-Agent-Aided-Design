@@ -13,7 +13,8 @@ import json
 import os
 import shutil
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from numbers import Real
 from pathlib import Path
 from typing import Any
 
@@ -192,6 +193,30 @@ def op_check(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
     }
     checks: list[dict[str, Any]] = []
     for suite in suites:
+        if ctx.kind == "2d" and suite in {"hard", "process", "interference"}:
+            checks.append(
+                {
+                    "id": f"{suite}.requires_3d_shape",
+                    "suite": suite,
+                    "level": "warn",
+                    "status": "skip",
+                    "message": f"The {suite} suite requires a 3D solid B-rep and was skipped for this 2D sheet.",
+                    "fix_hint": "Use suite '2d' for sheet geometry; use a part or assembly project for 3D checks.",
+                }
+            )
+            continue
+        if ctx.kind != "2d" and suite == "2d":
+            checks.append(
+                {
+                    "id": "2d.requires_sheet",
+                    "suite": suite,
+                    "level": "warn",
+                    "status": "skip",
+                    "message": "The 2d suite requires a 2D sheet and was skipped for this 3D project.",
+                    "fix_hint": "Use a project created with kind='2d' to check sheet contours.",
+                }
+            )
+            continue
         function = _optional(*sources[suite])
         if function is None:
             checks.append(
@@ -205,7 +230,10 @@ def op_check(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
             )
             continue
         try:
-            checks.extend(_plain(function(ctx)))
+            if ctx.kind == "2d" and suite == "2d":
+                checks.extend(_plain(function(ctx, limits=_sheet_laser_limits(ctx))))
+            else:
+                checks.extend(_plain(function(ctx)))
         except Exception as exc:  # A suite that crashed is not a suite that passed.
             checks.append(
                 {
@@ -217,6 +245,43 @@ def op_check(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
                 }
             )
     return {"checks": checks}
+
+
+def _sheet_laser_limits(ctx: Any) -> dict[str, Any] | None:
+    """Translate laser process settings into native-unit limits for 2D cutouts."""
+    spec = getattr(ctx, "spec", None)
+    if not isinstance(spec, Mapping):
+        spec = {}
+    process = getattr(ctx, "process", None) or spec.get("process")
+    if not isinstance(process, str) or process.strip().lower() not in {"laser", "laser_cutting", "laser_cut"}:
+        return None
+
+    settings = spec.get("process_settings")
+    if not isinstance(settings, Mapping):
+        return {}
+    millimeters_per_unit = 25.4 if getattr(ctx, "units", None) in {"in", "inch", "inches"} else 1.0
+    limits: dict[str, Any] = {}
+    raw_kerf = settings.get("kerf_mm")
+    raw_minimum = settings.get("minimum_feature_mm")
+
+    def native_length(value: Any) -> Any:
+        if isinstance(value, Real) and not isinstance(value, bool):
+            return float(value) / millimeters_per_unit
+        return value
+
+    if raw_kerf is not None:
+        limits["kerf"] = native_length(raw_kerf)
+    if raw_kerf is not None or raw_minimum is not None:
+        if (
+            (raw_kerf is None or isinstance(raw_kerf, Real) and not isinstance(raw_kerf, bool))
+            and (raw_minimum is None or isinstance(raw_minimum, Real) and not isinstance(raw_minimum, bool))
+        ):
+            kerf = float(raw_kerf or 0.0) / millimeters_per_unit
+            minimum = float(raw_minimum or 0.0) / millimeters_per_unit
+            limits["min_slot"] = max(2.0 * kerf, minimum)
+        else:
+            limits["min_slot"] = native_length(raw_minimum if raw_minimum is not None else raw_kerf)
+    return limits
 
 
 def op_query(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
