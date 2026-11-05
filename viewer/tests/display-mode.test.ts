@@ -7,10 +7,12 @@ describe("display style and component visibility", () => {
     const original = structuredClone(states);
     const next = displayStates(states, mode);
     expect(next.housing).toEqual([0, 0]);
-    expect(next.gear).toEqual(mode === "wireframe" ? [0, 1] : mode === "shaded" ? [1, 0] : [1, 1]);
+    expect(next.gear).toEqual(mode === "wireframe" ? [0, 1] : (mode === "shaded" || mode === "transparent") ? [1, 0] : [1, 1]);
     expect(states).toEqual(original);
   });
   it("preserves absent surfaces and edges", () => {
-    expect(displayStates({ curve: [3, 1], surface: [1, 3] }, "shaded-edges")).toEqual({ curve: [3, 1], surface: [1, 3] });
+    for (const mode of ["shaded-edges", "transparent"] as const) {
+      expect(displayStates({ curve: [3, 1], surface: [1, 3] }, mode)).toEqual({ curve: [3, 1], surface: [1, 3] });
+    }
   });
 });

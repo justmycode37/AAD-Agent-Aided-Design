@@ -10,6 +10,7 @@ import { fakeMcp, loadFixture } from "./fake-mcp.mjs";
 import { checkNavigation } from "./navigation-checks.mjs";
 import { concentricFixture, checkExplode, checkExplodedCamera } from "./explode-checks.mjs";
 import { checkFraming } from "./framing-checks.mjs";
+import { checkUnavailableReference, checkComposerReference, checkRejectedComposerReference, checkUnsupportedExtensionShape, COMPOSER_CAPABILITIES } from "./part-reference-checks.mjs";
 
 const OUT = "test-output";
 mkdirSync(OUT, { recursive: true });
@@ -98,6 +99,18 @@ function assemblyFixture() {
 }
 
 const assembly = assemblyFixture();
+await scenario("part-reference-unavailable", { scene: assembly, strictCsp: true }, async ({ host, mcp }) => {
+  await checkUnavailableReference({ host, mcp, check });
+});
+await scenario("part-reference-composer", { scene: assembly, strictCsp: true, capabilities: COMPOSER_CAPABILITIES }, async ({ host, mcp }) => {
+  await checkComposerReference({ host, mcp, check });
+});
+await scenario("part-reference-rejected", { scene: assembly, strictCsp: true, capabilities: COMPOSER_CAPABILITIES }, async ({ host, mcp }) => {
+  await checkRejectedComposerReference({ host, mcp, check });
+});
+await scenario("part-reference-extension-without-text", { scene: assembly, capabilities: { experimental: { "openai/message": {} }, message: {} } }, async ({ host, mcp }) => {
+  await checkUnsupportedExtensionShape({ host, mcp, check });
+});
 for (const width of [320, 728]) await scenario(`initial-exploded-framing-${width}`, { scene: assembly, width,
   viewer: { presentation: { explode: true }, views: [
     { id: "plain", label: "Plain" },

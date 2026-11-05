@@ -1,6 +1,7 @@
 // MCP Apps transport: postMessage to the host through @modelcontextprotocol/ext-apps.
 import { App } from "@modelcontextprotocol/ext-apps";
-import type { Chunk, Envelope, Transport, TransportCaps } from "./types";
+import type { Chunk, Envelope, PartReference, Transport, TransportCaps } from "./types";
+import { composerReferenceMessage, partSelectionContext, supportsComposerReference } from "../part-reference";
 
 const APP_INFO = { name: "aad-viewer", version: "0.0.1" };
 
@@ -23,6 +24,7 @@ export class McpTransport implements Transport {
   private updateCb: (e: Envelope) => void = () => {};
   private themeCb: () => void = () => {};
   private haveInitial = false;
+  private contextUpdates: Promise<void> = Promise.resolve();
 
   constructor() {
     this.app = new App(APP_INFO, { availableDisplayModes: ["inline", "fullscreen"] }, { autoResize: false });
@@ -44,7 +46,10 @@ export class McpTransport implements Transport {
   async connect(): Promise<void> {
     await this.app.connect();
     const modes = this.app.getHostContext()?.availableDisplayModes ?? [];
-    this.caps = { fullscreen: modes.includes("fullscreen") };
+    const host = this.app.getHostCapabilities();
+    const context = host?.updateModelContext;
+    this.caps = { fullscreen: modes.includes("fullscreen"), modelContext: !!(context?.text || context?.structuredContent),
+      composerReferences: supportsComposerReference(host) };
   }
 
   getInitialResult(): Promise<Envelope> {
@@ -82,5 +87,27 @@ export class McpTransport implements Transport {
 
   displayMode(): "inline" | "fullscreen" {
     return this.app.getHostContext()?.displayMode === "fullscreen" ? "fullscreen" : "inline";
+  }
+
+  stageSelection(references: PartReference[]): Promise<void> {
+    const capabilities = this.app.getHostCapabilities()?.updateModelContext;
+    if (!capabilities || !(capabilities.text || capabilities.structuredContent)) return Promise.resolve();
+    const context = partSelectionContext(references, capabilities);
+    // Serialize replacements so an old selection cannot arrive after a clear or
+    // a newer scene. Geometry remains in the verified scene, never in this context.
+    const next = this.contextUpdates.catch(() => {}).then(async () => {
+      await this.app.updateModelContext(context);
+    });
+    this.contextUpdates = next;
+    return next;
+  }
+
+  async insertPartReference(reference: PartReference): Promise<void> {
+    // Hosts without the extension ignore the metadata and send the message.
+    if (!this.caps.composerReferences) throw new Error("This host cannot leave a reference unsent");
+    // sendMessage() puts params on the wire as given. Its exported request schema
+    // would strip the `_meta` that keeps this unsent, so nothing may parse them.
+    const result = await this.app.sendMessage(composerReferenceMessage(reference));
+    if (result.isError) throw new Error("The host did not add the reference");
   }
 }

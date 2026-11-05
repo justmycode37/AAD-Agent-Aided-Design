@@ -12,6 +12,22 @@ The corner button makes the view bigger. The CAD toolbars, part tree, menus,
 measurement panels, and their keyboard shortcuts are hidden in chat.
 A model with one visible piece disables Pull apart.
 
+Hover softly highlights the whole part while keeping its color, shading and
+edges visible. Click selects it; clicking it again clears that selection.
+Shift-click toggles additional parts, and blank click or Escape clears selection.
+Dragging still rotates.
+
+On a host supporting native prompt insertion, double-click adds an unsent
+`@part` reference to the real chat prompt. Current T3 HTML chat lacks that host
+API, so this action stays unavailable there. No copy-and-paste workflow or separate
+editor is shown, and nothing automatically sends. Users can describe edits in
+normal chat.
+
+Native references carry the exact project, revision, scene and part path. The
+agent resolves that identity before editing. References retain their original
+revision after the viewer changes; clearing selection does not remove a reference
+already inserted into the user's prompt.
+
 Opening a model, choosing a view, Reset, and resizing fit the visible component
 bounds to the current canvas, with room around the edges and title controls.
 
@@ -36,9 +52,13 @@ Agents supply independent recipes in `aad_show.views`:
 ```json
 {"project":"gearbox","views":[
   {"id":"interior","label":"Interior","presentation":{"hide":["housing_upper","housing_lower"]}},
+  {"id":"see-through","label":"See-through","presentation":{"style":"transparent"}},
   {"id":"section","label":"Longitudinal section","view":"front","presentation":{"section":{"planes":[{"plane":"YZ","offset":0}]}}}
 ]}
 ```
+
+See-through uses translucent surfaces with edge lines hidden, so overlapping
+components stay readable. It keeps all original parts present.
 
 Use actual `scene.parts` names. At most 24 recipes and 64 KiB of normalized
 metadata are accepted. A recipe may include description, camera, presentation,

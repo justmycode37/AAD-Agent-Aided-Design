@@ -1,8 +1,10 @@
 import { gunzipToText, readScene } from "./loader";
-import type { Envelope, Transport, NamedView } from "./transport/types";
+import type { Envelope, Transport, NamedView, PartReference, SceneManifest } from "./transport/types";
 import { mountCad3d, type Cad3dView } from "./viewer3d";
 import { applyPresentation } from "./presentation";
 import { navigationHint } from "./navigation";
+import { installPartSelection, type PartSelection } from "./part-selection";
+import { partReference, partReferenceUri } from "./part-reference";
 import "./style.css";
 
 const STAGE_HEIGHT = 480;
@@ -32,6 +34,7 @@ export function triangleCount(scene: any): number {
 const icon = (paths: string) => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 
 export async function runApp(transport: Transport, root: HTMLElement): Promise<void> {
+  const referenceHint = transport.caps.composerReferences ? " · Double-click to add it to your message" : "";
   root.innerHTML = `
     <section class="aad-frame" aria-label="3D model">
       <div class="aad-stage">
@@ -48,9 +51,10 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
         </div>
         <button class="aad-expand" type="button" data-control="fullscreen" aria-label="Make bigger" title="Make bigger" hidden>${icon('<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>')}</button>
         <div class="aad-progress" role="status">Opening your model…<progress max="100" value="0"></progress></div>
+        <div class="aad-reference" role="status" hidden></div>
         <div class="aad-analysis" hidden><div class="aad-analysis-title"></div><div class="aad-analysis-ramp"></div><div class="aad-analysis-range"></div><div class="aad-analysis-source"></div></div>
       </div>
-      <p class="aad-hint">${navigationHint()}</p>
+      <p class="aad-hint">${navigationHint()}${transport.controls === "cad" ? "" : `<span>Click a part to select${referenceHint}</span>`}</p>
       <p class="aad-error" role="alert" hidden></p>
     </section>`;
   const q = <T extends HTMLElement>(s: string) => root.querySelector(s) as T;
@@ -64,6 +68,57 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
     console.error(error);
   };
   let view: Cad3dView | undefined;
+  let selection: PartSelection | undefined;
+  let manifest: SceneManifest | undefined;
+  let referenceAttempt = 0;
+  let referenceTimer: number | undefined;
+  const inserting = new Set<string>();
+  const sameRevision = (a: SceneManifest, b: SceneManifest) => a.project === b.project && a.rev === b.rev && a.scene_id === b.scene_id;
+  const stageSelection = (paths: string[]) => {
+    if (!manifest || !transport.stageSelection) return;
+    // A mesh path absent from the current scene has no identity to share.
+    const listed = new Set(manifest.parts.map(part => part.path));
+    const refs = paths.filter(path => listed.has(path)).map(path => partReference(manifest!, path));
+    void transport.stageSelection(refs).catch(() => console.warn("AAD selection context could not be shared"));
+  };
+  const hideReference = () => {
+    clearTimeout(referenceTimer);
+    q(".aad-reference").hidden = true;
+    q(".aad-reference").textContent = "";
+  };
+  const showReference = (message: string) => {
+    clearTimeout(referenceTimer);
+    q(".aad-reference").hidden = false;
+    q(".aad-reference").textContent = message;
+    referenceTimer = window.setTimeout(hideReference, 6000);
+  };
+  const referencePart = (path: string) => {
+    if (!manifest || !transport.caps.composerReferences || !transport.insertPartReference) return;
+    let reference: PartReference;
+    try { reference = partReference(manifest, path); }
+    catch {
+      referenceAttempt++;
+      showReference("This part is not in the current model, so no reference was made.");
+      return;
+    }
+    const uri = partReferenceUri(reference);
+    if (inserting.has(uri)) return;
+    inserting.add(uri);
+    const attempt = ++referenceAttempt;
+    showReference(`Adding ${reference.mention} to your message…`);
+    void transport.insertPartReference(reference).then(() => {
+      if (attempt === referenceAttempt) showReference(`Added ${reference.mention} to your message.`);
+    }).catch(() => {
+      if (attempt === referenceAttempt) showReference(`Could not add ${reference.mention} to your message.`);
+    }).finally(() => inserting.delete(uri));
+  };
+  const updateManifest = (next: SceneManifest) => {
+    if (manifest && !sameRevision(manifest, next)) {
+      referenceAttempt++;
+      hideReference();
+    }
+    manifest = structuredClone(next);
+  };
   let requested: Partial<NonNullable<Envelope["viewer"]>> = {};
   let requestKey = "";
   let unsubscribe = () => {};
@@ -91,6 +146,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
   };
   const applySelected = () => {
     if (!view) return;
+    selection?.clear();
     const selected = presets.find(p => p.id === selectedId);
     // A scene's first recipe sets its grid. After that, grid and axes belong to
     // the user, so Views, Reset, and same-scene updates must not change them.
@@ -106,6 +162,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
         applyPresentation(view!, { grid: false, explode: false, ...(selected ? selected.presentation : requested.presentation) });
         view!.setAnalysis(selected?.analysis);
         view!.fit();
+        selection?.refresh();
       } finally {
         if (keepGrid) { view!.viewer.setGrids([xy, xz, yz]); view!.viewer.setAxes(axes); }
       }
@@ -221,30 +278,43 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
     if (!env.scene) throw new Error(env.summary || "The result has no model.");
     const nextKey = JSON.stringify({ presentation: env.viewer?.presentation ?? {}, view: env.viewer?.view, title: env.viewer?.title, views: env.viewer?.views ?? [] });
     if (env.scene.scene_id === diagnostics.shownScene) {
+      const changedRevision = !manifest || manifest.project !== env.scene.project || manifest.rev !== env.scene.rev;
+      if (changedRevision) selection?.clear();
+      updateManifest(env.scene);
+      if (changedRevision) {
+        stageSelection([]);
+        q(".aad-caption").textContent = env.viewer?.title || env.project;
+      }
       if (requestKey !== nextKey) { applyRequest(env); requestKey = nextKey; }
       return;
     }
     diagnostics.state = "loading";
-    const manifest = env.scene;
-    if (manifest.format !== "tcv-5") throw new Error(`Unsupported scene format ${manifest.format}`);
+    const nextScene = env.scene;
+    if (nextScene.format !== "tcv-5") throw new Error(`Unsupported scene format ${nextScene.format}`);
     q<HTMLFieldSetElement>(".aad-toolbar").disabled = true;
     q(".aad-progress").hidden = false; q(".aad-error").hidden = true;
     const started = performance.now();
-    const { bytes, stats } = await readScene(manifest.scene_id, manifest.total_bytes, transport.readChunk.bind(transport), (done, total) => {
+    const { bytes, stats } = await readScene(nextScene.scene_id, nextScene.total_bytes, transport.readChunk.bind(transport), (done, total) => {
       q<HTMLProgressElement>("progress").value = 100 * done / total;
     });
     const readAt = performance.now(); const text = await gunzipToText(bytes); const shapes = JSON.parse(text);
     const triangles = triangleCount(shapes);
-    if (manifest.triangles !== undefined && triangles !== manifest.triangles) throw new Error(`Expected ${manifest.triangles} triangles, got ${triangles}`);
-    const parsedAt = performance.now(); unsubscribe(); view?.dispose(); q(".aad-cad").replaceChildren();
+    if (nextScene.triangles !== undefined && triangles !== nextScene.triangles) throw new Error(`Expected ${nextScene.triangles} triangles, got ${triangles}`);
+    const parsedAt = performance.now(); unsubscribe(); selection?.dispose(); selection = undefined; view?.dispose(); q(".aad-cad").replaceChildren();
+    updateManifest(nextScene); stageSelection([]);
     selectedId = "original";
     scenePresented = false;
     const bounds = q(".aad-cad").getBoundingClientRect();
     view = mountCad3d(q(".aad-cad"), shapes, { width: bounds.width, height: bounds.height, theme: resolvedTheme(transport), view: env.viewer?.view, controls: transport.controls });
     (globalThis as { __viewer?: unknown }).__viewer = view.viewer;
+    if (!view.fullControls) {
+      view.viewer.renderer.domElement.tabIndex = 0;
+      view.viewer.renderer.domElement.setAttribute("aria-label", `3D model. Drag to turn. Click a part to select or deselect.${transport.caps.composerReferences ? " Double-click to add it to your message." : ""}`);
+      selection = installPartSelection(view.viewer as never, { onSelection: stageSelection, onReference: referencePart });
+    }
     unsubscribe = view.viewer.state.subscribeAll(syncControls);
     applyRequest(env); requestKey = nextKey;
-    diagnostics.shownScene = manifest.scene_id; diagnostics.triangles = triangles; diagnostics.verified = true;
+    diagnostics.shownScene = nextScene.scene_id; diagnostics.triangles = triangles; diagnostics.verified = true;
     diagnostics.load = stats; diagnostics.rawBytes = text.length;
     diagnostics.ms = { read: readAt - started, parse: parsedAt - readAt, mount: performance.now() - parsedAt, sinceToolResult: performance.now() - started };
     diagnostics.loads++; diagnostics.state = "ready";

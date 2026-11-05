@@ -12,7 +12,11 @@ abstract class PageTransport implements Transport {
   abstract readChunk(sceneId: string, offset: number, length: number): Promise<Chunk>;
   requestFullscreen = browserFullscreen;
   onUpdate(_cb: (e: Envelope) => void): void {}
-  requestSize(): void {}
+  requestSize(height: number): void {
+    // HTML-only chat hosts support the same size notification without an MCP
+    // handshake. In a standalone window the document simply grows normally.
+    if (parent !== window) parent.postMessage({ jsonrpc: "2.0", method: "ui/notifications/size-changed", params: { height } }, "*");
+  }
   theme(): "light" | "dark" | undefined {
     return undefined;
   }

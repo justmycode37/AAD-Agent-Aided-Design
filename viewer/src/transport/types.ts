@@ -70,6 +70,19 @@ export interface Chunk {
 
 export interface TransportCaps {
   fullscreen: boolean;
+  modelContext?: boolean;
+  /** The host documents appending an unsent reference to its current composer. */
+  composerReferences?: boolean;
+}
+
+/** Exact display-part identity. Names and mention labels are for people. */
+export interface PartReference {
+  project: string;
+  rev: number;
+  scene_id: string;
+  path: string;
+  name: string;
+  mention: string;
 }
 
 export interface Transport {
@@ -85,4 +98,8 @@ export interface Transport {
   theme(): "light" | "dark" | undefined;
   onThemeChange(cb: () => void): void;
   displayMode?(): "inline" | "fullscreen";
+  /** Stage selection context when the host supports it; never sends a user prompt. */
+  stageSelection?(references: PartReference[]): Promise<void>;
+  /** Appends to the host's current composer, unsent. Only call when `caps.composerReferences`. */
+  insertPartReference?(reference: PartReference): Promise<void>;
 }

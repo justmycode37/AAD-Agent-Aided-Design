@@ -17,6 +17,36 @@ Views menu, and fullscreen. Small white-outlined icons sit beside the title.
 Advanced CAD panels and action shortcuts are hidden. Local windows retain the
 native CAD engine's full toolset; standalone exports can opt into CAD controls.
 
+Chat softly highlights an entire part on hover, preserving material and detail.
+Click selects; clicking a selected part removes it from the selection. Shift-click
+toggles additional parts; blank click and Escape clear selection. Camera drags do
+not select. On a host advertising native composer insertion, double-click appends
+an unsent `@part` reference to the active chat prompt. Current T3 HTML chat lacks
+this API, so that action stays unavailable. No clipboard workflow or separate
+request editor is offered, and nothing automatically sends or edits the model.
+
+Native prompt references and selection context carry an exact identity URI:
+`aad://part/<project>/<rev>/<scene_id>?path=<percent-encoded-leaf-path>`.
+Resolve its project, revision, hash and path against `scene.parts` before editing.
+The mention label is not a file or a globally unique identifier; duplicate names
+receive distinct labels. The URI is not a modeling query selector. Reconcile older
+revisions before changing a model. Clearing viewer selection does not remove a
+reference already added to the user's prompt.
+
+MCP Apps stage selected parts through advertised `updateModelContext` modalities
+and clear that context on deselection or scene/revision changes. HTML-only hosts
+do not share selection with the agent. Context may report `selectedCount` and
+`omittedCount`; obtain omitted references before acting on those parts.
+
+Composer insertion requires `hostCapabilities.experimental["openai/message"]`
+and text-message support. Use `ui/message` with a titled text item carrying the
+exact identity and `_meta: {"openai/message": {target: "active", send: false}}`.
+Never use ordinary `ui/message` as a fallback: it can send immediately. Missing
+support leaves insertion unavailable; a rejected request only reports failure.
+See the [official OpenAI extension documentation](https://developers.openai.com/plugins/build/extensions).
+Do not promise composer focus or support in a particular installed app without
+its advertised capability.
+
 Opening a scene, selecting a view, Reset, and resizing fit visible component
 bounds to the current canvas, leaving room for the title controls and edges.
 
@@ -50,11 +80,15 @@ Pass `views` to `aad_show`, alongside the reviewed revision and optional base
   "title":"Gearbox",
   "views":[
     {"id":"interior","label":"Interior","description":"Housing hidden","presentation":{"hide":["housing_upper","housing_lower"]}},
+    {"id":"see-through","label":"See-through","presentation":{"style":"transparent"}},
     {"id":"gears","label":"Gear train","presentation":{"isolate":["/Group/gears"]}},
     {"id":"section","label":"Longitudinal section","view":"front","presentation":{"section":{"planes":[{"plane":"YZ","offset":0}]},"projection":"orthographic"}}
   ]
 }
 ```
+
+See-through uses `style: "transparent"`: translucent surfaces with edge lines
+hidden. It retains every part unless the recipe also supplies visibility filters.
 
 Use actual part names from `scene.parts`, not the example names. Each recipe is
 complete and independent: absent visibility/style/section fields use the normal
