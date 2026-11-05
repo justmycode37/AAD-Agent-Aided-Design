@@ -436,6 +436,10 @@ Thickness is a sampled search, not a certified minimum. Heatmaps do not prove ma
 
 ## Viewer
 
+A slim loading bar appears during startup and model loading. It tracks received
+bytes, stays active during geometry preparation, and disappears when ready.
+There is no visible loading text or percentage; reduced motion is respected.
+
 Grid planes, origin and extent stay anchored in world coordinates while the
 camera moves. Only tick density changes with zoom, with hysteresis to prevent
 flicker near thresholds. Labels retain their native axis orientation; overlapping

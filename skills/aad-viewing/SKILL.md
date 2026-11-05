@@ -21,6 +21,10 @@ Know what the user sees:
 - **Navigation:** on Mac, click-drag rotates, two-finger scroll pans in both
   directions, pinch zooms, and Option-scroll is the zoom fallback. Other desktops
   scroll or pinch to zoom and Shift-drag or right-drag to pan.
+A slim loading bar appears during startup and model loading. It tracks received
+bytes, stays active during geometry preparation, and disappears when ready.
+There is no visible loading text or percentage; reduced motion is respected.
+
 Grid planes, origin and extent stay anchored in world coordinates while the
 camera moves. Only tick density changes with zoom, with hysteresis to prevent
 flicker near thresholds. Labels retain their native axis orientation; overlapping

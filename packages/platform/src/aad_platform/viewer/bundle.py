@@ -72,8 +72,18 @@ def export_bundle(scene_dir: Path, output_dir: Path, *, presentation: dict | Non
     bootstrap = r'''<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <script>window.__AAD_EMBEDDED_SCENE__ = CONFIG;</script>
-</head><body><main id="aad-boot" style="min-height:510px" role="status">Loading CAD viewer…</main>
+<style>
+#aad-boot { min-height:510px; }
+.aad-boot-stage { position:relative; height:480px; }
+.aad-boot-bar { position:absolute; top:50%; left:50%; width:180px; max-width:60%; height:2px; overflow:hidden; border-radius:2px; transform:translate(-50%,-50%); background:color-mix(in srgb,var(--foreground,#8d96a2) 18%,transparent); }
+.aad-boot-bar span { display:block; width:35%; height:100%; background:var(--foreground,#8d96a2); opacity:.7; animation:aad-boot-loading 1.2s ease-in-out infinite; }
+@keyframes aad-boot-loading { from { transform:translateX(-110%); } to { transform:translateX(390%); } }
+@media (prefers-reduced-motion:reduce) { .aad-boot-bar span { animation:none; transform:translateX(90%); } }
+</style>
+</head><body><main id="aad-boot"><div class="aad-boot-stage"><div class="aad-boot-bar" role="progressbar" aria-label="Loading viewer"><span></span></div></div></main>
 <script>
+(async () => {
+await new Promise(resolve => { setTimeout(resolve, 80); requestAnimationFrame(() => requestAnimationFrame(resolve)); });
 try {
   const asset = RUNTIME;
   if (!asset.startsWith("data:image/svg+xml;base64,")) throw new Error("Bundle the viewer asset before displaying this HTML");
@@ -97,6 +107,7 @@ try {
     document.body.append(script);
   }
 } catch (error) { document.body.textContent = "Could not load CAD viewer: " + error.message; }
+})();
 </script></body></html>'''
     html_bundle = bootstrap.replace("CONFIG", config, 1).replace("RUNTIME", _script_json(str(runtime_asset)), 1)
     # A separate, genuinely standalone file also opens with no chat host/server.

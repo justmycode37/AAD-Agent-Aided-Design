@@ -92,3 +92,18 @@ export async function gunzipToText(bytes: Uint8Array): Promise<string> {
   const stream = new Blob([bytes as BlobPart]).stream().pipeThrough(new DecompressionStream("gzip"));
   return new Response(stream).text();
 }
+
+/** Let the loading indicator paint before synchronous parsing or CAD construction. */
+export function paintLoading(): Promise<void> {
+  return new Promise(resolve => {
+    let first = 0, second = 0;
+    const finish = () => {
+      clearTimeout(timeout);
+      cancelAnimationFrame(first); cancelAnimationFrame(second);
+      resolve();
+    };
+    // Hidden iframes/background tabs may not receive animation frames.
+    const timeout = setTimeout(finish, 80);
+    first = requestAnimationFrame(() => { second = requestAnimationFrame(finish); });
+  });
+}
