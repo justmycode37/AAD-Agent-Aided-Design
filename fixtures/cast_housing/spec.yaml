@@ -1,0 +1,16 @@
+units: mm
+requirements:
+  - id: one_connected_casting
+    solids: 1
+  - id: shell_wall_material
+    material_at_point:
+      point: [0, 32, 30]
+      expected: solid
+  - id: shell_cavity_void
+    material_at_point:
+      point: [0, 0, 30]
+      expected: void
+  - id: outside_envelope_void
+    material_at_point:
+      point: [50, 0, 30]
+      expected: void

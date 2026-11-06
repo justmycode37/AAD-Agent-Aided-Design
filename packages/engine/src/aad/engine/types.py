@@ -68,6 +68,7 @@ class FeatureInfo:
     deps: list[str] = field(default_factory=list)
     intent: str | None = None
     vertices: list[Entity] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

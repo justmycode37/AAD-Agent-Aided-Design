@@ -101,6 +101,19 @@ and `tapered_bevel_standin`. Their angles are in degrees; gear module is the
 normal module. Geometry assumptions and limits are documented in
 `packages/engine/modeling.md`.
 
+The finishing API also exports `blend(shape, edges, radius, fallback=())`,
+`draft(shape, faces, angle, neutral_plane=Plane.XY)`,
+`rib(shape, profile, direction)`, `boss(shape, center, radius, height, *,
+axis=(0,0,1), hole=0, root_fillet=0, hole_depth=0)`, and
+`split_flange(shape, seam, *, width, thickness, bolt_diameter, bolt_count,
+bolt_axis=(0,0,1), end_margin=None, gap=0, hole_depth=0)`. `blend` returns a
+`BlendResult` containing the resulting shape and a report for every requested
+edge (`applied`, `reduced`, or `failed`). Unresolved edges are retained in
+feature/model metadata and emitted as build warning checks. Helpers publish to
+the active `BuildPart` through feature tracking when their input is its current
+shape; otherwise, assign the returned shape. Playbook `family.cast_housing.v1`
+contains a runnable recipe and documents the geometric limits.
+
 - `params()` declares every adjustable number; overrides come from tools. A param may be a `Param(value, min, max, unit)` so that sliders get ranges.
 - `feature(name)` must be unique. It records created and modified faces and edges, source lines and dependencies.
 - `face()`, `edge()`, `vertex()` resolve semantically. `expect=n` turns a count mismatch into a `SELECTOR_AMBIGUOUS` or `SELECTOR_EMPTY` failure with candidates.
@@ -629,6 +642,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 
 ## 11. Changelog
 
+- 2026-11-06: S1 added grouped blend retries with per-edge reports and visible unresolved-edge warnings, cast-housing finishing helpers and the `family.cast_housing.v1` recipe, after measuring all-edge and local fillet failures on the boolean-heavy 0B5 housing.
 - 2026-11-05: S1 applied configurable `engine.memory` virtual-address growth budgets to build and operation workers and made explicit `MemoryError`/`ENOMEM` results report `OUT_OF_MEMORY`, while keeping unrelated startup diagnostics and signal-only exits unclassified.
 - 2026-11-05: S2 made the structured `aad_render` report compact by default, with `inspection="full"` for the rest, because it reached 2.6 MB on a 492-part assembly.
 - 2026-11-05: S1 added per-phase build timings to `metrics`, named the slowest phase for builds over 20 seconds, reported unaccounted elapsed time as the residual `other` phase, made assembly mesh validation use one private remesh with per-solid checks, and reused the viewer scene's face and edge indexes across parts.

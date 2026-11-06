@@ -23,6 +23,7 @@ class _FeatureDeclaration:
     line_start: int | None
     line_end: int | None = None
     deps: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -143,6 +144,30 @@ def current_part_name() -> str | None:
 def current_meta() -> dict[str, Any]:
     """Return a copy of model metadata recorded by :func:`meta`."""
     return deepcopy(_metadata)
+
+
+def record_finishing_report(report: dict[str, Any]) -> None:
+    """Keep finishing-helper reports in model metadata and their owning feature."""
+    item = deepcopy(report)
+    declaration = _state.active_feature
+    if declaration is not None:
+        item["feature"] = declaration.name
+        declaration.metadata.setdefault("finishing_reports", []).append(deepcopy(item))
+        failed = int(item.get("counts", {}).get("failed", 0))
+        if failed:
+            declaration.metadata.setdefault("warnings", []).append(
+                f"blend left {failed} requested edge(s) unresolved"
+            )
+        # Keep one detailed copy on the feature and only a compact build-level
+        # summary, so large edge reports do not double the wire payload.
+        _metadata.setdefault("finishing_reports", []).append({
+            "operation": item.get("operation"),
+            "feature": declaration.name,
+            "status": item.get("status"),
+            "counts": deepcopy(item.get("counts", {})),
+        })
+    else:
+        _metadata.setdefault("finishing_reports", []).append(item)
 
 
 def part(name: str, *placements: Any, **kwargs: Any) -> Any:
@@ -504,6 +529,7 @@ def _make_feature_infos(shape: Any, owners: dict[str, list[str | None]]) -> list
             line_end=declaration.line_end if declaration else (_state.source_line_count if name == "main" else None),
             deps=list(declaration.deps) if declaration else [],
             intent=declaration.intent if declaration else None,
+            metadata=deepcopy(declaration.metadata) if declaration else {},
         )
     for kind, attr in _TOPOLOGIES.items():
         for index, (topology, owner) in enumerate(zip(_topologies(shape, kind), owners[kind], strict=True)):
