@@ -24,7 +24,7 @@ def check_map(ctx, *, limits=None):
     assert all(item["suite"] == "2d" for item in result)
     assert all(item["id"].startswith("2d.") for item in result)
     assert all(item["level"] in {"error", "warn"} for item in result)
-    assert all(item["status"] in {"pass", "fail", "warn", "skip"} for item in result)
+    assert all(item["status"] in {"pass", "fail", "warn", "skip", "not_applicable"} for item in result)
     return {item["id"]: item for item in result}
 
 

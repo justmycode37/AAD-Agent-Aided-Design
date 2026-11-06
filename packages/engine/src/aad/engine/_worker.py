@@ -377,6 +377,24 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
     )
     _add_phase_time(phase_timings, "model", model_phase_started)
 
+    if payload.get("defer_validation") is True:
+        # run_build() validates the saved BREP in a clean parent-owned process.
+        # Avoid repeating expensive checks or trusting any worker-generated scene.
+        metrics["phase_timings_ms"] = _rounded_timings(phase_timings)
+        result = BuildResult(
+            ok=True,
+            status="draft",
+            summary="The model built and saved a BREP; independent validation is pending.",
+            context=context,
+            metrics=metrics,
+            artifacts=artifacts,
+            job_dir=job_dir,
+            build_ms=_elapsed_ms(started),
+            stdout=stdout_stream.getvalue(),
+            stderr=stderr_stream.getvalue(),
+        )
+        return _result_wire(result)
+
     checks, gate_timings = _hard_checks_with_timings(context)
     phase_timings.update(gate_timings)
     if params_warning is not None:
@@ -789,7 +807,7 @@ def _normalize_check(value: Any, suite: str) -> Check:
         or not isinstance(check.level, str)
         or check.level not in {"error", "warn"}
         or not isinstance(check.status, str)
-        or check.status not in {"pass", "fail", "warn", "skip"}
+        or check.status not in {"pass", "fail", "warn", "skip", "not_applicable"}
     ):
         raise ValueError("check hook returned a check with an unsupported suite, level, or status")
     return check
@@ -880,7 +898,7 @@ def _requirements_proven(
             return False, _coverage_incomplete(
                 f"Requirement {requirement_id!r} and its check have different levels."
             )
-        if requirement_level == "error" and check.status != "pass":
+        if requirement_level == "error" and check.status not in {"pass", "not_applicable"}:
             return False, _coverage_incomplete(f"Error-level requirement {requirement_id!r} did not pass.")
         if requirement_level == "warn" and check.status not in {"pass", "warn"}:
             return False, _coverage_incomplete(f"Warning-level requirement {requirement_id!r} was not evaluated.")
@@ -1153,7 +1171,7 @@ def _failed_result(
 def _checks_summary(checks: list[Check]) -> dict[str, int]:
     return {
         status: sum(1 for check in checks if check.status == status)
-        for status in ("pass", "fail", "warn", "skip")
+        for status in ("pass", "fail", "warn", "skip", "not_applicable")
     }
 
 

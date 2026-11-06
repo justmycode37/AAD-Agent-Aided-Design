@@ -76,6 +76,11 @@ def test_inside_corner_radius_is_not_an_external_fillet():
     assert '2.000' in check['actual']
 
 
+def test_cnc_internal_radius_is_not_applicable_without_internal_corners():
+    check = by_id(context(Box(30, 30, 8), 'cnc_3axis', {'level': 'error', 'minimum_internal_radius_mm': 3}))['process.cnc_3axis.internal_radius']
+    assert check['status'] == 'not_applicable', check
+
+
 def test_laser_circular_cut_threshold():
     shape=fixture('plate')
     for kerf,expected in ((1,'pass'),(3,'fail')):

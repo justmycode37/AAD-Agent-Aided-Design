@@ -45,8 +45,44 @@ class GeometryInspectionTests(unittest.TestCase):
             self.assertEqual(path.read_bytes(), snapshot.read_bytes())
             self.assertEqual(evidence.snapshot_sha256, hashlib.sha256(snapshot.read_bytes()).hexdigest())
             record = {'protocol': 1, 'snapshot_sha256': evidence.snapshot_sha256,
+                      'spec_sha256': evidence.spec_sha256, 'kernel_versions': evidence.kernel_versions,
                       'inputs': {'kind': 'part', 'units': 'mm', 'spec': {'requirements': [{'id': 'fit'}]}}}
             self.assertEqual(evidence.input_sha256, hashlib.sha256(validation._canonical_json(record)).hexdigest())
+            self.assertEqual(evidence.spec_sha256, hashlib.sha256(validation._canonical_json({'requirements': [{'id': 'fit'}]})).hexdigest())
+            self.assertIn('build123d', evidence.kernel_versions)
+
+    def test_validator_generates_clean_scene_from_its_loaded_brep(self):
+        with tempfile.TemporaryDirectory(prefix='aad-inspect-scene-') as temporary:
+            path = self._brep(temporary)
+            evidence = inspect_brep(
+                path, candidate_dir=temporary, kind='part', units='mm',
+                render_scene=True, project='inspection-test', rev=3,
+            )
+            self.assertTrue(evidence.ok, evidence.failure)
+            self.assertIsNotNone(evidence.scene)
+            self.assertEqual((evidence.scene.project, evidence.scene.rev, evidence.scene.status),
+                             ('inspection-test', 3, 'draft'))
+            scene_bytes = (evidence.scene_dir / 'scene.bin.gz').read_bytes()
+            self.assertEqual(hashlib.sha256(scene_bytes).hexdigest(), evidence.scene.scene_id)
+            self.assertGreater(evidence.scene_elapsed_ms, 0)
+
+    def test_viewer_scene_serialization_does_not_load_the_vtk_image_renderer(self):
+        program = """import sys
+from pathlib import Path
+import build123d as bd
+from aad.engine.types import ModelContext
+from aad_render import make_scene
+ctx = ModelContext(kind='part', units='mm', spec={}, shape=bd.Box(1, 2, 3), metrics={})
+ctx.project, ctx.rev, ctx.status = 'scene-test', 1, 'draft'
+make_scene(ctx, Path(sys.argv[1]))
+assert not any(name == 'vtk' or name.startswith('vtk.') for name in sys.modules)
+"""
+        with tempfile.TemporaryDirectory(prefix='aad-scene-vtk-') as temporary:
+            subprocess.run(
+                [sys.executable, '-c', program, str(Path(temporary) / 'scene')],
+                check=True,
+                timeout=30,
+            )
 
     def test_nested_assembly_uses_all_solids_and_explicit_coordinate_units(self):
         import build123d as bd
@@ -197,6 +233,39 @@ class GeometryInspectionTests(unittest.TestCase):
                 launch.call_args.kwargs['address_space'],
                 memory.bootstrap_address_space_budget(memory_limit),
             )
+            argv = launch.call_args.args[0]
+            self.assertEqual(argv[-1], str(memory_limit))
+            bootstrap = argv[4]
+            self.assertLess(
+                bootstrap.index('install_worker_memory_budget'),
+                bootstrap.index('from aad.engine._validation_worker import main'),
+            )
+
+    @unittest.skipUnless(sys.platform == 'darwin' or sys.platform.startswith('linux'), 'RLIMIT_AS policy is unsupported')
+    def test_clean_sheet_worker_receives_the_configured_memory_budget(self):
+        memory_limit = 96 * 1024 ** 2
+        with tempfile.TemporaryDirectory(prefix='aad-sheet-memory-') as temporary:
+            path = Path(temporary) / 'sheet.json'
+            path.write_text('{}')
+            with patch.object(sandbox, 'popen', side_effect=sandbox.SandboxUnavailable('fixture missing boundary')) as launch:
+                evidence = validation.inspect_sheet(
+                    path,
+                    candidate_dir=temporary,
+                    units='mm',
+                    memory_limit_bytes=memory_limit,
+                )
+            self.assertEqual((evidence.failure.code, evidence.failure.phase), ('SANDBOX_DENIED', 'sandbox'))
+            self.assertEqual(
+                launch.call_args.kwargs['address_space'],
+                memory.bootstrap_address_space_budget(memory_limit),
+            )
+            argv = launch.call_args.args[0]
+            self.assertEqual(argv[-1], str(memory_limit))
+            bootstrap = argv[4]
+            self.assertLess(
+                bootstrap.index('install_worker_memory_budget'),
+                bootstrap.index('from aad.engine._sheet_validation_worker import main'),
+            )
 
     def test_native_exit_and_hang_are_bounded_without_invented_causes(self):
         cases = [('import os; os.write(2,b"native inspection fixture"); os._exit(23)', 5, 'WORKER_CRASH'),
@@ -263,6 +332,49 @@ main()
                     # macOS reports EPERM for a group that holds only zombies.
                     pass
                 process.communicate(timeout=2)
+
+    @unittest.skipUnless(sys.platform.startswith('linux'), 'Linux bubblewrap descendant cleanup')
+    def test_validator_deadline_kills_a_detached_bubblewrap_descendant(self):
+        with tempfile.TemporaryDirectory(prefix='aad-inspect-linux-timeout-') as temporary:
+            root = Path(temporary).resolve()
+            path = root / 'part.brep'
+            path.write_bytes(b'validator deadline fixture')
+            # Bound the child so a communicate() regression cannot leave the
+            # inspector's pipes open indefinitely.
+            child = (
+                "from pathlib import Path\n"
+                "import time\n"
+                "Path('validator-child-started').write_text('started')\n"
+                "deadline = time.monotonic() + 20.0\n"
+                "while not Path('release-child').exists() and time.monotonic() < deadline: time.sleep(0.01)\n"
+                "if Path('release-child').exists(): Path('validator-child-survived').write_text('survived')\n"
+            )
+            bootstrap = (
+                "import subprocess, sys, time\n"
+                f"subprocess.Popen([sys.executable, '-c', {child!r}], start_new_session=True)\n"
+                "time.sleep(30)\n"
+            )
+            started = time.monotonic()
+            with patch.object(validation, '_BOOTSTRAP', bootstrap):
+                evidence = inspect_brep(
+                    path,
+                    candidate_dir=root,
+                    kind='part',
+                    units='mm',
+                    timeout_s=8.0,
+                )
+            self.assertLess(time.monotonic() - started, 12.0)
+            self.assertEqual(evidence.failure.code, 'TIMEOUT')
+            inspection_dir = evidence.inspection_dir
+            self.assertTrue((inspection_dir / 'validator-child-started').is_file())
+
+            # Release a child that escaped cleanup so the regression test itself
+            # never leaves a process behind, then verify it did not survive.
+            (inspection_dir / 'release-child').touch()
+            deadline = time.monotonic() + 1.5
+            while time.monotonic() < deadline and not (inspection_dir / 'validator-child-survived').exists():
+                time.sleep(0.01)
+            self.assertFalse((inspection_dir / 'validator-child-survived').exists())
 
     def test_response_binding_and_schema_are_validated(self):
         with tempfile.TemporaryDirectory(prefix='aad-inspect-response-') as temporary:

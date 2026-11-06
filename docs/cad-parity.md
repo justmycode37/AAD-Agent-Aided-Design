@@ -1,6 +1,6 @@
 # AAD compared with CAD
 
-What a CAD package such as SolidWorks, Fusion or NX does, and how an agent does it in AAD. Status comes from running each capability through the real tools or the kernel on 2026-11-05, not from the commercial packages' behavior, which was compared from general knowledge of them. Agents get the how-to from `skills/aad/SKILL.md` and playbook `workflow.capabilities.v1`.
+What a CAD package such as SolidWorks, Fusion or NX does, and how an agent does it in AAD. Status comes from running each capability through the real tools or the kernel on 2026-11-06, not from the commercial packages' behavior, which was compared from general knowledge of them. Agents get the how-to from `skills/aad/SKILL.md` and playbook `workflow.capabilities.v1`.
 
 **Added** means this change added it. **Existing** means it already worked. **Partial** means the common case works and the stated limit remains. **Missing** means an agent cannot do it.
 
@@ -40,7 +40,7 @@ What a CAD package such as SolidWorks, Fusion or NX does, and how an agent does 
 | Motion checks | Partial, added | `motion_clearance` samples chosen poses. No dynamics. |
 | Standard part library | Added 19 families | `aad_library kind: "part"`, `make_part` |
 | Gears | Existing, PR #77; added catalog | `aad.gears`, `gear.spur`, `gear.helical`, `gear.rack`, `gear.worm` |
-| Large assemblies (thousands of parts) | Partial | Tested at 247 solids in PR #77 |
+| Large assemblies (thousands of parts) | Partial | A 247-solid DSG build took 111.6–114.4 s in two runs; validation without scene took 67.5–67.9 s and the clean scene 4.9–5.0 s. Thousands-part performance remains unvalidated. |
 
 ## Measure and analysis
 
@@ -73,6 +73,7 @@ What a CAD package such as SolidWorks, Fusion or NX does, and how an agent does 
 | STEP AP214/AP242, BREP, STL, 3MF, GLB, DXF, SVG, PDF export | Existing | `aad_export` |
 | IGES, OBJ, PLY export | Added | `aad_export` |
 | Standalone viewer export | Added | `viewer_html` used to fail as not installed |
+| Independent verification | Added | One sandboxed validator loads saved BREP once, checks hard gate/spec/process and geometry-only checks, then builds the scene from that same shape. 3D and 2D validator processes receive the build's configured `engine.memory` budget. The VTK image renderer remains a separate mesh-only process for agent renders; viewer-scene serialization stays in the BREP validator. Metrics, checks and proven IDs are bound to the revision receipt. |
 | STEP, BREP, STL import | Existing | `aad_import` |
 | Using an imported file in a model | Added | `asset()`: the sandbox had no way to read it before |
 | IGES import | Added | `aad_import`, `asset()` |
@@ -85,6 +86,7 @@ PDM, PLM and collaboration are out of scope. Interactive picking and sliders sta
 
 ## Known limits in what exists
 
-- **Status stays `draft`.** The worker cannot attest its own verification and no trusted validator is wired, so `aad_export` needs `allow_unverified` for every revision.
-- **2D requirements are unproven.** Spec requirements are not evaluated on sheets yet.
+- **Verification is conservative.** A sandboxed validator checks the saved BREP without running model code or trusting worker checks, warnings, metrics, feature records or scenes. It loads the BREP once, recomputes hard/spec/process and registered geometry-only checks, then builds the viewer scene from the same shape. A complete finite 3D scene is required for `verified`; scene failure retains the BREP as draft with a reason. The hard gate limits absolute world coordinates to 100,000 mm: Float32 spacing there is about 0.0078 mm, below the 0.01 mm edge tolerance. `verified` requires at least one error-level requirement with an independent `pass`; other error-level requirements may be `not_applicable`. No-requirement builds and specs with only warning-level requirements remain `draft`. Error-level `skip` blocks verification; `not_applicable` means the validator established from its own geometry that the check's subject is absent. Warning-level requirements must be evaluated; a failing advisory `warn` may still be verified when error-level requirements pass, and the build and export summaries name those requirements. Build-time automatic assembly-interference warnings appear in the build summary. `min_wall` and `symmetric` remain disproof-only. Named-body `fit` cannot be proven from saved BREP because component labels do not survive import and the validator cannot trust worker metadata as a name-to-body map. Feature-bound `position` remains unproven when it relies on worker feature records. Verified summaries name the requirements proven, and the receipt rechecks saved BREP/spec/kernel/scene plus metrics, checks and proven IDs before reporting verified or exporting. These receipts catch artifact changes while intact; they are not signed against someone who can rewrite the project files and receipt.
+- **Validator geometry-check hook.** Automatic assembly interference is recomputed from saved BREP through `validator_geometry_checks(ctx)` and is advisory on a build, with a 15-second budget. An incomplete result is not evidence that the assembly is clear. PR #97 must run `interference_checks` from this trusted hook (or an equivalent registered validator hook); running it only in the model worker is not evidence because worker checks are discarded. Explicit interference requirements remain evaluated at their declared severity.
+- **2D verification remains draft.** A clean process recomputes native checks, supported spec requirements and metrics from the saved `sheet.json`, then generates the SVG scene from that same snapshot. Sheet revisions remain `draft` because 2D verification receipts are not supported yet. Unsupported measures remain skipped with an explanation.
 - **Standard parts use simple threads** unless a record says otherwise, so thread fit needs its own check.

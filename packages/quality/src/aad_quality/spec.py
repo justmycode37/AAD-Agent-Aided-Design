@@ -1165,9 +1165,9 @@ def verification_ready(spec: Any, checks: Sequence[Any], hard_checks: Sequence[A
         if check.get("level") != expected_level:
             return False
         status = check.get("status")
-        if expected_level == "error" and status != "pass":
+        if expected_level == "error" and status not in {"pass", "not_applicable"}:
             return False
-        if status == "pass":
+        if status in {"pass", "not_applicable"}:
             expected = check.get("expected")
             actual = check.get("actual")
             if not isinstance(expected, str) or not expected.strip() or not isinstance(actual, str) or not actual.strip():
@@ -1180,11 +1180,11 @@ def verification_ready(spec: Any, checks: Sequence[Any], hard_checks: Sequence[A
         return False
     for check in check_maps + hard_maps:
         level = check.get("level")
-        if level == "error" and check.get("status") != "pass":
+        if level == "error" and check.get("status") not in {"pass", "not_applicable"}:
             return False
         if level not in {"error", "warn"}:
             return False
-        if check.get('status') not in {'pass','fail','warn','skip'} or check.get('suite') not in {'hard','spec','process','interference','2d'}:
+        if check.get('status') not in {'pass','fail','warn','skip','not_applicable'} or check.get('suite') not in {'hard','spec','process','interference','2d'}:
             return False
         if check.get('status')=='pass':
             actual=check.get('actual')

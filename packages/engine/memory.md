@@ -39,15 +39,12 @@ previews and fallback scene tessellation use the same two-stage launch.
 Importing the memory module itself imports neither
 `resource`, `ctypes`, libproc, workers nor the CAD kernel.
 
-The engine's independent `inspect_brep` worker also uses this policy. It takes
-an optional `memory_limit_bytes`; omitting it selects the engine platform
-default on Linux and macOS. The trusted build caller must pass its resolved
-`engine.memory` value so a user override reaches that child. The validator
-integration proposed in PR #96 is not part of `origin/main`: its clean 3D
-validator must pass the build's resolved budget to `inspect_brep`, and its
-clean 2D `inspect_sheet` worker must use the same budgeted `sandbox.popen`
-path before that validator is enabled. If PR #96 merges first, add this
-plumbing there before relying on `engine.memory` to cap validation.
+The independent `inspect_brep` and `inspect_sheet` workers also use this
+policy. Each accepts an optional `memory_limit_bytes`; omitting it selects the
+engine platform default on Linux and macOS. The trusted build caller passes its
+resolved `engine.memory` value to each validator, and each worker installs the
+growth limit before importing validation, CAD or drafting code. This carries a
+user override through both 3D BREP and 2D sheet validation.
 
 Only the exact `AddressSpaceBudget` type is accepted by the low-level sandbox
 hook. Unknown or resident-policy objects raise before launch. Unsupported

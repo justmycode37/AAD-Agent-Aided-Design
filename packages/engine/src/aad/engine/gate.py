@@ -34,6 +34,7 @@ class GateTolerances:
 
 
 _GEOMETRY_CHECK_IDS = (
+    "scene_coordinate_range",
     "brep_valid",
     "closed_shells",
     "solid_count",
@@ -43,9 +44,11 @@ _GEOMETRY_CHECK_IDS = (
     "mesh_watertight",
 )
 _LENGTH_TO_MM = {"mm": 1.0, "in": 25.4}
+MAX_SCENE_COORDINATE_MM = 100_000.0
 INTERFERENCE_VOLUME_THRESHOLD_MM3 = 1e-6
 INTERFERENCE_TIME_BUDGET_S = 60.0
 INTERFERENCE_MAX_TIME_BUDGET_S = 120.0
+BUILD_INTERFERENCE_TIME_BUDGET_S = 15.0
 INTERFERENCE_MAX_REPORTED_PAIRS = 20
 
 
@@ -123,6 +126,20 @@ def _hard_checks(
             ),
         ))
 
+    coordinate_check = _timed_gate_check(
+        timings,
+        "scene_coordinate_range",
+        lambda: _scene_coordinate_range_check(ctx.shape, unit_scale),
+    )
+    checks.append(coordinate_check)
+    if coordinate_check.status == "fail":
+        checks.extend(
+            _skip(check_id, "not run because the shape exceeds the supported viewer coordinate range")
+            for check_id in _GEOMETRY_CHECK_IDS
+            if check_id != "scene_coordinate_range"
+        )
+        return checks, _complete_gate_timings(checks, timings)
+
     checks.append(_timed_gate_check(
         timings, "brep_valid", lambda: _brep_validity_check(ctx.shape),
     ))
@@ -178,6 +195,41 @@ def _complete_gate_timings(checks: list[Check], timings: dict[str, float] | None
     for check in checks:
         timings.setdefault(f"gate.{check.id}", 0.0)
     return timings
+
+
+def _scene_coordinate_range_check(shape: Any, unit_scale: float | None) -> Check:
+    """Bound world coordinates so Float32 spacing stays below the 0.01 mm gate tolerance."""
+    if unit_scale is None:
+        return _skip("scene_coordinate_range", "not run because the unit system is unsupported")
+    try:
+        bounds = shape.bounding_box()
+        coordinates = [
+            float(bounds.min.X), float(bounds.min.Y), float(bounds.min.Z),
+            float(bounds.max.X), float(bounds.max.Y), float(bounds.max.Z),
+        ]
+    except Exception as exc:
+        return _skip("scene_coordinate_range", f"bounding-box extraction failed: {type(exc).__name__}: {exc}")
+    if any(not isfinite(value) for value in coordinates):
+        return _check(
+            "scene_coordinate_range", "fail",
+            "Scene coordinates must be finite before geometry can pass the hard gate.",
+            expected=f"finite world coordinates within ±{MAX_SCENE_COORDINATE_MM:g} mm",
+            actual=repr(coordinates),
+        )
+    maximum_mm = max(abs(value * unit_scale) for value in coordinates)
+    if not isfinite(maximum_mm) or maximum_mm > MAX_SCENE_COORDINATE_MM:
+        return _check(
+            "scene_coordinate_range", "fail",
+            f"The shape exceeds the supported viewer world-coordinate limit of ±{MAX_SCENE_COORDINATE_MM:g} mm.",
+            expected=f"absolute world coordinates at or below {MAX_SCENE_COORDINATE_MM:g} mm",
+            actual=f"maximum_absolute_coordinate={maximum_mm:g} mm",
+        )
+    return _check(
+        "scene_coordinate_range", "pass",
+        "World coordinates are finite and within the viewer's supported precision range.",
+        expected=f"absolute world coordinates at or below {MAX_SCENE_COORDINATE_MM:g} mm",
+        actual=f"maximum_absolute_coordinate={maximum_mm:g} mm",
+    )
 
 
 def _normalize_tolerances(
@@ -588,6 +640,35 @@ def interference_checks(
             f"Volumes at or below {threshold:g} mm³ are treated as zero-volume contact."
         ),
     )]
+
+
+def validator_geometry_checks(
+    ctx: ModelContext, *, time_budget_s: float = BUILD_INTERFERENCE_TIME_BUDGET_S,
+) -> list[Check]:
+    """Run geometry-only assembly checks from a validator-owned BREP context.
+
+    The ordinary build worker's check list is untrusted. This hook recomputes
+    interference from the shape loaded by the validator and reports automatic
+    findings as advisory warnings. An explicit spec requirement remains an
+    error-level requirement through the quality evaluator.
+    """
+    if ctx.kind != "assembly" or ctx.shape is None:
+        return []
+    try:
+        if len(list(ctx.shape.solids())) <= 1:
+            return []
+    except Exception:
+        # The hard geometry gate already reports an unavailable body count.
+        return []
+    checks = interference_checks(ctx, time_budget_s=time_budget_s)
+    for check in checks:
+        check.level = "warn"
+        if check.status == "fail":
+            check.status = "warn"
+            check.message = "Independent build interference warning: " + check.message
+        elif check.status == "skip":
+            check.message = "Independent build interference result is unknown: " + check.message
+    return checks
 
 
 def _interference_skip(reason: str, *, expected: str, actual: str | None = None) -> Check:
@@ -1016,7 +1097,7 @@ def _step_volume_check(ctx: ModelContext, tolerance: GateTolerances, unit_scale:
         f"{_fmt(threshold_rel)} × source volume)"
     )
     try:
-        from build123d import Unit, export_step
+        from build123d import PrecisionMode, Unit, export_step
 
         source_volume = fsum(float(solid.volume) for solid in ctx.shape.solids()) * unit_scale**3
         if not isfinite(source_volume):
@@ -1033,7 +1114,12 @@ def _step_volume_check(ctx: ModelContext, tolerance: GateTolerances, unit_scale:
         unit = Unit.IN if ctx.units == "in" else Unit.MM
         with tempfile.TemporaryDirectory(prefix="aad-gate-", dir=job_dir) as temporary:
             step_path = Path(temporary) / "roundtrip.step"
-            exported = export_step(ctx.shape, step_path, unit=unit)
+            exported = export_step(
+                ctx.shape,
+                step_path,
+                unit=unit,
+                precision_mode=PrecisionMode.GREATEST,
+            )
             if not exported:
                 return _skip("step_volume_drift", "export_step returned false", expected=expected)
             if not step_path.is_file() or step_path.stat().st_size == 0:

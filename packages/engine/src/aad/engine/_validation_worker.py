@@ -9,8 +9,12 @@ import json
 import math
 from pathlib import Path
 import sys
+import time
 
+from .memory import is_memory_exhaustion
 from .validation import _MARKER, _canonical_json, _file_digest, _json_value
+
+_METRICS_MARKER = b"AAD_GEOMETRY_METRICS:"
 
 
 def main() -> None:
@@ -30,8 +34,14 @@ def main() -> None:
         try:
             import build123d as bd
             from OCP.BRepCheck import BRepCheck_Analyzer
-            from .gate import hard_checks
-            from .types import ModelContext
+            from .gate import hard_checks, validator_geometry_checks
+            from .types import Check, ModelContext
+            try:
+                from aad_quality import spec_checks, process_checks
+            except ModuleNotFoundError as exc:
+                if exc.name != "aad_quality":
+                    raise
+                spec_checks = process_checks = None
 
             shape = bd.import_brep("part.brep")
             if shape is None or shape.wrapped is None or shape.wrapped.IsNull():
@@ -55,14 +65,60 @@ def main() -> None:
                        "vertices": len(shape.vertices()), "valid": bool(shape.is_valid and BRepCheck_Analyzer(shape.wrapped).IsValid())}
             _json_value(metrics)
             wire["metrics"] = metrics
+            progress = {"nonce": payload["nonce"], "input_sha256": digest,
+                        "snapshot_sha256": snapshot_hash, "metrics": metrics}
+            sys.__stdout__.buffer.write(b"\n" + _METRICS_MARKER + _canonical_json(progress) + b"\n")
+            sys.__stdout__.buffer.flush()
             ctx = ModelContext(kind=record["inputs"]["kind"], units=record["inputs"]["units"],
-                               spec=record["inputs"]["spec"], shape=shape, metrics=metrics, job_dir=Path.cwd())
+                               spec=record["inputs"]["spec"], process=record["inputs"].get("process"),
+                               shape=shape, metrics=metrics, job_dir=Path.cwd())
             checks = hard_checks(ctx)
+            checks += validator_geometry_checks(ctx)
+            if spec_checks is not None and process_checks is not None:
+                checks += spec_checks(ctx)
+                checks += process_checks(ctx)
+            else:
+                requested_process = record["inputs"].get("process") or record["inputs"]["spec"].get("process")
+                if record["inputs"]["spec"].get("requirements"):
+                    checks.append(Check(id="spec_evaluator_unavailable", suite="spec", level="error", status="skip",
+                                        message="The aad-quality evaluator is not installed; spec requirements were not checked."))
+                if requested_process:
+                    checks.append(Check(id="process_evaluator_unavailable", suite="process", level="error", status="skip",
+                                        message="The aad-quality evaluator is not installed; process requirements were not checked."))
             wire["checks"] = [asdict(check) for check in checks]
             if not metrics["valid"] or (ctx.kind == "part" and len(solids) != 1) or any(c.level == "error" and c.status == "fail" for c in checks):
                 raise ValueError("independently loaded geometry failed native validity, body-count or hard checks")
             wire["ok"] = True
+            if payload.get("render_scene") is True:
+                scene_started = time.perf_counter()
+                try:
+                    # The viewer scene serializes this loaded shape directly.
+                    # It does not invoke the VTK image renderer from #106, so
+                    # validation needs neither a second BREP import nor VTK.
+                    from aad_render import make_scene
+
+                    ctx.project = payload["scene_project"]
+                    ctx.rev = payload["scene_rev"]
+                    ctx.status = "draft"
+                    ctx.checks_summary = {
+                        status: sum(check.status == status for check in checks)
+                        for status in ("pass", "fail", "warn", "skip", "not_applicable")
+                    }
+                    scene_dir = Path.cwd() / "scene"
+                    manifest = make_scene(ctx, scene_dir)
+                    scene_bytes = (scene_dir / "scene.bin.gz").read_bytes()
+                    if hashlib.sha256(scene_bytes).hexdigest() != manifest.scene_id or len(scene_bytes) != manifest.total_bytes:
+                        raise ValueError("scene manifest does not match the rendered scene bytes")
+                    wire["scene"] = asdict(manifest)
+                except Exception as exc:
+                    if is_memory_exhaustion(exc):
+                        raise
+                    wire["scene_error"] = f"{type(exc).__name__}: {exc}"
+                finally:
+                    wire["scene_elapsed_ms"] = (time.perf_counter() - scene_started) * 1000
         except Exception as exc:
+            if is_memory_exhaustion(exc):
+                raise
             wire["failure"] = {"code": "INVALID_SOLID", "phase": "validate", "feature": "unknown",
                                "message": "The BREP could not pass independent geometry inspection.",
                                "kernel_message": f"{type(exc).__name__}: {exc}"}

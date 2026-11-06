@@ -5,9 +5,9 @@ from __future__ import annotations
 import dataclasses
 import importlib.util
 import json
+from pathlib import Path
 import subprocess
 import sys
-from pathlib import Path
 from typing import Any
 
 
@@ -72,8 +72,6 @@ def run_build(
         memory_limit_bytes=memory_limit_bytes,
     )
     return dataclasses.asdict(result)
-
-
 def stub_scene(brep: Path, out_dir: Path, project: str, rev: int, units: str) -> dict[str, Any]:
     """Tessellate with the M0 stub, in a separate process so that a crash stays contained."""
     from .. import config

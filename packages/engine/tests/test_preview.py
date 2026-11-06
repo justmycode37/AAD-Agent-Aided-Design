@@ -36,7 +36,8 @@ result = Box(2, 3, 4)
                 requirements = [c for c in result.checks if c.suite == 'spec' and c.id == 'render_not_requested']
                 self.assertEqual(len(requirements), 1)
                 self.assertEqual((requirements[0].level, requirements[0].status), ('error', 'fail'))
-                self.assertEqual((requirements[0].expected, requirements[0].actual), ('5', '2'))
+                self.assertEqual((requirements[0].expected, requirements[0].actual),
+                                 ('X exact 5 mm (numerical comparison resolution only)', 'X 2 mm'))
                 self.assertEqual(result.checks_summary['fail'], 1)
 
     def test_only_internal_placeholder_is_replaced(self):
