@@ -387,7 +387,7 @@ def blend(shape: Any, edges: Any, radius: float, fallback: Sequence[float] = ())
     return BlendResult(current, report)
 
 
-def draft(shape: Any, faces: Any, angle: float, neutral_plane: Any = None) -> Any:
+def draft_faces(shape: Any, faces: Any, angle: float, neutral_plane: Any = None) -> Any:
     """Apply a degree-based mold draft to selected faces of one solid."""
     from build123d import Plane
 
@@ -985,7 +985,7 @@ __all__ = [
     "blend",
     "boss",
     "delete_faces",
-    "draft",
+    "draft_faces",
     "exploded",
     "motion_clearance",
     "overlap_volume",

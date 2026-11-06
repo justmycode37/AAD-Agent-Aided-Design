@@ -102,7 +102,7 @@ normal module. Geometry assumptions and limits are documented in
 `packages/engine/modeling.md`.
 
 The finishing API also exports `blend(shape, edges, radius, fallback=())`,
-`draft(shape, faces, angle, neutral_plane=Plane.XY)`,
+`draft_faces(shape, faces, angle, neutral_plane=Plane.XY)`,
 `rib(shape, profile, direction)`, `boss(shape, center, radius, height, *,
 axis=(0,0,1), hole=0, root_fillet=0, hole_depth=0)`, and
 `split_flange(shape, seam, *, width, thickness, bolt_diameter, bolt_count,

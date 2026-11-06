@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 
 from aad.engine.jobs import run_build
@@ -67,7 +68,7 @@ def test_finishing_helpers_run_outside_a_builder(tmp_path):
         '''from aad import *
 shape = Box(20, 20, 10)
 front = shape.faces().sort_by(Axis.X)[-1]
-shape = draft(shape, front, 2, Plane.XY)
+shape = draft_faces(shape, front, 2, Plane.XY)
 profile = Face(Wire.make_polygon([(-8, -1, 5), (8, -1, 5), (8, 1, 5), (-8, 1, 5)], close=True))
 shape = rib(shape, profile, (0, 0, 3))
 shape = boss(shape, (0, 0, 5), radius=4, height=4, hole=2, root_fillet=0.5, hole_depth=1)
@@ -85,7 +86,7 @@ result = outcome
 
 def test_kernel_refusal_from_draft_uses_an_existing_kernel_failure_code(tmp_path):
     result = _build(
-        "from aad import *\nshape = Sphere(5)\nresult = draft(shape, shape.faces()[0], 2)\n",
+        "from aad import *\nshape = Sphere(5)\nresult = draft_faces(shape, shape.faces()[0], 2)\n",
         tmp_path,
     )
     assert not result.ok
@@ -109,10 +110,12 @@ def test_cast_housing_fixture_passes_aad_build_and_has_section_wall_evidence(tmp
     assert result.ok, result.failure
     hard_failures = [check for check in result.checks if check.suite == "hard" and check.level == "error" and check.status == "fail"]
     assert not hard_failures
-    spec_checks = {check.id: check for check in result.checks if check.suite == "spec"}
-    assert all(spec_checks[name].status == "pass" for name in (
-        "one_connected_casting", "shell_wall_material", "shell_cavity_void", "outside_envelope_void",
-    ))
+    # Spec checks need aad_quality, which the engine-only CI job does not install; e2e runs them.
+    if importlib.util.find_spec("aad_quality") is not None:
+        spec_checks = {check.id: check for check in result.checks if check.suite == "spec"}
+        assert all(spec_checks[name].status == "pass" for name in (
+            "one_connected_casting", "shell_wall_material", "shell_cavity_void", "outside_envelope_void",
+        ))
     features = {item.name: item for item in result.context.features}
     assert {"outer_loft", "shell_walls", "bearing_seat", "radial_ribs", "split_flange", "mounting_boss", "edge_blends"} <= set(features)
     blend_report, = features["edge_blends"].metadata["finishing_reports"]

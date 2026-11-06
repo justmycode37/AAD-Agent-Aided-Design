@@ -67,7 +67,7 @@ with part("gearbox_housing") as body:
 result = body.part
 ```
 
-The `draft(shape, faces, angle, neutral_plane=Plane.XY)` helper adds a degree-
+The `draft_faces(shape, faces, angle, neutral_plane=Plane.XY)` helper adds a degree-
 based draft to selected planar, cylindrical or conical faces of one solid. Apply
 it before adding small interfaces, and only to faces supported by the kernel.
 `rib(shape, profile, direction)` extrudes a closed Face or Wire by the supplied

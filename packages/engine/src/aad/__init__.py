@@ -51,7 +51,7 @@ _CAD_EXPORTS = {
     "blend",
     "boss",
     "delete_faces",
-    "draft",
+    "draft_faces",
     "exploded",
     "motion_clearance",
     "overlap_volume",

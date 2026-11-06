@@ -19,6 +19,7 @@ select = ["F", "B023"]
 "evals/teardown/tasks/*.py" = ["F403", "F405"]
 "fixtures/examples/seamaster/build.py" = ["F403", "F405"]
 "fixtures/models/*.py" = ["F403", "F405"]
+"fixtures/cast_housing/model.py" = ["F403", "F405"]
 # _cad returns locals() so its lazy-imported build123d symbols are used by string lookup.
 "evals/benchmark/corpus/references.py" = ["F401"]
 # Public names are resolved through __getattr__ and returned from globals().

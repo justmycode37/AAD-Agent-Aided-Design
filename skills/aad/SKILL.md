@@ -209,7 +209,7 @@ with part("plate") as bp:
 - **`face()`, `edge()`, `vertex()`** are selectors, below.
 - **`entity_shape(ctx, entity)`** returns live topology for a resolved entity, for advanced exact work.
 - **`SelectorError`** is raised when a selector's count is wrong.
-- **`assembly`, `Assembly`, `asset`, `sheet_metal`, `SheetMetalPart`, `variable_fillet`, `blend`, `BlendResult`, `draft`, `rib`, `boss`, `split_flange`, `press_pull`, `delete_faces`, `sew_solid`, `pattern_along`, `exploded`, `overlap_volume`, `motion_clearance`** are below. Invalid arguments raise `CadOperationError`; `blend` returns an explicit per-edge failure report rather than hiding unresolved requests.
+- **`assembly`, `Assembly`, `asset`, `sheet_metal`, `SheetMetalPart`, `variable_fillet`, `blend`, `BlendResult`, `draft_faces`, `rib`, `boss`, `split_flange`, `press_pull`, `delete_faces`, `sew_solid`, `pattern_along`, `exploded`, `overlap_volume`, `motion_clearance`** are below. Invalid arguments raise `CadOperationError`; `blend` returns an explicit per-edge failure report rather than hiding unresolved requests.
 - **Gears:** `gear_profile`, `gear_solid`, `gear_center_distance`, `helix_angle_for_center_distance`, `gear_mesh_phase`, `tapered_bevel_standin`, below.
 
 ### Rules for the script
@@ -275,7 +275,7 @@ Playbook `workflow.capabilities.v1` has working code for each of these.
 - **`sheet_metal(segments, bend_angles, width=, thickness=, inner_radius=, k_factor=0.44, holes=())`** returns a `SheetMetalPart` with `folded`, `bends`, `flat_length` and `flat_sheet()`. It handles one strip with parallel bends. The k-factor is an assumption to state.
 - **`blend(shape, edges, radius, fallback=())`** tries edge groups at the requested radius and then explicit, strictly decreasing fallback radii. Flat selections are attempted as short-first singleton groups; nested edge iterables are atomic groups in supplied order. It returns a `BlendResult` with `.shape`/`.part`, `.report`, and unpacking as `(shape, report)`. Every edge is marked `applied`, `reduced` or `failed`. Failed groups remain unchanged and produce a build warning plus feature metadata; smaller radii are not guaranteed to succeed.
 - **`BlendResult`** holds a blend's output shape and complete per-edge report.
-- **`draft(shape, faces, angle, neutral_plane=Plane.XY)`** applies a degree-based draft to planar, cylindrical or conical faces on exactly one solid.
+- **`draft_faces(shape, faces, angle, neutral_plane=Plane.XY)`** applies a degree-based draft to planar, cylindrical or conical faces on exactly one solid.
 - **`rib(shape, profile, direction)`** extrudes a closed Face or Wire by the direction vector and fuses it to the parent.
 - **`boss(shape, center, radius, height, axis=(0,0,1), hole=0, root_fillet=0, hole_depth=0)`** revolves a boss with an optional bore and root blend, then fuses it. `hole_depth` extends the bore into the parent wall.
 - **`split_flange(shape, seam, width=, thickness=, bolt_diameter=, bolt_count=, bolt_axis=(0,0,1), end_margin=None, gap=0, hole_depth=0)`** builds paired rails along a straight seam Edge and drills a matching linear bolt pattern. The bolt axis must be perpendicular to the seam.
