@@ -49,11 +49,13 @@ def make_drawing(
     ctx: Any,
     req: DrawingRequest | Mapping[str, Any] | None,
     out: str | Path,
+    *,
+    revision_status: str | None = None,
 ) -> DrawingResult:
     """Create a dimensioned drawing sheet from a structural model context."""
     from .sheet import make_drawing as _make_drawing
 
-    return _make_drawing(ctx, req, out)
+    return _make_drawing(ctx, req, out, revision_status=revision_status)
 
 
 def project_drawing_view(shape: Any, view: DrawingView):

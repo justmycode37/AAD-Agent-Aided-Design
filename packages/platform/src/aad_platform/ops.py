@@ -177,8 +177,9 @@ def op_scene(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
 
 def op_drawing(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
     make_drawing = _required("aad_drafting", "make_drawing", "Drawing generation")
+    revision_status = args.pop("_revision_status", None)
     request = {k: v for k, v in args.items() if v is not None}
-    result = make_drawing(ctx, request, out)
+    result = make_drawing(ctx, request, out, revision_status=revision_status)
     return {"drawing": _plain(result)}
 
 

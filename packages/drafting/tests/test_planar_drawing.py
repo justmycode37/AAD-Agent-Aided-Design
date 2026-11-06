@@ -44,6 +44,21 @@ def test_native_sheet_draws_measured_xy_geometry_in_all_formats(tmp_path, units)
     assert {entity.dxf.layer for entity in doc.modelspace()}.issuperset({"cut", "engrave"})
 
 
+def test_default_a4_planar_dimensions_respect_the_reserved_view_padding(tmp_path):
+    sheet = sheet2d("compact plate")
+    sheet.rectangle("outline", 40, 20, origin=(0, 0))
+    sheet.circle("hole", (10, 10), 2)
+
+    result = make_drawing(context(sheet), DrawingRequest(formats=("svg",)), tmp_path / "compact")
+
+    assert result.ok, [check for check in result.checks if check["status"] == "fail"]
+    statuses = {check["id"]: check["status"] for check in result.checks}
+    assert statuses["sheet_margins"] == "pass"
+    assert statuses["text_margins"] == "pass"
+    assert result.sheet["scale"] < 5
+    assert result.preview.is_file()
+
+
 def test_dimension_strokes_ignore_reference_geometry_outside_cut_bounds(tmp_path, monkeypatch):
     from aad_drafting import export
     sheet = sheet2d("datum")
