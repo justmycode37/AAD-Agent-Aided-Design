@@ -165,6 +165,19 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
             stdout=_decode(stdout_bytes),
             stderr=_decode(stderr_bytes),
         )
+    except BaseException:
+        # A caller can interrupt a build before its own deadline (for example,
+        # a cancelled request or a test-runner timeout). Do not leave the
+        # sandboxed worker running in that case.
+        try:
+            _kill_worker(process)
+        except OSError:
+            pass
+        try:
+            _drain_killed_worker(process)
+        except Exception:
+            pass
+        raise
 
     elapsed_ms = _elapsed_ms(started)
     response = _find_response(stdout_bytes)

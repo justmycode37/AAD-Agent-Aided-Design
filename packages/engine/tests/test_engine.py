@@ -539,6 +539,26 @@ result = Box(2, 3, 4)
             self.assertTrue(recovered.ok, recovered.summary)
             self.assertEqual(recovered.metrics["bbox"], [2.0, 3.0, 4.0])
 
+    def test_worker_is_killed_when_the_build_caller_is_interrupted(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="aad-engine-interrupted-") as temporary:
+            root = Path(temporary)
+            with (
+                patch("aad.engine.jobs.sandbox.popen") as popen,
+                patch("aad.engine.jobs._kill_worker") as kill,
+                patch("aad.engine.jobs._drain_killed_worker") as drain,
+            ):
+                popen.return_value.communicate.side_effect = KeyboardInterrupt
+                with self.assertRaises(KeyboardInterrupt):
+                    run_build(
+                        BuildRequest(
+                            source="result = Box(2, 3, 4)",
+                            project_dir=root,
+                            job_dir=root / "job",
+                        )
+                    )
+                kill.assert_called_once_with(popen.return_value)
+                drain.assert_called_once_with(popen.return_value)
+
     @unittest.skipUnless(sys.platform.startswith("linux"), "Linux bubblewrap descendant cleanup")
     def test_worker_deadline_kills_a_detached_bubblewrap_descendant(self) -> None:
         with tempfile.TemporaryDirectory(prefix="aad-engine-linux-timeout-") as temporary:
