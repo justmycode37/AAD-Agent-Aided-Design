@@ -11,6 +11,7 @@ from pathlib import Path
 import sys
 import time
 
+from .memory import is_memory_exhaustion
 from .validation import _MARKER, _canonical_json, _file_digest, _json_value
 
 _METRICS_MARKER = b"AAD_GEOMETRY_METRICS:"
@@ -91,6 +92,9 @@ def main() -> None:
             if payload.get("render_scene") is True:
                 scene_started = time.perf_counter()
                 try:
+                    # The viewer scene serializes this loaded shape directly.
+                    # It does not invoke the VTK image renderer from #106, so
+                    # validation needs neither a second BREP import nor VTK.
                     from aad_render import make_scene
 
                     ctx.project = payload["scene_project"]
@@ -107,10 +111,14 @@ def main() -> None:
                         raise ValueError("scene manifest does not match the rendered scene bytes")
                     wire["scene"] = asdict(manifest)
                 except Exception as exc:
+                    if is_memory_exhaustion(exc):
+                        raise
                     wire["scene_error"] = f"{type(exc).__name__}: {exc}"
                 finally:
                     wire["scene_elapsed_ms"] = (time.perf_counter() - scene_started) * 1000
         except Exception as exc:
+            if is_memory_exhaustion(exc):
+                raise
             wire["failure"] = {"code": "INVALID_SOLID", "phase": "validate", "feature": "unknown",
                                "message": "The BREP could not pass independent geometry inspection.",
                                "kernel_message": f"{type(exc).__name__}: {exc}"}

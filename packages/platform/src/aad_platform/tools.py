@@ -10,14 +10,24 @@ UI_EXTENSION = "io.modelcontextprotocol/ui"
 INTERNAL = "Internal viewer tool. Do not call. "
 
 _PROJECT = {"type": "string", "description": "Project name from aad_new."}
-_REV = {"type": "integer", "minimum": 1, "description": "Revision number. Defaults to the head."}
+_REV = {
+    "type": "integer",
+    "minimum": 1,
+    "description": "Revision number. Defaults to the head.",
+}
 _VECTOR3 = {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3}
 _SELECTORS = {"type": "array", "items": {"type": "string"}, "minItems": 1}
 _APP_META = {"ui": {"visibility": ["app"]}}
 
 
-def _schema(properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
-    schema: dict[str, Any] = {"type": "object", "properties": properties, "additionalProperties": False}
+def _schema(
+    properties: dict[str, Any], required: list[str] | None = None
+) -> dict[str, Any]:
+    schema: dict[str, Any] = {
+        "type": "object",
+        "properties": properties,
+        "additionalProperties": False,
+    }
     if required:
         schema["required"] = required
     return schema
@@ -39,60 +49,143 @@ _REQUEST = _schema(
         "assumptions": {"type": "array", "maxItems": 100, "items": _REQUEST_TEXT},
         "open_questions": {"type": "array", "maxItems": 100, "items": _REQUEST_TEXT},
         "not_checked": {
-            "type": "array", "maxItems": 100,
-            "items": _schema({"item": _REQUEST_TEXT, "reason": _REQUEST_TEXT}, ["item", "reason"]),
+            "type": "array",
+            "maxItems": 100,
+            "items": _schema(
+                {"item": _REQUEST_TEXT, "reason": _REQUEST_TEXT}, ["item", "reason"]
+            ),
         },
     },
     ["original"],
 )
 
 
-_VIEW_PARTS = {"type": "array", "items": {"type": "string", "maxLength": 256}, "minItems": 1, "maxItems": 256}
-_VIEW_SECTION = _schema({
-    "planes": {"type": "array", "minItems": 1, "maxItems": 3, "items": {
-        **_schema({"plane": _enum("XY", "XZ", "YZ"), "normal": _VECTOR3,
-                   "offset": {"type": "number", "description": "Signed distance from the model center in model units. Default 0."},
-                   "flipped": {"type": "boolean"}}),
-        "oneOf": [{"required": ["plane"]}, {"required": ["normal"]}],
-    }},
-    "intersection": {"type": "boolean", "description": "Use the clipping engine's intersection mode. Default false."},
-}, ["planes"])
-_PRESENTATION_MATERIAL = _schema({
-    "parts": _VIEW_PARTS,
-    "color": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"},
-    "metalness": {"type": "number", "minimum": 0, "maximum": 1},
-    "roughness": {"type": "number", "minimum": 0, "maximum": 1},
-    "opacity": {"type": "number", "minimum": 0, "maximum": 1},
-}, ["parts"])
-_PRESENTATION = _schema({
-    "isolate": {**_VIEW_PARTS, "description": "Show only these exact names, leaf paths, or group paths."},
-    "hide": _VIEW_PARTS,
-    "style": _enum("shaded-edges", "shaded", "wireframe", "transparent"),
-    "projection": _enum("orthographic", "perspective"),
-    "section": _VIEW_SECTION,
-    "inside": {**_schema({"hide": _VIEW_PARTS, "section": _VIEW_SECTION}),
-               "anyOf": [{"required": ["hide"]}, {"required": ["section"]}],
-               "description": "Legacy interior recipe. Prefer a named Interior entry in views."},
-    "explode": {"type": "boolean"}, "grid": {"type": "boolean"},
-    "materials": {"type": "array", "items": _PRESENTATION_MATERIAL, "minItems": 1, "maxItems": 256},
-    "environment": _enum("studio"),
-})
-_NAMED_VIEWS = {"type": "array", "maxItems": 24, "items": _schema({
-    "id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$", "description": "Unique ID; original is reserved."},
-    "label": {"type": "string", "minLength": 1, "maxLength": 48},
-    "description": {"type": "string", "maxLength": 240},
-    "view": _enum("iso", "front", "rear", "left", "right", "top", "bottom"),
-    "presentation": _schema({key: value for key, value in _PRESENTATION["properties"].items() if key != "inside"}),
-    "analysis": _schema({
-        "quantity": {"type": "string", "minLength": 1, "maxLength": 80},
-        "units": {"type": "string", "minLength": 1, "maxLength": 24},
-        "source": {"type": "string", "minLength": 1, "maxLength": 512, "description": "Actual analysis artifact or solver result; never invent values."},
-        "values": {"type": "array", "minItems": 1, "maxItems": 2048, "items": _schema({
-            "part": {"type": "string", "maxLength": 256}, "value": {"type": "number"},
-        }, ["part", "value"])},
-        "range": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
-    }, ["quantity", "units", "source", "values"]),
-}, ["id", "label"]), "description": "Curated user-selectable views of this scene, at most 64 KiB total. Each recipe is independent; Original restores the base view. Analysis is sourced component-level data, not a solver."}
+_VIEW_PARTS = {
+    "type": "array",
+    "items": {"type": "string", "maxLength": 256},
+    "minItems": 1,
+    "maxItems": 256,
+}
+_VIEW_SECTION = _schema(
+    {
+        "planes": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 3,
+            "items": {
+                **_schema(
+                    {
+                        "plane": _enum("XY", "XZ", "YZ"),
+                        "normal": _VECTOR3,
+                        "offset": {
+                            "type": "number",
+                            "description": "Signed distance from the model center in model units. Default 0.",
+                        },
+                        "flipped": {"type": "boolean"},
+                    }
+                ),
+                "oneOf": [{"required": ["plane"]}, {"required": ["normal"]}],
+            },
+        },
+        "intersection": {
+            "type": "boolean",
+            "description": "Use the clipping engine's intersection mode. Default false.",
+        },
+    },
+    ["planes"],
+)
+_PRESENTATION_MATERIAL = _schema(
+    {
+        "parts": _VIEW_PARTS,
+        "color": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"},
+        "metalness": {"type": "number", "minimum": 0, "maximum": 1},
+        "roughness": {"type": "number", "minimum": 0, "maximum": 1},
+        "opacity": {"type": "number", "minimum": 0, "maximum": 1},
+    },
+    ["parts"],
+)
+_PRESENTATION = _schema(
+    {
+        "isolate": {
+            **_VIEW_PARTS,
+            "description": "Show only these exact names, leaf paths, or group paths.",
+        },
+        "hide": _VIEW_PARTS,
+        "style": _enum("shaded-edges", "shaded", "wireframe", "transparent"),
+        "projection": _enum("orthographic", "perspective"),
+        "section": _VIEW_SECTION,
+        "inside": {
+            **_schema({"hide": _VIEW_PARTS, "section": _VIEW_SECTION}),
+            "anyOf": [{"required": ["hide"]}, {"required": ["section"]}],
+            "description": "Legacy interior recipe. Prefer a named Interior entry in views.",
+        },
+        "explode": {"type": "boolean"},
+        "grid": {"type": "boolean"},
+        "materials": {
+            "type": "array",
+            "items": _PRESENTATION_MATERIAL,
+            "minItems": 1,
+            "maxItems": 256,
+        },
+        "environment": _enum("studio"),
+    }
+)
+_NAMED_VIEWS = {
+    "type": "array",
+    "maxItems": 24,
+    "items": _schema(
+        {
+            "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,64}$",
+                "description": "Unique ID; original is reserved.",
+            },
+            "label": {"type": "string", "minLength": 1, "maxLength": 48},
+            "description": {"type": "string", "maxLength": 240},
+            "view": _enum("iso", "front", "rear", "left", "right", "top", "bottom"),
+            "presentation": _schema(
+                {
+                    key: value
+                    for key, value in _PRESENTATION["properties"].items()
+                    if key != "inside"
+                }
+            ),
+            "analysis": _schema(
+                {
+                    "quantity": {"type": "string", "minLength": 1, "maxLength": 80},
+                    "units": {"type": "string", "minLength": 1, "maxLength": 24},
+                    "source": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512,
+                        "description": "Actual analysis artifact or solver result; never invent values.",
+                    },
+                    "values": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 2048,
+                        "items": _schema(
+                            {
+                                "part": {"type": "string", "maxLength": 256},
+                                "value": {"type": "number"},
+                            },
+                            ["part", "value"],
+                        ),
+                    },
+                    "range": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "minItems": 2,
+                        "maxItems": 2,
+                    },
+                },
+                ["quantity", "units", "source", "values"],
+            ),
+        },
+        ["id", "label"],
+    ),
+    "description": "Curated user-selectable views of this scene, at most 64 KiB total. Each recipe is independent; Original restores the base view. Analysis is sourced component-level data, not a solver.",
+}
 
 
 TOOLS: list[dict[str, Any]] = [
@@ -105,10 +198,16 @@ TOOLS: list[dict[str, Any]] = [
         ),
         "inputSchema": _schema(
             {
-                "name": {"type": "string", "description": "Letters, digits, '.', '_' or '-'."},
+                "name": {
+                    "type": "string",
+                    "description": "Letters, digits, '.', '_' or '-'.",
+                },
                 "kind": _enum("part", "assembly", "2d"),
                 "units": _enum("mm", "in"),
-                "process": {"type": "string", "description": "fdm_pla, sla, cnc_3axis, sheet_metal, laser or injection."},
+                "process": {
+                    "type": "string",
+                    "description": "fdm_pla, sla, cnc_3axis, sheet_metal, laser or injection.",
+                },
                 "material": {"type": "string"},
                 "spec": {"type": "string", "description": "spec.yaml text."},
                 "source": {"type": "string", "description": "Initial model.py text."},
@@ -136,15 +235,24 @@ TOOLS: list[dict[str, Any]] = [
         "inputSchema": _schema(
             {
                 "project": _PROJECT,
-                "base_rev": {**_REV, "description": "Revision this edit is based on. A stale value is refused."},
+                "base_rev": {
+                    **_REV,
+                    "description": "Revision this edit is based on. A stale value is refused.",
+                },
                 "source": {"type": "string", "description": "Full model.py."},
-                "patch": {"type": "string", "description": "Unified diff against base_rev."},
+                "patch": {
+                    "type": "string",
+                    "description": "Unified diff against base_rev.",
+                },
                 "params": {
                     "type": "object",
                     "additionalProperties": {"type": ["number", "string"]},
                     "description": "Overrides for values declared with params().",
                 },
-                "spec": {"type": "string", "description": "Replacement spec.yaml text."},
+                "spec": {
+                    "type": "string",
+                    "description": "Replacement spec.yaml text.",
+                },
                 "request": {
                     **_REQUEST,
                     "description": (
@@ -153,9 +261,19 @@ TOOLS: list[dict[str, Any]] = [
                         "request.json 64 KiB."
                     ),
                 },
-                "preview": {"type": "boolean", "description": "Add a 4-up image. Default false."},
-                "dry_run": {"type": "boolean", "description": "Full build and checks, no new head."},
-                "wait_s": {"type": "number", "minimum": 0, "description": "Seconds to wait. Default 30."},
+                "preview": {
+                    "type": "boolean",
+                    "description": "Add a 4-up image. Default false.",
+                },
+                "dry_run": {
+                    "type": "boolean",
+                    "description": "Full build and checks, no new head.",
+                },
+                "wait_s": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Seconds to wait. Default 30.",
+                },
                 "timeout_s": {
                     "type": "number",
                     "exclusiveMinimum": 0,
@@ -176,7 +294,9 @@ TOOLS: list[dict[str, Any]] = [
             {
                 "project": _PROJECT,
                 "rev": _REV,
-                "what": _enum("summary", "features", "params", "topology", "bom", "diff"),
+                "what": _enum(
+                    "summary", "features", "params", "topology", "bom", "diff"
+                ),
                 "against": {"type": "integer", "minimum": 1},
             },
             ["project"],
@@ -211,8 +331,19 @@ TOOLS: list[dict[str, Any]] = [
                 "project": _PROJECT,
                 "rev": _REV,
                 "kind": _enum(
-                    "distance", "angle", "radius", "length", "area", "volume", "bbox", "center_of_mass",
-                    "mass", "inertia", "principal_inertia", "thickness", "clearance",
+                    "distance",
+                    "angle",
+                    "radius",
+                    "length",
+                    "area",
+                    "volume",
+                    "bbox",
+                    "center_of_mass",
+                    "mass",
+                    "inertia",
+                    "principal_inertia",
+                    "thickness",
+                    "clearance",
                 ),
                 "a": {"type": "string"},
                 "b": {"type": "string"},
@@ -222,12 +353,18 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "aad_check",
-        "description": "Run check suites on a revision: hard validity, spec requirements, process rules, interference, 2D.",
+        "description": (
+            "Run check suites on a revision: hard validity, spec requirements, process rules, interference, 2D. "
+            "The successful result reports revision_status for the saved revision; this check run does not change it."
+        ),
         "inputSchema": _schema(
             {
                 "project": _PROJECT,
                 "rev": _REV,
-                "suites": {"type": "array", "items": _enum("hard", "spec", "process", "interference", "2d")},
+                "suites": {
+                    "type": "array",
+                    "items": _enum("hard", "spec", "process", "interference", "2d"),
+                },
             },
             ["project"],
         ),
@@ -248,48 +385,120 @@ TOOLS: list[dict[str, Any]] = [
                 "rev": _REV,
                 "views": {
                     "type": "array",
-                    "items": _enum("sheet", "iso", "front", "back", "left", "right", "top", "bottom", "custom"),
+                    "items": _enum(
+                        "sheet",
+                        "iso",
+                        "front",
+                        "back",
+                        "left",
+                        "right",
+                        "top",
+                        "bottom",
+                        "custom",
+                    ),
                 },
                 "style": _enum("shaded", "lines", "xray"),
                 "section": {
                     "type": "object",
-                    "properties": {"plane": {"type": "string"}, "offset": {"type": "number"}},
+                    "properties": {
+                        "plane": {"type": "string"},
+                        "offset": {"type": "number"},
+                    },
                     "required": ["plane"],
                 },
                 "labels": _enum("none", "features", "faces", "edges"),
                 "heatmap": _enum("thickness", "overhang", "draft", "curvature"),
-                "inspection": _enum("summary", "full", description="Default summary leaves the per-face and per-edge tables in the inspection.json artifact. full returns them inline, which is large on big models."),
+                "inspection": _enum(
+                    "summary",
+                    "full",
+                    description="Default summary leaves the per-face and per-edge tables in the inspection.json artifact. full returns them inline, which is large on big models.",
+                ),
                 "highlight": {"type": "array", "items": {"type": "string"}},
                 "size": {"type": "integer", "minimum": 64, "maximum": 2048},
                 "camera": {
-                    **_schema({"direction": _VECTOR3, "up": _VECTOR3, "target": _VECTOR3,
-                               "span": {"type": "number", "exclusiveMinimum": 0}}, ["direction"]),
+                    **_schema(
+                        {
+                            "direction": _VECTOR3,
+                            "up": _VECTOR3,
+                            "target": _VECTOR3,
+                            "span": {"type": "number", "exclusiveMinimum": 0},
+                        },
+                        ["direction"],
+                    ),
                     "description": "Direction points toward the viewer; span is the view height in model units. Adds custom view.",
                 },
                 "focus": {
                     "anyOf": [
-                        {"type": "string"}, _SELECTORS,
-                        {**_schema({
-                            "selector": {"anyOf": [{"type": "string"}, _SELECTORS]},
-                            "min": _VECTOR3, "max": _VECTOR3,
-                            "margin": {"type": "number", "minimum": 0}, "clip": {"type": "boolean"},
-                        }), "anyOf": [{"required": ["selector"]}, {"required": ["min", "max"]}]},
+                        {"type": "string"},
+                        _SELECTORS,
+                        {
+                            **_schema(
+                                {
+                                    "selector": {
+                                        "anyOf": [{"type": "string"}, _SELECTORS]
+                                    },
+                                    "min": _VECTOR3,
+                                    "max": _VECTOR3,
+                                    "margin": {"type": "number", "minimum": 0},
+                                    "clip": {"type": "boolean"},
+                                }
+                            ),
+                            "anyOf": [
+                                {"required": ["selector"]},
+                                {"required": ["min", "max"]},
+                            ],
+                        },
                     ],
                     "description": "Zoom and refine tessellation around selectors or a world box. clip removes geometry outside the padded box.",
                 },
-                "dimensions": _enum("none", "overall", "auto", description="Default auto adds overall dimensions and visible diameters."),
+                "dimensions": _enum(
+                    "none",
+                    "overall",
+                    "auto",
+                    description="Default auto adds overall dimensions and visible diameters.",
+                ),
                 "probes": {
-                    "type": "array", "items": {"oneOf": [
-                        _schema({"image": {"type": "string"}, "x": {"type": "number"}, "y": {"type": "number"}}, ["image", "x", "y"]),
-                        _schema({"point": _VECTOR3, "direction": _VECTOR3}, ["point", "direction"]),
-                    ]},
+                    "type": "array",
+                    "items": {
+                        "oneOf": [
+                            _schema(
+                                {
+                                    "image": {"type": "string"},
+                                    "x": {"type": "number"},
+                                    "y": {"type": "number"},
+                                },
+                                ["image", "x", "y"],
+                            ),
+                            _schema(
+                                {"point": _VECTOR3, "direction": _VECTOR3},
+                                ["point", "direction"],
+                            ),
+                        ]
+                    },
                     "description": "Pixel coordinates start at image top-left; image is a requested view name such as sheet or top (no .png).",
                 },
-                "measure": {"type": "array", "items": _schema({"a": {"type": "string"}, "b": {"type": "string"}}, ["a", "b"])},
-                "heatmap_range": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2,
-                                  "description": "Fixed [low, high] range: model units for thickness/bend radius, degrees for overhang/draft."},
-                "min_wall": {"type": "number", "exclusiveMinimum": 0, "description": "Thickness heatmap: mark sampled walls below this model-unit threshold in magenta."},
-                "direction": {**_VECTOR3, "description": "Build direction for overhang, pull direction for draft. Default [0, 0, 1]."},
+                "measure": {
+                    "type": "array",
+                    "items": _schema(
+                        {"a": {"type": "string"}, "b": {"type": "string"}}, ["a", "b"]
+                    ),
+                },
+                "heatmap_range": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "description": "Fixed [low, high] range: model units for thickness/bend radius, degrees for overhang/draft.",
+                },
+                "min_wall": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "Thickness heatmap: mark sampled walls below this model-unit threshold in magenta.",
+                },
+                "direction": {
+                    **_VECTOR3,
+                    "description": "Build direction for overhang, pull direction for draft. Default [0, 0, 1].",
+                },
             },
             ["project"],
         ),
@@ -332,21 +541,41 @@ TOOLS: list[dict[str, Any]] = [
                 "rev": _REV,
                 "sheet": _enum("A4", "A3", "A2", "A1", "letter", "tabloid"),
                 "views": {"type": "array", "items": {"type": "object"}},
-                "dimensions": {"anyOf": [_enum("auto", "none"), {"type": "array", "items": {"type": "object"}}]},
+                "dimensions": {
+                    "anyOf": [
+                        _enum("auto", "none"),
+                        {"type": "array", "items": {"type": "object"}},
+                    ]
+                },
                 "style": _enum("iso", "asme"),
-                "title_block": {"type": "object", "additionalProperties": {"type": "string"}},
+                "title_block": {
+                    "type": "object",
+                    "additionalProperties": {"type": "string"},
+                },
                 "notes": {"type": "array", "items": {"type": "string"}},
-                "revisions": {"type": "array", "items": {"type": "object"},
-                              "description": "Revision table rows: revision, date, description, by."},
-                "bom": {"type": "boolean", "description": "Add a bill of materials from the assembly's components."},
-                "formats": {"type": "array", "items": _enum("svg", "dxf", "pdf", "png")},
+                "revisions": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": "Revision table rows: revision, date, description, by.",
+                },
+                "bom": {
+                    "type": "boolean",
+                    "description": "Add a bill of materials from the assembly's components.",
+                },
+                "formats": {
+                    "type": "array",
+                    "items": _enum("svg", "dxf", "pdf", "png"),
+                },
             },
             ["project"],
         ),
     },
     {
         "name": "aad_history",
-        "description": "List revisions, diff two, check out or branch from one, or poll a running job.",
+        "description": (
+            "List the latest revisions with status and downgrade reasons, diff two, check out or branch from one, "
+            "or poll a running job."
+        ),
         "inputSchema": _schema(
             {
                 "project": _PROJECT,
@@ -388,7 +617,20 @@ TOOLS: list[dict[str, Any]] = [
                 "rev": _REV,
                 "formats": {
                     "type": "array",
-                    "items": _enum("step", "iges", "stl", "obj", "ply", "3mf", "glb", "brep", "dxf", "svg", "pdf", "viewer_html"),
+                    "items": _enum(
+                        "step",
+                        "iges",
+                        "stl",
+                        "obj",
+                        "ply",
+                        "3mf",
+                        "glb",
+                        "brep",
+                        "dxf",
+                        "svg",
+                        "pdf",
+                        "viewer_html",
+                    ),
                     "minItems": 1,
                 },
                 "options": {"type": "object"},
@@ -455,7 +697,8 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "aad_pick_info",
-        "description": INTERNAL + "Resolves a picked entity to a selector and geometry.",
+        "description": INTERNAL
+        + "Resolves a picked entity to a selector and geometry.",
         "inputSchema": _schema(
             {
                 "project": _PROJECT,

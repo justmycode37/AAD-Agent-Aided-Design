@@ -37,9 +37,13 @@ def test_rejects_symlinked_project_directories(project, tmp_path):
         asyncio.run(Handlers().aad_file_read({"project": "p", "path": "secret"}))
 
 
-def test_verified_export_needs_no_unverified_flag_or_suffix(project, tmp_path, monkeypatch):
+def test_verified_export_needs_no_unverified_flag_or_suffix(
+    project, tmp_path, monkeypatch
+):
     _write_verified_revision(project)
-    inspected = asyncio.run(Handlers().aad_inspect({"project": "p", "what": "summary"}))["structured"]
+    inspected = asyncio.run(
+        Handlers().aad_inspect({"project": "p", "what": "summary"})
+    )["structured"]
     assert inspected["status"] == "verified"
     assert "body" in inspected["summary"]
     recorded = {}
@@ -61,16 +65,24 @@ def test_verified_export_needs_no_unverified_flag_or_suffix(project, tmp_path, m
     assert "UNVERIFIED" not in envelope["artifacts"]["step"]
 
 
-def test_committed_build_receipt_is_rechecked_for_inspect_and_export(project, tmp_path, monkeypatch):
-    result = asyncio.run(Handlers().aad_build({
-        "project": "p",
-        "source": "from build123d import Box\nresult = Box(10, 8, 4)\n",
-        "spec": "units: mm\nrequirements:\n  - {id: body, solids: 1}\n",
-    }))
+def test_committed_build_receipt_is_rechecked_for_inspect_and_export(
+    project, tmp_path, monkeypatch
+):
+    result = asyncio.run(
+        Handlers().aad_build(
+            {
+                "project": "p",
+                "source": "from build123d import Box\nresult = Box(10, 8, 4)\n",
+                "spec": "units: mm\nrequirements:\n  - {id: body, solids: 1}\n",
+            }
+        )
+    )
     envelope = result["structured"]
     assert envelope["ok"] and envelope["status"] == "verified", envelope.get("summary")
     assert "body" in envelope["summary"]
-    inspected = asyncio.run(Handlers().aad_inspect({"project": "p", "what": "summary"}))["structured"]
+    inspected = asyncio.run(
+        Handlers().aad_inspect({"project": "p", "what": "summary"})
+    )["structured"]
     assert inspected["status"] == "verified"
     assert "body" in inspected["summary"]
 
@@ -85,73 +97,186 @@ def test_committed_build_receipt_is_rechecked_for_inspect_and_export(project, tm
         return {"ok": True, "files": {"step": str(source)}}, out
 
     monkeypatch.setattr(Handlers, "_op", fake_op)
-    exported = asyncio.run(Handlers().aad_export({"project": "p", "formats": ["step"]}))["structured"]
+    exported = asyncio.run(
+        Handlers().aad_export({"project": "p", "formats": ["step"]})
+    )["structured"]
     assert exported["ok"] and exported["status"] == "verified"
     assert "allow_unverified" not in recorded
     assert "UNVERIFIED" not in exported["artifacts"]["step"]
 
 
-def test_warn_only_requirement_stays_verified_after_receipt_compaction(project):
-    result = asyncio.run(Handlers().aad_build({
-        "project": "p",
-        "source": "from build123d import Box\nresult = Box(10, 8, 4)\n",
-        "spec": "units: mm\nrequirements:\n  - {id: advisory_size, level: warn, bbox: {x: 8}}\n",
-    }))
+def test_warn_only_requirement_stays_draft_with_a_plain_reason(project):
+    result = asyncio.run(
+        Handlers().aad_build(
+            {
+                "project": "p",
+                "source": "from build123d import Box\nresult = Box(10, 4, 2)\n",
+                "spec": "units: mm\nrequirements:\n  - {id: advisory_size, level: warn, bbox: {x: 12}}\n",
+            }
+        )
+    )
+    envelope = result["structured"]
+    assert envelope["ok"] and envelope["status"] == "draft", envelope.get("summary")
+    assert "only advisory requirements" in envelope["summary"]
+    assert "nothing required was proven" in envelope["summary"]
+    assert any(
+        check["id"] == "advisory_size" and check["status"] == "warn"
+        for check in envelope["checks"]
+    )
+    meta = json.loads(project.rev_dir(1).joinpath("meta.json").read_text())
+    assert meta.get("verification_receipt") is None
+    assert handlers._rev_meta(project, 1)["status"] == "draft"
+    inspected = asyncio.run(
+        Handlers().aad_inspect({"project": "p", "what": "summary"})
+    )["structured"]
+    assert inspected["status"] == "draft"
+    assert "only advisory requirements" in inspected["summary"]
+    refused = asyncio.run(Handlers().aad_export({"project": "p", "formats": ["step"]}))[
+        "structured"
+    ]
+    assert not refused["ok"] and refused["failure"]["code"] == "NOT_VERIFIED"
+    assert "only advisory requirements" in refused["failure"]["message"]
+
+
+def test_failing_advisory_requirement_is_named_in_verified_build_and_export(
+    project, tmp_path, monkeypatch
+):
+    result = asyncio.run(
+        Handlers().aad_build(
+            {
+                "project": "p",
+                "source": "from build123d import Box\nresult = Box(10, 4, 2)\n",
+                "spec": (
+                    "units: mm\nrequirements:\n"
+                    "  - {id: required_solids, level: error, solids: 1}\n"
+                    "  - {id: advisory_width, level: warn, bbox: {x: 12}}\n"
+                ),
+            }
+        )
+    )
     envelope = result["structured"]
     assert envelope["ok"] and envelope["status"] == "verified", envelope.get("summary")
-    assert any(check["id"] == "advisory_size" and check["status"] == "warn" for check in envelope["checks"])
-    meta = json.loads(project.rev_dir(1).joinpath("meta.json").read_text())
-    receipt = meta["verification_receipt"]
-    assert "proven_error_requirement_ids" not in receipt
-    assert handlers._rev_meta(project, 1)["status"] == "verified"
-    inspected = asyncio.run(Handlers().aad_inspect({"project": "p", "what": "summary"}))["structured"]
-    assert inspected["status"] == "verified"
+    assert "Advisory requirements not met: advisory_width (warn)" in envelope["summary"]
+    assert any(
+        check["id"] == "advisory_width" and check["status"] == "warn"
+        for check in envelope["checks"]
+    )
+
+    async def fake_op(_self, _project, _rev, _op, _args, **_kwargs):
+        out = tmp_path / "advisory-export"
+        out.mkdir(exist_ok=True)
+        source = out / "model.step"
+        source.write_text("step")
+        return {"ok": True, "files": {"step": str(source)}}, out
+
+    monkeypatch.setattr(Handlers, "_op", fake_op)
+    exported = asyncio.run(
+        Handlers().aad_export({"project": "p", "formats": ["step"]})
+    )["structured"]
+    assert exported["ok"] and exported["status"] == "verified"
+    assert "Advisory requirements not met: advisory_width (warn)" in exported["summary"]
 
 
 def test_verified_dry_run_returns_draft_without_crashing(project):
-    result = asyncio.run(Handlers().aad_build({
-        "project": "p",
-        "source": "from build123d import Box\nresult = Box(10, 8, 4)\n",
-        "spec": "requirements: [{id: body, solids: 1}]\n",
-        "dry_run": True,
-    }))
+    result = asyncio.run(
+        Handlers().aad_build(
+            {
+                "project": "p",
+                "source": "from build123d import Box\nresult = Box(10, 8, 4)\n",
+                "spec": "requirements: [{id: body, solids: 1}]\n",
+                "dry_run": True,
+            }
+        )
+    )
     envelope = result["structured"]
     assert envelope["ok"] and envelope["status"] == "draft"
     assert "no revision was saved" in envelope["summary"]
     assert envelope["next"]
+    assert any(
+        "draft means no saved revision was created" in hint for hint in envelope["next"]
+    )
     assert project.head_rev is None
+
+
+def test_aad_check_names_saved_revision_status_without_changing_it(
+    project, tmp_path, monkeypatch
+):
+    _write_verified_revision(project)
+
+    async def fake_op(_self, _project, _rev, _op, _args, **_kwargs):
+        return {
+            "ok": True,
+            "checks": [
+                {
+                    "id": "interference_pairs",
+                    "suite": "interference",
+                    "level": "error",
+                    "status": "fail",
+                    "message": "Found one overlapping solid pair.",
+                }
+            ],
+        }, tmp_path
+
+    monkeypatch.setattr(Handlers, "_op", fake_op)
+    checked = asyncio.run(
+        Handlers().aad_check({"project": "p", "suites": ["interference"]})
+    )["structured"]
+    assert checked["revision_status"] == "verified"
+    assert "status" not in checked
+    assert "does not change it" in checked["summary"]
+    assert checked["checks"][0]["id"] == "interference_pairs"
+    assert checked["checks"][0]["status"] == "fail"
+    assert handlers._rev_meta(project, 1)["status"] == "verified"
 
 
 def test_clean_scene_failure_keeps_brep_draft_and_non_exportable(project, monkeypatch):
     from aad.engine import validation
 
     def scene_failure(evidence, _wire, **_kwargs):
-        evidence.scene_error = "RuntimeError: clean scene renderer exited with status 42"
+        evidence.scene_error = (
+            "RuntimeError: clean scene renderer exited with status 42"
+        )
 
     monkeypatch.setattr(validation, "_accept_scene", scene_failure)
-    result = asyncio.run(Handlers().aad_build({
-        "project": "p",
-        "source": "from build123d import Box\nresult = Box(10, 8, 4)\n",
-        "spec": "requirements: [{id: body, solids: 1}]\n",
-    }))
+    result = asyncio.run(
+        Handlers().aad_build(
+            {
+                "project": "p",
+                "source": "from build123d import Box\nresult = Box(10, 8, 4)\n",
+                "spec": "requirements: [{id: body, solids: 1}]\n",
+            }
+        )
+    )
     envelope = result["structured"]
     assert envelope["ok"] and envelope["status"] == "draft", envelope.get("summary")
     assert "scene generation failed" in envelope["summary"]
     assert "status 42" in envelope["summary"]
-    check = next(check for check in envelope["checks"] if check["id"] == "scene_generation_failed")
+    check = next(
+        check
+        for check in envelope["checks"]
+        if check["id"] == "scene_generation_failed"
+    )
     assert check["status"] == "skip" and check["level"] == "error"
     revision = project.rev_dir(1)
     assert (revision / "part.brep").is_file()
     assert handlers._rev_meta(project, 1)["status"] == "draft"
-    exported = asyncio.run(Handlers().aad_export({"project": "p", "formats": ["step"]}))["structured"]
+    exported = asyncio.run(
+        Handlers().aad_export({"project": "p", "formats": ["step"]})
+    )["structured"]
     assert not exported["ok"] and exported["failure"]["code"] == "NOT_VERIFIED"
 
 
-@pytest.mark.parametrize("tamper", ["spec", "brep", "metrics", "checks", "proven", "scene"])
-def test_modified_verified_revision_is_downgraded_before_export(project, tmp_path, monkeypatch, tamper):
+@pytest.mark.parametrize(
+    "tamper", ["spec", "brep", "metrics", "checks", "proven", "scene"]
+)
+def test_modified_verified_revision_is_downgraded_before_export(
+    project, tmp_path, monkeypatch, tamper
+):
     revision = _write_verified_revision(project)
     if tamper == "spec":
-        (revision / "spec.yaml").write_text("requirements: [{id: altered, solids: 1}]\n")
+        (revision / "spec.yaml").write_text(
+            "requirements: [{id: altered, solids: 1}]\n"
+        )
     elif tamper == "brep":
         (revision / "part.brep").write_bytes(b"swapped BREP")
     else:
@@ -170,10 +295,23 @@ def test_modified_verified_revision_is_downgraded_before_export(project, tmp_pat
         meta_path.write_text(json.dumps(meta))
 
     from aad_platform.daemon.handlers import _rev_meta
+
     checked = _rev_meta(project, 1)
     assert checked["status"] == "draft"
-    assert any(word in checked["verification_invalid_reason"] for word in ("hash", "match"))
-    inspected = asyncio.run(Handlers().aad_inspect({"project": "p", "what": "summary"}))["structured"]
+    assert any(
+        word in checked["verification_invalid_reason"] for word in ("hash", "match")
+    )
+    history = asyncio.run(Handlers().aad_history({"project": "p", "action": "list"}))[
+        "structured"
+    ]
+    assert checked["verification_invalid_reason"] in history["summary"]
+    assert (
+        history["revisions"][-1]["verification_invalid_reason"]
+        == checked["verification_invalid_reason"]
+    )
+    inspected = asyncio.run(
+        Handlers().aad_inspect({"project": "p", "what": "summary"})
+    )["structured"]
     assert inspected["status"] == "draft"
     assert any(word in inspected["summary"] for word in ("hash", "receipt"))
 
@@ -186,6 +324,7 @@ def test_modified_verified_revision_is_downgraded_before_export(project, tmp_pat
     assert "allow_unverified" in envelope["failure"]["message"]
 
     recorded = {}
+
     async def fake_op(_self, _project, _rev, _op, args, **_kwargs):
         recorded.update(args)
         out = tmp_path / "unverified-output"
@@ -195,9 +334,15 @@ def test_modified_verified_revision_is_downgraded_before_export(project, tmp_pat
         return {"ok": True, "files": {"step": str(source)}}, out
 
     monkeypatch.setattr(Handlers, "_op", fake_op)
-    exported = asyncio.run(Handlers().aad_export({
-        "project": "p", "formats": ["step"], "allow_unverified": True,
-    }))["structured"]
+    exported = asyncio.run(
+        Handlers().aad_export(
+            {
+                "project": "p",
+                "formats": ["step"],
+                "allow_unverified": True,
+            }
+        )
+    )["structured"]
     assert exported["ok"] and exported["status"] == "draft"
     assert recorded["stem"] == "p-r1-UNVERIFIED"
     assert "no longer match" in exported["summary"]
@@ -218,12 +363,16 @@ def _write_verified_revision(project):
         except importlib_metadata.PackageNotFoundError:
             versions[package] = "unavailable"
     settings = {"units": "mm", "process": None}
-    canonical = lambda value: json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    canonical = lambda value: json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode()
     digest = lambda value: hashlib.sha256(value).hexdigest()
     spec = parse_spec((revision / "spec.yaml").read_text())
     spec_hash = digest(canonical(spec))
     validation_record = {
-        "protocol": 1, "snapshot_sha256": digest(brep), "spec_sha256": spec_hash,
+        "protocol": 1,
+        "snapshot_sha256": digest(brep),
+        "spec_sha256": spec_hash,
         "kernel_versions": versions,
         "inputs": {"kind": "part", "units": "mm", "spec": spec},
     }
@@ -233,13 +382,26 @@ def _write_verified_revision(project):
         "proven_error_requirement_ids": ["body"],
     }
     metrics = {
-        "units": "mm", "bbox": [10.0, 8.0, 4.0], "volume": 320.0,
-        "solids": 1, "faces": 6, "edges": 12, "valid": True, "build_ms": 1.0,
+        "units": "mm",
+        "bbox": [10.0, 8.0, 4.0],
+        "volume": 320.0,
+        "solids": 1,
+        "faces": 6,
+        "edges": 12,
+        "valid": True,
+        "build_ms": 1.0,
     }
-    checks = [{
-        "id": "body", "suite": "spec", "level": "error", "status": "pass",
-        "message": "Solid-count requirement passed.", "expected": "1", "actual": "1",
-    }]
+    checks = [
+        {
+            "id": "body",
+            "suite": "spec",
+            "level": "error",
+            "status": "pass",
+            "message": "Solid-count requirement passed.",
+            "expected": "1",
+            "actual": "1",
+        }
+    ]
     checks_summary = {"pass": 1, "fail": 0, "warn": 0, "skip": 0, "not_applicable": 0}
     receipt = {
         "rev": 1,
@@ -256,11 +418,17 @@ def _write_verified_revision(project):
         "scene_id": digest(scene),
     }
     meta = {
-        "rev": 1, "status": "verified", "verification_receipt": receipt,
-        "metrics": metrics, "checks": checks, "checks_summary": checks_summary,
+        "rev": 1,
+        "status": "verified",
+        "verification_receipt": receipt,
+        "metrics": metrics,
+        "checks": checks,
+        "checks_summary": checks_summary,
         "scene": {"scene_id": receipt["scene_id"]},
     }
-    receipt["revision_evidence_sha256"] = handlers._verification_evidence_hash(meta, receipt)
+    receipt["revision_evidence_sha256"] = handlers._verification_evidence_hash(
+        meta, receipt
+    )
     (revision / "meta.json").write_text(json.dumps(meta))
     meta = project.meta()
     meta["head_rev"] = 1
@@ -268,7 +436,9 @@ def _write_verified_revision(project):
     return revision
 
 
-def test_import_replaces_destination_symlink_without_following_it(project, tmp_path, monkeypatch):
+def test_import_replaces_destination_symlink_without_following_it(
+    project, tmp_path, monkeypatch
+):
     outside = tmp_path / "outside.step"
     outside.write_text("keep")
     source = tmp_path / "part.step"
@@ -296,7 +466,9 @@ def test_export_preflights_all_destinations(project, tmp_path):
     (out / "p.stl").write_text("stl")
     (exports / "p.stl").mkdir()
     with pytest.raises(ValueError):
-        _publish_exports(exports, out, {fmt: str(out / f"p.{fmt}") for fmt in ("step", "stl")}, "p")
+        _publish_exports(
+            exports, out, {fmt: str(out / f"p.{fmt}") for fmt in ("step", "stl")}, "p"
+        )
     assert not (exports / "p.step").exists()
 
 
@@ -316,13 +488,18 @@ def test_export_rolls_back_published_files(project, tmp_path, monkeypatch):
 
     monkeypatch.setattr(handlers.os, "replace", fail_second)
     with pytest.raises(OSError, match="disk full"):
-        _publish_exports(exports, out, {fmt: str(out / f"p.{fmt}") for fmt in ("step", "stl")}, "p")
+        _publish_exports(
+            exports, out, {fmt: str(out / f"p.{fmt}") for fmt in ("step", "stl")}, "p"
+        )
     assert all((exports / f"p.{fmt}").read_text() == "old" for fmt in ("step", "stl"))
 
 
 def test_library_preserves_worker_timeout(monkeypatch):
     async def timeout(*_, **__):
-        return {"ok": False, "failure": {"code": "TIMEOUT", "phase": "timeout", "message": "timed out"}}
+        return {
+            "ok": False,
+            "failure": {"code": "TIMEOUT", "phase": "timeout", "message": "timed out"},
+        }
 
     monkeypatch.setattr(handlers, "run_op", timeout)
     result = asyncio.run(Handlers().aad_library({"action": "search", "query": "bolt"}))
@@ -330,7 +507,9 @@ def test_library_preserves_worker_timeout(monkeypatch):
     assert result["structured"]["failure"]["phase"] == "timeout"
 
 
-def test_editable_guidance_is_discoverable_with_only_worker_read_mounts(tmp_path, monkeypatch):
+def test_editable_guidance_is_discoverable_with_only_worker_read_mounts(
+    tmp_path, monkeypatch
+):
     from aad_platform.daemon import ops_client
     from aad_quality import catalog
 
@@ -343,7 +522,13 @@ def test_editable_guidance_is_discoverable_with_only_worker_read_mounts(tmp_path
     (package / "unrelated.txt").write_text("not needed by the worker")
     guidance = root / "skills"
     (guidance / "playbooks").mkdir(parents=True)
-    monkeypatch.setattr(ops_client.importlib.util, "find_spec", lambda name: SimpleNamespace(origin=str(origin)) if name == "aad_quality" else None)
+    monkeypatch.setattr(
+        ops_client.importlib.util,
+        "find_spec",
+        lambda name: (
+            SimpleNamespace(origin=str(origin)) if name == "aad_quality" else None
+        ),
+    )
     monkeypatch.setattr(catalog, "__file__", str(origin))
     monkeypatch.setattr(catalog, "files", lambda name: origin.parent)
     reads = ops_client._package_roots()
@@ -353,7 +538,10 @@ def test_editable_guidance_is_discoverable_with_only_worker_read_mounts(tmp_path
     is_file, is_dir = Path.is_file, Path.is_dir
 
     def visible(path):
-        return any(path == allowed or (is_dir(allowed) and path.is_relative_to(allowed)) for allowed in reads)
+        return any(
+            path == allowed or (is_dir(allowed) and path.is_relative_to(allowed))
+            for allowed in reads
+        )
 
     monkeypatch.setattr(Path, "is_file", lambda path: visible(path) and is_file(path))
     monkeypatch.setattr(Path, "is_dir", lambda path: visible(path) and is_dir(path))
@@ -369,7 +557,11 @@ def test_duplicate_yaml_cannot_create_or_advance_project(project):
     result = asyncio.run(handler.aad_new({"name": "bad", "spec": duplicate}))
     assert result["structured"]["failure"]["code"] == "BAD_INPUT"
     assert not (project.path.parent / "bad").exists()
-    result = asyncio.run(handler.aad_build({"project": "p", "source": "result = None", "spec": duplicate}))
+    result = asyncio.run(
+        handler.aad_build(
+            {"project": "p", "source": "result = None", "spec": duplicate}
+        )
+    )
     assert result["structured"]["failure"]["code"] == "BAD_INPUT"
     assert project.head_rev is None
 
@@ -377,10 +569,25 @@ def test_duplicate_yaml_cannot_create_or_advance_project(project):
 def test_build_timeout_defaults_and_accepts_a_bounded_value():
     assert handlers._build_timeout(None) == handlers.BUILD_TIMEOUT_S
     assert handlers._build_timeout(240) == 240.0
-    assert handlers._build_timeout(handlers.MAX_BUILD_TIMEOUT_S) == handlers.MAX_BUILD_TIMEOUT_S
+    assert (
+        handlers._build_timeout(handlers.MAX_BUILD_TIMEOUT_S)
+        == handlers.MAX_BUILD_TIMEOUT_S
+    )
 
 
-@pytest.mark.parametrize("value", [0, -1, True, "90", float("nan"), float("inf"), handlers.MAX_BUILD_TIMEOUT_S + 1, 10**1000])
+@pytest.mark.parametrize(
+    "value",
+    [
+        0,
+        -1,
+        True,
+        "90",
+        float("nan"),
+        float("inf"),
+        handlers.MAX_BUILD_TIMEOUT_S + 1,
+        10**1000,
+    ],
+)
 def test_build_timeout_refuses_values_outside_its_limit(value):
     with pytest.raises(ValueError, match="timeout_s"):
         handlers._build_timeout(value)
@@ -561,5 +768,7 @@ def test_empty_suites_still_allow_the_spec_reference(tmp_path):
         "requirements:\n  - {id: r, matches_reference: {path: imports/ref.step, f_score: {min: 0.5}}}\n"
     )
     project = SimpleNamespace(path=tmp_path)
-    assert ops_client._spec_reference_reads(project, 1, {"suites": []}) == [str(reference.resolve())]
+    assert ops_client._spec_reference_reads(project, 1, {"suites": []}) == [
+        str(reference.resolve())
+    ]
     assert ops_client._spec_reference_reads(project, 1, {"suites": ["hard"]}) == []

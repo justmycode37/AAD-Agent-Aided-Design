@@ -47,7 +47,9 @@ def _build_timeout(value: Any) -> float:
     return float(value)
 
 
-def reply(envelope: dict[str, Any], images: list[dict[str, str]] | None = None) -> dict[str, Any]:
+def reply(
+    envelope: dict[str, Any], images: list[dict[str, str]] | None = None
+) -> dict[str, Any]:
     result: dict[str, Any] = {"structured": envelope, "text": text_for(envelope)}
     if images:
         result["images"] = images
@@ -66,7 +68,9 @@ def viewer_mode(client: dict[str, Any] | None) -> str:
     setting = config.get("viewer")
     if setting == "off":
         return "none"
-    if os.environ.get("AAD_REMOTE"):  # A window would open on the server, not on the user's machine.
+    if os.environ.get(
+        "AAD_REMOTE"
+    ):  # A window would open on the server, not on the user's machine.
         return "inline"
     if setting != "auto":
         return setting
@@ -77,7 +81,9 @@ def viewer_mode(client: dict[str, Any] | None) -> str:
 
 
 class Handlers:
-    def __init__(self, token: str = "", on_window_start: Callable[[int], None] | None = None) -> None:
+    def __init__(
+        self, token: str = "", on_window_start: Callable[[int], None] | None = None
+    ) -> None:
         self._locks: dict[Path, asyncio.Lock] = defaultdict(asyncio.Lock)
         self._jobs: dict[str, Job] = {}
         self._active = 0
@@ -89,7 +95,9 @@ class Handlers:
 
     @property
     def busy(self) -> bool:
-        return self._active > 0 or (self._window is not None and self._window.connection_count > 0)
+        return self._active > 0 or (
+            self._window is not None and self._window.connection_count > 0
+        )
 
     async def close(self) -> None:
         for job in self._jobs.values():
@@ -117,28 +125,48 @@ class Handlers:
         try:
             result = await handler(params)
         except ProjectError as exc:
-            return reply(failure_envelope(params.get("project") or params.get("name") or "", exc.code, "input", exc.message))
+            return reply(
+                failure_envelope(
+                    params.get("project") or params.get("name") or "",
+                    exc.code,
+                    "input",
+                    exc.message,
+                )
+            )
         return self._attach_selection(params, result)
 
-    def _attach_selection(self, params: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+    def _attach_selection(
+        self, params: dict[str, Any], result: dict[str, Any]
+    ) -> dict[str, Any]:
         """Picks made in a window reach the model on its next tool call for that project."""
         structured = result.get("structured")
-        if self._window is None or "client" not in params or not isinstance(structured, dict):
+        if (
+            self._window is None
+            or "client" not in params
+            or not isinstance(structured, dict)
+        ):
             return result
         project = structured.get("project")
         selection = self._window.take_selection(project) if project else []
         if not selection:
             return result
         structured["user_selection"] = selection
-        lines = [f"- {item.get('kind')} {item.get('selector')}" for item in selection[:5]]
-        result["text"] = "\n".join([result.get("text", ""), "The user selected in the viewer:", *lines])
+        lines = [
+            f"- {item.get('kind')} {item.get('selector')}" for item in selection[:5]
+        ]
+        result["text"] = "\n".join(
+            [result.get("text", ""), "The user selected in the viewer:", *lines]
+        )
         return result
 
     def _not_implemented(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         if not method.startswith("aad_"):
             raise KeyError(method)
         envelope = failure_envelope(
-            params.get("project") or "", "BAD_INPUT", "input", f"{method} is not implemented in this build."
+            params.get("project") or "",
+            "BAD_INPUT",
+            "input",
+            f"{method} is not implemented in this build.",
         )
         return reply(envelope)
 
@@ -147,11 +175,27 @@ class Handlers:
         try:
             _parse_spec(params.get("spec"))
         except ValueError as exc:
-            return reply(failure_envelope(params.get("name", ""), "BAD_INPUT", "input", f"spec is not valid YAML: {exc}"))
+            return reply(
+                failure_envelope(
+                    params.get("name", ""),
+                    "BAD_INPUT",
+                    "input",
+                    f"spec is not valid YAML: {exc}",
+                )
+            )
         try:
-            request_data = normalize_request(params["request"]) if "request" in params else None
+            request_data = (
+                normalize_request(params["request"]) if "request" in params else None
+            )
         except ValueError as exc:
-            return reply(failure_envelope(params.get("name", ""), "BAD_INPUT", "input", f"request is invalid: {exc}"))
+            return reply(
+                failure_envelope(
+                    params.get("name", ""),
+                    "BAD_INPUT",
+                    "input",
+                    f"request is invalid: {exc}",
+                )
+            )
         project = create_project(
             params.get("name", ""),
             client=client,
@@ -179,7 +223,9 @@ class Handlers:
         self._jobs[job_id] = Job(job_id, project.name, task)
         wait_s = params.get("wait_s")
         try:
-            return await asyncio.wait_for(asyncio.shield(task), DEFAULT_WAIT_S if wait_s is None else wait_s)
+            return await asyncio.wait_for(
+                asyncio.shield(task), DEFAULT_WAIT_S if wait_s is None else wait_s
+            )
         except TimeoutError:
             return reply(
                 {
@@ -205,7 +251,14 @@ class Handlers:
         except Exception as exc:
             log.exception("build %s failed", job_id)
             project.discard_job(job_dir)
-            return reply(failure_envelope(project.name, "WORKER_CRASH", "crash", f"The build job crashed: {exc}"))
+            return reply(
+                failure_envelope(
+                    project.name,
+                    "WORKER_CRASH",
+                    "crash",
+                    f"The build job crashed: {exc}",
+                )
+            )
         finally:
             self._active -= 1
 
@@ -236,12 +289,32 @@ class Handlers:
         source = params.get("source")
         if source is not None and params.get("patch"):
             project.discard_job(job_dir)
-            return reply(failure_envelope(project.name, "BAD_INPUT", "input", "Send source or patch, not both.", head_rev=head))
+            return reply(
+                failure_envelope(
+                    project.name,
+                    "BAD_INPUT",
+                    "input",
+                    "Send source or patch, not both.",
+                    head_rev=head,
+                )
+            )
         if source is None:
-            base = project.rev_dir(head) / "model.py" if head is not None else project.path / "model.py"
+            base = (
+                project.rev_dir(head) / "model.py"
+                if head is not None
+                else project.path / "model.py"
+            )
             if not base.exists():
                 project.discard_job(job_dir)
-                return reply(failure_envelope(project.name, "BAD_INPUT", "input", "No model.py yet. Send source.", head_rev=head))
+                return reply(
+                    failure_envelope(
+                        project.name,
+                        "BAD_INPUT",
+                        "input",
+                        "No model.py yet. Send source.",
+                        head_rev=head,
+                    )
+                )
             source = base.read_text()
         if params.get("patch"):
             try:
@@ -250,15 +323,31 @@ class Handlers:
                 project.discard_job(job_dir)
                 return reply(
                     failure_envelope(
-                        project.name, "BAD_INPUT", "input", f"{exc} Read the head with aad_inspect or send full source.", head_rev=head
+                        project.name,
+                        "BAD_INPUT",
+                        "input",
+                        f"{exc} Read the head with aad_inspect or send full source.",
+                        head_rev=head,
                     )
                 )
         try:
-            request_data = normalize_request(params["request"]) if "request" in params else project.read_request()
+            request_data = (
+                normalize_request(params["request"])
+                if "request" in params
+                else project.read_request()
+            )
         except (ProjectError, ValueError) as exc:
             project.discard_job(job_dir)
             message = exc.message if isinstance(exc, ProjectError) else str(exc)
-            return reply(failure_envelope(project.name, "BAD_INPUT", "input", f"request is invalid: {message}", head_rev=head))
+            return reply(
+                failure_envelope(
+                    project.name,
+                    "BAD_INPUT",
+                    "input",
+                    f"request is invalid: {message}",
+                    head_rev=head,
+                )
+            )
         spec_text = params.get("spec")
         if spec_text is None and (project.path / "spec.yaml").exists():
             spec_text = (project.path / "spec.yaml").read_text()
@@ -266,7 +355,15 @@ class Handlers:
             spec = _parse_spec(spec_text)
         except ValueError as exc:
             project.discard_job(job_dir)
-            return reply(failure_envelope(project.name, "BAD_INPUT", "input", f"spec is not valid YAML: {exc}", head_rev=head))
+            return reply(
+                failure_envelope(
+                    project.name,
+                    "BAD_INPUT",
+                    "input",
+                    f"spec is not valid YAML: {exc}",
+                    head_rev=head,
+                )
+            )
         review = request_review(request_data, spec)
         if not backend.engine_available():
             project.discard_job(job_dir)
@@ -283,12 +380,19 @@ class Handlers:
             timeout_s = _build_timeout(params.get("timeout_s"))
         except ValueError as exc:
             project.discard_job(job_dir)
-            return reply(failure_envelope(project.name, "BAD_INPUT", "input", str(exc), head_rev=head))
+            return reply(
+                failure_envelope(
+                    project.name, "BAD_INPUT", "input", str(exc), head_rev=head
+                )
+            )
         rev = project.next_rev()
         overrides = dict(params.get("params") or {})
         if params.get("source") is None and head is not None:
             # Slider and param edits stack. New full source starts from its own defaults.
-            overrides = {**_rev_meta(project, head).get("param_overrides", {}), **overrides}
+            overrides = {
+                **_rev_meta(project, head).get("param_overrides", {}),
+                **overrides,
+            }
         result = await asyncio.to_thread(
             backend.run_build,
             source=source,
@@ -338,14 +442,27 @@ class Handlers:
             status = "draft"
             result["status"] = status
             result["verification_receipt"] = None
-            result["summary"] = f"The BREP was retained, but clean scene generation failed ({reason}); the revision remains draft."
-            checks = result.get("checks") if isinstance(result.get("checks"), list) else []
-            checks = [check for check in checks if check.get("id") != "scene_generation_failed"]
-            checks.append({
-                "id": "scene_generation_failed", "suite": "hard", "level": "error", "status": "skip",
-                "message": "The saved BREP passed geometry validation, but the clean viewer scene could not be generated; the revision remains draft.",
-                "actual": reason,
-            })
+            result["summary"] = (
+                f"The BREP was retained, but clean scene generation failed ({reason}); the revision remains draft."
+            )
+            checks = (
+                result.get("checks") if isinstance(result.get("checks"), list) else []
+            )
+            checks = [
+                check
+                for check in checks
+                if check.get("id") != "scene_generation_failed"
+            ]
+            checks.append(
+                {
+                    "id": "scene_generation_failed",
+                    "suite": "hard",
+                    "level": "error",
+                    "status": "skip",
+                    "message": "The saved BREP passed geometry validation, but the clean viewer scene could not be generated; the revision remains draft.",
+                    "actual": reason,
+                }
+            )
             result["checks"] = checks
             result["checks_summary"] = {
                 name: sum(check.get("status") == name for check in checks)
@@ -370,13 +487,17 @@ class Handlers:
                 # Keep the useful result but do not advertise durable status.
                 status = "draft"
                 envelope["status"] = "draft"
-                envelope["summary"] = "Independent checks passed, but no revision was saved; the result remains draft."
+                envelope["summary"] = (
+                    "Independent checks passed, but no revision was saved; the result remains draft."
+                )
             envelope["summary"] = f"Dry run of {project.name}: {envelope['summary']}"
             envelope["next"] = request_next_hints(
                 request_data,
                 review,
                 status,
-                status_hints=_next_hints(status, result.get("checks") or []),
+                status_hints=_next_hints(
+                    status, result.get("checks") or [], dry_run=True
+                ),
             )
             return reply(_request_response(envelope, review))
         if result.get("scene"):
@@ -387,6 +508,7 @@ class Handlers:
                 "base_rev": head,
                 "job": job_id,
                 "status": status,
+                "status_reason": result.get("summary") if status == "draft" else None,
                 "metrics": result.get("metrics"),
                 "checks": result.get("checks"),
                 "checks_summary": result.get("checks_summary"),
@@ -400,8 +522,12 @@ class Handlers:
         )
         receipt = revision_metadata.get("verification_receipt")
         if status == "verified" and isinstance(receipt, dict):
-            receipt["revision_evidence_sha256"] = _verification_evidence_hash(revision_metadata, receipt)
-        (job_dir / "meta.json").write_text(json.dumps(revision_metadata, indent=2, default=str))
+            receipt["revision_evidence_sha256"] = _verification_evidence_hash(
+                revision_metadata, receipt
+            )
+        (job_dir / "meta.json").write_text(
+            json.dumps(revision_metadata, indent=2, default=str)
+        )
         if project.head_rev != head:
             project.discard_job(job_dir)
             return reply(
@@ -424,7 +550,9 @@ class Handlers:
             if committed_meta.get("status") != "verified":
                 status = "draft"
                 envelope["status"] = status
-                envelope["summary"] = committed_meta.get("verification_invalid_reason") or (
+                envelope["summary"] = committed_meta.get(
+                    "verification_invalid_reason"
+                ) or (
                     "The verification receipt could not be re-checked; the revision is treated as draft."
                 )
                 if result.get("scene"):
@@ -449,18 +577,28 @@ class Handlers:
         return reply(_request_response(envelope, review))
 
     async def _notify_window(
-        self, project: Project, rev: int, envelope: dict[str, Any], scene: dict[str, Any] | None
+        self,
+        project: Project,
+        rev: int,
+        envelope: dict[str, Any],
+        scene: dict[str, Any] | None,
     ) -> None:
         """An open window follows every new revision. A failure here must not fail the build."""
         self._view_settings.pop(str(project.path), None)
-        if self._window is None or not self._window.has_viewers(project.name) or not scene:
+        if (
+            self._window is None
+            or not self._window.has_viewers(project.name)
+            or not scene
+        ):
             return
         try:
             payload = _scene_payload(project.rev_dir(rev))
             if payload is None:
                 return
             await asyncio.to_thread(scenes.publish, scene["scene_id"], payload)
-            await self._window.broadcast(project.name, compact({**envelope, "scene": {**scene, "rev": rev}}))
+            await self._window.broadcast(
+                project.name, compact({**envelope, "scene": {**scene, "rev": rev}})
+            )
         except Exception as exc:
             log.warning("window update failed: %s", exc)
 
@@ -468,36 +606,66 @@ class Handlers:
         project = open_project(params.get("project", ""), params.get("client"))
         head = project.head_rev
         cached = self._view_settings.get(str(project.path))
-        from_window = params.get("client") is None and not any(k in params for k in ("view", "views", "presentation", "title", "rev"))
+        from_window = params.get("client") is None and not any(
+            k in params for k in ("view", "views", "presentation", "title", "rev")
+        )
         rev = params.get("rev") or (cached[0] if from_window and cached else head)
         if rev is None:
-            return reply(failure_envelope(project.name, "BAD_INPUT", "input", NOT_BUILT_YET))
+            return reply(
+                failure_envelope(project.name, "BAD_INPUT", "input", NOT_BUILT_YET)
+            )
         rev_dir = project.rev_dir(rev)
         if not rev_dir.is_dir():
-            return reply(failure_envelope(project.name, "BAD_INPUT", "input", f"No revision {rev}.", head_rev=head))
+            return reply(
+                failure_envelope(
+                    project.name,
+                    "BAD_INPUT",
+                    "input",
+                    f"No revision {rev}.",
+                    head_rev=head,
+                )
+            )
         meta = _rev_meta(project, rev)
         scene = meta.get("scene")
         payload = _scene_payload(rev_dir)
         if not scene or payload is None:
             return reply(
-                failure_envelope(project.name, "BAD_INPUT", "input", f"Revision {rev} has no scene to show.", head_rev=head)
+                failure_envelope(
+                    project.name,
+                    "BAD_INPUT",
+                    "input",
+                    f"Revision {rev} has no scene to show.",
+                    head_rev=head,
+                )
             )
         try:
-            settings = dict(cached[1]) if from_window and cached and cached[0] == rev else {
-                "presentation": normalize_presentation(params.get("presentation", {}), scene.get("parts", []))
-            }
+            settings = (
+                dict(cached[1])
+                if from_window and cached and cached[0] == rev
+                else {
+                    "presentation": normalize_presentation(
+                        params.get("presentation", {}), scene.get("parts", [])
+                    )
+                }
+            )
             if "view" in params:
                 if params["view"] not in VIEWS:
                     raise ValueError("Unknown camera view")
                 settings["view"] = params["view"]
             if "views" in params:
-                settings["views"] = normalize_views(params["views"], scene.get("parts", []))
+                settings["views"] = normalize_views(
+                    params["views"], scene.get("parts", [])
+                )
             if "title" in params:
                 if not isinstance(params["title"], str) or len(params["title"]) > 160:
                     raise ValueError("title must be a string of at most 160 characters")
                 settings["title"] = params["title"]
         except ValueError as exc:
-            return reply(failure_envelope(project.name, "BAD_INPUT", "input", str(exc), head_rev=head))
+            return reply(
+                failure_envelope(
+                    project.name, "BAD_INPUT", "input", str(exc), head_rev=head
+                )
+            )
         self._view_settings[str(project.path)] = (rev, settings)
         await asyncio.to_thread(scenes.publish, scene["scene_id"], payload)
         scene["project"] = project.name
@@ -511,31 +679,49 @@ class Handlers:
             "rev": rev,
             "head_rev": head,
             "status": status,
-            "summary": _verification_summary(meta, f"Showing {summary} ({status}) in the viewer."),
+            "summary": _verification_summary(
+                meta, f"Showing {summary} ({status}) in the viewer."
+            ),
             "metrics": meta.get("metrics"),
             "checks_summary": meta.get("checks_summary"),
             "scene": scene,
-            "viewer": {**await self._viewer_for(project.name, params.get("client")), **settings},
+            "viewer": {
+                **await self._viewer_for(project.name, params.get("client")),
+                **settings,
+            },
         }
-        if not from_window and self._window is not None and self._window.has_viewers(project.name):
+        if (
+            not from_window
+            and self._window is not None
+            and self._window.has_viewers(project.name)
+        ):
             await self._window.broadcast(project.name, compact(envelope))
         return reply(compact(envelope))
 
-    async def _viewer_for(self, project: str, client: dict[str, Any] | None) -> dict[str, Any]:
+    async def _viewer_for(
+        self, project: str, client: dict[str, Any] | None
+    ) -> dict[str, Any]:
         mode = viewer_mode(client)
         if mode != "window":
             return {"mode": mode}
         window = await self._ensure_window()
         # Nothing appears on the user's screen unless they asked for windows. Under `auto` a host
         # without inline support gets the URL in the result, and the agent can offer it.
-        if client is not None and not client.get("suppress_browser") and config.get("viewer") == "window":
+        if (
+            client is not None
+            and not client.get("suppress_browser")
+            and config.get("viewer") == "window"
+        ):
             await asyncio.to_thread(window.open_once, project)
         return {"mode": "window", "url": window.url(project)}
 
     async def aad_scene_read(self, params: dict[str, Any]) -> dict[str, Any]:
         try:
             chunk = await asyncio.to_thread(
-                scenes.read_chunk, params.get("scene_id", ""), params.get("offset", 0), params.get("length")
+                scenes.read_chunk,
+                params.get("scene_id", ""),
+                params.get("offset", 0),
+                params.get("length"),
             )
         except (ValueError, FileNotFoundError) as exc:
             raise RpcError(INVALID_PARAMS, str(exc)) from exc
@@ -552,10 +738,19 @@ class Handlers:
                 # In-memory job state ends with the daemon. Retained candidates stay on disk.
                 retained = None
                 if params.get("project"):
-                    retained = open_project(params["project"], params.get("client")).retained_job(params.get("job", ""))
+                    retained = open_project(
+                        params["project"], params.get("client")
+                    ).retained_job(params.get("job", ""))
                 if retained is not None:
                     return reply(retained)
-                return reply(failure_envelope(params.get("project", ""), "BAD_INPUT", "input", f"Unknown job {params.get('job')!r}."))
+                return reply(
+                    failure_envelope(
+                        params.get("project", ""),
+                        "BAD_INPUT",
+                        "input",
+                        f"Unknown job {params.get('job')!r}.",
+                    )
+                )
             if job.task.done():
                 return job.task.result()
             return reply(
@@ -571,46 +766,109 @@ class Handlers:
         if action == "list":
             return self._history_list(project)
         if action == "diff":
-            return self._history_diff(project, params.get("rev") or project.head_rev, params.get("against"))
+            return self._history_diff(
+                project, params.get("rev") or project.head_rev, params.get("against")
+            )
         if action == "checkout":
             return await self._history_checkout(project, params.get("rev"))
         if action == "branch":
-            return self._history_branch(project, params.get("rev") or project.head_rev, params.get("name"), params.get("client"))
-        return reply(failure_envelope(project.name, "BAD_INPUT", "input", f"Unknown action {action!r}."))
+            return self._history_branch(
+                project,
+                params.get("rev") or project.head_rev,
+                params.get("name"),
+                params.get("client"),
+            )
+        return reply(
+            failure_envelope(
+                project.name, "BAD_INPUT", "input", f"Unknown action {action!r}."
+            )
+        )
 
     def _history_list(self, project: Project) -> dict[str, Any]:
         revs = project.revisions()
-        lines = [f"{rev}: {_rev_meta(project, rev).get('status', 'unknown')}" for rev in revs[-10:]]
+        lines = []
+        entries = []
+        for rev in revs[-10:]:
+            meta = _rev_meta(project, rev)
+            line = f"{rev}: {meta.get('status', 'unknown')}"
+            reason = meta.get("verification_invalid_reason") or meta.get(
+                "status_reason"
+            )
+            if reason:
+                line += f" ({str(reason)[:240]})"
+            lines.append(line)
+            entries.append(
+                compact(
+                    {
+                        "rev": rev,
+                        "status": meta.get("status", "unknown"),
+                        "verification_invalid_reason": meta.get(
+                            "verification_invalid_reason"
+                        ),
+                        "status_reason": meta.get("status_reason"),
+                    }
+                )
+            )
         return reply(
             {
                 "ok": True,
                 "project": project.name,
                 "status": _head_status(project),
                 "head_rev": project.head_rev,
-                "summary": f"{project.name} has {len(revs)} revision(s), head {project.head_rev}. " + "; ".join(lines),
+                "summary": f"{project.name} has {len(revs)} revision(s), head {project.head_rev}. "
+                + "; ".join(lines),
+                "revisions": entries,
             }
         )
 
-    def _history_diff(self, project: Project, rev: int | None, against: int | None) -> dict[str, Any]:
+    def _history_diff(
+        self, project: Project, rev: int | None, against: int | None
+    ) -> dict[str, Any]:
         if rev is None:
-            return reply(failure_envelope(project.name, "BAD_INPUT", "input", NOT_BUILT_YET))
+            return reply(
+                failure_envelope(project.name, "BAD_INPUT", "input", NOT_BUILT_YET)
+            )
         other = against if against is not None else _previous_rev(project, rev)
-        if other is None or not project.rev_dir(rev).is_dir() or not project.rev_dir(other).is_dir():
-            return reply(failure_envelope(project.name, "BAD_INPUT", "input", f"Cannot diff revision {rev} against {other}.", head_rev=project.head_rev))
+        if (
+            other is None
+            or not project.rev_dir(rev).is_dir()
+            or not project.rev_dir(other).is_dir()
+        ):
+            return reply(
+                failure_envelope(
+                    project.name,
+                    "BAD_INPUT",
+                    "input",
+                    f"Cannot diff revision {rev} against {other}.",
+                    head_rev=project.head_rev,
+                )
+            )
         a, b = _rev_meta(project, other), _rev_meta(project, rev)
         source = "".join(
             difflib.unified_diff(
-                (project.rev_dir(other) / "model.py").read_text().splitlines(keepends=True),
-                (project.rev_dir(rev) / "model.py").read_text().splitlines(keepends=True),
+                (project.rev_dir(other) / "model.py")
+                .read_text()
+                .splitlines(keepends=True),
+                (project.rev_dir(rev) / "model.py")
+                .read_text()
+                .splitlines(keepends=True),
                 f"rev {other}",
                 f"rev {rev}",
             )
         )
         keys = ("volume", "area", "mass_g", "faces", "edges", "solids", "bbox")
         before, after = a.get("metrics") or {}, b.get("metrics") or {}
-        metrics = {k: {"from": before.get(k), "to": after.get(k)} for k in keys if before.get(k) != after.get(k)}
+        metrics = {
+            k: {"from": before.get(k), "to": after.get(k)}
+            for k in keys
+            if before.get(k) != after.get(k)
+        }
         pa, pb = a.get("params") or {}, b.get("params") or {}
-        changed = {k: {"from": pa.get(k), "to": pb.get(k)} for k in sorted({*pa, *pb}) if pa.get(k) != pb.get(k)}
+        changed = {
+            k: {"from": pa.get(k), "to": pb.get(k)}
+            for k in sorted({*pa, *pb})
+            if pa.get(k) != pb.get(k)
+        }
         lines = source.count("\n")
         return reply(
             compact(
@@ -622,14 +880,28 @@ class Handlers:
                     "head_rev": project.head_rev,
                     "status": b.get("status", "draft"),
                     "summary": f"Rev {rev} against {other}: {lines} diff lines, {len(changed)} params changed, {len(metrics)} metrics changed.",
-                    "diff": {"source": source[:8000], "params": changed, "metrics": metrics},
+                    "diff": {
+                        "source": source[:8000],
+                        "params": changed,
+                        "metrics": metrics,
+                    },
                 }
             )
         )
 
-    async def _history_checkout(self, project: Project, rev: int | None) -> dict[str, Any]:
+    async def _history_checkout(
+        self, project: Project, rev: int | None
+    ) -> dict[str, Any]:
         if rev is None or not project.rev_dir(rev).is_dir():
-            return reply(failure_envelope(project.name, "BAD_INPUT", "input", f"No revision {rev}.", head_rev=project.head_rev))
+            return reply(
+                failure_envelope(
+                    project.name,
+                    "BAD_INPUT",
+                    "input",
+                    f"No revision {rev}.",
+                    head_rev=project.head_rev,
+                )
+            )
         async with self._locks[project.path]:
             project.checkout(rev)
         return reply(
@@ -643,9 +915,23 @@ class Handlers:
             }
         )
 
-    def _history_branch(self, project: Project, rev: int | None, name: str | None, client: dict[str, Any] | None) -> dict[str, Any]:
+    def _history_branch(
+        self,
+        project: Project,
+        rev: int | None,
+        name: str | None,
+        client: dict[str, Any] | None,
+    ) -> dict[str, Any]:
         if rev is None or not name:
-            return reply(failure_envelope(project.name, "BAD_INPUT", "input", "A branch needs a revision and a name.", head_rev=project.head_rev))
+            return reply(
+                failure_envelope(
+                    project.name,
+                    "BAD_INPUT",
+                    "input",
+                    "A branch needs a revision and a name.",
+                    head_rev=project.head_rev,
+                )
+            )
         meta = project.meta()
         spec_file = project.rev_dir(rev) / "spec.yaml"
         branch = create_project(
@@ -670,33 +956,66 @@ class Handlers:
         )
 
     async def _op(
-        self, project: Project, rev: int, op: str, args: dict[str, Any], *, out_dir: Path | None = None, timeout_s: float = 120.0
+        self,
+        project: Project,
+        rev: int,
+        op: str,
+        args: dict[str, Any],
+        *,
+        out_dir: Path | None = None,
+        timeout_s: float = 120.0,
     ) -> tuple[dict[str, Any], Path]:
         """Run one kernel operation. Output lives in the project's cache, outside the immutable revision."""
         out = out_dir or project.path / ".aad" / "cache" / "ops" / uuid.uuid4().hex[:12]
         out.mkdir(parents=True, exist_ok=True)
         self._active += 1
         try:
-            return await run_op(job_request(project, rev, op, args, out), timeout_s=timeout_s), out
+            return await run_op(
+                job_request(project, rev, op, args, out), timeout_s=timeout_s
+            ), out
         finally:
             self._active -= 1
 
-    def _rev_or_failure(self, project: Project, params: dict[str, Any]) -> tuple[int | None, dict[str, Any] | None]:
+    def _rev_or_failure(
+        self, project: Project, params: dict[str, Any]
+    ) -> tuple[int | None, dict[str, Any] | None]:
         rev = params.get("rev") or project.head_rev
         if rev is None:
-            return None, reply(failure_envelope(project.name, "BAD_INPUT", "input", NOT_BUILT_YET))
+            return None, reply(
+                failure_envelope(project.name, "BAD_INPUT", "input", NOT_BUILT_YET)
+            )
         if not project.rev_dir(rev).is_dir():
-            return None, reply(failure_envelope(project.name, "BAD_INPUT", "input", f"No revision {rev}.", head_rev=project.head_rev))
+            return None, reply(
+                failure_envelope(
+                    project.name,
+                    "BAD_INPUT",
+                    "input",
+                    f"No revision {rev}.",
+                    head_rev=project.head_rev,
+                )
+            )
         return rev, None
 
-    def _op_failed(self, project: Project, rev: int, result: dict[str, Any]) -> dict[str, Any]:
+    def _op_failed(
+        self, project: Project, rev: int, result: dict[str, Any]
+    ) -> dict[str, Any]:
         failure = result.get("failure") or {}
         code = failure.pop("code", "RUNTIME_ERROR")
         phase = failure.pop("phase", "runtime")
         message = failure.pop("message", "The operation failed.")
         if code == "NOT_READY":
             code, message = "BAD_INPUT", f"Not implemented in this install. {message}"
-        return reply(failure_envelope(project.name, code, phase, message, head_rev=project.head_rev, base_rev=rev, **failure))
+        return reply(
+            failure_envelope(
+                project.name,
+                code,
+                phase,
+                message,
+                head_rev=project.head_rev,
+                base_rev=rev,
+                **failure,
+            )
+        )
 
     async def aad_inspect(self, params: dict[str, Any]) -> dict[str, Any]:
         project = open_project(params.get("project", ""), params.get("client"))
@@ -707,12 +1026,23 @@ class Handlers:
         if what == "diff":
             return self._history_diff(project, rev, params.get("against"))
         meta = _rev_meta(project, rev)
-        base = {"ok": True, "project": project.name, "rev": rev, "head_rev": project.head_rev,
-                "status": meta.get("status", "draft"),
-                "verification_invalid_reason": meta.get("verification_invalid_reason")}
+        base = {
+            "ok": True,
+            "project": project.name,
+            "rev": rev,
+            "head_rev": project.head_rev,
+            "status": meta.get("status", "draft"),
+            "verification_invalid_reason": meta.get("verification_invalid_reason"),
+        }
         if what == "params":
             values = meta.get("params") or {}
-            return reply({**base, "params": values, "summary": f"Rev {rev} params: {json.dumps(values, default=str)[:600]}"})
+            return reply(
+                {
+                    **base,
+                    "params": values,
+                    "summary": f"Rev {rev} params: {json.dumps(values, default=str)[:600]}",
+                }
+            )
         if what == "features":
             features = [
                 {"name": f.get("name"), "faces": len(f.get("faces") or []), "edges": len(f.get("edges") or []),
@@ -720,21 +1050,50 @@ class Handlers:
                 for f in meta.get("features") or []
             ]  # fmt: skip
             names = ", ".join(str(f["name"]) for f in features) or "none recorded"
-            return reply(compact({**base, "features": features, "summary": f"Rev {rev} features: {names}."}))
+            return reply(
+                compact(
+                    {
+                        **base,
+                        "features": features,
+                        "summary": f"Rev {rev} features: {names}.",
+                    }
+                )
+            )
         if what == "bom":
             assembly = (meta.get("meta") or {}).get("assembly")
             if not assembly:
-                return reply(failure_envelope(project.name, "BAD_INPUT", "input",
-                                              f"Rev {rev} has no assembly record. Assign an assembly() to result.", head_rev=project.head_rev))
+                return reply(
+                    failure_envelope(
+                        project.name,
+                        "BAD_INPUT",
+                        "input",
+                        f"Rev {rev} has no assembly record. Assign an assembly() to result.",
+                        head_rev=project.head_rev,
+                    )
+                )
             rows = assembly.get("bom") or []
-            lines = ", ".join(f"{row['quantity']} x {row['part_number']}" for row in rows)
-            return reply({**base, "bom": rows, "summary": f"Rev {rev} BOM of {assembly.get('name')}: {lines}."})
+            lines = ", ".join(
+                f"{row['quantity']} x {row['part_number']}" for row in rows
+            )
+            return reply(
+                {
+                    **base,
+                    "bom": rows,
+                    "summary": f"Rev {rev} BOM of {assembly.get('name')}: {lines}.",
+                }
+            )
         if what == "topology":
             result, _ = await self._op(project, rev, "topology", {})
             if not result.get("ok"):
                 return self._op_failed(project, rev, result)
             topology = result["topology"]
-            return reply({**base, "topology": topology, "summary": f"Rev {rev} topology: {json.dumps(topology)}"})
+            return reply(
+                {
+                    **base,
+                    "topology": topology,
+                    "summary": f"Rev {rev} topology: {json.dumps(topology)}",
+                }
+            )
         spec_path = project.rev_dir(rev) / "spec.yaml"
         try:
             spec = _parse_spec(spec_path.read_text() if spec_path.exists() else None)
@@ -742,7 +1101,10 @@ class Handlers:
         except (OSError, ValueError, ProjectError) as exc:
             return reply(
                 failure_envelope(
-                    project.name, "BAD_INPUT", "input", f"Could not read request/spec data for rev {rev}: {exc}",
+                    project.name,
+                    "BAD_INPUT",
+                    "input",
+                    f"Could not read request/spec data for rev {rev}: {exc}",
                     head_rev=project.head_rev,
                 )
             )
@@ -760,27 +1122,33 @@ class Handlers:
                 f"open questions: {len(request_data['open_questions'])}; "
                 f"not checked: {len(request_data['not_checked'])}. Meaning is not assessed."
             )
-        status_summary = _verification_summary(meta, f"{project.name} rev {rev} ({base['status']}).")
-        return reply(_request_response(
-            {
-                **base,
-                "summary": f"{status_summary} {review_summary}",
-                "metrics": meta.get("metrics"),
-                "checks": sort_checks(meta.get("checks") or []),
-                "checks_summary": meta.get("checks_summary"),
-                "request": request_data,
-                "request_review": review,
-                "next": request_next_hints(
-                    request_data,
-                    review,
-                    base["status"],
-                    status_hints=_next_hints(base["status"], meta.get("checks") or []),
-                ),
-            },
-            review,
-            request_data,
-            include_request=True,
-        ))
+        status_summary = _verification_summary(
+            meta, f"{project.name} rev {rev} ({base['status']})."
+        )
+        return reply(
+            _request_response(
+                {
+                    **base,
+                    "summary": f"{status_summary} {review_summary}",
+                    "metrics": meta.get("metrics"),
+                    "checks": sort_checks(meta.get("checks") or []),
+                    "checks_summary": meta.get("checks_summary"),
+                    "request": request_data,
+                    "request_review": review,
+                    "next": request_next_hints(
+                        request_data,
+                        review,
+                        base["status"],
+                        status_hints=_next_hints(
+                            base["status"], meta.get("checks") or []
+                        ),
+                    ),
+                },
+                review,
+                request_data,
+                include_request=True,
+            )
+        )
 
     async def aad_query(self, params: dict[str, Any]) -> dict[str, Any]:
         project = open_project(params.get("project", ""), params.get("client"))
@@ -807,7 +1175,9 @@ class Handlers:
         rev, failed = self._rev_or_failure(project, params)
         if failed:
             return failed
-        result, _ = await self._op(project, rev, "measure", {k: params.get(k) for k in ("kind", "a", "b")})
+        result, _ = await self._op(
+            project, rev, "measure", {k: params.get(k) for k in ("kind", "a", "b")}
+        )
         if not result.get("ok"):
             return self._op_failed(project, rev, result)
         measurement = result["measurement"]
@@ -827,20 +1197,26 @@ class Handlers:
         rev, failed = self._rev_or_failure(project, params)
         if failed:
             return failed
-        result, _ = await self._op(project, rev, "check", {"suites": params.get("suites")})
+        result, _ = await self._op(
+            project, rev, "check", {"suites": params.get("suites")}
+        )
         if not result.get("ok"):
             return self._op_failed(project, rev, result)
         checks = result["checks"]
-        summary = {key: sum(c.get("status") == key for c in checks) for key in ("pass", "fail", "warn", "skip", "not_applicable")}
+        summary = {
+            key: sum(c.get("status") == key for c in checks)
+            for key in ("pass", "fail", "warn", "skip", "not_applicable")
+        }
+        revision_status = _rev_meta(project, rev).get("status", "draft")
         return reply(
             compact(
                 {
                     "ok": True,
                     "project": project.name,
                     "rev": rev,
-                    # A standalone check run reports findings. Only a build can promote a revision.
-                    "status": _rev_meta(project, rev).get("status", "draft"),
-                    "summary": f"Checked {project.name} rev {rev}.",
+                    # A standalone check reports findings without changing the saved revision status.
+                    "revision_status": revision_status,
+                    "summary": f"Checked {project.name} rev {rev}. Saved revision status is {revision_status}; this check run does not change it.",
                     "checks": sort_checks(compact(checks)),
                     "checks_summary": summary,
                 }
@@ -853,10 +1229,25 @@ class Handlers:
         if failed:
             return failed
         keys = (
-            "views", "style", "section", "labels", "heatmap", "highlight", "size",
-            "camera", "focus", "dimensions", "probes", "measure", "heatmap_range", "min_wall", "direction",
+            "views",
+            "style",
+            "section",
+            "labels",
+            "heatmap",
+            "highlight",
+            "size",
+            "camera",
+            "focus",
+            "dimensions",
+            "probes",
+            "measure",
+            "heatmap_range",
+            "min_wall",
+            "direction",
         )
-        result, _ = await self._op(project, rev, "render", {k: params[k] for k in keys if k in params})
+        result, _ = await self._op(
+            project, rev, "render", {k: params[k] for k in keys if k in params}
+        )
         if not result.get("ok"):
             return self._op_failed(project, rev, result)
         images = result.get("images") or []
@@ -867,8 +1258,11 @@ class Handlers:
                 "rev": rev,
                 "status": _rev_meta(project, rev).get("status", "draft"),
                 "summary": f"Rendered {len(images)} image(s) of {project.name} rev {rev}.",
-                "artifacts": result.get("artifacts") or {Path(i["path"]).name: i["path"] for i in images},
-                "inspection": _inspection_reply(result.get("inspection"), params.get("inspection")),
+                "artifacts": result.get("artifacts")
+                or {Path(i["path"]).name: i["path"] for i in images},
+                "inspection": _inspection_reply(
+                    result.get("inspection"), params.get("inspection")
+                ),
                 "labels": _labels_reply(result.get("labels"), params.get("inspection")),
             },
             images,
@@ -879,17 +1273,33 @@ class Handlers:
         rev, failed = self._rev_or_failure(project, params)
         if failed:
             return failed
-        keys = ("sheet", "views", "dimensions", "style", "title_block", "formats", "notes", "revisions", "bom")
+        keys = (
+            "sheet",
+            "views",
+            "dimensions",
+            "style",
+            "title_block",
+            "formats",
+            "notes",
+            "revisions",
+            "bom",
+        )
         out = project.path / "exports" / f"{project.name}-r{rev}-drawing"
         drawing_args = {k: params[k] for k in keys if k in params}
-        drawing_args["_revision_status"] = str(_rev_meta(project, rev).get("status") or "draft")
+        drawing_args["_revision_status"] = str(
+            _rev_meta(project, rev).get("status") or "draft"
+        )
         result, _ = await self._op(project, rev, "drawing", drawing_args, out_dir=out)
         if not result.get("ok"):
             return self._op_failed(project, rev, result)
         drawing = result["drawing"]
         files = {k: str(v) for k, v in (drawing.get("artifacts") or {}).items()}
         preview = drawing.get("preview")
-        images = [{"path": str(preview), "mime": "image/png"}] if preview and str(preview).endswith(".png") else None
+        images = (
+            [{"path": str(preview), "mime": "image/png"}]
+            if preview and str(preview).endswith(".png")
+            else None
+        )
         checks = compact(drawing.get("checks") or [])
         return reply(
             compact(
@@ -898,7 +1308,8 @@ class Handlers:
                     "project": project.name,
                     "rev": rev,
                     "status": _rev_meta(project, rev).get("status", "draft"),
-                    "summary": drawing.get("summary") or f"Drew {project.name} rev {rev}: {', '.join(files)}.",
+                    "summary": drawing.get("summary")
+                    or f"Drew {project.name} rev {rev}: {', '.join(files)}.",
                     "artifacts": files,
                     "sheet": drawing.get("sheet"),
                     "views": drawing.get("views") or [],
@@ -918,7 +1329,9 @@ class Handlers:
         status = revision_meta.get("status", "draft")
         allowed = bool(params.get("allow_unverified"))
         if status != "verified" and not allowed:
-            reason = revision_meta.get("verification_invalid_reason")
+            reason = revision_meta.get(
+                "verification_invalid_reason"
+            ) or revision_meta.get("status_reason")
             explanation = f" {reason}" if reason else ""
             return reply(
                 failure_envelope(
@@ -933,11 +1346,22 @@ class Handlers:
             )
         formats = params.get("formats") or []
         if not formats:
-            return reply(failure_envelope(project.name, "BAD_INPUT", "input", "formats must not be empty.", head_rev=project.head_rev))
+            return reply(
+                failure_envelope(
+                    project.name,
+                    "BAD_INPUT",
+                    "input",
+                    "formats must not be empty.",
+                    head_rev=project.head_rev,
+                )
+            )
         marker = "" if status == "verified" else "-UNVERIFIED"
         stem = f"{project.name}-r{rev}{marker}"
         result, out = await self._op(
-            project, rev, "export", {"formats": formats, "options": params.get("options") or {}, "stem": stem}
+            project,
+            rev,
+            "export",
+            {"formats": formats, "options": params.get("options") or {}, "stem": stem},
         )
         if not result.get("ok"):
             failure = result.setdefault("failure", {})
@@ -948,36 +1372,69 @@ class Handlers:
             exports = _project_directory(project, "exports")
             files = _publish_exports(exports, out, result["files"], stem)
         except (OSError, ValueError) as exc:
-            return reply(failure_envelope(project.name, "EXPORT_FAILED", "runtime", str(exc), head_rev=project.head_rev))
+            return reply(
+                failure_envelope(
+                    project.name,
+                    "EXPORT_FAILED",
+                    "runtime",
+                    str(exc),
+                    head_rev=project.head_rev,
+                )
+            )
         note = "" if status == "verified" else " Files are marked UNVERIFIED."
-        if revision_meta.get("verification_invalid_reason"):
-            note = f" Verification was withheld: {revision_meta['verification_invalid_reason']}" + note
+        reason = revision_meta.get("verification_invalid_reason") or revision_meta.get(
+            "status_reason"
+        )
+        if reason:
+            note = f" Verification was withheld: {reason}" + note
+        evidence_summary = (
+            f" {_verification_summary(revision_meta, 'Verified revision.')}"
+            if status == "verified"
+            else ""
+        )
         return reply(
             {
                 "ok": True,
                 "project": project.name,
                 "rev": rev,
                 "status": status,
-                "summary": f"Exported {', '.join(files)} to {exports}.{note}",
+                "summary": f"Exported {', '.join(files)} to {exports}.{note}{evidence_summary}",
                 "artifacts": files,
             }
         )
 
     async def aad_import(self, params: dict[str, Any]) -> dict[str, Any]:
-        name = params.get("project") or params.get("name") or Path(params.get("path", "import")).stem
+        name = (
+            params.get("project")
+            or params.get("name")
+            or Path(params.get("path", "import")).stem
+        )
         creates_project = not params.get("project")
         path = Path(params.get("path", "")).expanduser()
-        if os.environ.get("AAD_REMOTE") and not path.resolve().is_relative_to(Path.home().resolve()):
+        if os.environ.get("AAD_REMOTE") and not path.resolve().is_relative_to(
+            Path.home().resolve()
+        ):
             # In remote mode, `path` is on the server, so it must stay inside this user's home.
-            return reply(failure_envelope(name, "IMPORT_FAILED", "input", "Remote import reads only from your own AAD home."))
+            return reply(
+                failure_envelope(
+                    name,
+                    "IMPORT_FAILED",
+                    "input",
+                    "Remote import reads only from your own AAD home.",
+                )
+            )
         if not path.is_file():
-            return reply(failure_envelope(name, "IMPORT_FAILED", "input", f"No file at {path}."))
+            return reply(
+                failure_envelope(name, "IMPORT_FAILED", "input", f"No file at {path}.")
+            )
         suffix = path.suffix.lower()
         new_project_kind = "2d" if suffix in {".dxf", ".svg"} else "part"
         project = (
             open_project(params["project"], params.get("client"))
             if params.get("project")
-            else create_project(name, client=params.get("client"), kind=new_project_kind)
+            else create_project(
+                name, client=params.get("client"), kind=new_project_kind
+            )
         )
         try:
             imports = _project_directory(project, "imports")
@@ -990,9 +1447,15 @@ class Handlers:
             finally:
                 temporary.unlink(missing_ok=True)
         except (OSError, ValueError) as exc:
-            return reply(failure_envelope(project.name, "IMPORT_FAILED", "input", str(exc)))
+            return reply(
+                failure_envelope(project.name, "IMPORT_FAILED", "input", str(exc))
+            )
         out = project.path / ".aad" / "cache" / "ops" / uuid.uuid4().hex[:12]
-        args = {"path": str(target), "name": params.get("name"), "as": params.get("as", "base")}
+        args = {
+            "path": str(target),
+            "name": params.get("name"),
+            "as": params.get("as", "base"),
+        }
         result = await run_op(job_request(project, 0, "import", args, out))
         if not result.get("ok"):
             failure = result.get("failure") or {}
@@ -1012,9 +1475,7 @@ class Handlers:
             metadata = project.meta()
             metadata["kind"] = "assembly"
             project.write_meta(metadata)
-            created_kind_note = (
-                f" Created as an assembly project because the base import contains {imported_solids} solids."
-            )
+            created_kind_note = f" Created as an assembly project because the base import contains {imported_solids} solids."
         project_kind = str(project.meta().get("kind", "part"))
         imported["project_kind"] = project_kind
         if creates_project and project_kind == "2d":
@@ -1040,22 +1501,55 @@ class Handlers:
         )
 
     async def aad_library(self, params: dict[str, Any]) -> dict[str, Any]:
-        args = {k: params.get(k) for k in ("action", "kind", "query", "id", "offset", "section", "items")}
-        request = {"op": "library", "args": args, "out_dir": str(paths.cache_dir() / "library")}
+        args = {
+            k: params.get(k)
+            for k in ("action", "kind", "query", "id", "offset", "section", "items")
+        }
+        request = {
+            "op": "library",
+            "args": args,
+            "out_dir": str(paths.cache_dir() / "library"),
+        }
         result = await run_op(request, timeout_s=60.0)
         if not result.get("ok"):
             failure = result.get("failure") or {}
             message = failure.get("message", "The library failed.")
             if failure.get("code") == "NOT_READY":
                 message = f"Not implemented in this install. {message}"
-            return reply(failure_envelope("", "BAD_INPUT" if failure.get("code") == "NOT_READY" else failure.get("code", "RUNTIME_ERROR"), failure.get("phase", "runtime"), message))
+            return reply(
+                failure_envelope(
+                    "",
+                    "BAD_INPUT"
+                    if failure.get("code") == "NOT_READY"
+                    else failure.get("code", "RUNTIME_ERROR"),
+                    failure.get("phase", "runtime"),
+                    message,
+                )
+            )
         data = result["library"]
         item = data.get("item") if isinstance(data, dict) else None
         # An explicitly requested full guide must reach the model whole, including text-only hosts.
         # The component index and a bill-of-materials check are useless when cut off.
-        limit = 100_000 if params.get("kind") == "component" or params.get("action") == "check" else 6000
-        text = item["text"] if isinstance(item, dict) and isinstance(item.get("text"), str) else json.dumps(data, default=str)[:limit]
-        return {"structured": {"ok": True, "project": "", "status": "draft", "summary": "Library result.", "library": data}, "text": text}
+        limit = (
+            100_000
+            if params.get("kind") == "component" or params.get("action") == "check"
+            else 6000
+        )
+        text = (
+            item["text"]
+            if isinstance(item, dict) and isinstance(item.get("text"), str)
+            else json.dumps(data, default=str)[:limit]
+        )
+        return {
+            "structured": {
+                "ok": True,
+                "project": "",
+                "status": "draft",
+                "summary": "Library result.",
+                "library": data,
+            },
+            "text": text,
+        }
 
     async def aad_set_param(self, params: dict[str, Any]) -> dict[str, Any]:
         build = await self.aad_build(
@@ -1070,18 +1564,32 @@ class Handlers:
         structured = build.get("structured") or {}
         if not structured.get("ok") or structured.get("status") == "running":
             return build
-        return await self.aad_show({"project": params.get("project", ""), "rev": structured.get("rev"), "client": params.get("client")})
+        return await self.aad_show(
+            {
+                "project": params.get("project", ""),
+                "rev": structured.get("rev"),
+                "client": params.get("client"),
+            }
+        )
 
     async def aad_pick_info(self, params: dict[str, Any]) -> dict[str, Any]:
         project = open_project(params.get("project", ""), params.get("client"))
         rev, failed = self._rev_or_failure(project, params)
         if failed:
             return failed
-        result, _ = await self._op(project, rev, "pick_info", {k: params.get(k) for k in ("part", "kind", "id")})
+        result, _ = await self._op(
+            project,
+            rev,
+            "pick_info",
+            {k: params.get(k) for k in ("part", "kind", "id")},
+        )
         if not result.get("ok"):
             return self._op_failed(project, rev, result)
         pick = result["pick"]
-        return {"structured": pick, "text": f"Picked {pick.get('selector', 'an entity')}."}
+        return {
+            "structured": pick,
+            "text": f"Picked {pick.get('selector', 'an entity')}.",
+        }
 
     async def aad_file_read(self, params: dict[str, Any]) -> dict[str, Any]:
         project = open_project(params.get("project", ""), params.get("client"))
@@ -1091,18 +1599,32 @@ class Handlers:
             raise RpcError(INVALID_PARAMS, str(exc)) from exc
         target = (exports / params.get("path", "")).resolve()
         if not target.is_relative_to(exports) or not target.is_file():
-            raise RpcError(INVALID_PARAMS, f"{params.get('path')!r} is not a file under exports/.")
+            raise RpcError(
+                INVALID_PARAMS, f"{params.get('path')!r} is not a file under exports/."
+            )
         try:
-            chunk = await asyncio.to_thread(scenes.read_file_chunk, target, params.get("offset", 0), params.get("length"))
+            chunk = await asyncio.to_thread(
+                scenes.read_file_chunk,
+                target,
+                params.get("offset", 0),
+                params.get("length"),
+            )
         except ValueError as exc:
             raise RpcError(INVALID_PARAMS, str(exc)) from exc
-        return {"structured": chunk, "text": f"File chunk at {chunk['offset']}: {chunk['byte_count']} of {chunk['total_bytes']} bytes."}
+        return {
+            "structured": chunk,
+            "text": f"File chunk at {chunk['offset']}: {chunk['byte_count']} of {chunk['total_bytes']} bytes.",
+        }
 
 
 def _project_directory(project: Project, name: str, *, create: bool = True) -> Path:
     directory = project.path / name
-    if directory.is_symlink() or not directory.resolve().is_relative_to(project.path.resolve()):
-        raise ValueError(f"{name}/ must stay inside the project and cannot be a symlink.")
+    if directory.is_symlink() or not directory.resolve().is_relative_to(
+        project.path.resolve()
+    ):
+        raise ValueError(
+            f"{name}/ must stay inside the project and cannot be a symlink."
+        )
     if create:
         directory.mkdir(exist_ok=True)
     if directory.exists() and not directory.is_dir():
@@ -1110,18 +1632,32 @@ def _project_directory(project: Project, name: str, *, create: bool = True) -> P
     return directory.resolve()
 
 
-def _publish_exports(exports: Path, out: Path, files: dict[str, str], stem: str) -> dict[str, str]:
+def _publish_exports(
+    exports: Path, out: Path, files: dict[str, str], stem: str
+) -> dict[str, str]:
     """Preflight the entire set, then roll back every public file on failure."""
     planned: dict[str, tuple[Path, Path]] = {}
     targets: set[Path] = set()
     for fmt, raw in files.items():
         source = Path(raw)
-        if source.is_symlink() or not source.resolve().is_relative_to(out.resolve()) or not source.is_file():
-            raise ValueError("The export worker returned a file outside its output directory.")
+        if (
+            source.is_symlink()
+            or not source.resolve().is_relative_to(out.resolve())
+            or not source.is_file()
+        ):
+            raise ValueError(
+                "The export worker returned a file outside its output directory."
+            )
         if Path(fmt).name != fmt or fmt in {".", ".."}:
             raise ValueError("Invalid export format.")
-        target = exports / (source.name if source.name.startswith(stem + ".") else f"{stem}.{fmt}")
-        if target.is_symlink() or (target.exists() and not target.is_file()) or target in targets:
+        target = exports / (
+            source.name if source.name.startswith(stem + ".") else f"{stem}.{fmt}"
+        )
+        if (
+            target.is_symlink()
+            or (target.exists() and not target.is_file())
+            or target in targets
+        ):
             raise ValueError(f"Cannot replace export destination {target.name}.")
         targets.add(target)
         planned[fmt] = (source, target)
@@ -1166,7 +1702,9 @@ def _rev_meta(project: Project, rev: int) -> dict[str, Any]:
     return value
 
 
-def _verification_receipt_error(project: Project, rev: int, meta: dict[str, Any]) -> str | None:
+def _verification_receipt_error(
+    project: Project, rev: int, meta: dict[str, Any]
+) -> str | None:
     """Re-check revision-bound evidence before reporting a saved revision verified."""
     import hashlib
     from importlib import metadata as importlib_metadata
@@ -1206,23 +1744,43 @@ def _verification_receipt_error(project: Project, rev: int, meta: dict[str, Any]
             return "The CAD kernel version hash does not match its verification receipt; this revision is treated as draft."
 
         settings = receipt.get("project_settings")
-        if not isinstance(settings, dict) or hashlib.sha256(_canonical_json(settings)).hexdigest() != receipt.get("project_settings_sha256"):
+        if not isinstance(settings, dict) or hashlib.sha256(
+            _canonical_json(settings)
+        ).hexdigest() != receipt.get("project_settings_sha256"):
             return "The saved project settings do not match the verification receipt; this revision is treated as draft."
-        inputs = {"kind": receipt.get("kind"), "units": settings.get("units"), "spec": saved_spec}
+        inputs = {
+            "kind": receipt.get("kind"),
+            "units": settings.get("units"),
+            "spec": saved_spec,
+        }
         if settings.get("process") is not None:
             inputs["process"] = settings["process"]
         validation_record = {
-            "protocol": 1, "snapshot_sha256": brep_hash, "spec_sha256": spec_hash,
-            "kernel_versions": versions, "inputs": inputs,
+            "protocol": 1,
+            "snapshot_sha256": brep_hash,
+            "spec_sha256": spec_hash,
+            "kernel_versions": versions,
+            "inputs": inputs,
         }
-        if hashlib.sha256(_canonical_json(validation_record)).hexdigest() != receipt.get("validation_input_sha256"):
+        if hashlib.sha256(
+            _canonical_json(validation_record)
+        ).hexdigest() != receipt.get("validation_input_sha256"):
             return "The validation input hash no longer matches this revision's BREP, spec, kernel and settings; this revision is treated as draft."
-        claims = {key: receipt.get(key) or [] for key in (
-            "requirement_results", "proven_error_requirement_ids", "proven_requirement_ids",
-        )}
-        if hashlib.sha256(_canonical_json(claims)).hexdigest() != receipt.get("claims_sha256"):
+        claims = {
+            key: receipt.get(key) or []
+            for key in (
+                "requirement_results",
+                "proven_error_requirement_ids",
+                "proven_requirement_ids",
+            )
+        }
+        if hashlib.sha256(_canonical_json(claims)).hexdigest() != receipt.get(
+            "claims_sha256"
+        ):
             return "The recorded requirement outcomes no longer match their integrity hash; this revision is treated as draft."
-        if _verification_evidence_hash(meta, receipt) != receipt.get("revision_evidence_sha256"):
+        if _verification_evidence_hash(meta, receipt) != receipt.get(
+            "revision_evidence_sha256"
+        ):
             return "The saved metrics, checks or proven requirement IDs no longer match their verification receipt; this revision is treated as draft."
 
         scene = meta.get("scene")
@@ -1233,7 +1791,11 @@ def _verification_receipt_error(project: Project, rev: int, meta: dict[str, Any]
                 return "An unattested scene is present on a verified revision; this revision is treated as draft."
         else:
             saved_scene_id = scene.get("scene_id") if isinstance(scene, dict) else None
-            if not scene_path or not isinstance(saved_scene_id, str) or saved_scene_id != scene_id:
+            if (
+                not scene_path
+                or not isinstance(saved_scene_id, str)
+                or saved_scene_id != scene_id
+            ):
                 return "The verified scene is missing or no longer matches its receipt; this revision is treated as draft."
             if hashlib.sha256(scene_path.read_bytes()).hexdigest() != scene_id:
                 return "The saved scene bytes no longer match the verification receipt; this revision is treated as draft."
@@ -1243,7 +1805,13 @@ def _verification_receipt_error(project: Project, rev: int, meta: dict[str, Any]
 
 
 def _canonical_json(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
 
 
 def _verification_evidence_hash(meta: dict[str, Any], receipt: dict[str, Any]) -> str:
@@ -1267,18 +1835,29 @@ def _verification_summary(meta: dict[str, Any], prefix: str) -> str:
         receipt = meta.get("verification_receipt") or {}
         error_ids = receipt.get("proven_error_requirement_ids") or []
         results = receipt.get("requirement_results") or []
-        advisory = [f"{item.get('id')} ({item.get('status')})" for item in results
-                    if isinstance(item, dict) and item.get("level") == "warn"]
-        error_names = ", ".join(str(name) for name in error_ids) if error_ids else "none (advisory requirements only)"
-        advisory_names = ", ".join(advisory) if advisory else "none"
-        return f"{prefix} Error-level requirements proven: {error_names}. Advisory requirements evaluated: {advisory_names}."
-    reason = meta.get("verification_invalid_reason")
+        failing_advisory = [
+            f"{item.get('id')} ({item.get('status')})"
+            for item in results
+            if isinstance(item, dict)
+            and item.get("level") == "warn"
+            and item.get("status") in {"fail", "warn"}
+        ]
+        advisory_summary = (
+            f"Advisory requirements not met: {', '.join(failing_advisory)}."
+            if failing_advisory
+            else "No advisory requirements failed."
+        )
+        error_names = ", ".join(str(name) for name in error_ids)
+        return f"{prefix} Error-level requirements proven: {error_names}. {advisory_summary}"
+    reason = meta.get("verification_invalid_reason") or meta.get("status_reason")
     return f"{prefix} {reason}" if reason else prefix
 
 
 def _head_status(project: Project) -> str:
     head = project.head_rev
-    return _rev_meta(project, head).get("status", "draft") if head is not None else "draft"
+    return (
+        _rev_meta(project, head).get("status", "draft") if head is not None else "draft"
+    )
 
 
 def _previous_rev(project: Project, rev: int) -> int | None:
@@ -1303,13 +1882,30 @@ def _failure_head(result: dict[str, Any]) -> tuple[str, str, str]:
 
 def _failure_extra(result: dict[str, Any]) -> dict[str, Any]:
     failure = result.get("failure") or {}
-    keys = ("kernel_message", "feature", "file", "line", "selector", "candidates", "probes", "repair")
-    return {key: failure.get(key) for key in keys if failure.get(key) not in (None, [], "")}
+    keys = (
+        "kernel_message",
+        "feature",
+        "file",
+        "line",
+        "selector",
+        "candidates",
+        "probes",
+        "repair",
+    )
+    return {
+        key: failure.get(key) for key in keys if failure.get(key) not in (None, [], "")
+    }
 
 
 def _add_warn(result: dict[str, Any], check_id: str, message: str) -> None:
     result.setdefault("checks", []).append(
-        {"id": check_id, "suite": "hard", "level": "warn", "status": "warn", "message": message}
+        {
+            "id": check_id,
+            "suite": "hard",
+            "level": "warn",
+            "status": "warn",
+            "message": message,
+        }
     )
     summary = result.setdefault("checks_summary", {})
     summary["warn"] = summary.get("warn", 0) + 1
@@ -1346,12 +1942,17 @@ def _inspection_reply(report: Any, detail: Any) -> Any:
     """The compact report keeps exact facts and answers to requested probes, not whole-model tables."""
     if detail == "full" or not isinstance(report, dict):
         return report
-    compact_report = {key: value for key, value in report.items() if key not in _INSPECTION_TABLES}
+    compact_report = {
+        key: value for key, value in report.items() if key not in _INSPECTION_TABLES
+    }
     images = compact_report.get("images")
     if isinstance(images, dict):
         compact_report["images"] = {
-            name: {key: value for key, value in image.items() if key != "visible_selectors"}
-            if isinstance(image, dict) else image
+            name: {
+                key: value for key, value in image.items() if key != "visible_selectors"
+            }
+            if isinstance(image, dict)
+            else image
             for name, image in images.items()
         }
     compact_report["omitted"] = (
@@ -1362,24 +1963,59 @@ def _inspection_reply(report: Any, detail: Any) -> Any:
 
 
 def _labels_reply(labels: Any, detail: Any) -> Any:
-    if detail == "full" or not isinstance(labels, list) or len(labels) <= _LABELS_INLINE:
+    if (
+        detail == "full"
+        or not isinstance(labels, list)
+        or len(labels) <= _LABELS_INLINE
+    ):
         return labels
-    return {"count": len(labels), "omitted": "The legend is in the labels.json artifact. Pass inspection='full' to get it here."}
+    return {
+        "count": len(labels),
+        "omitted": "The legend is in the labels.json artifact. Pass inspection='full' to get it here.",
+    }
 
 
-def _next_hints(status: str, checks: list[dict[str, Any]]) -> list[str]:
+def _next_hints(
+    status: str, checks: list[dict[str, Any]], *, dry_run: bool = False
+) -> list[str]:
+    if dry_run:
+        return [
+            "Dry run evaluated the build without saving a revision; draft means no saved revision was created.",
+            "Run aad_build without dry_run to save the result.",
+        ]
     if status == "verified":
-        return ["Review with aad_render. Call aad_show only if the user asks to see the part."]
-    if any(check.get("id") in {"requirements_not_provided", "spec:empty"} for check in checks):
-        first = "Add requirements to spec.yaml to check the part against the request. draft means not proven."
+        return [
+            "The saved BREP passed independent validation; review it with aad_render.",
+            "Call aad_show only if the user asks to see the part.",
+        ]
+    if status == "failed":
+        return [
+            "The build did not create a revision; fix the failed checks before rebuilding."
+        ]
+    if any(
+        check.get("id") in {"requirements_not_provided", "spec:empty"}
+        for check in checks
+    ):
+        first = "No requirements were supplied, so nothing was proven; add at least one error-level requirement and rebuild."
     else:
+        spec_checks = [check for check in checks if check.get("suite") == "spec"]
+        if spec_checks and not any(
+            check.get("level") == "error" for check in spec_checks
+        ):
+            return [
+                "Only advisory requirements were supplied; nothing required was proven. Add an error-level requirement and rebuild.",
+                "Review the saved BREP with aad_render.",
+            ]
         skipped = [
-            str(check.get("id")) for check in checks
-            if check.get("level") == "error" and check.get("status") == "skip" and not str(check.get("id", "")).startswith("worker_")
+            str(check.get("id"))
+            for check in checks
+            if check.get("level") == "error"
+            and check.get("status") == "skip"
+            and not str(check.get("id", "")).startswith("worker_")
         ]
         first = (
-            f"These error-level checks did not run: {', '.join(skipped[:5])}. Report them as not proven."
+            f"Required checks could not run: {', '.join(skipped[:5])}. Resolve the missing evidence and rebuild."
             if skipped
-            else "The supplied requirements passed, but no independent validator is connected, so draft still means not proven."
+            else "No error-level requirement has an independent passing result; add or correct one and rebuild."
         )
-    return [first, "Review with aad_render."]
+    return [first, "Review the saved BREP with aad_render."]

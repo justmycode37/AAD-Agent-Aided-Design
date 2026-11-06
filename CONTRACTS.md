@@ -222,6 +222,7 @@ aad_measure({ project, rev?: number,
 
 aad_check({ project, rev?: number,
             suites?: ("hard"|"spec"|"process"|"interference"|"2d")[] })
+// Successful aad_check replies use revision_status for the saved revision; rerunning checks is read-only.
 
 aad_render({ project, rev?: number,
              views?: ("sheet"|"iso"|"front"|"back"|"left"|"right"|"top"|"bottom"|"custom")[],
@@ -313,7 +314,8 @@ Check status `not_applicable` means the evaluator independently established that
 ```ts
 type Envelope = {
   ok: boolean, project: string, rev?: number, base_rev?: number, head_rev?: number,
-  status: "failed"|"draft"|"verified"|"running",
+  status?: "failed"|"draft"|"verified"|"running", // omitted by a successful aad_check; see revision_status
+  revision_status?: "draft"|"verified", // aad_check: saved revision status; the check run does not change it
   job?: string,
   summary: string,
   metrics?: {
@@ -349,6 +351,8 @@ type Envelope = {
   features?: unknown[],                // aad_inspect what: "features"
   params?: unknown,                    // aad_inspect what: "params"
   diff?: { source: string, params: unknown, metrics: unknown },  // aad_history, aad_inspect
+  revisions?: { rev: number, status: string, verification_invalid_reason?: string,
+                status_reason?: string }[],                        // aad_history list, latest 10
   imported?: unknown,                  // aad_import
   library?: unknown                    // aad_library
 }
@@ -389,11 +393,15 @@ explains that total.
 
 **Honesty rules:** unknown stays `unknown` or is omitted. Never invent a limit, an edge name or a cause. `probes` holds only values actually tested. A high reference F-score measures geometric closeness to that reference only; it proves nothing about function and is meaningless if the reference was traced into the model. Two scans of one object scored F@0.1%D = 0.958 with volumetric IoU = 0.925, showing that scan noise can keep the score below 0.99. Scores also depend on which surfaces each side contains, including internal parts, cast detail, and scan coverage. Closed-solid-only metrics such as IoU are reported as unavailable when closure is not established.
 
-**`verified`** means the hard gate passes, at least one requirement exists, every error-level requirement has an independent passing result (`pass` or `not_applicable`), and every warning-level requirement has an evaluator result (`pass`, `warn` or `not_applicable`). A 3D revision must also have a complete scene generated from the validator's loaded BREP. An error-level `skip` or `warn`, a missing result, a duplicate requirement ID, a malformed spec, a non-finite measurement or an evaluator exception leaves the revision `draft`. A warn-level requirement may report `warn` without blocking, but it must be evaluated. Builds with no requirements stay `draft`. Verified summaries and `aad_inspect` name the requirements whose results were proven. Requirement-structure errors that survive YAML parsing, such as duplicate IDs or invalid `covers`, are error-level `skip` diagnostics; an otherwise successful draft build may still commit the revision and advance the head. YAML syntax errors and duplicate YAML keys fail input parsing with `BAD_INPUT`.
+**`verified`** means the hard gate passes, the spec has at least one error-level requirement with an independent `pass`, every other error-level requirement is `pass` or `not_applicable`, and every warning-level requirement has an evaluator result (`pass`, `warn` or `not_applicable`). A 3D revision must also have a complete scene generated from the validator's loaded BREP. An error-level `skip` or `warn`, a missing result, a duplicate requirement ID, a malformed spec, a non-finite measurement or an evaluator exception leaves the revision `draft`. A warning-level requirement may report `warn` because its condition was not met; this does not block a verified revision when the error-level requirements pass, and the build and export summaries name each such advisory requirement. A spec with only warning-level requirements stays `draft` with the reason that only advisory requirements were supplied and nothing required was proven. Builds with no requirements also stay `draft`. Requirement-structure errors that survive YAML parsing, such as duplicate IDs or invalid `covers`, are error-level `skip` diagnostics; an otherwise successful draft build may still commit the revision and advance the head. YAML syntax errors and duplicate YAML keys fail input parsing with `BAD_INPUT`.
 
-The parent writes a revision-local verification receipt containing the revision number, SHA-256 hashes for the saved BREP and parsed spec, the kernel distribution versions and their hash, the project settings used for validation, the validation input hash, requirement outcomes, and the clean BREP-derived scene hash. A second evidence hash binds the saved metrics, checks, check summary, requirement outcomes and proven IDs. Empty proven-ID lists are normalized to empty arrays before hashing so metadata compaction does not change a warn-only receipt. Before an operation reports a saved revision as `verified`, it rechecks the BREP, spec, installed kernel versions, saved scene and receipt-bound evidence. A mismatch downgrades the reported status to `draft` and gives a reason; export then requires `allow_unverified` and marks the filename `-UNVERIFIED`. The receipt detects changes while it remains intact; it is not signed, so a person with full write access to the project directory who rewrites the artifacts and receipt can forge the binding.
+`aad_check` reports checks for an existing revision without changing it. Its successful result uses `revision_status` to identify the saved revision's current status; a later failing check, such as `FAIL interference_pairs`, does not rewrite that status. The check findings remain separate and must be read alongside it. `aad_history(action="list")` returns the latest ten entries with `verification_invalid_reason` when receipt rechecking downgraded a revision.
+
+The parent writes a revision-local verification receipt containing the revision number, SHA-256 hashes for the saved BREP and parsed spec, the kernel distribution versions and their hash, the project settings used for validation, the validation input hash, requirement outcomes, and the clean BREP-derived scene hash. A second evidence hash binds the saved metrics, checks, check summary, requirement outcomes and proven IDs. Empty proven-ID lists are normalized to empty arrays before hashing so metadata compaction cannot change the canonical evidence form. Before an operation reports a saved revision as `verified`, it rechecks the BREP, spec, installed kernel versions, saved scene and receipt-bound evidence. A mismatch downgrades the reported status to `draft` and gives a reason; export then requires `allow_unverified` and marks the filename `-UNVERIFIED`. The receipt detects changes while it remains intact; it is not signed, so a person with full write access to the project directory who rewrites the artifacts and receipt can forge the binding.
 
 One clean sandboxed validator has a budget separate from the model worker's `timeout_s`. It loads the saved BREP once, evaluates hard, spec, process and registered geometry-only checks, then creates the 3D scene from that same shape. Scene generation is part of the validator budget and its time is included in `validation_ms`; `validation_only_ms` excludes it. If validation times out after a successful model build, or the clean scene cannot be completed, the BREP revision is retained as `draft` with trusted BREP metrics and a plain reason. A scene failure is an error-level `scene_generation_failed` skip and never leaves the revision exportable as verified.
+
+For `kind="2d"`, a separate clean process snapshots `sheet.json`, recomputes native 2D checks, metrics and spec outcomes from that snapshot, and generates the SVG scene from the same `Sheet2D`. 2D revisions remain `draft` because verified status and receipt checks are not supported for sheets yet.
 
 Geometry-only automatic checks that must run during trusted build validation are registered by `aad.engine.gate.validator_geometry_checks(ctx)`. This hook receives the clean validator's saved-BREP context, not worker metadata or feature records. PR #97's `interference_checks` must be called from this hook (or a registered equivalent) so its result is recomputed by the validator and included in the revision evidence; worker-only scheduling is insufficient because worker check results are discarded. The build-time automatic interference pass has a 15-second budget, and incomplete results remain advisory unknowns. An explicit error-level spec requirement keeps its own requirement severity.
 
@@ -639,6 +647,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 ## 11. Changelog
 
 - 2026-11-05: S1 applied configurable `engine.memory` virtual-address growth budgets to build and operation workers and made explicit `MemoryError`/`ENOMEM` results report `OUT_OF_MEMORY`, while keeping unrelated startup diagnostics and signal-only exits unclassified.
+- 2026-11-06: S1 requires at least one independently passing error-level requirement for `verified`, reports failing warn-level requirements in build and export summaries, labels `aad_check` with the saved `revision_status`, preserves downgrade reasons in history with accurate dry-run hints, and independently checks saved 2D sheet snapshots.
 - 2026-11-05: S2 made the structured `aad_render` report compact by default, with `inspection="full"` for the rest, because it reached 2.6 MB on a 492-part assembly.
 - 2026-11-05: S1 added per-phase build timings to `metrics`, named the slowest phase for builds over 20 seconds, reported unaccounted elapsed time as the residual `other` phase, made assembly mesh validation use one private remesh with per-solid checks, and reused the viewer scene's face and edge indexes across parts.
 - 2026-11-06: S1 moved trusted 3D validation and clean-scene generation into one BREP-loading validator process, requires a complete finite scene before `verified`, binds metrics/checks/proven IDs to the revision receipt, normalizes empty proof lists for warn-only specs, and documents the 100,000 mm viewer-coordinate limit and 15-second validator geometry-check hook.

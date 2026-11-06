@@ -63,7 +63,11 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
             job_dir = Path(tempfile.mkdtemp(prefix="aad-engine-job-")).resolve()
         else:
             raw_job_dir = Path(request.job_dir).expanduser()
-            job_dir = (project_dir / raw_job_dir if not raw_job_dir.is_absolute() else raw_job_dir).resolve()
+            job_dir = (
+                project_dir / raw_job_dir
+                if not raw_job_dir.is_absolute()
+                else raw_job_dir
+            ).resolve()
             job_dir.mkdir(parents=True, exist_ok=True)
         if not job_dir.is_dir():
             raise ValueError("job_dir is not a directory")
@@ -72,7 +76,9 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
         except FileNotFoundError:
             pass
         else:
-            raise ValueError("job_dir already contains part.brep; use a fresh job directory for each build")
+            raise ValueError(
+                "job_dir already contains part.brep; use a fresh job directory for each build"
+            )
 
         payload = {
             "source": request.source,
@@ -90,7 +96,9 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
             # after it has already produced a usable BREP.
             "preview": False,
         }
-        input_bytes = (json.dumps(payload, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
+        input_bytes = (
+            json.dumps(payload, ensure_ascii=False, allow_nan=False) + "\n"
+        ).encode("utf-8")
         if re.search(r"\basset\b", request.source):
             _stage_assets(project_dir, job_dir)
     except (TypeError, ValueError, OSError, OverflowError) as exc:
@@ -139,7 +147,9 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
         )
 
     try:
-        stdout_bytes, stderr_bytes = process.communicate(input=input_bytes, timeout=request.timeout_s)
+        stdout_bytes, stderr_bytes = process.communicate(
+            input=input_bytes, timeout=request.timeout_s
+        )
     except subprocess.TimeoutExpired:
         _kill_worker(process)
         stdout_bytes, stderr_bytes = _drain_killed_worker(process)
@@ -179,8 +189,14 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
                 message="The build worker could not allocate memory during startup under the configured engine.memory limit.",
                 kernel_message=_decode(stderr_bytes),
             )
-        elif not worker_started and response is None and process.returncode != 0 and any(
-            line.startswith((b"bwrap:", b"sandbox-exec:")) for line in stderr_bytes.splitlines()
+        elif (
+            not worker_started
+            and response is None
+            and process.returncode != 0
+            and any(
+                line.startswith((b"bwrap:", b"sandbox-exec:"))
+                for line in stderr_bytes.splitlines()
+            )
         ):
             failure = Failure(
                 code="SANDBOX_DENIED",
@@ -198,7 +214,12 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
         )
 
     try:
-        result = _result_from_wire(response, job_dir=job_dir, elapsed_ms=elapsed_ms, process_stderr=_decode(stderr_bytes))
+        result = _result_from_wire(
+            response,
+            job_dir=job_dir,
+            elapsed_ms=elapsed_ms,
+            process_stderr=_decode(stderr_bytes),
+        )
         # This is a parent-clock measurement, not the model worker's JSON field.
         result.build_ms = elapsed_ms
         result = _constrain_worker_evidence(result, job_dir, project_dir, kind=request.kind,
@@ -285,7 +306,9 @@ def _stage_assets(project_dir: Path, job_dir: Path) -> None:
             shutil.copyfile(entry, target / entry.name, follow_symlinks=False)
 
 
-def _reference_read_paths(project_dir: Path, spec: Mapping[str, Any]) -> tuple[Path, ...]:
+def _reference_read_paths(
+    project_dir: Path, spec: Mapping[str, Any]
+) -> tuple[Path, ...]:
     """Grant the checker read access to only safe project-contained reference files."""
     requirements = spec.get("requirements") if isinstance(spec, Mapping) else None
     if not isinstance(requirements, list):
@@ -343,8 +366,12 @@ def _canonical_artifact(path: Path, job_dir: Path) -> Path | None:
     try:
         info = path.lstat()
         resolved = path.resolve(strict=True)
-        if (resolved.is_relative_to(job_dir) and stat.S_ISREG(info.st_mode)
-                and info.st_nlink == 1 and info.st_size > 0):
+        if (
+            resolved.is_relative_to(job_dir)
+            and stat.S_ISREG(info.st_mode)
+            and info.st_nlink == 1
+            and info.st_size > 0
+        ):
             return resolved
     except (OSError, RuntimeError, ValueError):
         pass
@@ -356,8 +383,10 @@ def _private_artifact(path: Path, job_dir: Path) -> bool:
 
 
 def _detail_counts(checks: list[Check]) -> dict[str, int]:
-    return {status: sum(c.status == status for c in checks)
-            for status in ("pass", "fail", "warn", "skip", "not_applicable")}
+    return {
+        status: sum(c.status == status for c in checks)
+        for status in ("pass", "fail", "warn", "skip", "not_applicable")
+    }
 
 
 def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: Path, *, kind: str = "part",
@@ -368,22 +397,31 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
     worker_claimed_verified = result.status == "verified"
     result.checks = []
     result.checks_summary = {}
-    if kind != "2d":
-        result.metrics = {}
-        result.scene = None
-        _remove_candidate_scene(job_dir / "scene")
+    result.metrics = {}
+    result.scene = None
+    _remove_candidate_scene(job_dir / "scene")
     # A sheet has no B-rep body: its source record is the artifact that must exist.
     required = "sheet.json" if kind == "2d" else "part.brep"
     part = _canonical_artifact(job_dir / required, job_dir)
     if result.ok and part is None:
         result.ok, result.status = False, "failed"
         result.failure = Failure(
-            code="WORKER_CRASH", phase="crash", feature="unknown", file=required,
+            code="WORKER_CRASH",
+            phase="crash",
+            feature="unknown",
+            file=required,
             message=f"The worker reported success without a private, non-empty {required} artifact; the build was not accepted.",
         )
         result.summary = result.failure.message
-        result.checks.append(Check(id="worker_artifact_required", suite="hard", level="error", status="fail",
-                                   message=f"The required private {required} artifact was not available."))
+        result.checks.append(
+            Check(
+                id="worker_artifact_required",
+                suite="hard",
+                level="error",
+                status="fail",
+                message=f"The required private {required} artifact was not available.",
+            )
+        )
     artifacts: dict[str, str] = {}
     rejected = 0
     for name, value in result.artifacts.items():
@@ -406,28 +444,40 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
         result.context.job_dir = job_dir
         result.context.project_dir = project_dir
     if rejected:
-        result.checks.append(Check(
-            id="worker_artifacts_rejected", suite="hard", level="warn", status="warn",
-            message="Worker artifact references did not pass the private job-file checks and were omitted.",
-            actual=str(rejected),
-        ))
+        result.checks.append(
+            Check(
+                id="worker_artifacts_rejected",
+                suite="hard",
+                level="warn",
+                status="warn",
+                message="Worker artifact references did not pass the private job-file checks and were omitted.",
+                actual=str(rejected),
+            )
+        )
     if result.status == "verified":
         result.status = "draft"
         result.summary = "A BREP artifact was returned; independent verification of the worker evidence is pending."
-        result.checks.append(Check(
-            id="worker_verification_unattested", suite="hard", level="error", status="skip",
-            message="The model process cannot attest its own verified status. A separate trusted validator is required.",
-        ))
-    # Never use the worker's geometry metrics, feature records, or check outcomes
-    # as verification evidence. Re-load the private BREP in the independent
-    # validator and evaluate only requirements supported by native geometry.
+        result.checks.append(
+            Check(
+                id="worker_verification_unattested",
+                suite="hard",
+                level="error",
+                status="skip",
+                message="The model process cannot attest its own verified status. A separate trusted validator is required.",
+            )
+        )
+    # Never use the worker's geometry metrics, feature records, checks or scenes
+    # as evidence. Re-load the private BREP or sheet in a clean validator.
     evidence = None
     if result.ok and kind != "2d" and part is not None:
         try:
             import json
             from .validation import _canonical_json, inspect_brep
+
             project_path = project_dir / "project.json"
-            project = json.loads(project_path.read_text()) if project_path.is_file() else {}
+            project = (
+                json.loads(project_path.read_text()) if project_path.is_file() else {}
+            )
             trusted_spec = dict(spec) if isinstance(spec, Mapping) else {}
             if not isinstance(trusted_spec, dict):
                 trusted_spec = {}
@@ -445,24 +495,59 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
                 project=project.get("name") or project_dir.name,
                 rev=rev,
             )
-            parent_checks = [check for check in result.checks if check.id == "worker_artifacts_rejected"]
+            parent_checks = [
+                check
+                for check in result.checks
+                if check.id == "worker_artifacts_rejected"
+            ]
             result.checks = [*evidence.checks, *parent_checks]
             requirements = trusted_spec.get("requirements") or []
             requirements = requirements if isinstance(requirements, list) else []
             requirement_results = _requirement_results(requirements, evidence.checks)
-            error_requirement_ids = [item["id"] for item in requirement_results if item["level"] == "error"]
-            missing_or_unrun = [item for item in requirement_results if item["status"] == "skip"]
-            incorrect_error = [item for item in requirement_results
-                               if item["level"] == "error" and item["status"] not in {"pass", "not_applicable"}]
-            incorrect_advisory = [item for item in requirement_results
-                                  if item["level"] == "warn" and item["status"] not in {"pass", "warn", "not_applicable"}]
-            independent_failure = next((c for c in evidence.checks if c.level == "error" and c.status == "fail"), None)
+            error_requirement_ids = [
+                item["id"] for item in requirement_results if item["level"] == "error"
+            ]
+            independently_passed_error_ids = [
+                item["id"]
+                for item in requirement_results
+                if item["level"] == "error" and item["status"] == "pass"
+            ]
+            missing_or_unrun = [
+                item for item in requirement_results if item["status"] == "skip"
+            ]
+            incorrect_error = [
+                item
+                for item in requirement_results
+                if item["level"] == "error"
+                and item["status"] not in {"pass", "not_applicable"}
+            ]
+            incorrect_advisory = [
+                item
+                for item in requirement_results
+                if item["level"] == "warn"
+                and item["status"] not in {"pass", "fail", "warn", "not_applicable"}
+            ]
+            independent_failure = next(
+                (
+                    c
+                    for c in evidence.checks
+                    if c.level == "error" and c.status == "fail"
+                ),
+                None,
+            )
             result.metrics = dict(evidence.metrics)
             if evidence.failure is not None and evidence.failure.code == "TIMEOUT":
                 result.status = "draft"
                 result.metrics = dict(evidence.metrics)
-                result.checks.append(Check(id="trusted_validation_timeout", suite="hard", level="error", status="skip",
-                    message=f"The model built and its BREP was retained, but independent validation exceeded its {timeout_s:g} second budget. Rerun with `aad_build` to validate it again."))
+                result.checks.append(
+                    Check(
+                        id="trusted_validation_timeout",
+                        suite="hard",
+                        level="error",
+                        status="skip",
+                        message=f"The model built and its BREP was retained, but independent validation exceeded its {timeout_s:g} second budget. Rerun with `aad_build` to validate it again.",
+                    )
+                )
                 result.summary = f"The model built successfully, but independent validation ran out of time after {evidence.elapsed_ms / 1000:.1f} seconds. The revision was retained as draft; rerun `aad_build` to try validation again."
             elif independent_failure is not None:
                 result.ok, result.status = False, "failed"
@@ -472,44 +557,115 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
                     failure_code = "REQUIREMENT_FAILED"
                 else:
                     failure_code = "NOT_VERIFIED"
-                result.failure = Failure(code=failure_code, phase="validate", feature=independent_failure.feature or "unknown",
-                    message=f"Independent validation failed error-level check {independent_failure.id!r}.")
+                result.failure = Failure(
+                    code=failure_code,
+                    phase="validate",
+                    feature=independent_failure.feature or "unknown",
+                    message=f"Independent validation failed error-level check {independent_failure.id!r}.",
+                )
                 result.summary = result.failure.message
-            elif evidence.failure is not None and evidence.failure.code == "INVALID_SOLID":
+            elif (
+                evidence.failure is not None
+                and evidence.failure.code == "INVALID_SOLID"
+            ):
                 result.ok, result.status = False, "failed"
-                result.failure = Failure(code="INVALID_SOLID", phase="validate",
+                result.failure = Failure(
+                    code="INVALID_SOLID",
+                    phase="validate",
                     message="The saved BREP did not pass independent geometry validation.",
-                    kernel_message=evidence.failure.kernel_message or evidence.failure.message)
-                result.checks.append(Check(id="independent_brep_invalid", suite="hard", level="error", status="fail",
-                    message=result.failure.message, actual=result.failure.kernel_message))
+                    kernel_message=evidence.failure.kernel_message
+                    or evidence.failure.message,
+                )
+                result.checks.append(
+                    Check(
+                        id="independent_brep_invalid",
+                        suite="hard",
+                        level="error",
+                        status="fail",
+                        message=result.failure.message,
+                        actual=result.failure.kernel_message,
+                    )
+                )
                 result.summary = result.failure.message
             elif evidence.failure is not None:
                 result.status = "draft"
                 result.metrics = dict(evidence.metrics)
-                result.checks.append(Check(id="trusted_validation_unavailable", suite="hard", level="error", status="skip",
-                    message="Independent validation could not be completed.", actual=evidence.failure.message))
+                result.checks.append(
+                    Check(
+                        id="trusted_validation_unavailable",
+                        suite="hard",
+                        level="error",
+                        status="skip",
+                        message="Independent validation could not be completed.",
+                        actual=evidence.failure.message,
+                    )
+                )
                 result.summary = "The model built and its BREP was retained, but independent validation did not complete; the revision remains draft."
-            elif (evidence.ok and requirements and not missing_or_unrun and not incorrect_error and not incorrect_advisory
-                    and independent_failure is None
-                    and not any(c.level == "error" and c.status not in {"pass", "not_applicable"}
-                                for c in evidence.checks)):
+            elif (
+                evidence.ok
+                and requirements
+                and independently_passed_error_ids
+                and not missing_or_unrun
+                and not incorrect_error
+                and not incorrect_advisory
+                and independent_failure is None
+                and not any(
+                    c.level == "error" and c.status not in {"pass", "not_applicable"}
+                    for c in evidence.checks
+                )
+            ):
                 result.status = "verified"
                 result.requirements_proven = True
-                error_summary = ", ".join(error_requirement_ids) if error_requirement_ids else "none (advisory requirements only)"
-                advisory_summary = ", ".join(f"{item['id']} ({item['status']})" for item in requirement_results
-                                               if item["level"] == "warn") or "none"
-                result.summary = ("The saved BREP passed the hard gate. Error-level requirements proven: "
-                                  f"{error_summary}. Advisory requirements evaluated: {advisory_summary}.")
+                error_summary = ", ".join(
+                    item["id"]
+                    for item in requirement_results
+                    if item["level"] == "error"
+                    and item["status"] in {"pass", "not_applicable"}
+                )
+                failing_advisory = [
+                    f"{item['id']} ({item['status']})"
+                    for item in requirement_results
+                    if item["level"] == "warn" and item["status"] in {"fail", "warn"}
+                ]
+                advisory_summary = (
+                    f"Advisory requirements not met: {', '.join(failing_advisory)}."
+                    if failing_advisory
+                    else "No advisory requirements failed."
+                )
+                result.summary = (
+                    "The saved BREP passed the hard gate. Error-level requirements proven: "
+                    f"{error_summary}. {advisory_summary}"
+                )
+                interference_warnings = [
+                    check.message
+                    for check in result.checks
+                    if check.id == "interference_pairs"
+                    and check.suite == "interference"
+                    and check.level == "warn"
+                    and check.status in {"warn", "skip"}
+                ]
+                if interference_warnings:
+                    result.summary += (
+                        " Build-time automatic interference check: "
+                        + " ".join(interference_warnings)
+                    )
                 settings = {"units": project.get("units", units)}
                 if trusted_process is not None:
                     settings["process"] = trusted_process
                 settings_hash = hashlib.sha256(_canonical_json(settings)).hexdigest()
                 claims = {
                     "requirement_results": requirement_results,
-                    "proven_error_requirement_ids": [item["id"] for item in requirement_results
-                                                     if item["level"] == "error" and item["status"] in {"pass", "not_applicable"}],
-                    "proven_requirement_ids": [item["id"] for item in requirement_results
-                                               if item["status"] in {"pass", "not_applicable"}],
+                    "proven_error_requirement_ids": [
+                        item["id"]
+                        for item in requirement_results
+                        if item["level"] == "error"
+                        and item["status"] in {"pass", "not_applicable"}
+                    ],
+                    "proven_requirement_ids": [
+                        item["id"]
+                        for item in requirement_results
+                        if item["status"] in {"pass", "not_applicable"}
+                    ],
                 }
                 result.verification_receipt = {
                     "rev": rev,
@@ -517,25 +673,48 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
                     "brep_sha256": evidence.snapshot_sha256,
                     "spec_sha256": evidence.spec_sha256,
                     "kernel_versions": dict(evidence.kernel_versions),
-                    "kernel_sha256": hashlib.sha256(_canonical_json(evidence.kernel_versions)).hexdigest(),
+                    "kernel_sha256": hashlib.sha256(
+                        _canonical_json(evidence.kernel_versions)
+                    ).hexdigest(),
                     "validation_input_sha256": evidence.input_sha256,
                     "project_settings": settings,
                     "project_settings_sha256": settings_hash,
                     **claims,
-                    "claims_sha256": hashlib.sha256(_canonical_json(claims)).hexdigest(),
+                    "claims_sha256": hashlib.sha256(
+                        _canonical_json(claims)
+                    ).hexdigest(),
                 }
             else:
                 result.status = "draft"
                 if worker_claimed_verified:
-                    result.checks.append(Check(id="worker_verification_unattested", suite="hard", level="error", status="skip",
-                        message="The model worker's verified claim was not independently proven."))
+                    result.checks.append(
+                        Check(
+                            id="worker_verification_unattested",
+                            suite="hard",
+                            level="error",
+                            status="skip",
+                            message="The model worker's verified claim was not independently proven.",
+                        )
+                    )
                 if evidence.failure is None:
                     result.metrics = dict(evidence.metrics)
                     if not requirements:
                         result.summary = "The model built and passed the hard gate, but no requirements were declared; it remains draft."
+                    elif not error_requirement_ids:
+                        result.summary = (
+                            "The spec contains only advisory requirements; nothing required was proven. "
+                            "The revision remains draft."
+                        )
                     elif missing_or_unrun or incorrect_error:
-                        missing_ids = ", ".join(item["id"] for item in missing_or_unrun + incorrect_error)
+                        missing_ids = ", ".join(
+                            item["id"] for item in missing_or_unrun + incorrect_error
+                        )
                         result.summary = f"The model built, but requirements were not fully proven ({missing_ids}); it remains draft."
+                    elif not independently_passed_error_ids:
+                        result.summary = (
+                            "The error-level requirements had no independent pass; nothing required was proven. "
+                            "The revision remains draft."
+                        )
                     else:
                         result.summary = "The model built, but independent evidence did not prove the required checks; it remains draft."
             if evidence.ok:
@@ -543,7 +722,10 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
                     if evidence.scene is not None:
                         result.scene = _publish_inspection_scene(evidence, job_dir)
                     if result.scene is None:
-                        raise RuntimeError(evidence.scene_error or "the clean validator returned no scene")
+                        raise RuntimeError(
+                            evidence.scene_error
+                            or "the clean validator returned no scene"
+                        )
                     if result.verification_receipt is not None:
                         result.verification_receipt["scene_id"] = result.scene.scene_id
                 except Exception as exc:
@@ -551,15 +733,159 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
                     _mark_scene_failure(result, reason, job_dir)
             result.metrics.setdefault("validation_ms", evidence.elapsed_ms)
             result.metrics["scene_ms"] = evidence.scene_elapsed_ms
-            result.metrics["validation_only_ms"] = max(0.0, evidence.elapsed_ms - evidence.scene_elapsed_ms)
+            result.metrics["validation_only_ms"] = max(
+                0.0, evidence.elapsed_ms - evidence.scene_elapsed_ms
+            )
         except Exception as exc:
             result.status = "draft"
             result.requirements_proven = False
             result.verification_receipt = None
             result.scene = None
             _remove_candidate_scene(job_dir / "scene")
-            result.checks.append(Check(id="trusted_validation_unavailable", suite="hard", level="error", status="skip",
-                message="Independent validation could not be completed.", actual=f"{type(exc).__name__}: {exc}"))
+            result.checks.append(
+                Check(
+                    id="trusted_validation_unavailable",
+                    suite="hard",
+                    level="error",
+                    status="skip",
+                    message="Independent validation could not be completed.",
+                    actual=f"{type(exc).__name__}: {exc}",
+                )
+            )
+    elif kind == "2d" and part is not None:
+        try:
+            from .validation import inspect_sheet
+
+            trusted_spec = dict(spec) if isinstance(spec, Mapping) else {}
+            evidence = inspect_sheet(
+                part,
+                candidate_dir=job_dir,
+                units=units,
+                spec=trusted_spec,
+                process=process,
+                memory_limit_bytes=memory_limit_bytes,
+                timeout_s=timeout_s,
+                project=project_dir.name,
+                rev=rev,
+            )
+            parent_checks = [
+                check
+                for check in result.checks
+                if check.id
+                in {"worker_artifacts_rejected", "worker_verification_unattested"}
+            ]
+            result.checks = [*evidence.checks, *parent_checks]
+            result.metrics = dict(evidence.metrics)
+            if evidence.scene is not None:
+                result.scene = _publish_inspection_scene(evidence, job_dir)
+            elif evidence.scene_error:
+                result.checks.append(
+                    Check(
+                        id="scene_generation_failed",
+                        suite="2d",
+                        level="warn",
+                        status="skip",
+                        message="Independent 2D checks completed, but the clean sheet scene could not be generated.",
+                        actual=evidence.scene_error,
+                    )
+                )
+            if evidence.failure is not None:
+                result.checks.append(
+                    Check(
+                        id="trusted_sheet_validation_unavailable",
+                        suite="2d",
+                        level="error",
+                        status="skip",
+                        message="Independent 2D validation could not be completed; the saved sheet remains a draft.",
+                        actual=evidence.failure.message,
+                    )
+                )
+                if result.ok:
+                    result.status = "draft"
+                    result.summary = (
+                        "The sheet was retained, but independent 2D validation did not complete; "
+                        "the revision remains draft."
+                    )
+            else:
+                failed_check = next(
+                    (
+                        check
+                        for check in evidence.checks
+                        if check.level == "error" and check.status == "fail"
+                    ),
+                    None,
+                )
+                if failed_check is not None:
+                    result.ok, result.status = False, "failed"
+                    failure_code = (
+                        "REQUIREMENT_FAILED"
+                        if failed_check.suite == "spec"
+                        else "HARD_GATE_FAILED"
+                    )
+                    result.failure = Failure(
+                        code=failure_code,
+                        phase="validate",
+                        feature=failed_check.feature or "unknown",
+                        message=f"Independent 2D validation failed error-level check {failed_check.id!r}.",
+                    )
+                    result.summary = result.failure.message
+                elif result.ok:
+                    result.status = "draft"
+                    requirements = trusted_spec.get("requirements")
+                    requirements = (
+                        requirements if isinstance(requirements, list) else []
+                    )
+                    error_requirements = [
+                        item
+                        for item in requirements
+                        if isinstance(item, Mapping)
+                        and item.get("level", "error") == "error"
+                    ]
+                    skipped = [
+                        check.id
+                        for check in evidence.checks
+                        if check.level == "error" and check.status == "skip"
+                    ]
+                    if not requirements:
+                        result.summary = (
+                            "The sheet passed its available 2D checks, but no requirements were declared; "
+                            "the revision remains draft."
+                        )
+                    elif not error_requirements:
+                        result.summary = (
+                            "The spec contains only advisory requirements; nothing required was proven. "
+                            "The revision remains draft."
+                        )
+                    elif skipped:
+                        result.summary = (
+                            f"The sheet passed available 2D checks, but skipped checks remain "
+                            f"({', '.join(skipped[:5])}); the revision remains draft."
+                        )
+                    else:
+                        result.summary = (
+                            "The saved sheet passed its independent 2D checks. "
+                            "2D verification is not available, so the revision remains draft."
+                        )
+                    if evidence.scene_error:
+                        result.summary += f" The clean 2D scene could not be generated ({evidence.scene_error})."
+        except Exception as exc:
+            result.status = "draft"
+            result.requirements_proven = False
+            result.checks.append(
+                Check(
+                    id="trusted_sheet_validation_unavailable",
+                    suite="2d",
+                    level="error",
+                    status="skip",
+                    message="Independent 2D validation could not be completed; the saved sheet remains a draft.",
+                    actual=f"{type(exc).__name__}: {exc}",
+                )
+            )
+            if result.ok:
+                result.summary = (
+                    "The sheet was retained, but independent 2D validation did not complete; "
+                    "the revision remains draft."
+                )
     if evidence is not None and evidence.inspection_dir is not None:
         shutil.rmtree(evidence.inspection_dir, ignore_errors=True)
     detail_counts = _detail_counts(result.checks)
@@ -604,7 +930,10 @@ def _write_scene_status(scene: SceneManifest, job_dir: Path) -> None:
         raise ValueError("the saved clean scene manifest changed before publication")
     value["status"] = scene.status
     value["checks_summary"] = scene.checks_summary
-    path.write_text(json.dumps(value, sort_keys=True, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(value, sort_keys=True, indent=2, allow_nan=False) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _mark_scene_failure(result: BuildResult, reason: str, job_dir: Path) -> None:
@@ -613,27 +942,46 @@ def _mark_scene_failure(result: BuildResult, reason: str, job_dir: Path) -> None
     result.status = "draft"
     result.requirements_proven = False
     result.verification_receipt = None
-    result.checks = [check for check in result.checks if check.id != "scene_generation_failed"]
-    result.checks.append(Check(
-        id="scene_generation_failed", suite="hard", level="error", status="skip",
-        message="The saved BREP passed geometry validation, but the clean viewer scene could not be generated; the revision remains draft.",
-        actual=str(reason)[:1000],
-    ))
+    result.checks = [
+        check for check in result.checks if check.id != "scene_generation_failed"
+    ]
+    result.checks.append(
+        Check(
+            id="scene_generation_failed",
+            suite="hard",
+            level="error",
+            status="skip",
+            message="The saved BREP passed geometry validation, but the clean viewer scene could not be generated; the revision remains draft.",
+            actual=str(reason)[:1000],
+        )
+    )
     result.checks_summary = _detail_counts(result.checks)
     result.summary = f"The BREP was retained, but clean scene generation failed ({reason}); the revision remains draft."
 
 
-def _requirement_results(requirements: list[Any], checks: list[Check]) -> list[dict[str, str]]:
+def _requirement_results(
+    requirements: list[Any], checks: list[Check]
+) -> list[dict[str, str]]:
     results: list[dict[str, str]] = []
     for index, requirement in enumerate(requirements):
         req_id = requirement.get("id") if isinstance(requirement, Mapping) else None
         if not isinstance(req_id, str) or not req_id.strip():
             req_id = f"requirement_{index + 1}"
-        level = requirement.get("level", "error") if isinstance(requirement, Mapping) else "error"
+        level = (
+            requirement.get("level", "error")
+            if isinstance(requirement, Mapping)
+            else "error"
+        )
         if level not in {"error", "warn"}:
             level = "error"
-        matches = [check for check in checks if check.suite == "spec" and check.id == req_id]
-        status = matches[0].status if len(matches) == 1 and matches[0].level == level else "skip"
+        matches = [
+            check for check in checks if check.suite == "spec" and check.id == req_id
+        ]
+        status = (
+            matches[0].status
+            if len(matches) == 1 and matches[0].level == level
+            else "skip"
+        )
         results.append({"id": req_id, "level": level, "status": status})
     return results
 
@@ -705,7 +1053,11 @@ def _find_response(stdout: bytes) -> dict[str, Any] | None:
             value = json.loads(line[len(_RESULT_MARKER) :].decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
             continue
-        if isinstance(value, dict) and value.get("protocol") == 1 and isinstance(value.get("result"), dict):
+        if (
+            isinstance(value, dict)
+            and value.get("protocol") == 1
+            and isinstance(value.get("result"), dict)
+        ):
             return value["result"]
     return None
 
@@ -713,11 +1065,18 @@ def _find_response(stdout: bytes) -> dict[str, Any] | None:
 def _result_from_wire(
     wire: dict[str, Any], *, job_dir: Path, elapsed_ms: float, process_stderr: str
 ) -> BuildResult:
-    if not isinstance(wire.get("ok"), bool) or wire.get("status") not in ("failed", "draft", "verified"):
+    if not isinstance(wire.get("ok"), bool) or wire.get("status") not in (
+        "failed",
+        "draft",
+        "verified",
+    ):
         raise ValueError("worker result has invalid success/status fields")
     if wire["ok"] != (wire["status"] != "failed"):
         raise ValueError("worker result has inconsistent success/status fields")
-    checks = [_check_from_wire(item) for item in _object_list(wire.get("checks", []), "checks")]
+    checks = [
+        _check_from_wire(item)
+        for item in _object_list(wire.get("checks", []), "checks")
+    ]
     summary_data = wire.get("checks_summary", {})
     if not isinstance(summary_data, dict):
         raise ValueError("checks_summary must be an object")
@@ -728,11 +1087,15 @@ def _result_from_wire(
             raise ValueError("checks_summary counts must be non-negative integers")
         summary[status] = count
     context_data = wire.get("context")
-    context = _context_from_wire(context_data) if isinstance(context_data, dict) else None
+    context = (
+        _context_from_wire(context_data) if isinstance(context_data, dict) else None
+    )
     scene_data = wire.get("scene")
     scene = SceneManifest(**scene_data) if isinstance(scene_data, dict) else None
     failure_data = wire.get("failure")
-    failure = _failure_from_wire(failure_data) if isinstance(failure_data, dict) else None
+    failure = (
+        _failure_from_wire(failure_data) if isinstance(failure_data, dict) else None
+    )
     stderr = wire.get("stderr", "")
     if process_stderr:
         stderr = f"{stderr}\n{process_stderr}" if stderr else process_stderr
@@ -764,13 +1127,29 @@ def _object_list(value: Any, field: str) -> list[dict[str, Any]]:
 def _check_from_wire(item: dict[str, Any]) -> Check:
     if not isinstance(item, dict):
         raise ValueError("check must be an object")
-    if item.get("suite", "hard") not in ("hard", "spec", "process", "interference", "2d"):
+    if item.get("suite", "hard") not in (
+        "hard",
+        "spec",
+        "process",
+        "interference",
+        "2d",
+    ):
         raise ValueError("check has an unsupported suite")
-    if item.get("level", "warn") not in ("error", "warn") or item.get("status", "skip") not in ("pass", "fail", "warn", "skip", "not_applicable"):
+    if item.get("level", "warn") not in ("error", "warn") or item.get(
+        "status", "skip"
+    ) not in ("pass", "fail", "warn", "skip", "not_applicable"):
         raise ValueError("check has an unsupported level or status")
     if not isinstance(item.get("id"), str) or not item["id"]:
         raise ValueError("check requires a nonempty string ID")
-    for field in ("message", "expected", "actual", "feature", "selector", "assumptions", "fix_hint"):
+    for field in (
+        "message",
+        "expected",
+        "actual",
+        "feature",
+        "selector",
+        "assumptions",
+        "fix_hint",
+    ):
         if item.get(field) is not None and not isinstance(item[field], str):
             raise ValueError(f"check {field} must be text or null")
     if item.get("heuristic") is not None and not isinstance(item["heuristic"], bool):
@@ -800,7 +1179,10 @@ def _context_from_wire(item: dict[str, Any]) -> ModelContext:
         # The parent intentionally does not deserialize a kernel shape.
         shape=None,
         sheet=None,
-        features=[_feature_from_wire(feature) for feature in _object_list(item.get("features", []), "features")],
+        features=[
+            _feature_from_wire(feature)
+            for feature in _object_list(item.get("features", []), "features")
+        ],
         params=dict(item.get("params", {})),
         metrics=dict(item.get("metrics", {})),
         spec=dict(item.get("spec", {})),
@@ -816,8 +1198,14 @@ def _context_from_wire(item: dict[str, Any]) -> ModelContext:
 def _feature_from_wire(item: dict[str, Any]) -> FeatureInfo:
     return FeatureInfo(
         name=item.get("name", "main"),
-        faces=[_entity_from_wire(entity) for entity in _object_list(item.get("faces", []), "feature faces")],
-        edges=[_entity_from_wire(entity) for entity in _object_list(item.get("edges", []), "feature edges")],
+        faces=[
+            _entity_from_wire(entity)
+            for entity in _object_list(item.get("faces", []), "feature faces")
+        ],
+        edges=[
+            _entity_from_wire(entity)
+            for entity in _object_list(item.get("edges", []), "feature edges")
+        ],
         line_start=item.get("line_start"),
         line_end=item.get("line_end"),
         deps=list(item.get("deps", [])),
@@ -846,7 +1234,12 @@ def _failure_from_wire(item: dict[str, Any]) -> Failure:
         file=item.get("file"),
         line=item.get("line"),
         selector=item.get("selector"),
-        candidates=[Candidate(**candidate) for candidate in _object_list(item.get("candidates", []), "failure candidates")],
+        candidates=[
+            Candidate(**candidate)
+            for candidate in _object_list(
+                item.get("candidates", []), "failure candidates"
+            )
+        ],
         probes=list(item.get("probes", [])),
         repair=list(item.get("repair", [])),
         last_good_rev=item.get("last_good_rev"),

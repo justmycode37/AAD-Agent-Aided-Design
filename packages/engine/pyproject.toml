@@ -8,12 +8,14 @@ version = "0.1.0"
 description = "M0 build123d worker and public AAD engine types"
 requires-python = ">=3.12"
 dependencies = [
+    "aad-drafting",
     "aad-render",
     "build123d==0.13.0",
     "cadquery-ocp-novtk==8.0.1.1.0",
 ]
 
 [tool.uv.sources]
+aad-drafting = { workspace = true }
 aad-render = { workspace = true }
 
 [tool.hatch.build.targets.wheel]

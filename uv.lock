@@ -87,6 +87,7 @@ name = "aad-engine"
 version = "0.1.0"
 source = { editable = "packages/engine" }
 dependencies = [
+    { name = "aad-drafting" },
     { name = "aad-render" },
     { name = "build123d" },
     { name = "cadquery-ocp-novtk" },
@@ -94,6 +95,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aad-drafting", editable = "packages/drafting" },
     { name = "aad-render", editable = "packages/render" },
     { name = "build123d", specifier = "==0.13.0" },
     { name = "cadquery-ocp-novtk", specifier = "==8.0.1.1.0" },
