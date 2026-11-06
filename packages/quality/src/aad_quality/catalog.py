@@ -40,7 +40,7 @@ _API = [
         "summary": "Spec parsing, measured requirements, unsupported evidence and readiness.",
         "tags": ["spec", "yaml", "verification", "requirements", "mass", "holes"],
         "source_url": "https://github.com/justmycode37/AAD-Agent-Aided-Design/blob/main/packages/quality/SPEC.md",
-        "text": "load_spec(raw_yaml) rejects duplicate keys and invalid measurements. spec_checks(ctx) returns one check per requirement. Unknown types and unsupported geometry skip. verification_ready(ctx.spec, checks, hard_checks, process=ctx.process) requires measured coverage but cannot attest mutable worker evidence. min_wall and pointwise symmetry proof remain unsupported. Mass is a fully dense nominal material estimate. See SPEC.md shipped with the source for the full evidence matrix.",
+        "text": "load_spec(raw_yaml) rejects duplicate keys and invalid measurements. spec_checks(ctx) returns requirement checks plus mechanical subsystem/interface label and evidence checks when spec.subsystems is declared. Unknown types and unsupported geometry skip; skipped or unknown evidence never passes. Labels do not establish meaning, connectivity or function. verification_ready(ctx.spec, checks, hard_checks, process=ctx.process) requires measured coverage but cannot attest mutable worker evidence. min_wall and pointwise symmetry proof remain unsupported. Mass is a fully dense nominal material estimate. See SPEC.md shipped with the source for the full evidence matrix.",
     },
     {
         "id": "api.quality.process",

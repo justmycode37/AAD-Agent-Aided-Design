@@ -1,6 +1,7 @@
 """Run the actual S1 worker with installed S5 hooks; no fabricated gate result."""
 from aad.engine.jobs import run_build
 from aad.engine.types import BuildRequest,Check
+from aad_quality.spec import subsystem_review
 import pytest
 
 
@@ -48,3 +49,83 @@ def test_sandboxed_worker_can_place_catalog_parts_and_check_a_component_list(tmp
     assert checks['bore'].status == 'pass'
     assert checks['BOM'].status == 'pass'
     assert checks['FAKE'].status == 'fail' and 'nearest' in checks['FAKE'].message
+
+
+@pytest.mark.parametrize("case,expected_ok,expected_status", [
+    ("pass", True, "pass"),
+    ("missing_part", False, "fail"),
+    ("no_evidence", True, "skip"),
+    ("skipped_evidence", True, "skip"),
+    ("not_modeled", True, "skip"),
+])
+def test_worker_checks_functional_breakdown_labels_and_evidence(tmp_path, case, expected_ok, expected_status):
+    source = (
+        "from aad import assembly\n"
+        "from build123d import Box, Pos\n"
+        "asm = assembly('drive')\n"
+        "asm.add('base', Box(10, 10, 2))\n"
+        "asm.add('motor', Box(4, 4, 4), at=Pos(0, 0, 4))\n"
+        "result = asm\n"
+    )
+    requirements = [{"id": "body_count", "solids": 2}]
+    subsystem = {
+        "id": "drive",
+        "purpose": "Transmit torque",
+        "parts": ["base", "motor"],
+        "interfaces": [{
+            "id": "mount",
+            "kind": "mounting",
+            "between": ["base", "motor"],
+            "requirements": ["body_count"],
+        }],
+        "evidence": ["body_count"],
+        "status": "modeled",
+    }
+    if case == "missing_part":
+        subsystem["parts"] = ["missing_motor"]
+    elif case == "no_evidence":
+        subsystem["evidence"] = []
+        subsystem["interfaces"][0]["requirements"] = []
+    elif case == "skipped_evidence":
+        requirements.append({"id": "future", "future_requirement": {"detail": "not implemented"}})
+        subsystem["evidence"] = ["future"]
+        subsystem["interfaces"][0]["requirements"] = ["future"]
+    elif case == "not_modeled":
+        subsystem.update({
+            "parts": [],
+            "interfaces": [],
+            "evidence": [],
+            "status": "not_modeled",
+            "reason": "Motor controller geometry is unavailable",
+        })
+    spec = {"requirements": requirements, "subsystems": [subsystem]}
+
+    result = run_build(BuildRequest(
+        source=source,
+        project_dir=tmp_path / case,
+        job_dir=tmp_path / f"{case}-job",
+        kind="assembly",
+        spec=spec,
+        timeout_s=60,
+    ))
+
+    assert result.ok is expected_ok, result.failure or result.checks
+    checks = {check.id: check for check in result.checks}
+    assert checks["subsystem:drive"].status == expected_status
+    if case == "pass":
+        assert checks["subsystem:drive:interface:mount"].status == "pass"
+    elif case == "missing_part":
+        assert "missing_motor" in checks["subsystem:drive"].actual
+    elif case == "no_evidence":
+        assert checks["subsystem:drive"].status == "skip"
+        assert "no evidence" in checks["subsystem:drive"].actual
+        assert checks["subsystem:drive:interface:mount"].status == "skip"
+    elif case == "skipped_evidence":
+        assert checks["future"].status == "skip"
+        assert checks["subsystem:drive:interface:mount"].status == "skip"
+    elif case == "not_modeled":
+        review = subsystem_review(spec, result.checks, is_assembly=True)
+        assert review["not_modeled"] == [{
+            "id": "drive",
+            "reason": "Motor controller geometry is unavailable",
+        }]

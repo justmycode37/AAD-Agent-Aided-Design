@@ -5,6 +5,10 @@ def spec_checks(ctx):
     from .spec import spec_checks as evaluate
     return evaluate(ctx)
 
+def subsystem_review(spec, checks=None, *, is_assembly=False):
+    from .spec import subsystem_review as review
+    return review(spec, checks, is_assembly=is_assembly)
+
 def process_checks(ctx):
     from .process import process_checks as evaluate
     return evaluate(ctx)

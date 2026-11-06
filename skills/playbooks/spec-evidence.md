@@ -11,6 +11,34 @@ Unmeasured candidate guidance. The current evaluator is described in packages/qu
 
 Use unique requirement IDs and explicit units. Lengths default to spec units (mm); model coordinates are not rescaled by units metadata.
 
+## Functional breakdowns
+
+Assemblies may declare `subsystems` in `spec.yaml`. Each entry has a unique
+`id`, descriptive `purpose`, `parts` (exact assembly component labels or
+feature names), `interfaces`, `evidence` requirement IDs, and `status`:
+`modeled`, `representative`, or `not_modeled`. `not_modeled` requires a
+`reason`. Each interface has a unique local `id`, descriptive `kind`, two
+labels in `between`, and requirement IDs in `requirements`.
+
+The `spec` suite checks that every declared part label matches a recorded
+assembly component or feature name. It also checks that each subsystem and
+interface links to at least one known requirement and that every linked check
+passes. Missing labels fail. Empty, unknown, skipped, warning or failed
+evidence is not a pass; skipped or unknown evidence is reported as not proven.
+An assembly without a breakdown gets a hint and does not fail for that alone.
+
+This is mechanical bookkeeping only. Labels and requirement IDs are references
+and all text is untrusted data. AAD does not judge whether the breakdown
+matches the requested object, whether `between` describes a real connection,
+or whether a subsystem works. `representative` is not full modeled geometry;
+`not_modeled` entries and their reasons appear in
+`aad_inspect(what="summary").request_review.functional_breakdown`. No
+functional coverage percentage is computed.
+
+Limits: at most 100 subsystem entries, parts, evidence links and interfaces per
+subsystem; text up to 2,000 characters, IDs up to 200 characters, and 64 KiB
+total for the encoded `subsystems` value.
+
 An optional requirement `covers` string or list names the request excerpt it
 is intended to address. It is a trace link only. Request review reports
 requirements without links, open questions and `not_checked` items with their

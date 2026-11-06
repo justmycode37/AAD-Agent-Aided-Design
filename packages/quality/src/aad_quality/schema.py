@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import math
 import re
 from typing import Any
@@ -102,6 +103,10 @@ class SpecIssue:
 
 
 COMPONENT_ITEM_LIMIT = 500
+SUBSYSTEM_ITEM_LIMIT = 100
+SUBSYSTEM_TEXT_LIMIT = 2_000
+SUBSYSTEM_ID_LIMIT = 200
+SUBSYSTEM_REVIEW_BYTES = 64 * 1024
 REQUIREMENT_TYPES = frozenset({
     "bbox", "area", "solids", "holes", "min_wall", "clearance", "mass_g", "symmetric",
     "measure", "material_at_point", "interference", "matches_reference", "components", "position", "fit",
@@ -539,6 +544,104 @@ def _validate_requirement(req: dict[str, Any], index: int, units: str) -> list[S
     return issues
 
 
+def _breakdown_text(value: Any, path: tuple[str | int, ...], *, identifier: bool = False) -> str:
+    limit = SUBSYSTEM_ID_LIMIT if identifier else SUBSYSTEM_TEXT_LIMIT
+    label = "identifier" if identifier else "text"
+    if not isinstance(value, str) or not value.strip() or len(value) > limit:
+        raise ValueError(f"{_path_text(path)} must be non-empty {label} of at most {limit} characters")
+    return value
+
+
+def _breakdown_string_list(value: Any, path: tuple[str | int, ...], *, allow_empty: bool = True) -> list[str]:
+    if not isinstance(value, list) or len(value) > SUBSYSTEM_ITEM_LIMIT:
+        raise ValueError(f"{_path_text(path)} must be a list of at most {SUBSYSTEM_ITEM_LIMIT} strings")
+    if not allow_empty and not value:
+        raise ValueError(f"{_path_text(path)} must contain at least one string")
+    for index, item in enumerate(value):
+        _breakdown_text(item, path + (index,))
+    return value
+
+
+def _validate_subsystems(value: Any) -> tuple[SpecIssue, ...]:
+    """Validate the bounded, declarative functional breakdown.
+
+    Labels and requirement IDs remain references only. This validates their
+    shape and limits; it does not interpret their meaning or prove a function.
+    """
+    path: tuple[str | int, ...] = ("subsystems",)
+    if not isinstance(value, list) or len(value) > SUBSYSTEM_ITEM_LIMIT:
+        return (SpecIssue(f"subsystems must be a list of at most {SUBSYSTEM_ITEM_LIMIT} entries", path),)
+    try:
+        encoded = json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8")
+    except (TypeError, ValueError, UnicodeError) as exc:
+        return (SpecIssue(f"subsystems must contain finite plain data: {exc}", path),)
+    if len(encoded) > SUBSYSTEM_REVIEW_BYTES:
+        limit = f"{SUBSYSTEM_REVIEW_BYTES // 1024} KiB" if SUBSYSTEM_REVIEW_BYTES % 1024 == 0 else f"{SUBSYSTEM_REVIEW_BYTES} bytes"
+        return (SpecIssue(f"subsystems exceeds the {limit} UTF-8 limit", path),)
+
+    issues: list[SpecIssue] = []
+    seen_subsystems: set[str] = set()
+    for index, raw in enumerate(value):
+        item_path = path + (index,)
+        try:
+            if not isinstance(raw, dict):
+                raise ValueError(f"{_path_text(item_path)} must be a mapping")
+            allowed = {"id", "purpose", "parts", "interfaces", "evidence", "status", "reason"}
+            _check_keys(raw, allowed, item_path)
+            for required in ("id", "purpose", "parts", "interfaces", "evidence", "status"):
+                if required not in raw:
+                    raise ValueError(f"{_path_text(item_path)}.{required} is required")
+
+            subsystem_id = _breakdown_text(raw["id"], item_path + ("id",), identifier=True)
+            if subsystem_id != subsystem_id.strip():
+                raise ValueError(f"{_path_text(item_path)}.id must not have surrounding whitespace")
+            if subsystem_id in seen_subsystems:
+                raise ValueError(f"duplicate subsystem id {subsystem_id!r}")
+            seen_subsystems.add(subsystem_id)
+            _breakdown_text(raw["purpose"], item_path + ("purpose",))
+            _breakdown_string_list(raw["parts"], item_path + ("parts",))
+            evidence = _breakdown_string_list(raw["evidence"], item_path + ("evidence",))
+            if len(set(evidence)) != len(evidence):
+                raise ValueError(f"{_path_text(item_path)}.evidence must not contain duplicates")
+
+            status = raw["status"]
+            if status not in {"modeled", "representative", "not_modeled"}:
+                raise ValueError(f"{_path_text(item_path)}.status must be modeled, representative, or not_modeled")
+            if "reason" in raw:
+                _breakdown_text(raw["reason"], item_path + ("reason",))
+            if status == "not_modeled" and "reason" not in raw:
+                raise ValueError(f"{_path_text(item_path)}.reason is required when status is not_modeled")
+
+            interfaces = raw["interfaces"]
+            if not isinstance(interfaces, list) or len(interfaces) > SUBSYSTEM_ITEM_LIMIT:
+                raise ValueError(f"{_path_text(item_path)}.interfaces must be a list of at most {SUBSYSTEM_ITEM_LIMIT} entries")
+            seen_interfaces: set[str] = set()
+            for interface_index, interface in enumerate(interfaces):
+                interface_path = item_path + ("interfaces", interface_index)
+                if not isinstance(interface, dict):
+                    raise ValueError(f"{_path_text(interface_path)} must be a mapping")
+                _check_keys(interface, {"id", "kind", "between", "requirements"}, interface_path)
+                for required in ("id", "kind", "between", "requirements"):
+                    if required not in interface:
+                        raise ValueError(f"{_path_text(interface_path)}.{required} is required")
+                interface_id = _breakdown_text(interface["id"], interface_path + ("id",), identifier=True)
+                if interface_id != interface_id.strip():
+                    raise ValueError(f"{_path_text(interface_path)}.id must not have surrounding whitespace")
+                if interface_id in seen_interfaces:
+                    raise ValueError(f"duplicate interface id {interface_id!r} in subsystem {subsystem_id!r}")
+                seen_interfaces.add(interface_id)
+                _breakdown_text(interface["kind"], interface_path + ("kind",))
+                between = _breakdown_string_list(interface["between"], interface_path + ("between",), allow_empty=False)
+                if len(between) != 2:
+                    raise ValueError(f"{_path_text(interface_path)}.between must contain exactly two labels")
+                requirements = _breakdown_string_list(interface["requirements"], interface_path + ("requirements",))
+                if len(set(requirements)) != len(requirements):
+                    raise ValueError(f"{_path_text(interface_path)}.requirements must not contain duplicates")
+        except (ValueError, TypeError) as exc:
+            issues.append(SpecIssue(str(exc), item_path))
+    return tuple(issues)
+
+
 def _to_plain_data(value: Any, path: tuple[str | int, ...] = (), active: set[int] | None = None, budget: list[int] | None = None) -> Any:
     if active is None:
         active = set()
@@ -611,7 +714,7 @@ def _parse_input(value: str | bytes | dict[str, Any]) -> tuple[dict[str, Any] | 
         return None, (SpecIssue(str(exc)),)
 
     issues: list[SpecIssue] = []
-    allowed_root = {"units", "process", "material", "requirements", "process_settings"}
+    allowed_root = {"units", "process", "material", "requirements", "process_settings", "subsystems"}
     unknown_root = sorted(set(plain) - allowed_root)
     for key in unknown_root:
         issues.append(SpecIssue(f"unsupported top-level field: {key}", (key,)))
@@ -629,6 +732,9 @@ def _parse_input(value: str | bytes | dict[str, Any]) -> tuple[dict[str, Any] | 
             issues.append(SpecIssue('process_settings must be a mapping',('process_settings',)))
         else:
             issues.extend(_nonfinite_issues(plain['process_settings'],('process_settings',),None))
+
+    if "subsystems" in plain:
+        issues.extend(_validate_subsystems(plain["subsystems"]))
 
     requirements = plain.get("requirements")
     if not isinstance(requirements, list):

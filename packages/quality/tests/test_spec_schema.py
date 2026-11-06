@@ -202,3 +202,51 @@ def test_covers_is_an_optional_link_and_is_validated():
     assert parsed["requirements"][0]["covers"] == "the requested width"
     with pytest.raises(SpecValidationError):
         load_spec({"requirements": [{"id": "size", "bbox": {"x": 10}, "covers": []}]})
+
+
+def test_subsystems_accept_labeled_parts_interfaces_and_evidence_links():
+    parsed = load_spec({"requirements": [{"id": "mount", "solids": 2}], "subsystems": [
+        {
+            "id": "drive",
+            "purpose": "Transmit torque to the output",
+            "parts": ["motor", "shaft"],
+            "interfaces": [{
+                "id": "coupling",
+                "kind": "shaft_coupling",
+                "between": ["motor", "shaft"],
+                "requirements": ["mount"],
+            }],
+            "evidence": ["mount"],
+            "status": "modeled",
+        },
+        {
+            "id": "controller",
+            "purpose": "Switch motor current",
+            "parts": [],
+            "interfaces": [],
+            "evidence": [],
+            "status": "not_modeled",
+            "reason": "No geometry or electrical evidence is available",
+        },
+    ]})
+    assert len(parsed["subsystems"]) == 2
+    assert parsed["subsystems"][0]["interfaces"][0]["between"] == ["motor", "shaft"]
+
+
+@pytest.mark.parametrize("subsystem", [
+    {"id": "unmodeled", "purpose": "A system", "parts": [], "interfaces": [], "evidence": [], "status": "not_modeled"},
+    {"id": "bad_status", "purpose": "A system", "parts": [], "interfaces": [], "evidence": [], "status": "estimated"},
+    {"id": "bad_interface", "purpose": "A system", "parts": [], "interfaces": [{"id": "joint", "kind": "mount", "between": ["one"], "requirements": []}], "evidence": [], "status": "modeled"},
+])
+def test_subsystem_schema_rejects_missing_reason_or_malformed_interface(subsystem):
+    with pytest.raises(SpecValidationError):
+        load_spec({"requirements": [], "subsystems": [subsystem]})
+
+
+def test_subsystem_text_and_encoded_payload_have_capture_style_limits():
+    base = {"id": "x", "purpose": "ok", "parts": [], "interfaces": [], "evidence": [], "status": "modeled"}
+    with pytest.raises(SpecValidationError, match="2000 characters"):
+        load_spec({"requirements": [], "subsystems": [{**base, "purpose": "x" * 2001}]})
+    many = [{**base, "id": f"subsystem_{index}", "purpose": "x" * 2000} for index in range(40)]
+    with pytest.raises(SpecValidationError, match="64 KiB"):
+        load_spec({"requirements": [], "subsystems": many})
