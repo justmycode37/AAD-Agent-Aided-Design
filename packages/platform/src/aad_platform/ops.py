@@ -242,14 +242,15 @@ def _prepare_review_packet(ctx: Any, out: Path) -> dict[str, Any]:
     packet_dir.mkdir(mode=0o700)
     _write_private_file(packet_dir / "request.txt", request_bytes, MAX_REVIEW_PACKET_REQUEST_BYTES)
 
-    if hasattr(ctx, "_revision_checks"):
-        raw_checks = ctx._revision_checks
-    else:
-        revision_meta = _read_review_json(revision_dir / "meta.json", 64 * 1024 * 1024)
-        raw_checks = revision_meta.get("checks")
+    revision_meta = _read_review_json(revision_dir / "meta.json", 64 * 1024 * 1024, missing_ok=True)
+    raw_checks = ctx._revision_checks if hasattr(ctx, "_revision_checks") else revision_meta.get("checks")
     checks_available = isinstance(raw_checks, list)
     checks = _review_checks(raw_checks)
+    status = revision_meta.get("status")
+    status = status if status in {"failed", "draft", "verified"} else "unknown"
     unresolved = _review_unresolved(request_data, checks, captured, checks_available)
+    if status != "verified":
+        unresolved.insert(0, {"type": "status", "item": f"Revision status is {status}, not verified."})
     files = {
         "request.txt": {
             "sha256": hashlib.sha256(request_bytes).hexdigest(),
@@ -261,6 +262,7 @@ def _prepare_review_packet(ctx: Any, out: Path) -> dict[str, Any]:
         "schema": "aad.review-packet.v1",
         "project": Path(ctx.project_dir).name,
         "revision": int(ctx.rev),
+        "status": status,
         "units": str(ctx.units),
         "request": {"file": "request.txt", "captured": captured},
         "parts": plan["parts"],
@@ -333,10 +335,8 @@ def _review_unresolved(
                 unresolved.append({"type": "open_question", "item": question})
         for note in request_data.get("not_checked") or []:
             if isinstance(note, dict) and isinstance(note.get("item"), str):
-                entry = {"type": "not_checked", "item": note["item"]}
-                if isinstance(note.get("reason"), str):
-                    entry["reason"] = note["reason"]
-                unresolved.append(entry)
+                # The reason is the building agent's reasoning, so only the item travels.
+                unresolved.append({"type": "not_checked", "item": note["item"]})
     for check in checks:
         if check.get("status") in {"fail", "warn", "skip"}:
             unresolved.append({

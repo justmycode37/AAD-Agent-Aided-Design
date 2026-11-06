@@ -14,6 +14,8 @@ from .render_limits import MAX_REVIEW_PACKET_CASES, MAX_REVIEW_PACKET_PARTS
 _ORTHOGRAPHIC = ("front", "back", "left", "right", "top", "bottom")
 _PLANE_AXIS = {"XY": 2, "XZ": 1, "YZ": 0}
 _SAFE_CASE_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+_REVIEW_LABEL = re.compile(r"[\w][\w .-]{0,63}")
+_REVIEW_LABEL_WORDS = 4
 
 
 def prepare_review_packet(ctx: Any) -> dict[str, Any]:
@@ -160,6 +162,12 @@ def _components(ctx: Any, shape: Any) -> list[dict[str, Any]]:
     return [{"shape": shape, "name": name, "part_number": None}]
 
 
+def _review_label(value: Any, fallback: str | None) -> str | None:
+    """Keep short name-like labels; longer model text could carry the author's reasoning."""
+    text = str(value or "").strip()
+    return text if _REVIEW_LABEL.fullmatch(text) and len(text.split()) <= _REVIEW_LABEL_WORDS else fallback
+
+
 def _part_record(index: int, component: dict[str, Any], units: str) -> dict[str, Any]:
     shape = component["shape"]
     low, high = _bounds(shape)
@@ -170,8 +178,8 @@ def _part_record(index: int, component: dict[str, Any], units: str) -> dict[str,
     center = [(low[axis] + high[axis]) / 2.0 for axis in range(3)]
     return {
         "id": f"part-{index:03d}",
-        "name": component["name"][:256],
-        "part_number": str(component["part_number"] or component["name"])[:128],
+        "name": _review_label(component["name"], f"part-{index:03d}"),
+        "part_number": _review_label(component["part_number"], None),
         "size": size,
         "center": center,
         "bbox": {"min": list(low), "max": list(high)},

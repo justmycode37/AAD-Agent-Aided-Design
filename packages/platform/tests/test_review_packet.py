@@ -206,3 +206,26 @@ def test_aad_render_returns_packet_handle_without_inline_images(monkeypatch):
     assert "images" not in result
     assert result["structured"]["status"] == "draft"
     assert result["structured"]["review_packet"]["path"] == "/tmp/review-packet"
+
+
+def test_unresolved_items_leave_out_the_author_reasons():
+    unresolved = ops._review_unresolved(
+        {"not_checked": [{"item": "bearing fit", "reason": "I assumed the bearing spec"}]}, [], True, True
+    )
+    assert unresolved == [{"type": "not_checked", "item": "bearing fit"}]
+
+
+def test_manifest_reports_a_failed_revision_status(monkeypatch, tmp_path):
+    project = tmp_path / "p"
+    revision = project / ".aad" / "revs" / "000003"
+    revision.mkdir(parents=True)
+    (revision / "meta.json").write_text(json.dumps({"status": "failed", "checks": []}))
+    plan = {"renders": [], "parts": [], "coverage": {}}
+    monkeypatch.setattr("aad_render.review_packet.prepare_review_packet", lambda _ctx: plan)
+    monkeypatch.setattr("aad_render.render_wire.pack_render_batch", lambda _cases: _Batch())
+    out = tmp_path / "operation"
+    out.mkdir()
+    ctx = SimpleNamespace(project_dir=project, rev=3, kind="part", units="mm")
+    manifest = ops.op_render_prepare(ctx, {"review_packet": True}, out)["prepared_review_packet"]["manifest"]
+    assert manifest["status"] == "failed"
+    assert manifest["unresolved"][0] == {"type": "status", "item": "Revision status is failed, not verified."}

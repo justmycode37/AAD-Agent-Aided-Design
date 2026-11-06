@@ -119,3 +119,12 @@ def test_review_packet_wire_batch_is_bounded_and_versioned():
     assert all(decode_render_payload(payload)[0] == {"render": {}} for _case_id, payload in cases)
     with pytest.raises(ValueError, match="render cases"):
         pack_render_batch([(f"case-{index}", {}) for index in range(MAX_REVIEW_PACKET_CASES + 1)])
+
+
+def test_part_labels_that_read_like_reasoning_are_replaced():
+    from aad_render.review_packet import _review_label
+
+    assert _review_label("left bearing 608", "part-001") == "left bearing 608"
+    assert _review_label("Assumption: bearing clearance is safe; source: clearance=0.2", "part-001") == "part-001"
+    assert _review_label("the bearing clearance is safe here", "part-001") == "part-001"
+    assert _review_label(None, None) is None
