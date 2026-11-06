@@ -105,6 +105,7 @@ normal module. Geometry assumptions and limits are documented in
 - `feature(name)` must be unique. It records created and modified faces and edges, source lines and dependencies.
 - `face()`, `edge()`, `vertex()` resolve semantically. `expect=n` turns a count mismatch into a `SELECTOR_AMBIGUOUS` or `SELECTOR_EMPTY` failure with candidates.
 - A script produces one `part`, one `assembly` (assign `assembly()` to `result`), or (for `kind: "2d"`) one `sheet2d`.
+- `Assembly.connect(a, b, kind, **details)` records a declared joint between two existing component names. `kind` is non-empty text, details are finite JSON-compatible data (at most 16 KiB per joint with `kind`, 1 MiB per assembly), and optional `details.tolerance` is a non-negative distance in model units. `Assembly.record()` includes `components`, `bom`, and `joints` metadata; a declared joint is not proof of contact or fastening.
 - The script must not do I/O. Files come in through `asset("name")`, which reads from the project's imports.
 - Plain build123d is valid, and everything lands in an implicit `main` feature. Named features are what make edits reliable.
 
@@ -141,6 +142,8 @@ requirements:
     position: {selector: "vertex(feature='shaft_axis', nth=0)", target: [0, 0, 12], tolerance: 0.05}
   - id: bearing_fit
     fit: {a: shaft, b: bearing, clearance: {min: 0.02, max: 0.08}}
+  - id: assembly_paths
+    connected: {ground: frame, allow_floating: [cover], tolerance: 0.1}
   - id: press_fit
     fit: {a: insert, b: housing, interference: {min: 1, max: 3}}
   - id: no_interference
@@ -179,6 +182,20 @@ that threshold to count as interference. The provider uses a 60-second default
 pair-check budget, reports at most the 20 largest overlaps plus bounded unknown
 pair details, and identifies any unchecked pairs. A boolean failure or an
 exhausted budget cannot produce a pass.
+
+The `connected` requirement is assembly-only. `ground` and `allow_floating`
+contain exact component labels; `allow_floating` defaults to an empty list.
+`tolerance` is one non-negative length in spec units and bounds measured
+geometric contact. The evaluator builds a declared-joint graph and a separate
+minimum-distance contact graph, using component bounding boxes to filter
+candidate distances. A joint's optional numeric `details.tolerance` in model
+units overrides the spec tolerance for that joint. A joint edge is usable only
+when its minimum B-rep distance is within its tolerance. The report lists paths
+and disconnected component labels for both evidence types. Contact proves
+touching only, not fastening. Invalid references or a declared joint beyond
+tolerance fail; a distance failure or the 60-second graph-check budget remains
+unknown and cannot pass. The graph check does not establish joint strength,
+retention, preload, or function.
 
 ---
 
@@ -592,6 +609,10 @@ def aad_quality.process_checks(ctx: ModelContext) -> list[Check]
 def aad_quality.library(action: str, **kw) -> dict
 ```
 
+For an `Assembly` result, `meta["assembly"]` carries its name, component labels,
+BOM rows, and declared joint records (`a`, `b`, `kind`, and `details`) into the
+quality worker.
+
 **Worker pipeline:** run `model.py` → `hard_checks` → `spec_checks` → `process_checks` (or `aad_drafting.checks` for 2D) → `make_scene` → optional `render` → return `BuildResult`. A failure in an optional step becomes a `warn` check, and must never discard a built revision.
 
 For local macOS and Linux 3D `aad_render`, the `render_prepare` operation loads the revision B-rep
@@ -642,6 +663,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 ## 11. Changelog
 
 - 2026-11-06: S3 added `aad_render(review_packet=true)` for bounded, hashed visual review packets, including request text, measured parts, check skips, unresolved items and orthographic/section/isolated views; packets omit model source and assumptions, do not change revision status or count as verification, and remain unavailable in remote mode.
+- 2026-11-06: S1 added `Assembly.connect()` joint metadata and the `connected` spec requirement, which reports geometrically validated joint paths separately from measured touching and keeps failed or timed-out distance evidence unknown.
 - 2026-11-05: S1 applied configurable `engine.memory` virtual-address growth budgets to build and operation workers and made explicit `MemoryError`/`ENOMEM` results report `OUT_OF_MEMORY`, while keeping unrelated startup diagnostics and signal-only exits unclassified.
 - 2026-11-05: S2 made the structured `aad_render` report compact by default, with `inspection="full"` for the rest, because it reached 2.6 MB on a 492-part assembly.
 - 2026-11-05: S1 added per-phase build timings to `metrics`, named the slowest phase for builds over 20 seconds, reported unaccounted elapsed time as the residual `other` phase, made assembly mesh validation use one private remesh with per-solid checks, and reused the viewer scene's face and edge indexes across parts.
