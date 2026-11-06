@@ -20,7 +20,7 @@ from typing import Any
 from ..schema import COMPONENT_ITEM_LIMIT as _ITEM_LIMIT
 from . import electromechanical, electronics, mechanical
 
-__all__ = ["list_components", "get_component", "check_items", "make_envelope", "catalog_index", "INDEX_ID", "EVIDENCE_STATUSES"]
+__all__ = ["list_components", "get_component", "check_items", "make_envelope", "make_detailed", "catalog_index", "INDEX_ID", "EVIDENCE_STATUSES"]
 
 INDEX_ID = "component.index"
 EVIDENCE_STATUSES = {
@@ -226,6 +226,18 @@ def make_envelope(component_id: str, *, units: str = "mm", **selection: Any) -> 
         from build123d import scale
         return scale(solid, 1 / 25.4)
     return solid
+
+
+def make_detailed(component_id: str, **options: Any) -> Any:
+    """Build detailed geometry for supported catalog bearings, connectors, motors and screws.
+
+    This is a separate tier from :func:`make_envelope`; it preserves the
+    envelope helper's simple solids and fit datums. See ``components-real-parts``
+    for supported options and representative-geometry limits.
+    """
+    from .detailed import make_detailed as _make_detailed
+
+    return _make_detailed(component_id, **options)
 
 
 def _envelope_mm(component_id: str, selection: dict[str, Any]) -> Any:

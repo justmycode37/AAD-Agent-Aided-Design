@@ -85,8 +85,8 @@ _CATALOG: tuple[dict[str, Any], ...] = (
             },
             "thread": {
                 "type": "enum",
-                "default": "envelope",
-                "choices": ["envelope", "helical"],
+                "default": "cosmetic",
+                "choices": ["envelope", "cosmetic"],
             },
         },
         "fixed": {"fastener_type": "iso4762", "hand": "right", "mode": "private"},
@@ -97,10 +97,11 @@ _CATALOG: tuple[dict[str, Any], ...] = (
             ")"
         ),
         "limitations": [
-            "thread='envelope' models the threaded length as a plain cylinder at the "
-            "major diameter, which holds the true clearance envelope. thread='helical' "
-            "models the full thread, but its sliver faces fail the hard gate's "
-            "edge_quality and face_quality checks, so use it only outside a built model. "
+            "thread='envelope' or thread='cosmetic' models the threaded length as a plain "
+            "cylinder at the major diameter, which holds the true clearance envelope. "
+            "A helical solid fails the unchanged hard gate's edge_quality and face_quality "
+            "checks because its trimmed sweep creates sub-threshold sliver faces and edges. "
+            "Use the cosmetic mode; AAD records the thread designation and adds it to drawings. "
             "Nominal geometry does not prove purchased-hardware fit or load capacity."
         ],
     },
@@ -138,11 +139,11 @@ _CATALOG: tuple[dict[str, Any], ...] = (
     {
         "id": _THREAD_ID,
         "family": "thread",
-        "title": "ISO metric external thread form",
-        "summary": "External right-hand helical thread; default M6-1 x 8 mm.",
+        "title": "ISO metric external thread (cosmetic representation)",
+        "summary": "External right-hand thread envelope with a drawing note; default M6-1 x 8 mm.",
         "source": {
             **_UPSTREAM_SOURCE,
-            "constructor": "bd_warehouse.thread.IsoThread",
+            "constructor": "AAD.cosmetic_external_thread_envelope",
         },
         "parameters": {
             "size": {
@@ -156,13 +157,16 @@ _CATALOG: tuple[dict[str, Any], ...] = (
                 "default": 8.0,
                 "constraint": "Positive finite axial length.",
             },
+            "representation": {
+                "type": "enum",
+                "default": "cosmetic",
+                "choices": ["cosmetic"],
+            },
         },
         "fixed": {
             "external": True,
             "hand": "right",
             "end_finishes": ["square", "square"],
-            "simple": False,
-            "mode": "private",
         },
         "example": (
             "from aad_quality.standard_parts import make_part\n"
@@ -171,8 +175,9 @@ _CATALOG: tuple[dict[str, Any], ...] = (
             ")"
         ),
         "limitations": [
-            "Returns the thread helix only, with no shaft or mating hole; nominal "
-            "geometry is not proof of fit or load."
+            "Returns a smooth major-diameter envelope, with the thread designation "
+            "recorded as cosmetic in model metadata and shown in AAD drawings. It has "
+            "no helical B-rep, shaft, or mating hole; nominal geometry is not proof of fit or load."
         ],
     },
 )
@@ -397,9 +402,15 @@ def make_part(id: str, **params: Any) -> Any:
             id, params.get("size", "M6-1"), tuple(_FASTENER_LENGTHS_BY_SIZE)
         )
         length = _nominal_fastener_length(id, size, params.get("length", 20))
-        thread = params.get("thread", "envelope")
-        if thread not in ("envelope", "helical"):
-            raise ValueError(f"thread for {id!r} must be 'envelope' or 'helical'")
+        thread = params.get("thread", "cosmetic")
+        if thread == "helical":
+            raise ValueError(
+                "thread='helical' fails the unchanged edge_quality and face_quality hard gates "
+                "because its trimmed sweep creates sub-threshold sliver faces and edges; "
+                "use thread='cosmetic'"
+            )
+        if thread not in ("envelope", "cosmetic"):
+            raise ValueError(f"thread for {id!r} must be 'envelope' or 'cosmetic'")
         _require_pinned_backend()
         from bd_warehouse.fastener import SocketHeadCapScrew
         from build123d import Mode, Plane, Solid
@@ -409,16 +420,33 @@ def make_part(id: str, **params: Any) -> Any:
             length=length,
             fastener_type="iso4762",
             hand="right",
-            simple=thread == "envelope",
+            simple=True,
             mode=Mode.PRIVATE,
         )
-        if thread == "envelope":
+        if thread in {"envelope", "cosmetic"}:
             major = float(size[1:].split("-")[0])
             shank = Solid.make_cylinder(major / 2, length, Plane((0, 0, -length)))
             fused = part.solids()[0].fuse(shank, *part.solids()[1:])
             if not fused.is_valid or len(fused.solids()) != 1:
                 raise RuntimeError("The screw head and shank could not be united into one valid solid")
             fused.label = f"ISO 4762 {size} x {length:g} mm"
+            if thread == "cosmetic":
+                from .components.detailed import _record_model_metadata
+
+                diameter, pitch = _THREAD_SIZES[size]
+                _record_model_metadata({
+                    "component_id": _FASTENER_ID,
+                    "catalog_evidence": {
+                        "source": _UPSTREAM_SOURCE["package"] + " " + _UPSTREAM_SOURCE["version"] + " fastener table",
+                        "status": "source_table",
+                        "url": _UPSTREAM_SOURCE["url"],
+                    },
+                    "dimensions_mm": {"major_diameter": diameter, "pitch": pitch, "length": length},
+                    "geometry_source": "catalog_dimensions_plus_cosmetic_thread",
+                    "level_of_detail": "cosmetic",
+                    "representative_features": ["helical thread form omitted from the B-rep"],
+                    "thread": {"designation": size.replace("-", " × "), "representation": "cosmetic", "hand": "right"},
+                })
             return fused
         solids = list(part.solids())
         fused = solids[0].fuse(*solids[1:]) if len(solids) > 1 else part
@@ -437,20 +465,33 @@ def make_part(id: str, **params: Any) -> Any:
         size = _select_size(id, params.get("size", "M6-1"), tuple(_THREAD_SIZES))
         length = _positive_mm(id, params.get("length", 8), "length")
         major_diameter, pitch = _THREAD_SIZES[size]
-        _require_pinned_backend()
-        from bd_warehouse.thread import IsoThread
-        from build123d import Mode
+        representation = params.get("representation", "cosmetic")
+        if representation != "cosmetic":
+            raise ValueError("thread.iso_metric_external supports representation='cosmetic' only")
+        from build123d import Align, Cylinder
 
-        return IsoThread(
-            major_diameter=major_diameter,
-            pitch=pitch,
-            length=length,
-            external=True,
-            hand="right",
-            end_finishes=("square", "square"),
-            simple=False,
-            mode=Mode.PRIVATE,
-        )
+        solid = Cylinder(major_diameter / 2, length, align=(Align.CENTER, Align.CENTER, Align.MIN))
+        solid.label = f"M{major_diameter:g} x {pitch:g} external right-hand thread (cosmetic)"
+        from .components.detailed import _record_model_metadata
+
+        _record_model_metadata({
+            "component_id": _THREAD_ID,
+            "catalog_evidence": {
+                "source": "bd_warehouse 0.4.0 ISO metric thread parameter table",
+                "status": "source_table",
+                "url": _UPSTREAM_SOURCE["url"],
+            },
+            "dimensions_mm": {"major_diameter": major_diameter, "pitch": pitch, "length": length},
+            "geometry_source": "catalog_dimensions_plus_cosmetic_thread",
+            "level_of_detail": "cosmetic",
+            "representative_features": ["helical thread form omitted from the B-rep"],
+            "thread": {
+                "designation": f"M{major_diameter:g} x {pitch:g}",
+                "representation": "cosmetic",
+                "hand": "right",
+            },
+        })
+        return solid
 
     # The ID check above and the fixed branches form a closed registry.
     raise AssertionError(f"catalog entry has no constructor: {id!r}")

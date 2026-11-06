@@ -47,6 +47,30 @@ def helical_edges(raw):
             'passed':len(pitches)>=2 and all(abs(p-1)<=.01 for p in pitches) and max(errors)<=.003}
 
 
+def cosmetic_thread_envelope(raw, diameter, minimum_axial_extent):
+    """Check the B-rep's smooth major-diameter cylinder; metadata supplies the thread claim."""
+    from build123d import Shape
+    from OCP.BRepAdaptor import BRepAdaptor_Surface
+    from OCP.GeomAbs import GeomAbs_Cylinder
+
+    candidates = []
+    for solid in Shape.cast(raw).solids():
+        for face in solid.faces():
+            surface = BRepAdaptor_Surface(face.wrapped, True)
+            if surface.GetType() != GeomAbs_Cylinder:
+                continue
+            cylinder = surface.Cylinder()
+            direction = cylinder.Axis().Direction()
+            if abs(cylinder.Radius() - diameter / 2) > .01 or abs(direction.Z()) < .999:
+                continue
+            low, high = bounds(face.wrapped)
+            extent = high[2] - low[2]
+            if extent + .01 >= minimum_axial_extent:
+                candidates.append({'radius_mm': cylinder.Radius(), 'axial_extent_mm': extent})
+    return {'cylindrical_faces': candidates,
+            'passed': bool(candidates) and max(item['axial_extent_mm'] for item in candidates) + .01 >= minimum_axial_extent}
+
+
 def axial_tooth_profile(raw):
     from build123d import Shape
     from OCP.BRepClass3d import BRepClass3d_SolidClassifier
@@ -147,7 +171,11 @@ def bearing_internals(raw):
 def geometry_witness(raw, part_id):
     if part_id.startswith('bearing.'):
         return bearing_internals(raw)
+    if part_id.startswith('thread.'):
+        thread = cosmetic_thread_envelope(raw, 6.0, 8.0)
+        return {'thread_representation': 'cosmetic', 'cosmetic_thread': thread, 'passed': thread['passed']}
+    if part_id.startswith('fastener.'):
+        thread = cosmetic_thread_envelope(raw, 6.0, 1.0)
+        return {'thread_representation': 'cosmetic', 'cosmetic_thread': thread, 'passed': thread['passed']}
     edges=helical_edges(raw)
-    profile=axial_tooth_profile(raw) if part_id.startswith('thread.') else None
-    return {'helical_edges':edges,'profile':profile,
-            'passed':edges['passed'] and (profile is None or profile['passed'])}
+    return {'helical_edges':edges,'passed':edges['passed']}

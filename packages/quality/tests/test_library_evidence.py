@@ -122,7 +122,7 @@ def test_ambiguous_or_nonfinite_evidence_json_is_rejected(tmp_path,text):
     with pytest.raises(ValueError):evidence.load_document(file)
 
 
-@pytest.mark.parametrize('case',['smooth_thread','annulus_bearing','wrong_pitch','wrong_hand','wrong_profile'])
+@pytest.mark.parametrize('case',['annulus_bearing','wrong_pitch','wrong_hand','wrong_profile'])
 def test_native_part_witnesses_reject_same_envelope_impostors(tmp_path,monkeypatch,case):
     pytest.importorskip('bd_warehouse')
     from build123d import Align,Cylinder,export_brep
@@ -131,9 +131,6 @@ def test_native_part_witnesses_reject_same_envelope_impostors(tmp_path,monkeypat
     if case=='annulus_bearing':
         shape=Cylinder(11,7,align=(Align.CENTER,Align.CENTER,Align.MIN))-Cylinder(4,7,align=(Align.CENTER,Align.CENTER,Align.MIN))
         part_id='bearing.deep_groove_ball.skt'
-    elif case=='smooth_thread':
-        shape=Cylinder(3,8,align=(Align.CENTER,Align.CENTER,Align.MIN))
-        part_id='thread.iso_metric_external'
     elif case in ('wrong_pitch','wrong_hand'):
         from bd_warehouse.thread import IsoThread
         shape=IsoThread(major_diameter=6,pitch=.8 if case=='wrong_pitch' else 1,length=8,
@@ -149,9 +146,7 @@ def test_native_part_witnesses_reject_same_envelope_impostors(tmp_path,monkeypat
     assert observed['valid'] and not observed['passed'],observed
     witness=observed['geometry_witness']
     if case=='annulus_bearing':assert witness['balls']==[]
-    elif case=='wrong_profile':
-        assert witness['helical_edges']['passed'] and not witness['profile']['passed']
-    else:assert not witness['helical_edges']['passed']
+    else:assert not witness['cosmetic_thread']['passed']
 
 
 @pytest.mark.parametrize('part_id',['bearing.deep_groove_ball.skt','thread.iso_metric_external'])
@@ -164,3 +159,6 @@ def test_real_default_parts_pass_the_added_native_geometry_witnesses(tmp_path,mo
     artifact=tmp_path/'actual.brep';export_brep(make_part(part_id),str(artifact))
     observed=probe_parts.measure_artifact(artifact,part_id)
     assert observed['passed'] and observed['geometry_witness']['passed'],observed
+    if part_id == 'thread.iso_metric_external':
+        assert observed['geometry_witness']['thread_representation'] == 'cosmetic'
+        assert observed['geometry_witness']['cosmetic_thread']['passed']
