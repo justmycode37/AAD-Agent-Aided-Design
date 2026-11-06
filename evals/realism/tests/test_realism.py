@@ -83,7 +83,7 @@ def test_weighted_score_is_bounded_and_incomplete_is_unknown():
 
 
 @pytest.mark.parametrize("control", ["exterior_only_shell", "labeled_floating_blocks"])
-def test_negative_controls_score_poorly_for_each_object(control: str):
+def test_synthetic_control_cards_have_low_weighted_arithmetic(control: str):
     data, _ = load_corpus()
     scores = [synthetic_control_score(task, control)["score_0_100"] for task in data["tasks"]]
     assert all(score is not None and score < 10 for score in scores)
@@ -208,3 +208,46 @@ def test_rating_without_image_evidence_is_rejected(tmp_path: Path):
     (ratings / f"{reviewer}.json").write_text(json.dumps(form))
     with pytest.raises(ReviewError, match="needs a view citation"):
         score_study(prepared, ratings)
+
+
+def test_freeze_check_refuses_edited_tasks_with_a_matching_manifest():
+    data, split = load_corpus()
+    edited = (Path(__file__).parents[1] / "corpus" / "tasks.json").read_bytes() + b"\n"
+    changed = json.loads(json.dumps(split))
+    changed["tasks_sha256"] = hashlib.sha256(edited).hexdigest()
+    with pytest.raises(CorpusError, match="pinned"):
+        validate_corpus(data, changed, edited)
+
+
+def test_png_sanitizer_removes_color_chunks_that_can_cue_an_arm():
+    safe = sanitize_png(_png(metadata=_png_chunk(b"gAMA", struct.pack(">I", 45455))))
+    assert b"gAMA" not in safe
+
+
+def test_prepare_refuses_arms_with_different_views(tmp_path: Path):
+    data, split = load_corpus()
+    tasks = tasks_for_split(data, split, "tuning")
+    before, after = tmp_path / "before", tmp_path / "after"
+    for root in (before, after):
+        for task in tasks:
+            task_dir = root / task["id"]
+            task_dir.mkdir(parents=True)
+            for name in ("section-xz.png", "section-yz.png", "exterior-iso.png"):
+                (task_dir / name).write_bytes(_png())
+    (after / tasks[0]["id"] / "interior-1.png").write_bytes(_png())
+    with pytest.raises(PacketError, match="same view filenames"):
+        prepare_study(before, after, tmp_path / "out", reviewers=["rater_1", "rater_2"], split_name="tuning")
+
+
+@pytest.mark.parametrize("change", ["replace", "extra", "missing"])
+def test_scoring_refuses_packets_changed_after_preparation(tmp_path: Path, change: str):
+    prepared = _prepared(tmp_path)
+    view = next((prepared / "review_packets").rglob("view-01.png"))
+    if change == "replace":
+        view.write_bytes(view.read_bytes() + b"x")
+    elif change == "extra":
+        (view.parent / "note.txt").write_text("before")
+    else:
+        view.unlink()
+    with pytest.raises(ReviewError, match="packet"):
+        score_study(prepared, prepared / "review_forms")

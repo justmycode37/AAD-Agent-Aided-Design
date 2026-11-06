@@ -14,6 +14,8 @@ Before distribution, the custodian checks image pixels for titles, watermarks, v
 
 The packet renderer must supply at least two section/interior/cutaway images and one exterior image per task. Image citations in score forms use the sanitized names `view-NN.png`. A rating of 3 or 4 must cite visible image evidence; a rating of 0 must also identify the view showing the omission or contradiction. No outline IoU, silhouette overlap, or independently fitted camera score is collected.
 
+Both arms of a task must supply the same view filenames, so count and order cannot cue the arm. Only pixel-bearing PNG chunks are kept. Compressed pixel bytes are not re-encoded, so renderers should use the same settings in both arms. Scoring refuses packets that no longer match the prepared hashes. The corpus hash is also pinned in `corpus_loader.py`; a commit can still change both, so git history is the audit trail.
+
 ## Rubric and score
 
 Each cited checklist item uses the 0-4 ordinal rubric in `RUBRIC.md`, with a separate 1-4 confidence rating. Zero means absent, contradictory, disconnected or label-only geometry. A missing item rating is unknown and prevents a complete task score. `rating: null` is reserved for a packet defect and requires a reason. It does not count as a pass.

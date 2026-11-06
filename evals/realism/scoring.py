@@ -175,6 +175,39 @@ def _stable_seed(text: str, base: int = 20261106) -> int:
     return base + int.from_bytes(hashlib.sha256(text.encode()).digest()[:4], "big")
 
 
+def _verify_packets(
+    prepared_dir: Path,
+    image_hashes: dict[str, Any],
+    reviewer_map: dict[str, Any],
+    task_by_id: dict[str, dict[str, Any]],
+) -> None:
+    """Refuse to score unless reviewers' packets still match what was prepared."""
+    packets_root = prepared_dir / "review_packets"
+    try:
+        found = {
+            path.relative_to(packets_root).as_posix(): path
+            for path in packets_root.rglob("*")
+            if path.is_file() or path.is_symlink()
+        }
+        expected_requests = {
+            f"{reviewer}/{assignment['packet_id']}/request.txt": task_by_id[assignment["task_id"]]["request"] + "\n"
+            for reviewer, assignments in reviewer_map.items()
+            for assignment in assignments
+        }
+        unexpected = sorted(set(found) - set(image_hashes) - set(expected_requests))
+        missing = sorted((set(image_hashes) | set(expected_requests)) - set(found))
+        if unexpected or missing:
+            raise ReviewError(f"review packets do not match the manifest: unexpected {unexpected}, missing {missing}")
+        for relative, digest in image_hashes.items():
+            if found[relative].is_symlink() or hashlib.sha256(found[relative].read_bytes()).hexdigest() != digest:
+                raise ReviewError(f"review packet image changed after preparation: {relative}")
+        for relative, text in expected_requests.items():
+            if found[relative].is_symlink() or found[relative].read_text(encoding="utf-8") != text:
+                raise ReviewError(f"review packet request changed after preparation: {relative}")
+    except (OSError, KeyError, TypeError, UnicodeError) as exc:
+        raise ReviewError(f"cannot verify review packets: {exc}") from exc
+
+
 def score_study(prepared_dir: Path, ratings_dir: Path) -> dict[str, Any]:
     """Score submitted blind forms; unknown evidence never becomes a pass."""
     prepared_dir, ratings_dir = Path(prepared_dir), Path(ratings_dir)
@@ -194,6 +227,7 @@ def score_study(prepared_dir: Path, ratings_dir: Path) -> dict[str, Any]:
     expected_reviewers = set(reviewer_map)
     if len(expected_reviewers) < 2:
         raise ReviewError("at least two reviewers are required")
+    _verify_packets(prepared_dir, image_hashes, reviewer_map, task_by_id)
     try:
         input_files = {path.stem: path for path in ratings_dir.glob("*.json") if path.is_file()}
     except OSError as exc:

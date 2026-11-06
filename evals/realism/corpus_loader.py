@@ -15,6 +15,9 @@ SPLIT_PATH = CORPUS_DIR / "split.json"
 _ID = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _DOMAINS = {"subsystem", "interface"}
+# Pinned apart from split.json, so editing tasks and the manifest together still
+# fails. Changing a frozen corpus means a new corpus_id and a visible edit here.
+FROZEN_TASKS_SHA256 = "db15709b9fdc8638b2be3f6eb021b9a6f41d9359b37c2a47036bd193fa2e5033"
 
 
 class CorpusError(ValueError):
@@ -132,6 +135,8 @@ def validate_corpus(data: dict[str, Any], split: dict[str, Any], task_bytes: byt
         raise CorpusError("reference audit must record searches for every object cluster")
 
     expected_corpus_hash = hashlib.sha256(task_bytes).hexdigest()
+    if expected_corpus_hash != FROZEN_TASKS_SHA256:
+        raise CorpusError("task bytes do not match the pinned frozen corpus hash")
     if split.get("schema_version") != 1 or split.get("split_id") != data["corpus_id"]:
         raise CorpusError("unsupported split manifest")
     if split.get("seed") != data.get("split_seed") or split.get("rule") != data.get("split_rule"):

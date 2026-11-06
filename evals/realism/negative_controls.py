@@ -10,7 +10,8 @@ from .scoring import weighted_checklist_score
 def synthetic_control_score(task: dict[str, Any], control: str) -> dict[str, Any]:
     """Return a deliberately weak rating card for an exterior shell or labels.
 
-    These fixtures test rubric arithmetic: the floating-block control receives
+    These fixtures test rubric arithmetic only. They do not show that a reviewer
+    would rate a rendered shell or block model poorly: the floating-block control receives
     zero for every item because labels alone are not geometry evidence. The
     shell receives a single token-shape rating of one and zero elsewhere. They
     are not rendered objects, agent outputs, or realism scores.

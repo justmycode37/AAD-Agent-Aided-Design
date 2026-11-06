@@ -72,7 +72,7 @@ The report includes:
 
 Reviewer-bootstrap intervals describe uncertainty in human ratings of the exact artifact. Task-cluster intervals describe only the frozen task sample under exchangeable-cluster assumptions. For a one-object held-out split they are not estimable. Neither kind of interval is engineering validation, and no score supports a statement that models are realistic.
 
-Tests include synthetic negative-control rating cards for an exterior-only shell and labeled floating blocks. They must score below 10/100 because required interior and interface geometry is absent; labels alone score zero. These cards test scoring rules only. They are not rendered CAD examples or quality results.
+Tests include synthetic rating cards for an exterior-only shell and labeled floating blocks. They only test the rubric arithmetic, because their ratings are written by hand. **Nothing yet shows that reviewers rate a rendered shell or block model poorly.** A study should add rendered controls of both kinds before any result is reported.
 
 ## Run the offline tests
 

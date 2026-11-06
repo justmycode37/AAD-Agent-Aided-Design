@@ -17,7 +17,7 @@ _REVIEWER_ID = re.compile(r"^[a-zA-Z0-9_-]{1,48}$")
 _SECTION_TERMS = ("section", "cutaway", "interior")
 _EXTERIOR_TERMS = ("front", "back", "side", "top", "bottom", "iso", "exterior", "overall")
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
-_PNG_KEEP = {b"IHDR", b"PLTE", b"IDAT", b"IEND", b"sRGB", b"gAMA", b"cHRM", b"bKGD", b"tRNS"}
+_PNG_KEEP = {b"IHDR", b"PLTE", b"IDAT", b"IEND", b"tRNS"}
 _MAX_PNG_BYTES = 64 * 1024 * 1024
 _MAX_DIMENSION = 8192
 
@@ -31,7 +31,7 @@ def _json_write(path: Path, value: Any) -> None:
 
 
 def sanitize_png(data: bytes) -> bytes:
-    """Drop textual/time/unknown ancillary PNG chunks without resampling pixels."""
+    """Keep only pixel-bearing PNG chunks, so renderer metadata cannot cue an arm."""
     if len(data) > _MAX_PNG_BYTES or not data.startswith(_PNG_SIGNATURE):
         raise PacketError("review images must be PNG files no larger than 64 MiB")
     offset = len(_PNG_SIGNATURE)
@@ -70,8 +70,8 @@ def sanitize_png(data: bytes) -> bytes:
             if length != 0 or crc_end != len(data):
                 raise PacketError("PNG must end with an empty IEND chunk")
             saw_end = True
-        # Reject unknown critical chunks. Preserve only well-known color/display
-        # chunks and pixel-bearing chunks; remove all other ancillary metadata.
+        # Reject unknown critical chunks and remove all ancillary metadata,
+        # including color and display chunks that can identify a render pipeline.
         if chunk_type not in _PNG_KEEP and (chunk_type[0] & 0x20) == 0:
             raise PacketError(f"unsupported critical PNG chunk: {chunk_type.decode('ascii', 'replace')}")
         if chunk_type in _PNG_KEEP:
@@ -160,6 +160,10 @@ def prepare_study(
     for task in tasks:
         for arm, root in (("before", before_dir), ("after", after_dir)):
             images[(task["id"], arm)] = _source_images(root, task["id"])
+        before_views = [name for name, _ in images[(task["id"], "before")]]
+        after_views = [name for name, _ in images[(task["id"], "after")]]
+        if before_views != after_views:
+            raise PacketError(f"{task['id']} arms must supply the same view filenames, or count and order cue the arm")
 
     output_dir.mkdir(parents=True)
     packets_root = output_dir / "review_packets"
