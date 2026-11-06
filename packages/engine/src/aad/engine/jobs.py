@@ -366,9 +366,7 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
     failed_check = next((c for c in result.checks if c.level == "error" and c.status == "fail"), None)
     if result.ok and failed_check is not None:
         result.ok, result.status = False, "failed"
-        # 2D sheets reach here with no worker failure record. A failed spec or process check has its own code.
-        code = "NOT_VERIFIED" if failed_check.suite == "hard" else "REQUIREMENT_FAILED"
-        result.failure = Failure(code=code, phase="validate", feature=failed_check.feature or "unknown",
+        result.failure = Failure(code="NOT_VERIFIED", phase="validate", feature=failed_check.feature or "unknown",
                                 message=f"The worker reported a failed error-level check ({failed_check.id}); success was not accepted.")
         result.summary = result.failure.message
     artifacts: dict[str, str] = {}
