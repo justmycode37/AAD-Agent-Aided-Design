@@ -40,7 +40,7 @@ What a CAD package such as SolidWorks, Fusion or NX does, and how an agent does 
 | Motion checks | Partial, added | `motion_clearance` samples chosen poses. No dynamics. |
 | Standard part library | Added 19 families | `aad_library kind: "part"`, `make_part` |
 | Gears | Existing, PR #77; added catalog | `aad.gears`, `gear.spur`, `gear.helical`, `gear.rack`, `gear.worm` |
-| Large assemblies (thousands of parts) | Partial | A 247-solid DSG build took 111.6–114.4 s in two runs, including a 4.9–5.0 s clean scene; thousands-part performance remains unvalidated. |
+| Large assemblies (thousands of parts) | Partial | A 247-solid DSG build took 111.6–114.4 s in two runs; validation without scene took 67.5–67.9 s and the clean scene 4.9–5.0 s. Thousands-part performance remains unvalidated. |
 
 ## Measure and analysis
 

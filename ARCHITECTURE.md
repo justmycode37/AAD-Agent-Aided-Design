@@ -147,7 +147,7 @@ The guide agents read is `skills/aad/SKILL.md`, which `aad_library` also serves 
 - A warm worker pool. Every job starts a new process.
 - An aggregate resident-memory ceiling for each whole job. Builds and operations now apply `aad.engine.memory` as a per-process `RLIMIT_AS` growth budget (`auto`: 16 GiB on Linux and macOS), but it is virtual address space rather than RSS; Linux child processes each get their own budget.
 - Use of the content-addressed cache in `aad.engine.cache` by the daemon.
-- Performance beyond a few hundred solids. Two runs of a 247-solid DSG assembly took 111.6–114.4 seconds wall time, including 72.4–72.9 seconds of clean validation; larger assemblies still need representative checks.
+- Performance beyond a few hundred solids. Two runs of a 247-solid DSG assembly took 111.6–114.4 seconds wall time, including 72.4–72.9 seconds of clean validation (67.5–67.9 seconds without scene generation); larger assemblies still need representative checks.
 - Named-body `fit` and feature-bound `position` requirements remain unproven when they depend on model-written component names or feature records. Component labels do not survive saved BREP import, and the validator does not trust worker metadata as a name-to-body map.
 - `min_wall` and `symmetric` remain disproof-only and keep a build in draft when skipped. Validator timeouts or scene failures retain a successful model build as draft and include trusted metrics; rerun `aad_build` to try again.
 - A sandbox on Windows, so builds fail there with `SANDBOX_DENIED`.
