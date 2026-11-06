@@ -336,6 +336,10 @@ def op_check(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
             else:
                 checks.extend(_plain(function(ctx)))
         except Exception as exc:  # A suite that crashed is not a suite that passed.
+            from aad.engine.memory import is_memory_exhaustion
+
+            if is_memory_exhaustion(exc):
+                raise
             checks.append(
                 {
                     "id": f"{suite}_suite_failed",
@@ -643,8 +647,16 @@ CONTEXT_FREE = {"library": op_library, "import": op_import}
 
 
 def _classify(exc: BaseException) -> dict[str, Any]:
+    from aad.engine.memory import is_memory_exhaustion
+
     name = type(exc).__name__
     code = getattr(exc, "code", None)
+    if is_memory_exhaustion(exc):
+        return {
+            "code": "OUT_OF_MEMORY",
+            "phase": "oom",
+            "message": "The operation worker could not allocate memory under the configured engine.memory ceiling.",
+        }
     if isinstance(code, str) and code.isupper():
         failure = {"code": code, "phase": getattr(exc, "phase", "selector"), "message": str(exc)}
         for key in ("candidates", "selector"):
@@ -659,6 +671,11 @@ def main() -> int:
     protocol = os.dup(1)
     os.dup2(2, 1)
     request = json.load(sys.stdin)
+    memory_limit_bytes = request.get("memory_limit_bytes")
+    if memory_limit_bytes is not None:
+        from aad.engine.memory import install_worker_memory_budget
+
+        install_worker_memory_budget(memory_limit_bytes)
     out = Path(request["out_dir"])
     out.mkdir(parents=True, exist_ok=True)
     op = request["op"]

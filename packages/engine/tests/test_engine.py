@@ -131,6 +131,17 @@ class EngineBootstrapTests(unittest.TestCase):
             self.assertEqual(runtime.failure.line, 2)
             self.assertIn("fixture failure", runtime.failure.kernel_message)
 
+    def test_model_allocation_failure_returns_out_of_memory(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="aad-engine-oom-") as temporary:
+            root = Path(temporary)
+            result = run_build(
+                BuildRequest(source="raise MemoryError('bounded allocation fixture')", project_dir=root),
+            )
+        self.assertFalse(result.ok)
+        self.assertEqual(result.failure.code, "OUT_OF_MEMORY")
+        self.assertEqual(result.failure.phase, "oom")
+        self.assertIn("bounded allocation fixture", result.failure.kernel_message)
+
     def test_kernel_refusals_get_their_documented_codes(self):
         cases = {
             "KERNEL_FILLET_FAILED": "with BuildPart() as b:\n    Box(10, 10, 10)\n    fillet(b.edges(), radius=8)\nresult = b.part",

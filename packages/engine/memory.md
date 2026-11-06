@@ -1,41 +1,58 @@
 # Internal address-space policy and Mac memory observations
 
-This is one S1 foundation package. Public `BuildRequest` and `run_build` do not
-accept or apply this policy. Worker integration belongs with #51; an actual
-resident supervisor is still needed. S1 memory budgets are not complete.
+Build workers and sandboxed operations apply this S1 policy. The platform reads
+`engine.memory` from `~/.aad/config.toml` (`[engine] memory = "auto"`) for each
+job; direct `run_build` calls use the platform default unless an explicit byte
+budget is passed. An aggregate resident-memory supervisor is not implemented.
 
 ## Explicit address-space policy
 
-`aad.engine.memory.AddressSpaceBudget(bytes)` is an immutable, internal
-**per-process virtual-address-space ceiling**, not a RAM, RSS, physical-footprint
-or aggregate job cap. `bytes` must be a built-in integer with
+`aad.engine.memory.AddressSpaceBudget(bytes)` is an immutable low-level
+**absolute per-process virtual-address-space ceiling** for `sandbox.popen`, not
+a RAM, RSS, physical-footprint or aggregate job cap. `bytes` must be a built-in
+integer with
 `1 <= bytes < sys.maxsize`; booleans, other types, zero, negative and out-of-range
 values are rejected. This conservative finite representation range excludes the
-tested Mac's infinity sentinel. It is not a kernel maximum or a recommended
-budget. There is no default budget or generic memory-bytes setting.
+tested Mac's infinity sentinel. Platform setting `engine.memory` has different
+semantics: it is an **additional virtual-address growth budget** from the
+started worker's VMS baseline. `auto` is 16 GiB on Linux and macOS; explicit
+settings accept a positive byte count or size using `B`, `KiB`, `MiB`, `GiB` or
+`TiB`.
 
-The only launch integration is:
+The engine build API uses that growth budget:
 
 ```python
-from aad.engine.memory import AddressSpaceBudget
-from aad.engine import sandbox
+from aad.engine.jobs import run_build
+from aad.engine.types import BuildRequest
 
-# Caller chooses explicit_address_bytes; no measured default is implied.
-process = sandbox.popen(argv, job_dir,
-                        address_space=AddressSpaceBudget(explicit_address_bytes))
-# Caller owns timeout, pipe draining, bounded termination and reaping.
+run_build(BuildRequest(source=source),
+          memory_limit_bytes=16 * 1024 ** 3)
 ```
 
-Omitting `address_space`, or passing `None`, follows the existing launch path:
-identical argv, sanitized environment, working directory, pipes, closed file
-descriptors, session creation and OS policy. It adds no bootstrap, setter,
-sampler or native library load. Importing the memory module itself imports
-neither `resource`, `ctypes`, libproc, workers nor the CAD kernel.
+Omitting `memory_limit_bytes` selects the platform default. The trusted
+bootstrap uses a temporary absolute ceiling large enough to start the worker
+Python. The worker then measures its current VMS and sets both soft and hard
+`RLIMIT_AS` to `current VMS + engine.memory` before importing model/kernel code.
+This relative step allows useful caps on macOS, where an absolute cap below the
+interpreter's hundreds of GB of VMS fails at setup. Operations, optional
+previews and fallback scene tessellation use the same two-stage launch.
+Importing the memory module itself imports neither
+`resource`, `ctypes`, libproc, workers nor the CAD kernel.
 
-Only the exact `AddressSpaceBudget` type is accepted by the hook. Unknown or
-resident-policy objects raise before launch. Unsupported platforms or missing
-`resource.RLIMIT_AS`/get/set APIs also raise before launch. No policy request
-selects a weaker backend or an unsandboxed fallback.
+The engine's independent `inspect_brep` worker also uses this policy. It takes
+an optional `memory_limit_bytes`; omitting it selects the engine platform
+default on Linux and macOS. The trusted build caller must pass its resolved
+`engine.memory` value so a user override reaches that child. The validator
+integration proposed in PR #96 is not part of `origin/main`: its clean 3D
+validator must pass the build's resolved budget to `inspect_brep`, and its
+clean 2D `inspect_sheet` worker must use the same budgeted `sandbox.popen`
+path before that validator is enabled. If PR #96 merges first, add this
+plumbing there before relying on `engine.memory` to cap validation.
+
+Only the exact `AddressSpaceBudget` type is accepted by the low-level sandbox
+hook. Unknown or resident-policy objects raise before launch. Unsupported
+platforms or missing `resource.RLIMIT_AS`/get/set APIs also raise before launch.
+No policy request selects a weaker backend or an unsandboxed fallback.
 
 With a configured policy, the launcher validates both the original argv and the
 wrapper. Inside the **existing** Seatbelt/bwrap boundary it starts the current
@@ -47,21 +64,21 @@ before executing the target or importing worker/kernel code, then uses
 `execvpe` with the original argv and sanitized environment. It never reads stdin
 or creates a subprocess. No filesystem/network/process grant is added.
 
-Both soft and hard `RLIMIT_AS` are set in one call to the smallest of the
-requested bytes and any finite inherited soft/hard values. This preserves even
-a stricter inherited soft limit as the child's hard ceiling. Exact pair
-readback is required before exec. The daemon/parent never changes its limits;
-there is no `preexec_fn`. Exec preserves this limit on the tested host. An
-unprivileged target cannot raise its hard ceiling; this is not a promise for
+The startup bootstrap sets an absolute ceiling in the child before exec. The
+worker's second stage reads its own VMS, adds the configured budget, and clamps
+that value to any finite inherited limits. It sets both soft and hard limits in
+one call and verifies the exact readback. Setup failure writes a trusted
+`AAD_MEMORY_SETUP_FAILURE:` marker and prevents model/operation code from
+running. The daemon/parent never changes its limits; there is no `preexec_fn`.
+An unprivileged target cannot raise its hard ceiling; this is not a promise for
 privileged targets.
 
 Native/Python get/set/exec exceptions keep their type and diagnostic. A readback
-mismatch raises `AddressSpaceSetupError` containing both pairs. Either prevents
-target execution. `popen` returns the bootstrap process without a setup handshake;
-a failed setup can be observed in its stderr/exit, but there is no authenticated
-memory-breach receipt. Raw status alone cannot distinguish setup failure,
-source-raised `MemoryError`, native signal, explicit exit or allocation failure.
-This package does not classify any of those as `OUT_OF_MEMORY`.
+mismatch raises `AddressSpaceSetupError` containing both pairs. The parent maps
+setup failures to `SANDBOX_DENIED`, not OOM. Build and operation workers map
+explicit `MemoryError` or `ENOMEM` to `OUT_OF_MEMORY`; signal-only exits remain
+`WORKER_CRASH`. The reported exception is evidence of allocation failure, but
+does not prove the configured ceiling was the only cause.
 
 Immediately before target exec, the bootstrap restores the `SIGPIPE`, `SIGXFZ`
 and `SIGXFSZ` defaults where those signals exist, matching the launcher's
@@ -70,6 +87,18 @@ ignored dispositions; carrying them into a native target could make a producer
 survive a signal that normally terminates it. Other inherited dispositions are
 preserved. Compiled native signal tests compare budgeted and ordinary launches;
 parent dispositions remain unchanged.
+
+`engine.memory=auto` allows 16 GiB of additional virtual address space per
+worker on Linux and macOS. Linux child processes each receive their own budget,
+so their total can exceed 16 GiB. On the tested Mac, absolute 64 MiB and 2 GiB
+limits fail because the started Python VMS is around 420 GB; the worker-relative
+budget sets the ceiling above that baseline. The bootstrap uses a temporary
+absolute startup ceiling (2 TiB for the default budget) and reduces it before
+model or operation code runs. This
+policy limits virtual address growth, not resident memory. The sampled RSS API
+below is not connected to a periodic supervisor; neither platform enforces an
+aggregate resident budget. Set `aad config engine.memory=SIZE` to choose
+another positive growth budget.
 
 ## Mac sampling, observation only
 
@@ -128,12 +157,13 @@ rerun under `/private/tmp/aad-memory-repro.zvd7s73t`) observed VMS around 420 GB
 with RSS in tens of MB. Installing absolute 64 MiB and 2 GiB AS limits failed
 before allocations. CPython reported `ValueError: current limit exceeds maximum
 limit`; native calls reported `EINVAL`. These are observed setup failures, not
-kernel maxima or proof that requested soft exceeded requested hard. A 1 TiB
-installation/inheritance/raise test allocates no such amount and supplies no
-product default. The installed SDK aliases `RLIMIT_RSS` to `RLIMIT_AS`, supplying
-no separate RSS limiter. The research's privileged physical-footprint setter
-returned `KERN_NO_ACCESS`; no hard resident/physical mechanism is available in
-this tested unprivileged boundary.
+kernel maxima or proof that requested soft exceeded requested hard. The
+low-level 1 TiB installation/inheritance/raise test allocates no such amount;
+the product uses a temporary 2 TiB startup ceiling and then lowers it relative
+to the worker's measured VMS. The installed SDK aliases `RLIMIT_RSS` to
+`RLIMIT_AS`, supplying no separate RSS limiter. The research's privileged
+physical-footprint setter returned `KERN_NO_ACCESS`; no hard resident/physical
+mechanism is available in this tested unprivileged boundary.
 
 Run from the repository with an external test environment to avoid root/lock
 changes:
@@ -157,15 +187,18 @@ allocation child requests at most 8 + 96 = 104 MiB additional memory; the
 sampling child uses 64 MiB. No supervisor is tested or claimed by this package.
 
 Functional Linux AS tests use real bwrap and fail if it is absent; they do not
-skip to obtain green CI. Only Mac-specific accounting/setup/Seatbelt tests are
-marked Mac-only. Linux runtime remains untested from this Mac and CI's bwrap
-gap remains S2 #52/#50. An actual Linux run is required before claiming Linux
-evidence.
+skip to obtain green CI. Ubuntu CI runs that bwrap path. Only Mac-specific
+accounting/setup/Seatbelt tests are marked Mac-only. This local run was on Mac
+and does not report a Linux result.
 
-On the tested Mac, the focused memory/sandbox run passed 36 tests in 45.79 s.
-After adding the import-shadowing regression, the full engine command above
-passed all 57 tests in 78.76 s, with no skips or probe timeouts. The native
-helpers compiled successfully, allocation controls passed, every memory-test
-child was reaped, and each memory-test parent-limit check remained unchanged.
-These results cover this host only; no Linux execution or independent PR review
-is claimed.
+On the tested Mac, the focused memory/build/sandbox/preview/platform/guide run
+passed 146 tests in 90.07 s with no skips. It exercised the relative 32 MiB
+worker budget: an 8 MiB mapping succeeded and a touched 96 MiB mapping failed
+with `ENOMEM`. The 64 MiB and 2 GiB absolute setup failures were also
+reproduced before target execution. After adding OOM propagation regressions,
+the focused spec/process/2D/ops run passed 102 tests in 2.20 s. A real fallback
+scene child and a real operation worker under a 4 GiB configured budget each
+passed in a separate test. After tightening startup OOM detection and updating
+the config CLI expectation, the focused CLI/memory/build/sandbox/ops/guide run
+passed 145 tests in 93.76 s. These results cover this Mac only; Linux
+enforcement and independent PR review are not claimed.

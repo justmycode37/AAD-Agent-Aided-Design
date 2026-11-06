@@ -16,7 +16,7 @@ import tempfile
 import time
 from typing import Any
 
-from . import sandbox
+from . import memory, sandbox
 from .jobs import _check_from_wire, _decode, _drain_killed_worker, _failure_from_wire, _kill_worker
 from .types import Check, Failure
 
@@ -52,12 +52,15 @@ class GeometryEvidence:
 def inspect_brep(
     brep_path: str | Path, *, candidate_dir: str | Path, kind: str,
     units: str, timeout_s: float = 60.0, spec: dict[str, Any] | None = None,
+    memory_limit_bytes: int | None = None,
 ) -> GeometryEvidence:
     """Snapshot then inspect a BREP after its model process has fully exited.
 
     The trusted caller owns kind/units/spec and must prevent concurrent writes
-    to the candidate. The child reads only a new snapshot and never model.py,
-    model modules, model metrics, features, params or claimed check results.
+    to the candidate. It should pass the same configured memory budget used by
+    the model worker. When omitted on macOS or Linux, the engine default applies.
+    The child reads only a new snapshot and never model.py, model modules, model
+    metrics, features, params or claimed check results.
     """
     started = time.monotonic()
     result = GeometryEvidence()
@@ -70,6 +73,11 @@ def inspect_brep(
             raise ValueError("inspection requires kind part/assembly and explicit units mm/in")
         if isinstance(timeout_s, bool) or not isinstance(timeout_s, (int, float)) or not math.isfinite(timeout_s) or timeout_s <= 0:
             raise ValueError("timeout_s must be a positive finite number")
+        if memory_limit_bytes is None:
+            if sys.platform == "darwin" or sys.platform.startswith("linux"):
+                memory_limit_bytes = memory.default_memory_budget_bytes()
+        else:
+            memory_limit_bytes = memory.memory_budget_bytes(memory_limit_bytes)
         deadline = started + timeout_s
         declared = {"kind": kind, "units": units, "spec": {} if spec is None else spec}
         if not isinstance(declared["spec"], dict):
@@ -110,13 +118,39 @@ def inspect_brep(
         payload = {"record": record, "input_sha256": result.input_sha256, "nonce": nonce}
         phase = "sandbox"
         _remaining(deadline)
-        process = sandbox.popen([sys.executable, "-I", "-B", "-c", _BOOTSTRAP, str(_SOURCE_ROOT)], result.inspection_dir)
+        startup_limit = (
+            memory.bootstrap_address_space_budget(memory_limit_bytes)
+            if memory_limit_bytes is not None
+            else None
+        )
+        process = sandbox.popen(
+            [sys.executable, "-I", "-B", "-c", _BOOTSTRAP, str(_SOURCE_ROOT)],
+            result.inspection_dir,
+            address_space=startup_limit,
+        )
         phase = "inspect"
         stdout, stderr = process.communicate(input=_canonical_json(payload) + b"\n", timeout=_remaining(deadline))
         communication_complete = True
         if process.returncode != 0:
-            result.failure = Failure(code="WORKER_CRASH", phase="crash", feature="unknown",
-                                     message=f"The BREP inspector exited with status {process.returncode}; no exit cause was inferred.")
+            if memory.has_setup_failure_marker(stdout) or memory.has_setup_failure_marker(stderr):
+                result.failure = Failure(
+                    code="SANDBOX_DENIED",
+                    phase="sandbox",
+                    feature="unknown",
+                    message="The configured engine.memory limit could not be installed; validation did not run.",
+                    kernel_message=_decode(stderr),
+                )
+            elif memory.is_memory_exhaustion_output(stderr):
+                result.failure = Failure(
+                    code="OUT_OF_MEMORY",
+                    phase="oom",
+                    feature="unknown",
+                    message="The independent BREP validator could not allocate memory under engine.memory.",
+                    kernel_message=_decode(stderr),
+                )
+            else:
+                result.failure = Failure(code="WORKER_CRASH", phase="crash", feature="unknown",
+                                         message=f"The BREP inspector exited with status {process.returncode}; no exit cause was inferred.")
         else:
             phase = "decode"
             wire = _response(stdout)
@@ -129,6 +163,14 @@ def inspect_brep(
     except (TimeoutError, subprocess.TimeoutExpired):
         result.failure = Failure(code="TIMEOUT", phase="timeout", feature="unknown",
                                  message=f"BREP inspection exceeded its {timeout_s:g} second budget.")
+    except memory.AddressSpaceUnavailable as exc:
+        result.failure = Failure(
+            code="SANDBOX_DENIED",
+            phase="sandbox",
+            feature="unknown",
+            message="The configured engine.memory policy is unavailable; independent BREP validation did not run.",
+            kernel_message=f"{type(exc).__name__}: {exc}",
+        )
     except Exception as exc:
         if phase == "input":
             code, failure_phase = "BAD_INPUT", "input"

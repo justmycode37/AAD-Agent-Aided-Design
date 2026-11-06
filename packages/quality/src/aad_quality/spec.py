@@ -898,7 +898,11 @@ def _evaluate_one(req: dict[str, Any], index: int, doc: dict[str, Any], ctx: Any
                     expected=f"global minimum wall at least {_actual_value(lower, power=1, unit=unit)}",
                     actual=f"local wall ray {sampled.minimum_mm:.8g} mm at face {sampled.face_index}",
                     fix_hint="Thicken the reported local wall and rerun the screen; passing samples do not prove a global minimum.")
-        except GeometryUnavailable:
+        except GeometryUnavailable as exc:
+            from aad.engine.memory import is_memory_exhaustion
+
+            if is_memory_exhaustion(exc):
+                raise
             pass
         return _check(
             req_id,
@@ -1042,6 +1046,10 @@ def spec_checks(ctx: Any) -> list[Any]:
         try:
             checks.append(_evaluate_one(req, index, document, ctx, native_factor))
         except (geometry.GeometryUnavailable, geometry.UnsupportedGeometry) as exc:
+            from aad.engine.memory import is_memory_exhaustion
+
+            if is_memory_exhaustion(exc):
+                raise
             checks.append(
                 _check(
                     req_id,
@@ -1054,6 +1062,10 @@ def spec_checks(ctx: Any) -> list[Any]:
                 )
             )
         except Exception as exc:
+            from aad.engine.memory import is_memory_exhaustion
+
+            if is_memory_exhaustion(exc):
+                raise
             checks.append(
                 _check(
                     req_id,

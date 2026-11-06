@@ -152,6 +152,167 @@ def test_build_timeout_refuses_values_outside_its_limit(value):
         handlers._build_timeout(value)
 
 
+def test_ops_client_passes_configured_address_space_to_sandbox(tmp_path, monkeypatch, project):
+    import json
+
+    from aad.engine import sandbox
+    from aad_platform import config
+    from aad_platform.daemon import ops_client
+
+    config.set_value("engine.memory", "4GiB")
+    out = tmp_path / "out"
+    seen = {}
+
+    def communicate(data, timeout):
+        seen["request"] = json.loads(data)
+        return ops_client.RESULT_MARKER + json.dumps({"ok": True}).encode() + b"\n", b""
+
+    process = SimpleNamespace(
+        returncode=0,
+        communicate=communicate,
+    )
+
+    def fake_popen(argv, job_dir, **kwargs):
+        seen.update(argv=argv, job_dir=job_dir, **kwargs)
+        return process
+
+    monkeypatch.setattr(sandbox, "popen", fake_popen)
+    result = ops_client._run_sandboxed({"op": "library", "args": {}, "out_dir": str(out)}, timeout_s=10)
+    assert result == {"ok": True}
+    from aad.engine import memory
+
+    assert seen["address_space"].bytes == memory.bootstrap_address_space_budget(4 * 1024 ** 3).bytes
+    assert seen["request"]["memory_limit_bytes"] == 4 * 1024 ** 3
+
+
+def test_operation_worker_starts_under_configured_memory_budget(tmp_path, project):
+    from aad_platform import config
+    from aad_platform.daemon import ops_client
+
+    config.set_value("engine.memory", "4GiB")
+    result = ops_client._run_sandboxed(
+        {
+            "op": "library",
+            "args": {"action": "search", "kind": "material", "query": "steel"},
+            "out_dir": str(tmp_path / "out"),
+        },
+        timeout_s=60,
+    )
+    assert result["ok"], result
+    assert "library" in result
+
+
+def test_graphics_operation_keeps_memory_bootstrap_without_seatbelt(tmp_path, monkeypatch, project):
+    import json
+
+    from aad.engine import memory, sandbox
+    from aad_platform import config
+    from aad_platform.daemon import ops_client
+
+    config.set_value("engine.memory", "5GiB")
+    monkeypatch.delenv("AAD_REMOTE", raising=False)
+    seen = {}
+    prepared = {
+        "version": 1,
+        "render": {"request": {}},
+        "inspection": {},
+        "render_payload_file": ops_client.PREPARED_RENDER_FILENAME,
+    }
+
+    def worker_communicate(data, timeout):
+        seen["request"] = json.loads(data)
+        return ops_client.RESULT_MARKER + json.dumps({"ok": True, "prepared_render": prepared}).encode() + b"\n", b""
+
+    worker_process = SimpleNamespace(
+        returncode=0,
+        communicate=worker_communicate,
+    )
+    renderer_process = SimpleNamespace(
+        returncode=0,
+        communicate=lambda data, timeout: (
+            ops_client.RESULT_MARKER + json.dumps({"ok": True, "rendered": {}}).encode() + b"\n",
+            b"",
+        ),
+    )
+
+    def fake_sandbox_popen(argv, job_dir, **kwargs):
+        seen.update(worker_argv=argv, worker_job_dir=job_dir, worker_kwargs=kwargs)
+        (Path(job_dir) / ops_client.PREPARED_RENDER_FILENAME).write_bytes(b"mesh payload")
+        return worker_process
+
+    def fake_renderer_popen(argv, **kwargs):
+        seen.update(renderer_argv=argv, renderer_kwargs=kwargs)
+        return renderer_process
+
+    monkeypatch.setattr(sandbox, "popen", fake_sandbox_popen)
+    monkeypatch.setattr(ops_client.subprocess, "Popen", fake_renderer_popen)
+    import aad_render
+
+    monkeypatch.setattr(aad_render, "finish_render", lambda _prepared, _rendered, out: [Path(out) / "front.png"])
+    result = ops_client._run_sandboxed({"op": "render", "args": {}, "out_dir": str(tmp_path / "out")}, timeout_s=10)
+    assert result["ok"]
+    assert result["images"][0]["path"].endswith("front.png")
+    assert seen["worker_kwargs"]["address_space"].bytes == memory.bootstrap_address_space_budget(5 * 1024 ** 3).bytes
+    assert Path(seen["renderer_argv"][4]) == Path(memory.__file__).resolve()
+    assert seen["renderer_argv"][5] == str(memory.bootstrap_address_space_budget(5 * 1024 ** 3).bytes)
+    assert seen["request"]["memory_limit_bytes"] == 5 * 1024 ** 3
+
+
+def test_operation_allocation_failure_uses_out_of_memory_code():
+    from aad_platform.ops import _classify
+
+    failure = _classify(MemoryError("bounded allocation fixture"))
+    assert failure["code"] == "OUT_OF_MEMORY"
+    assert failure["phase"] == "oom"
+
+
+def test_check_operation_does_not_downgrade_memory_error_to_failed_suite(tmp_path, monkeypatch):
+    import aad_platform.ops as ops
+
+    def fail(_ctx):
+        raise MemoryError("bounded allocation fixture")
+
+    monkeypatch.setattr(ops, "_optional", lambda *_args: fail)
+    with pytest.raises(MemoryError, match="bounded allocation fixture"):
+        ops.op_check(SimpleNamespace(kind="part"), {"suites": ["hard"]}, tmp_path)
+
+
+def test_ops_client_reports_memory_setup_failure_as_sandbox_denied(tmp_path, monkeypatch, project):
+    from aad.engine import memory, sandbox
+    from aad_platform import config
+    from aad_platform.daemon import ops_client
+
+    config.set_value("engine.memory", "64MiB")
+    process = SimpleNamespace(
+        returncode=1,
+        communicate=lambda _data, timeout: (
+            memory.SETUP_FAILURE_MARKER + b"ValueError: current limit exceeds maximum limit\n",
+            b"ValueError: current limit exceeds maximum limit\n",
+        ),
+    )
+    monkeypatch.setattr(sandbox, "popen", lambda *args, **kwargs: process)
+    result = ops_client._run_sandboxed(
+        {"op": "library", "args": {}, "out_dir": str(tmp_path / "out")}, timeout_s=10
+    )
+    assert result["failure"]["code"] == "SANDBOX_DENIED"
+    assert "operation did not run" in result["failure"]["message"]
+
+
+def test_ops_client_keeps_unrelated_memory_text_as_worker_crash(tmp_path, monkeypatch, project):
+    from aad.engine import sandbox
+    from aad_platform.daemon import ops_client
+
+    process = SimpleNamespace(
+        returncode=1,
+        communicate=lambda _data, timeout: (b"", b"RuntimeError: no out of memory condition was found\n"),
+    )
+    monkeypatch.setattr(sandbox, "popen", lambda *args, **kwargs: process)
+    result = ops_client._run_sandboxed(
+        {"op": "library", "args": {}, "out_dir": str(tmp_path / "out")}, timeout_s=10
+    )
+    assert result["failure"]["code"] == "WORKER_CRASH"
+
+
 def test_empty_suites_still_allow_the_spec_reference(tmp_path):
     from types import SimpleNamespace
 

@@ -398,6 +398,8 @@ Every tool returns a short text summary plus structured data:
 - **`artifacts`:** paths and handles to files.
 - **`next`:** up to three suggested steps.
 
+`OUT_OF_MEMORY` means the worker reported an explicit `MemoryError` or `ENOMEM` while the configured `engine.memory` address-space growth budget was active. A signal-only worker exit stays `WORKER_CRASH`; the cause is not guessed. Set the budget with `aad config engine.memory=8GiB`, using a positive byte count or size with `B`, `KiB`, `MiB`, `GiB` or `TiB`; `auto` restores the platform default of 16 GiB.
+
 ### The hard gate
 
 Every build runs these checks. A failure fails the build, with `HARD_GATE_FAILED` naming the check:
@@ -424,7 +426,8 @@ A sliver edge is usually a coincidence between two surfaces; moving one by a sma
 | `SELECTOR_EMPTY`, `SELECTOR_AMBIGUOUS` | Wrong selector count | Use the returned candidates |
 | `KERNEL_BOOLEAN_FAILED`, `KERNEL_FILLET_FAILED`, `KERNEL_CHAMFER_FAILED`, `KERNEL_SHELL_FAILED`, `KERNEL_SWEEP_FAILED`, `KERNEL_OTHER` | The kernel refused an operation. Sweep includes extrude, revolve and loft. Named from the build123d call that raised | Read `kernel_message`, `line` and `repair` |
 | `INVALID_SOLID` | The result is not a usable solid | Check the profile |
-| `TIMEOUT`, `OUT_OF_MEMORY`, `WORKER_CRASH` | The process ended early. The head revision is safe | Raise `timeout_s`, or simplify |
+| `OUT_OF_MEMORY` | The worker reported a memory allocation failure under `engine.memory` | Reduce model size or lower memory use; raise the configured ceiling only if the machine has capacity |
+| `TIMEOUT`, `WORKER_CRASH` | The process ended early. The head revision is safe | Raise `timeout_s` for a timeout; inspect the diagnostic for a worker crash |
 | `SANDBOX_DENIED` | The OS sandbox is unavailable or refused an action | Run `aad doctor`. There is no way to bypass it |
 | `BASE_REV_CONFLICT` | `base_rev` is not the current head, or the project has no head yet | Rebase on the head; for the first build, omit `base_rev` |
 | `BAD_INPUT` | An argument is invalid, or a feature is not implemented | Read the message |
@@ -672,7 +675,7 @@ Every command takes `--json` for machine-readable output.
 | `aad show <project>` | Show. Flag: `--rev` |
 | `aad export <project>` | Export. Flags: `--format F`, `--rev`, `--allow-unverified` |
 | `aad compare <project> <reference>` | Compare with a reference, reporting F-scores, Chamfer, Hausdorff, extents, IoU and the transform. Flags: `--rev`, `--tau-pct`. There is no MCP tool for this |
-| `aad config [KEY[=VALUE]]` | Read or set config. `viewer` is `auto`, `inline`, `window` (also opens a browser) or `off` |
+| `aad config [KEY[=VALUE]]` | Read or set config. `viewer` is `auto`, `inline`, `window` (also opens a browser) or `off`; `engine.memory` is `auto` or an additional per-worker virtual-address budget such as `8GiB` or `8589934592` bytes |
 | `aad daemon [run or start or stop or status]` | Manage the background daemon |
 | `aad serve --http` | Remote mode, below |
 | `aad update` | Show the upgrade command. Flag: `--run` |
@@ -730,7 +733,7 @@ Say so plainly rather than working around it silently.
 - **Approximate `symmetric` geometry stays `skip`.** A zero-volume B-rep boolean alone does not pass; exact planar-face and straight-edge mirror signatures must also match. Curved boundaries are not covered by that exact comparison.
 - **The viewer cannot edit the model directly.** Sliders and a separate Ask editor are not built. Part selection and exact references work as described above; native composer insertion depends on advertised host support, and stays unavailable on unsupported hosts.
 - **Windows has no sandbox,** so builds refuse to run there.
-- **Each job starts a new process with no shared cache,** and no memory limit is enforced.
+- **Each job starts a new process with no shared cache.** `engine.memory` limits additional per-process virtual address space from the worker's started Python baseline to builds and operations. `auto` is 16 GiB on Linux and macOS. This is not an RSS or whole-machine limit: Linux child processes each receive their own budget, and sampled RSS is not enforced as an aggregate job budget. The independent validator is not wired into the build path on main; when added, its clean 3D and 2D workers must receive the configured budget too.
 - **Large-assembly performance is not validated beyond the published synthetic benchmark.** A 1,500-box build took 42.5–46.2 s in three sandbox runs, with the hard mesh gate taking 26.8–28.3 s. Other models and several-thousand-part assemblies need a representative performance check; allow for that when choosing `timeout_s`.
 - **Out of scope:** CAM and toolpaths, FEA and CFD, advanced surfacing, PMI and GD&T, several-thousand-part assemblies without a representative performance check, PDM and PLM, native formats such as SLDPRT, F3D or DWG.
 

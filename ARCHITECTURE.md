@@ -137,9 +137,9 @@ The guide agents read is `skills/aad/SKILL.md`, which `aad_library` also serves 
 ## Not built yet
 
 - A warm worker pool. Every job starts a new process.
-- A memory limit on jobs. `aad.engine.memory` exists, but builds and operations do not apply it.
+- An aggregate resident-memory ceiling for each whole job. Builds and operations now apply `aad.engine.memory` as a per-process `RLIMIT_AS` growth budget (`auto`: 16 GiB on Linux and macOS), but it is virtual address space rather than RSS; Linux child processes each get their own budget.
 - Use of the content-addressed cache in `aad.engine.cache` by the daemon.
-- The independent validator in the build path, so `verified` is not reachable.
+- The independent validator in the build path, so `verified` is not reachable. When the clean 3D/2D validators are integrated, they must receive the same configured memory budget as the model worker; the callable `inspect_brep` helper is not currently used by `aad_build` on main.
 - A sandbox on Windows, so builds fail there with `SANDBOX_DENIED`.
 - Spec requirement types without a 2D meaning remain explicitly skipped on `kind="2d"` sheets.
 - A global mate solver. Assemblies place parts explicitly with `assembly()` and `at=`.

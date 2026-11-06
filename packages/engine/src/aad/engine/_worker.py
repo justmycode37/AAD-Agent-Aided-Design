@@ -23,6 +23,7 @@ from aad.modeling import (
     configure_modeling, context_metadata, current_part_name, finalize_modeling, named_shape, record_operation,
 )
 from .gate import _hard_checks_with_timings
+from .memory import is_memory_exhaustion
 from .select import SelectorError
 from .types import (
     BuildResult,
@@ -83,17 +84,18 @@ def main() -> None:
             # other particular cause. Keep an already-written BREP visible.
             job_dir = Path(payload.get("job_dir", "."))
             artifacts = _preserved_artifacts(job_dir)
+            failure = _memory_failure(exc) if is_memory_exhaustion(exc) else Failure(
+                code="WORKER_CRASH",
+                phase="crash",
+                message="The worker encountered an unexpected internal error; no cause was inferred.",
+                kernel_message=f"{type(exc).__name__}: {exc}",
+            )
             result = _result_wire(
                 BuildResult(
                     ok=False,
                     status="failed",
-                    summary="The worker encountered an unexpected internal error.",
-                    failure=Failure(
-                        code="WORKER_CRASH",
-                        phase="crash",
-                        message="The worker encountered an unexpected internal error; no cause was inferred.",
-                        kernel_message=f"{type(exc).__name__}: {exc}",
-                    ),
+                    summary=failure.message,
+                    failure=failure,
                     artifacts=artifacts,
                     job_dir=job_dir,
                 )
@@ -143,6 +145,9 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
     try:
         import build123d
     except Exception as exc:
+        if is_memory_exhaustion(exc):
+            return _result_wire(_failed_result(_memory_failure(exc, file=source_path.name),
+                                               elapsed_ms=_elapsed_ms(started), job_dir=job_dir))
         failure = Failure(
             code="IMPORT_FAILED",
             phase="kernel",
@@ -213,7 +218,10 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
             validate_params()
             metadata = context_metadata(payload)
     except BaseException as exc:
-        if isinstance(exc, SyntaxError):
+        if is_memory_exhaustion(exc):
+            file_name, line = _source_location(exc, source_path)
+            failure = _memory_failure(exc, file=file_name, line=line)
+        elif isinstance(exc, SyntaxError):
             failure = Failure(
                 code="SYNTAX_ERROR",
                 phase="syntax",
@@ -308,6 +316,11 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
             raise OSError("build123d did not create a non-empty BREP file")
         artifacts["part.brep"] = str(brep_path)
     except Exception as exc:
+        if is_memory_exhaustion(exc):
+            return _result_wire(
+                _failed_result(_memory_failure(exc, file="part.brep"), elapsed_ms=_elapsed_ms(started),
+                               job_dir=job_dir, stdout=stdout_stream.getvalue(), stderr=stderr_stream.getvalue())
+            )
         failure = Failure(
             code="EXPORT_FAILED",
             phase="kernel",
@@ -570,6 +583,8 @@ def _finish_sheet(
             else:
                 checks.append(Check(**{key: value for key, value in dict(item).items() if key in keep}))
     except Exception as exc:
+        if is_memory_exhaustion(exc):
+            raise
         checks.append(Check(id="2d_spec_evaluation_failed", suite="spec", level="error", status="fail",
                             message="2D specification or process checks could not be evaluated.",
                             actual=f"{type(exc).__name__}: {exc}"))
@@ -582,6 +597,8 @@ def _finish_sheet(
         value = drafting.make_scene(context, scene_dir)
         scene = SceneManifest(**value) if isinstance(value, dict) else value
     except Exception as exc:  # The sheet is still real evidence without its viewer scene.
+        if is_memory_exhaustion(exc):
+            raise
         checks.append(Check(id="scene_generation_failed", suite="2d", level="warn", status="warn",
                             message="Scene generation failed; the saved sheet was retained.",
                             actual=f"{type(exc).__name__}: {exc}"))
@@ -627,7 +644,9 @@ def _sheet_metrics(sheet: Any, units: str, build_ms: float) -> dict[str, Any]:
         metrics["bbox"] = [_number(size.X), _number(size.Y), 0.0]
     try:
         metrics["area"] = _number(sheet.to_face().area)
-    except Exception:  # Open or absent cut contours have no area. The 2D checks report why.
+    except Exception as exc:  # Open or absent cut contours have no area. The 2D checks report why.
+        if is_memory_exhaustion(exc):
+            raise
         pass
     return metrics
 
@@ -656,7 +675,9 @@ def _extract_shape(namespace: dict[str, Any], build_parts: list[Any], shape_type
             continue
         try:
             candidate = builder.part
-        except Exception:
+        except Exception as exc:
+            if is_memory_exhaustion(exc):
+                raise
             continue
         if isinstance(candidate, shape_type):
             return candidate
@@ -708,6 +729,8 @@ def _optional_checks(
         module = importlib.import_module(module_name)
         hook = getattr(module, function_name)
     except Exception as exc:
+        if is_memory_exhaustion(exc):
+            raise
         missing = isinstance(exc, ModuleNotFoundError) and exc.name == module_name
         return [Check(
             id=unavailable_id if missing else f"{function_name}_hook_failed",
@@ -733,6 +756,8 @@ def _optional_checks(
             ]
         return normalized, True
     except Exception as exc:
+        if is_memory_exhaustion(exc):
+            raise
         return [
             Check(
                 id=f"{function_name}_hook_failed",
@@ -889,6 +914,8 @@ def _optional_scene(context: ModelContext) -> tuple[SceneManifest | None, Check]
         module = importlib.import_module("aad_render")
         hook = getattr(module, "make_scene")
     except Exception as exc:
+        if is_memory_exhaustion(exc):
+            raise
         missing = isinstance(exc, ModuleNotFoundError) and exc.name == "aad_render"
         return None, Check(
             id="scene_generation_unavailable" if missing else "scene_generation_failed",
@@ -925,6 +952,8 @@ def _optional_scene(context: ModelContext) -> tuple[SceneManifest | None, Check]
             actual=scene.scene_id,
         )
     except Exception as exc:
+        if is_memory_exhaustion(exc):
+            raise
         return None, Check(
             id="scene_generation_failed",
             suite="hard",
@@ -948,6 +977,8 @@ def _optional_render(context: ModelContext, requested: bool) -> tuple[dict[str, 
         module = importlib.import_module("aad_render")
         hook = getattr(module, "render")
     except Exception as exc:
+        if is_memory_exhaustion(exc):
+            raise
         missing = isinstance(exc, ModuleNotFoundError) and exc.name == "aad_render"
         return {}, Check(
             id="render_unavailable" if missing else "render_failed",
@@ -974,6 +1005,8 @@ def _optional_render(context: ModelContext, requested: bool) -> tuple[dict[str, 
             actual=str(len(artifacts)),
         )
     except Exception as exc:
+        if is_memory_exhaustion(exc):
+            raise
         return {}, Check(
             id="render_failed",
             suite="hard",
@@ -1070,6 +1103,23 @@ def _source_location(exc: BaseException, source_path: Path) -> tuple[str | None,
         except OSError:
             continue
     return None, None
+
+
+def _memory_failure(
+    exc: BaseException,
+    *,
+    file: str | None = None,
+    line: int | None = None,
+) -> Failure:
+    return Failure(
+        code="OUT_OF_MEMORY",
+        phase="oom",
+        message="The worker could not allocate memory under the configured engine.memory ceiling.",
+        kernel_message=f"{type(exc).__name__}: {exc}" or type(exc).__name__,
+        file=file,
+        line=line,
+        repair=["Reduce the model's memory use or raise engine.memory if the machine has capacity."],
+    )
 
 
 def _failed_result(

@@ -243,7 +243,7 @@ def test_config_json_read_set_and_all(monkeypatch, capsys, temp_home):
     assert cli.main(["config", "viewer", "--json"]) == 0
     assert output_object(capsys)["value"] == "inline"
     assert cli.main(["config", "--json"]) == 0
-    assert output_object(capsys)["values"] == {"viewer": "inline"}
+    assert output_object(capsys)["values"] == {"viewer": "inline", "engine.memory": "auto"}
 
 
 def test_config_invalid_value_is_json_failure(capsys, temp_home):

@@ -1,17 +1,24 @@
 # OS sandbox and public build runner
 
-`aad.engine.sandbox.popen(argv, job_dir, read_paths=())` constructs the OS policy,
-launches with a sanitized environment, closes other file descriptors, and gives
-the child only stdin/stdout/stderr pipes. It never invokes a shell. The caller
-owns its timeout, memory budget, pipe handling, and process-group cleanup.
+`aad.engine.sandbox.popen(argv, job_dir, read_paths=(), address_space=None)`
+constructs the OS policy, launches with a sanitized environment, closes other
+file descriptors, and gives the child only stdin/stdout/stderr pipes. It never
+invokes a shell. An explicit `AddressSpaceBudget` installs a child-only
+`RLIMIT_AS`; timeout, pipe handling and process-group cleanup remain with the
+caller.
 
-Public `aad.engine.jobs.run_build` always uses this coupled launcher. There is
+Public `aad.engine.jobs.run_build` always uses this coupled launcher and a
+platform-default virtual-address growth budget when one is not supplied. The
+platform passes the configured `engine.memory` budget. The bootstrap starts
+Python under a temporary absolute ceiling, then the worker sets the configured
+growth budget relative to its starting VMS before loading the model. There is
 no request opt-out, caller environment override, or unsandboxed retry. Missing
 or unsupported boundaries and OS launch errors become structured
 `Failure(code="SANDBOX_DENIED", phase="sandbox")` results with the observed
 reason. Native `sandbox-exec:`/`bwrap:` launch diagnostics are retained in
-`kernel_message` and `stderr`. An unexplained worker exit remains `WORKER_CRASH`;
-an exit status or signal alone is not evidence of OOM or a kernel cause.
+`kernel_message` and `stderr`. Explicit `MemoryError`/`ENOMEM` results become
+`OUT_OF_MEMORY`; an unexplained worker exit remains `WORKER_CRASH`, because an
+exit status or signal alone is not evidence of OOM or a kernel cause.
 
 The runner retains request validation, the wall-clock timeout, process-group
 kill and bounded pipe draining. It refuses an existing `part.brep`, requires
@@ -19,7 +26,15 @@ private nonempty regular job artifacts, canonicalizes admitted paths, validates
 decoded checks, and retains diagnostics when rejecting evidence. Model-authored
 proof and scene badges cannot attest verification: they stay draft. A separate
 trusted geometry validator with evidence bound to inputs/artifacts is still
-required. This integration does not add a warm pool or memory budgets.
+required. A warm pool and aggregate resident-memory budget remain unimplemented.
+The default growth budget is 16 GiB on Linux and macOS. It limits virtual
+address growth rather than RSS, and Linux child processes each receive their
+own budget.
+
+The platform applies the configured memory growth budget to trusted post-build
+operations too. The optional preview and fallback scene tessellator receive the
+same budget. The graphics-dependent render operation uses the trusted memory
+bootstrap without Seatbelt because that profile denies VTK graphics.
 
 Model source must not do I/O (`CONTRACTS.md` section 3). Runtime reads and
 job-local worker output are allowed by the OS policy, but `project_dir` does
@@ -33,10 +48,9 @@ assets reach model code through `asset(name)`: when the source calls it, the
 trusted parent copies regular files from `<project>/imports/` into
 `<job>/assets/` before launch, skipping symlinks and files over 256 MiB. The
 sandbox grants no other project read. The copies are removed before the job
-becomes a revision, so a large import does not grow with every build.
-S2's trusted post-build operations must also adopt this launcher under
-[issue #21](https://github.com/justmycode37/AAD-Agent-Aided-Design/issues/21);
-the public model runner does not protect those separate processes.
+becomes a revision, so a large import does not grow with every build. Trusted
+post-build operations use the same configured address-space policy; rendering
+keeps its existing graphics-specific launch path.
 
 ## macOS protection exercised here
 
@@ -116,7 +130,7 @@ that evidence.
 
 Windows currently raises SandboxUnavailable. Job Objects alone would not enforce
 the filesystem/network boundary; a Windows implementation and runner evidence
-remain required. This module does not provide memory limits or worker pooling.
+remain required. A warm worker pool remains unimplemented.
 Metadata and explicitly allowed system/runtime data remain readable. A trusted
 caller controls the extra read allowlist; only pass needed assets/dependencies.
 

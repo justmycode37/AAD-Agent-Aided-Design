@@ -202,6 +202,10 @@ def _additive_checks(ctx: Any, process: str, settings: dict[str, Any]) -> list[A
                 )
             )
         except (GeometryUnavailable, ValueError, TypeError) as exc:
+            from aad.engine.memory import is_memory_exhaustion
+
+            if is_memory_exhaustion(exc):
+                raise
             checks.append(
                 _skip(
                     f"process.{process}.overhang",
@@ -294,6 +298,10 @@ def _additive_checks(ctx: Any, process: str, settings: dict[str, Any]) -> list[A
                 )
             )
         except (GeometryUnavailable, ValueError, TypeError) as exc:
+            from aad.engine.memory import is_memory_exhaustion
+
+            if is_memory_exhaustion(exc):
+                raise
             checks.append(
                 _skip(
                     f"process.{process}.wall_thickness",
@@ -334,6 +342,10 @@ def _cnc_checks(ctx: Any, settings: dict[str, Any]) -> list[Any]:
         try:
             cylinders = cylindrical_surfaces(shape, units=units, tolerance_mm=tolerance,max_faces=settings['max_faces'])
         except (GeometryUnavailable, ValueError, TypeError) as exc:
+            from aad.engine.memory import is_memory_exhaustion
+
+            if is_memory_exhaustion(exc):
+                raise
             cylinder_error = str(exc)
 
     inward = [cylinder for cylinder in cylinders if cylinder.inward]
@@ -412,6 +424,10 @@ def _cnc_checks(ctx: Any, settings: dict[str, Any]) -> list[Any]:
                     raise GeometryUnavailable('probe-volume tolerance underflowed')
                 tested.append((volume, cylinder, mouth, threshold))
             except (GeometryUnavailable, ValueError, TypeError) as exc:
+                from aad.engine.memory import is_memory_exhaustion
+
+                if is_memory_exhaustion(exc):
+                    raise
                 probe_skips.append(f"face {cylinder.face_index}: {exc}")
         if not tested:
             checks.append(
@@ -698,6 +714,10 @@ def _sheet_metal_checks(ctx: Any, settings: dict[str, Any]) -> list[Any]:
     try:
         pairs = bend_surface_pairs(shape, units=units, tolerance_mm=tolerance,max_faces=settings['max_faces'])
     except (GeometryUnavailable, ValueError, TypeError) as exc:
+        from aad.engine.memory import is_memory_exhaustion
+
+        if is_memory_exhaustion(exc):
+            raise
         return [
             _skip(
                 "process.sheet_metal.bend_geometry",
@@ -824,6 +844,10 @@ def _laser_checks(ctx: Any, settings: dict[str, Any]) -> list[Any]:
     try:
         features = through_cylindrical_features(shape, units=units, tolerance_mm=tolerance,max_faces=settings['max_faces'])
     except (GeometryUnavailable, ValueError, TypeError) as exc:
+        from aad.engine.memory import is_memory_exhaustion
+
+        if is_memory_exhaustion(exc):
+            raise
         return [
             _skip(
                 "process.laser.minimum_feature",
@@ -915,6 +939,10 @@ def _injection_checks(ctx: Any, settings: dict[str, Any]) -> list[Any]:
             max_samples=settings["max_samples"],
         )
     except (GeometryUnavailable, ValueError, TypeError) as exc:
+        from aad.engine.memory import is_memory_exhaustion
+
+        if is_memory_exhaustion(exc):
+            raise
         return [
             _skip(
                 "process.injection.draft",
@@ -928,6 +956,10 @@ def _injection_checks(ctx: Any, settings: dict[str, Any]) -> list[Any]:
     try:
         from build123d import GeomType
     except Exception as exc:
+        from aad.engine.memory import is_memory_exhaustion
+
+        if is_memory_exhaustion(exc):
+            raise
         return [
             _skip(
                 "process.injection.draft",
@@ -1119,6 +1151,10 @@ def process_checks(ctx: Any) -> list[Any]:
             clean=Shape.cast(ctx.shape.wrapped)
             ctx=SimpleNamespace(shape=clean,units=ctx.units,spec=ctx.spec,features=getattr(ctx,'features',[]))
         except Exception as exc:
+            from aad.engine.memory import is_memory_exhaustion
+
+            if is_memory_exhaustion(exc):
+                raise
             return [_skip(f'process.{process}.geometry',level='error',
                 reason=f'could not normalize native B-rep geometry: {exc}',expected='a supported native B-rep',
                 assumptions=_context_assumptions(process,getattr(ctx,'units',None)),
@@ -1136,6 +1172,10 @@ def process_checks(ctx: Any) -> list[Any]:
         if process == "injection":
             return _coverage_checked(ctx, process, settings, _injection_checks(ctx, settings))
     except Exception as exc:
+        from aad.engine.memory import is_memory_exhaustion
+
+        if is_memory_exhaustion(exc):
+            raise
         # Evaluator exceptions are explicit skips; they are never interpreted
         # as manufacturing evidence or a pass.
         return [

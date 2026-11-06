@@ -17,7 +17,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from . import sandbox
+from . import memory, sandbox
 from .types import (
     BuildRequest,
     BuildResult,
@@ -36,18 +36,20 @@ _STARTED_MARKER = b"AAD_ENGINE_STARTED\n"
 _SOURCE_ROOT = Path(__file__).resolve().parents[2]
 _WORKER_BOOTSTRAP = (
     "import sys; sys.path.insert(0, sys.argv.pop(1)); "
+    "from aad.engine import memory; _limit=sys.argv.pop(1); "
+    "memory.install_worker_memory_budget(int(_limit)) if _limit != '-' else None; "
     "from aad.engine._worker import main; "
     f"sys.stdout.buffer.write({_STARTED_MARKER!r}); sys.stdout.buffer.flush(); main()"
 )
 
 
-def run_build(req: BuildRequest) -> BuildResult:
+def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> BuildResult:
     """Build a model in a new subprocess and return its checks and artifacts.
 
     The worker receives one JSON request on stdin and returns one marked JSON
-    record on stdout. Every model process uses the OS sandbox launcher; an
-    unavailable boundary fails closed. Memory limits, a warm pool, a revision
-    store, and independent validation remain separate requirements.
+    record on stdout. Every model process uses the OS sandbox launcher and
+    installs its address-space growth budget before importing worker/kernel
+    code; an unavailable boundary fails closed.
     """
     try:
         request = _coerce_request(req)
@@ -97,12 +99,23 @@ def run_build(req: BuildRequest) -> BuildResult:
 
     started = time.perf_counter()
     try:
+        if memory_limit_bytes is None:
+            if sys.platform == "darwin" or sys.platform.startswith("linux"):
+                memory_limit_bytes = memory.default_memory_budget_bytes()
+        else:
+            memory_limit_bytes = memory.memory_budget_bytes(memory_limit_bytes)
+        startup_limit = (
+            memory.bootstrap_address_space_budget(memory_limit_bytes)
+            if memory_limit_bytes is not None else None
+        )
         process = sandbox.popen(
-            [sys.executable, "-I", "-B", "-c", _WORKER_BOOTSTRAP, str(_SOURCE_ROOT)],
+            [sys.executable, "-I", "-B", "-c", _WORKER_BOOTSTRAP, str(_SOURCE_ROOT),
+             str(memory_limit_bytes) if memory_limit_bytes is not None else "-"],
             job_dir,
             read_paths=_reference_read_paths(project_dir, request.spec),
+            address_space=startup_limit,
         )
-    except (sandbox.SandboxUnavailable, OSError) as exc:
+    except (sandbox.SandboxUnavailable, memory.AddressSpaceUnavailable, OSError) as exc:
         return _failed(
             Failure(
                 code="SANDBOX_DENIED",
@@ -110,6 +123,12 @@ def run_build(req: BuildRequest) -> BuildResult:
                 message=f"The build sandbox could not be started: {exc}",
                 kernel_message=f"{type(exc).__name__}: {exc}",
             ),
+            job_dir=job_dir,
+            build_ms=_elapsed_ms(started),
+        )
+    except (TypeError, ValueError) as exc:
+        return _failed(
+            Failure(code="BAD_INPUT", phase="input", message=f"Build memory policy is invalid: {exc}"),
             job_dir=job_dir,
             build_ms=_elapsed_ms(started),
         )
@@ -135,13 +154,27 @@ def run_build(req: BuildRequest) -> BuildResult:
     elapsed_ms = _elapsed_ms(started)
     response = _find_response(stdout_bytes)
     if process.returncode != 0 or response is None:
+        worker_started = _STARTED_MARKER in stdout_bytes.splitlines(keepends=True)
         failure = Failure(
             code="WORKER_CRASH",
             phase="crash",
             message=f"The build worker exited with status {process.returncode} without returning a valid result; no exit cause was inferred.",
         )
-        worker_started = _STARTED_MARKER in stdout_bytes.splitlines(keepends=True)
-        if not worker_started and response is None and process.returncode != 0 and any(
+        if not worker_started and memory.has_setup_failure_marker(stdout_bytes):
+            failure = Failure(
+                code="SANDBOX_DENIED",
+                phase="sandbox",
+                message="The configured engine.memory address-space limit could not be installed; model code was not run.",
+                kernel_message=_decode(stderr_bytes),
+            )
+        elif not worker_started and response is None and memory.is_memory_exhaustion_output(stderr_bytes):
+            failure = Failure(
+                code="OUT_OF_MEMORY",
+                phase="oom",
+                message="The build worker could not allocate memory during startup under the configured engine.memory limit.",
+                kernel_message=_decode(stderr_bytes),
+            )
+        elif not worker_started and response is None and process.returncode != 0 and any(
             line.startswith((b"bwrap:", b"sandbox-exec:")) for line in stderr_bytes.splitlines()
         ):
             failure = Failure(
@@ -182,7 +215,7 @@ def run_build(req: BuildRequest) -> BuildResult:
         from ._preview import add_preview
 
         remaining_s = max(0.0, request.timeout_s - (time.perf_counter() - started))
-        add_preview(result, timeout_s=remaining_s)
+        add_preview(result, timeout_s=remaining_s, memory_limit_bytes=memory_limit_bytes)
     elapsed_ms = _elapsed_ms(started)
     result.build_ms = elapsed_ms
     _finish_phase_timings(result, elapsed_ms, preview_ms=_elapsed_ms(preview_started) if request.preview else 0.0)

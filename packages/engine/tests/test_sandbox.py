@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from aad.engine import sandbox
+from aad.engine import memory, sandbox
 from aad.engine.jobs import _reference_read_paths, run_build
 from aad.engine.types import BuildRequest
 
@@ -142,6 +142,8 @@ class PublicBuildSandboxFailureTests(unittest.TestCase):
                 result = run_build(request)
             self.assertEqual(result.failure.code, "SANDBOX_DENIED")
             self.assertEqual(launch.call_args.kwargs["read_paths"], (reference,))
+            self.assertEqual(launch.call_args.kwargs["address_space"].bytes,
+                             memory.bootstrap_address_space_budget(memory.default_memory_budget_bytes()).bytes)
 
     def test_missing_or_unsupported_boundary_returns_failure_without_popen(self) -> None:
         cases = [
@@ -207,6 +209,37 @@ class PublicBuildSandboxFailureTests(unittest.TestCase):
         self.assertIn("-9", built.failure.message)
         self.assertIn("no exit cause was inferred", built.failure.message)
         self.assertEqual(built.stdout, "before exit\n")
+
+    def test_memory_bootstrap_setup_failure_is_not_reported_as_oom(self) -> None:
+        from aad.engine import memory
+
+        with tempfile.TemporaryDirectory() as temporary, patch.object(sandbox, "popen") as launcher:
+            launcher.return_value.returncode = 1
+            launcher.return_value.communicate.return_value = (
+                memory.SETUP_FAILURE_MARKER + b"ValueError: current limit exceeds maximum limit\n",
+                b"ValueError: current limit exceeds maximum limit\n",
+            )
+            built = run_build(BuildRequest(source="raise AssertionError('must not execute')",
+                                           project_dir=Path(temporary)))
+        self.assertEqual(built.failure.code, "SANDBOX_DENIED")
+        self.assertIn("model code was not run", built.failure.message)
+
+    def test_startup_memory_error_is_reported_as_out_of_memory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary, patch.object(sandbox, "popen") as launcher:
+            launcher.return_value.returncode = 1
+            launcher.return_value.communicate.return_value = (b"", b"MemoryError: startup allocation\n")
+            built = run_build(BuildRequest(source="result = Box(1, 1, 1)", project_dir=Path(temporary)))
+        self.assertEqual(built.failure.code, "OUT_OF_MEMORY")
+        self.assertEqual(built.failure.phase, "oom")
+
+    def test_startup_runtime_error_mentioning_memory_is_not_reported_as_oom(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary, patch.object(sandbox, "popen") as launcher:
+            launcher.return_value.returncode = 1
+            launcher.return_value.communicate.return_value = (
+                b"", b"RuntimeError: no out of memory condition was found\n"
+            )
+            built = run_build(BuildRequest(source="result = Box(1, 1, 1)", project_dir=Path(temporary)))
+        self.assertEqual(built.failure.code, "WORKER_CRASH")
 
 
 @unittest.skipUnless(sys.platform == "darwin", "macOS Seatbelt escape tests")

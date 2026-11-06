@@ -25,8 +25,13 @@ class _Worker:
 
 @pytest.mark.parametrize("platform", ["darwin", "linux"])
 def test_render_prepares_brep_in_sandbox_and_sends_render_payload_to_vtk(tmp_path, monkeypatch, platform):
+    from aad.engine import memory
+    from aad_platform import config
+
     monkeypatch.setattr(ops_client.sys, "platform", platform)
     monkeypatch.delenv("AAD_REMOTE", raising=False)
+    memory_limit_bytes = 5 * 1024**3
+    monkeypatch.setattr(config, "engine_memory_limit_bytes", lambda: memory_limit_bytes)
     prepared = {
         "version": 1,
         "inspection": {"faces": [{"surface": "plane"}]},
@@ -43,8 +48,8 @@ def test_render_prepares_brep_in_sandbox_and_sends_render_payload_to_vtk(tmp_pat
     sandbox_calls = []
     mesh_calls = []
 
-    def launch_sandbox(argv, out, *, read_paths=()):
-        sandbox_calls.append((argv, out, tuple(read_paths)))
+    def launch_sandbox(argv, out, *, read_paths=(), address_space=None):
+        sandbox_calls.append((argv, out, tuple(read_paths), address_space))
         return sandbox_worker
 
     def launch_mesh(argv, **kwargs):
@@ -77,7 +82,10 @@ def test_render_prepares_brep_in_sandbox_and_sends_render_payload_to_vtk(tmp_pat
     assert prepared_request["op"] == "render_prepare"
     assert prepared_request["project_dir"] == str(tmp_path / "project")
     assert sandbox_calls[0][0][-2:] == ["-m", "aad_platform.ops"]
+    assert sandbox_calls[0][3].bytes == memory.bootstrap_address_space_budget(memory_limit_bytes).bytes
     assert mesh_calls[0][0][-2:] == ["aad_platform.render_mesh", str(tmp_path)]
+    assert mesh_calls[0][0][4] == str(Path(memory.__file__).resolve())
+    assert mesh_calls[0][0][5] == str(memory.bootstrap_address_space_budget(memory_limit_bytes).bytes)
     assert mesh_worker.input_data == payload_bytes
     mesh_request = json.loads(mesh_worker.input_data)
     assert mesh_request == {"render": {"version": 1, "scene": {"faces": [{"points": [[0, 0, 0]]}]}}}
@@ -131,8 +139,8 @@ def test_non_vtk_operations_still_use_sandbox(tmp_path, monkeypatch, op, kind, p
     worker = _Worker({"ok": True, "checked": True})
     sandbox_calls = []
 
-    def launch_sandbox(argv, out, *, read_paths=()):
-        sandbox_calls.append((argv, out, tuple(read_paths)))
+    def launch_sandbox(argv, out, *, read_paths=(), address_space=None):
+        sandbox_calls.append((argv, out, tuple(read_paths), address_space))
         return worker
 
     monkeypatch.setattr(sandbox, "popen", launch_sandbox)
@@ -152,6 +160,7 @@ def test_non_vtk_operations_still_use_sandbox(tmp_path, monkeypatch, op, kind, p
     assert result == {"ok": True, "checked": True}
     assert json.loads(worker.input_data)["op"] == op
     assert sandbox_calls
+    assert sandbox_calls[0][3] is not None
 
 
 @pytest.mark.parametrize("platform", ["darwin", "linux"])
@@ -168,6 +177,8 @@ def test_remote_render_remains_refused(tmp_path, monkeypatch, platform):
 
 
 def test_render_failure_keeps_brep_and_reports_render_phase(tmp_path, monkeypatch):
+    from aad.engine import memory
+
     revision = tmp_path / "project" / ".aad" / "revs" / "000001"
     revision.mkdir(parents=True)
     brep = revision / "part.brep"
@@ -202,6 +213,8 @@ def test_render_failure_keeps_brep_and_reports_render_phase(tmp_path, monkeypatc
         },
         60.0,
         sandbox,
+        memory,
+        1024**3,
     )
 
     assert result["ok"] is False

@@ -14,6 +14,7 @@ import tempfile
 from time import monotonic, perf_counter
 from typing import Any
 
+from .memory import is_memory_exhaustion
 from .types import Check, ModelContext
 
 
@@ -285,6 +286,8 @@ def _brep_validity_check(shape: Any) -> Check:
         analyzer_valid = bool(BRepCheck_Analyzer(shape.wrapped).IsValid())
         shape_valid = bool(shape.is_valid)  # build123d exposes this as a property.
     except Exception as exc:
+        if is_memory_exhaustion(exc):
+            raise
         reason = _exception_text(exc)
         return _skip(
             "brep_valid",
@@ -321,6 +324,8 @@ def _solid_count_checks(shape: Any, kind: str) -> tuple[Check, Check | None]:
     try:
         solids = list(shape.solids())
     except Exception as exc:
+        if is_memory_exhaustion(exc):
+            raise
         reason = _exception_text(exc)
         return (
             _skip("solid_count", f"solid enumeration raised {reason}", expected=expected),
@@ -426,6 +431,8 @@ def interference_checks(
     try:
         solids = list(ctx.shape.solids())
     except Exception as exc:
+        if is_memory_exhaustion(exc):
+            raise
         return [_interference_skip(
             f"solid enumeration raised {_exception_text(exc)}",
             expected=f"a common volume at or below {threshold:g} mm³",
@@ -464,7 +471,9 @@ def interference_checks(
     for solid in solids:
         try:
             boxes.append(_solid_box(solid))
-        except Exception:
+        except Exception as exc:
+            if is_memory_exhaustion(exc):
+                raise
             boxes.append(None)
             bbox_failures += 1
 
@@ -494,6 +503,8 @@ def interference_checks(
                     first, solids[second_index], unit_scale, threshold
                 )
             except Exception as exc:
+                if is_memory_exhaustion(exc):
+                    raise
                 unknown_count += 1
                 if len(unknown_pairs) < INTERFERENCE_MAX_REPORTED_PAIRS:
                     unknown_pairs.append({
@@ -653,7 +664,9 @@ def _shape_label(shape: Any) -> str | None:
     for attribute in ("label", "name", "part_name"):
         try:
             value = getattr(shape, attribute, None)
-        except Exception:
+        except Exception as exc:
+            if is_memory_exhaustion(exc):
+                raise
             continue
         if isinstance(value, str) and value.strip():
             label = value.strip()
@@ -673,7 +686,9 @@ def _solid_labels(shape: Any, solids: list[Any]) -> list[str | None]:
             return
         try:
             nested_solids = list(item.solids())
-        except Exception:
+        except Exception as exc:
+            if is_memory_exhaustion(exc):
+                raise
             return
         if len(nested_solids) == 1:
             discovered.append(_shape_label(item) or _shape_label(nested_solids[0]))
@@ -757,6 +772,8 @@ def _solid_intersection_mm(
     try:
         valid = common.is_valid
     except Exception as exc:
+        if is_memory_exhaustion(exc):
+            raise
         raise RuntimeError(f"OCCT common validity check raised {_exception_text(exc)}") from exc
     if not valid:
         raise RuntimeError("OCCT common returned an invalid shape")
@@ -770,11 +787,15 @@ def _solid_intersection_mm(
         return volume_mm3, None
     try:
         center = _coordinates(common.center())
-    except Exception:
+    except Exception as exc:
+        if is_memory_exhaustion(exc):
+            raise
         try:
             minimum, maximum = _solid_box(common)
             center = tuple((minimum[axis] + maximum[axis]) * 0.5 for axis in range(3))
-        except Exception:
+        except Exception as exc:
+            if is_memory_exhaustion(exc):
+                raise
             return volume_mm3, None
     location = tuple(value * unit_scale + 0.0 for value in center)
     return volume_mm3, location  # type: ignore[return-value]
@@ -787,6 +808,8 @@ def _closed_shell_check(shape: Any) -> Check:
         solids = list(shape.solids())
         shells = list(shape.shells())
     except Exception as exc:
+        if is_memory_exhaustion(exc):
+            raise
         reason = _exception_text(exc)
         return _skip(
             "closed_shells",
@@ -814,6 +837,8 @@ def _closed_shell_check(shape: Any) -> Check:
         for shell in shells:
             closed.append(bool(BRep_Tool.IsClosed_s(shell.wrapped)))
     except Exception as exc:
+        if is_memory_exhaustion(exc):
+            raise
         reason = _exception_text(exc)
         return _skip(
             "closed_shells",
@@ -877,6 +902,8 @@ def _edge_quality_check(shape: Any, tolerance: GateTolerances, unit_scale: float
                 degenerate_count += 1
             lengths.append(length)
     except Exception as exc:
+        if is_memory_exhaustion(exc):
+            raise
         reason = _exception_text(exc)
         return _skip(
             "edge_quality",
@@ -942,6 +969,8 @@ def _face_quality_check(shape: Any, tolerance: GateTolerances, unit_scale: float
                 raise ValueError("a face width proxy was not finite")
             widths.append(width)
     except Exception as exc:
+        if is_memory_exhaustion(exc):
+            raise
         reason = _exception_text(exc)
         return _skip(
             "face_quality",
@@ -1028,6 +1057,8 @@ def _step_volume_check(ctx: ModelContext, tolerance: GateTolerances, unit_scale:
         relative_drift = _fmt(relative_value)
         passed = roundtrip_volume > 0 and drift <= threshold
     except Exception as exc:
+        if is_memory_exhaustion(exc):
+            raise
         reason = _exception_text(exc)
         return _skip(
             "step_volume_drift",
@@ -1076,6 +1107,8 @@ def _mesh_watertight_check(shape: Any, tolerance: GateTolerances, unit_scale: fl
     try:
         bodies = _assembly_bodies(shape) if kind == "assembly" else None
     except Exception as exc:
+        if is_memory_exhaustion(exc):
+            raise
         return _skip("mesh_watertight", f"solid enumeration raised {_exception_text(exc)}")
     if bodies is None:
         return _shape_watertight_check(shape, tolerance, unit_scale)
@@ -1117,6 +1150,8 @@ def _shape_watertight_check(shape: Any, tolerance: GateTolerances, unit_scale: f
             tolerance.mesh_angular_deflection_rad,
         )
     except Exception as exc:
+        if is_memory_exhaustion(exc):
+            raise
         reason = _exception_text(exc)
         return _skip(
             "mesh_watertight",
@@ -1314,6 +1349,8 @@ def _check_mesh_arrays(
             min_degree = min(degrees)
             max_degree = max(degrees)
     except Exception as exc:
+        if is_memory_exhaustion(exc):
+            raise
         reason = _exception_text(exc)
         return _skip("mesh_watertight", f"mesh topology measurement raised {reason}", expected)
 

@@ -19,6 +19,13 @@ _JOIN_TOLERANCE = 1e-9
 _ANGLE_TOLERANCE_DEG = 1e-8
 
 
+def _raise_if_memory_exhaustion(exc: BaseException) -> None:
+    from aad.engine.memory import is_memory_exhaustion
+
+    if is_memory_exhaustion(exc):
+        raise exc
+
+
 @dataclass
 class _NativeEdge:
     native: Any
@@ -570,6 +577,7 @@ def _context_sheet(ctx: Any) -> tuple[Any | None, str | None, str | None]:
         # history, constraints, and entity data.
         sheet.to_dict()
     except Exception as exc:
+        _raise_if_memory_exhaustion(exc)
         return None, context_units, f"ctx.sheet is invalid: {type(exc).__name__}: {exc}"
     if context_units != sheet.units:
         return (
@@ -664,6 +672,7 @@ def _analyze(ctx: Any) -> dict[str, Any]:
             )
             analysis["edges"].extend(entity_edges)
         except Exception as exc:
+            _raise_if_memory_exhaustion(exc)
             analysis["unsupported"].append(
                 {
                     "entity": entity.name,
@@ -748,6 +757,7 @@ def _analyze(ctx: Any) -> dict[str, Any]:
                         else:
                             area = area_value
                     except Exception as exc:
+                        _raise_if_memory_exhaustion(exc)
                         issues.append(f"OCCT face validation failed: {type(exc).__name__}: {exc}")
                         valid = False
                         face = None
@@ -766,6 +776,7 @@ def _analyze(ctx: Any) -> dict[str, Any]:
                 )
                 analysis["contours"].append(contour)
             except Exception as exc:
+                _raise_if_memory_exhaustion(exc)
                 analysis["unsupported"].append(
                     {
                         "entities": component_sources,
@@ -909,6 +920,7 @@ def _analyze(ctx: Any) -> dict[str, Any]:
                     try:
                         contour_depth(contour)
                     except Exception as exc:
+                        _raise_if_memory_exhaustion(exc)
                         contour.valid = False
                         contour.face = None
                         contour.area = None
@@ -971,6 +983,7 @@ def _analyze(ctx: Any) -> dict[str, Any]:
                         }
                     )
                 except Exception as exc:
+                    _raise_if_memory_exhaustion(exc)
                     analysis["clearance_complete"] = False
                     analysis["unsupported"].append(
                         {
@@ -987,6 +1000,7 @@ def _analyze(ctx: Any) -> dict[str, Any]:
             if set(clearance["contours"]).issubset(valid_ids)
         ]
     except Exception as exc:
+        _raise_if_memory_exhaustion(exc)
         analysis["unsupported"].append(
             {
                 "stage": "occt_validation",
