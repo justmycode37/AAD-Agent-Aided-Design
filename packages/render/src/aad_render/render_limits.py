@@ -21,6 +21,17 @@ MAX_WORKER_STDOUT_BYTES = 16 * 1024 * 1024
 MAX_WORKER_STDERR_BYTES = 2 * 1024 * 1024
 MAX_RENDER_IMAGE_BYTES = 32 * 1024 * 1024
 
+# Independent visual review packets have a stricter aggregate output bound than
+# interactive renders. A packet may include orthographic, section, and
+# component-isolation images, but never grows with an unbounded assembly.
+MAX_REVIEW_PACKET_PARTS = 8
+MAX_REVIEW_PACKET_CASES = 20
+MAX_REVIEW_PACKET_IMAGES = 32
+MAX_REVIEW_PACKET_IMAGE_BYTES = 2 * 1024 * 1024
+MAX_REVIEW_PACKET_BYTES = 64 * 1024 * 1024
+MAX_REVIEW_PACKET_MANIFEST_BYTES = 2 * 1024 * 1024
+MAX_REVIEW_PACKET_REQUEST_BYTES = 80_000
+
 MAX_RENDER_FACES = 100_000
 MAX_RENDER_LINES = 100_000
 MAX_RENDER_VERTICES = 8_000_000
