@@ -143,6 +143,3 @@ The guide agents read is `skills/aad/SKILL.md`, which `aad_library` also serves 
 - A sandbox on Windows, so builds fail there with `SANDBOX_DENIED`.
 - Spec requirement types without a 2D meaning remain explicitly skipped on `kind="2d"` sheets.
 - A global mate solver. Assemblies place parts explicitly with `assembly()` and `at=`.
-- `aad_measure` for mass and thickness, and the `viewer_html` export. These are declared in the tool schemas but return an error.
-- An `asset()` API for general project files in `model.py`.
-- Named assembly helpers. Assemblies are plain build123d compounds in a project of kind `assembly`.
