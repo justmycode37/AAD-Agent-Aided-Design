@@ -424,6 +424,7 @@ A sliver edge is usually a coincidence between two surfaces; moving one by a sma
 | `SELECTOR_EMPTY`, `SELECTOR_AMBIGUOUS` | Wrong selector count | Use the returned candidates |
 | `KERNEL_BOOLEAN_FAILED`, `KERNEL_FILLET_FAILED`, `KERNEL_CHAMFER_FAILED`, `KERNEL_SHELL_FAILED`, `KERNEL_SWEEP_FAILED`, `KERNEL_OTHER` | The kernel refused an operation. Sweep includes extrude, revolve and loft. Named from the build123d call that raised | Read `kernel_message`, `line` and `repair` |
 | `INVALID_SOLID` | The result is not a usable solid | Check the profile |
+| `INVALID_REVISION_METADATA` | Revision inspection metadata is missing, corrupt, truncated or unreadable. The tool fails without returning partial revision data. If both metadata files exist, `meta.json.gz` takes precedence and a corrupt gzip never falls back to `meta.json` | Restore valid metadata for that revision from a backup; if both files exist, repair `meta.json.gz` |
 | `TIMEOUT`, `OUT_OF_MEMORY`, `WORKER_CRASH` | The process ended early. The head revision is safe | Raise `timeout_s`, or simplify |
 | `SANDBOX_DENIED` | The OS sandbox is unavailable or refused an action | Run `aad doctor`. There is no way to bypass it |
 | `BASE_REV_CONFLICT` | `base_rev` is not the current head, or the project has no head yet | Rebase on the head; for the first build, omit `base_rev` |

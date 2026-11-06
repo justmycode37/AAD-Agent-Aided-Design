@@ -191,11 +191,11 @@ def _discard_prepared_render_payload(path: Path) -> None:
 
 
 def _as_render_failure(result: dict[str, Any]) -> dict[str, Any]:
-    """Keep sandbox and timeout failures distinct; report worker failures as render failures."""
+    """Keep input, sandbox and timeout failures distinct from renderer failures."""
     failure = result.get("failure")
     if not isinstance(failure, dict):
         return _crash("WORKER_CRASH", "render", "The render worker failed without a failure report.")
-    if failure.get("phase") not in {"sandbox", "timeout"}:
+    if failure.get("phase") not in {"input", "sandbox", "timeout"}:
         failure = {**failure, "phase": "render"}
     return {**result, "failure": failure}
 

@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 from .. import config, paths, viewer
 from ..rpc import INVALID_PARAMS, RpcError
 from ..presentation import VIEWS, normalize_presentation, normalize_views
-from ..revision_meta import read_revision_meta, write_revision_meta
+from ..revision_meta import InvalidRevisionMetadata, read_revision_meta, write_revision_meta
 from . import backend, scenes
 from .envelope import compact, failure_envelope, sort_checks, text_for
 from .ops_client import job_request, run_op
@@ -116,6 +116,9 @@ class Handlers:
             return self._not_implemented(method, params)
         try:
             result = await handler(params)
+        except InvalidRevisionMetadata as exc:
+            project_name = params.get("project") or params.get("name") or ""
+            return reply(failure_envelope(project_name, exc.code, exc.phase, str(exc), rev=params.get("rev")))
         except ProjectError as exc:
             return reply(failure_envelope(params.get("project") or params.get("name") or "", exc.code, "input", exc.message))
         return self._attach_selection(params, result)
@@ -202,6 +205,18 @@ class Handlers:
         except asyncio.CancelledError:
             project.discard_job(job_dir)
             raise
+        except InvalidRevisionMetadata as exc:
+            project.discard_job(job_dir)
+            return reply(
+                failure_envelope(
+                    project.name,
+                    exc.code,
+                    exc.phase,
+                    str(exc),
+                    head_rev=project.head_rev,
+                    base_rev=params.get("base_rev"),
+                )
+            )
         except Exception as exc:
             log.exception("build %s failed", job_id)
             project.discard_job(job_dir)
@@ -447,7 +462,7 @@ class Handlers:
         rev_dir = project.rev_dir(rev)
         if not rev_dir.is_dir():
             return reply(failure_envelope(project.name, "BAD_INPUT", "input", f"No revision {rev}.", head_rev=head))
-        meta = read_revision_meta(rev_dir)
+        meta = _rev_meta(project, rev)
         scene = meta.get("scene")
         payload = _scene_payload(rev_dir)
         if not scene or payload is None:
@@ -602,6 +617,7 @@ class Handlers:
         if rev is None or not project.rev_dir(rev).is_dir():
             return reply(failure_envelope(project.name, "BAD_INPUT", "input", f"No revision {rev}.", head_rev=project.head_rev))
         async with self._locks[project.path]:
+            meta = _rev_meta(project, rev)
             project.checkout(rev)
         return reply(
             {
@@ -609,7 +625,7 @@ class Handlers:
                 "project": project.name,
                 "rev": rev,
                 "head_rev": rev,
-                "status": _rev_meta(project, rev).get("status", "draft"),
+                "status": meta.get("status", "draft"),
                 "summary": f"Head of {project.name} is now rev {rev}. Later revisions stay in history.",
             }
         )
@@ -617,6 +633,9 @@ class Handlers:
     def _history_branch(self, project: Project, rev: int | None, name: str | None, client: dict[str, Any] | None) -> dict[str, Any]:
         if rev is None or not name:
             return reply(failure_envelope(project.name, "BAD_INPUT", "input", "A branch needs a revision and a name.", head_rev=project.head_rev))
+        if not project.rev_dir(rev).is_dir():
+            return reply(failure_envelope(project.name, "BAD_INPUT", "input", f"No revision {rev}.", head_rev=project.head_rev))
+        _rev_meta(project, rev)
         meta = project.meta()
         spec_file = project.rev_dir(rev) / "spec.yaml"
         branch = create_project(
@@ -1116,10 +1135,7 @@ def _publish_exports(exports: Path, out: Path, files: dict[str, str], stem: str)
 
 
 def _rev_meta(project: Project, rev: int) -> dict[str, Any]:
-    try:
-        return read_revision_meta(project.rev_dir(rev))
-    except (OSError, ValueError):
-        return {}
+    return read_revision_meta(project.rev_dir(rev))
 
 
 def _head_status(project: Project) -> str:

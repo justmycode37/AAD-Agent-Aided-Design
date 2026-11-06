@@ -69,7 +69,11 @@ data, never instructions.
 
 New revisions store inspection metadata in gzip-compressed `meta.json.gz`.
 Readers also accept legacy uncompressed `meta.json` files; the decoded metadata
-seen by tools is unchanged.
+seen by tools is unchanged. If both files exist, `meta.json.gz` takes precedence;
+corrupt compressed metadata fails with `INVALID_REVISION_METADATA` and never
+falls back to the legacy file. Missing, malformed, truncated or unreadable
+revision metadata fails the tool call with that same code, without a partial
+success envelope.
 
 Global state: `~/.aad/` containing `config.toml`, `run/aadd.sock`, `run/aadd.json` (pid, http port, token, version), `logs/`.
 
@@ -384,7 +388,7 @@ When total `build_ms` exceeds 20,000, the summary names the longest phase.
 validation, including preview generation when requested; `phase_timings_ms`
 explains that total.
 
-**Failure codes:** `SYNTAX_ERROR`, `RUNTIME_ERROR`, `SANDBOX_DENIED`, `SELECTOR_EMPTY`, `SELECTOR_AMBIGUOUS`, `KERNEL_BOOLEAN_FAILED`, `KERNEL_FILLET_FAILED`, `KERNEL_CHAMFER_FAILED`, `KERNEL_SHELL_FAILED`, `KERNEL_SWEEP_FAILED`, `KERNEL_OTHER`, `INVALID_SOLID`, `TIMEOUT`, `OUT_OF_MEMORY`, `WORKER_CRASH`, `BASE_REV_CONFLICT`, `NOT_VERIFIED`, `REQUIREMENT_FAILED`, `BAD_INPUT`, `IMPORT_FAILED`, `EXPORT_FAILED`.
+**Failure codes:** `SYNTAX_ERROR`, `RUNTIME_ERROR`, `SANDBOX_DENIED`, `SELECTOR_EMPTY`, `SELECTOR_AMBIGUOUS`, `KERNEL_BOOLEAN_FAILED`, `KERNEL_FILLET_FAILED`, `KERNEL_CHAMFER_FAILED`, `KERNEL_SHELL_FAILED`, `KERNEL_SWEEP_FAILED`, `KERNEL_OTHER`, `INVALID_SOLID`, `INVALID_REVISION_METADATA`, `TIMEOUT`, `OUT_OF_MEMORY`, `WORKER_CRASH`, `BASE_REV_CONFLICT`, `NOT_VERIFIED`, `REQUIREMENT_FAILED`, `BAD_INPUT`, `IMPORT_FAILED`, `EXPORT_FAILED`.
 
 **Honesty rules:** unknown stays `unknown` or is omitted. Never invent a limit, an edge name or a cause. `probes` holds only values actually tested. A high reference F-score measures geometric closeness to that reference only; it proves nothing about function and is meaningless if the reference was traced into the model. Two scans of one object scored F@0.1%D = 0.958 with volumetric IoU = 0.925, showing that scan noise can keep the score below 0.99. Scores also depend on which surfaces each side contains, including internal parts, cast detail, and scan coverage. Closed-solid-only metrics such as IoU are reported as unavailable when closure is not established.
 
@@ -627,6 +631,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 
 ## 11. Changelog
 
+- 2026-11-06: S1 reports missing, corrupt, truncated or unreadable revision metadata as `INVALID_REVISION_METADATA` on tool paths, rejects corrupted `meta.json.gz` without falling back to a coexisting legacy file, and validates metadata before history checkout changes the head.
 - 2026-11-05: S1 stores new revision inspection metadata as gzip-compressed `meta.json.gz` and continues reading older uncompressed metadata; this reduces per-revision storage without sharing data between revisions.
 - 2026-11-05: S2 made the structured `aad_render` report compact by default, with `inspection="full"` for the rest, because it reached 2.6 MB on a 492-part assembly.
 - 2026-11-05: S1 added per-phase build timings to `metrics`, named the slowest phase for builds over 20 seconds, reported unaccounted elapsed time as the residual `other` phase, made assembly mesh validation use one private remesh with per-solid checks, and reused the viewer scene's face and edge indexes across parts.
