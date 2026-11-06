@@ -147,6 +147,8 @@ def test_validator_timeout_keeps_built_revision_metrics_and_rerun_message(tmp_pa
     assert result.ok and result.status == "draft"
     assert result.metrics["solids"] == 1 and result.metrics["valid"] is True
     assert result.metrics["build_ms"] == result.build_ms > 0
+    assert "model" in result.metrics["phase_timings_ms"]
+    assert "other" in result.metrics["phase_timings_ms"]
     assert result.metrics["validation_ms"] == 600_000.0
     assert "ran out of time" in result.summary and "rerun `aad_build`" in result.summary
     assert any(

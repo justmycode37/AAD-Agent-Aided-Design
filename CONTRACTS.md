@@ -378,13 +378,17 @@ type Failure = {
 ```
 
 Build results may include `metrics.phase_timings_ms`, with elapsed milliseconds
-for `model`, `write`, every `gate.<check-id>`, `spec`, `process`, `scene`, and
-`render`. `gate.2d` is used for 2D checks. The parent adds `other` as the
-residual for elapsed time not accounted for by those phases. It can include
-worker launch, protocol exchange, parent-side validation, and other
-uninstrumented work; it does not attribute that time to one cause. Phases that
-do not run may be absent; skipped hard-gate checks have a zero duration.
-When total `build_ms` exceeds 20,000, the summary names the longest phase.
+for worker phases such as `model`, `write`, `gate.<check-id>`, `spec`, `process`,
+`scene`, and `render`; `gate.2d` is used for 2D checks. Trusted 3D builds defer
+validation to the clean parent process, so their worker phase map currently
+contains model and BREP-write timings. The parent adds `other` as the residual
+for elapsed time not accounted for by those phases. It can include worker
+launch, protocol exchange, parent-side validation, and other uninstrumented
+work; it does not attribute that time to one cause. Clean 3D validation reports
+`validation_ms`, `validation_only_ms` and `scene_ms` separately. Phases that do
+not run may be absent; skipped worker hard-gate checks have a zero duration.
+When total `build_ms` exceeds 20,000, the summary names the largest timing entry;
+that can be `other`, which does not identify one cause.
 `metrics.build_ms` is total wall time from worker launch through parent-side
 validation, including preview generation when requested; `phase_timings_ms`
 explains that total.

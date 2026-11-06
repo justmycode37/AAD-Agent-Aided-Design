@@ -257,7 +257,14 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
     return result
 
 
-def _finish_phase_timings(result: BuildResult, elapsed_ms: float, *, preview_ms: float = 0.0) -> None:
+def _finish_phase_timings(
+    result: BuildResult, elapsed_ms: float, *, preview_ms: float = 0.0
+) -> None:
+    if not isinstance(result.metrics, dict):
+        result.metrics = {}
+    result.metrics["build_ms"] = elapsed_ms
+    if result.context is not None:
+        result.context.metrics["build_ms"] = elapsed_ms
     timings = result.metrics.get("phase_timings_ms")
     if not isinstance(timings, dict) or any(
         not isinstance(name, str)
@@ -273,7 +280,9 @@ def _finish_phase_timings(result: BuildResult, elapsed_ms: float, *, preview_ms:
         normalized["render"] = normalized.get("render", 0.0) + preview_ms
     accounted_ms = sum(normalized.values())
     normalized["other"] = max(0.0, elapsed_ms - accounted_ms)
-    normalized = {name: round(milliseconds, 3) for name, milliseconds in normalized.items()}
+    normalized = {
+        name: round(milliseconds, 3) for name, milliseconds in normalized.items()
+    }
     result.metrics["build_ms"] = elapsed_ms
     result.metrics["phase_timings_ms"] = normalized
     if result.context is not None:
@@ -281,7 +290,9 @@ def _finish_phase_timings(result: BuildResult, elapsed_ms: float, *, preview_ms:
         result.context.metrics["phase_timings_ms"] = normalized
     if elapsed_ms > 20_000 and normalized:
         slowest, milliseconds = max(normalized.items(), key=lambda item: item[1])
-        result.summary = f"{result.summary} Slowest phase: {slowest} ({milliseconds / 1000:.1f} s)."
+        result.summary = (
+            f"{result.summary} Slowest phase: {slowest} ({milliseconds / 1000:.1f} s)."
+        )
 
 
 def _coerce_request(req: BuildRequest | Mapping[str, Any]) -> BuildRequest:
@@ -395,6 +406,12 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
                                memory_limit_bytes: int | None = None) -> BuildResult:
     # A model's pipe result is not a trusted validation receipt.
     worker_claimed_verified = result.status == "verified"
+    worker_phase_timings = (
+        dict(result.metrics["phase_timings_ms"])
+        if isinstance(result.metrics, dict)
+        and isinstance(result.metrics.get("phase_timings_ms"), dict)
+        else None
+    )
     result.checks = []
     result.checks_summary = {}
     result.metrics = {}
@@ -898,6 +915,8 @@ def _constrain_worker_evidence(result: BuildResult, job_dir: Path, project_dir: 
             _write_scene_status(result.scene, job_dir)
         except Exception as exc:
             _mark_scene_failure(result, f"{type(exc).__name__}: {exc}", job_dir)
+    if worker_phase_timings is not None:
+        result.metrics["phase_timings_ms"] = worker_phase_timings
     return result
 
 
