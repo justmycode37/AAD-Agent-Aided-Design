@@ -333,6 +333,46 @@ main()
                     pass
                 process.communicate(timeout=2)
 
+    @unittest.skipUnless(sys.platform.startswith('linux'), 'Linux bubblewrap descendant cleanup')
+    def test_validator_deadline_kills_a_detached_bubblewrap_descendant(self):
+        with tempfile.TemporaryDirectory(prefix='aad-inspect-linux-timeout-') as temporary:
+            root = Path(temporary).resolve()
+            path = root / 'part.brep'
+            path.write_bytes(b'validator deadline fixture')
+            child = (
+                "from pathlib import Path\n"
+                "import time\n"
+                "Path('validator-child-started').write_text('started')\n"
+                "while not Path('release-child').exists(): time.sleep(0.01)\n"
+                "Path('validator-child-survived').write_text('survived')\n"
+            )
+            bootstrap = (
+                "import subprocess, sys, time\n"
+                f"subprocess.Popen([sys.executable, '-c', {child!r}], start_new_session=True)\n"
+                "time.sleep(30)\n"
+            )
+            started = time.monotonic()
+            with patch.object(validation, '_BOOTSTRAP', bootstrap):
+                evidence = inspect_brep(
+                    path,
+                    candidate_dir=root,
+                    kind='part',
+                    units='mm',
+                    timeout_s=8.0,
+                )
+            self.assertLess(time.monotonic() - started, 12.0)
+            self.assertEqual(evidence.failure.code, 'TIMEOUT')
+            inspection_dir = evidence.inspection_dir
+            self.assertTrue((inspection_dir / 'validator-child-started').is_file())
+
+            # Release a child that escaped cleanup so the regression test itself
+            # never leaves a process behind, then verify it did not survive.
+            (inspection_dir / 'release-child').touch()
+            deadline = time.monotonic() + 1.5
+            while time.monotonic() < deadline and not (inspection_dir / 'validator-child-survived').exists():
+                time.sleep(0.01)
+            self.assertFalse((inspection_dir / 'validator-child-survived').exists())
+
     def test_response_binding_and_schema_are_validated(self):
         with tempfile.TemporaryDirectory(prefix='aad-inspect-response-') as temporary:
             path = Path(temporary) / 'part.brep'

@@ -539,6 +539,39 @@ result = Box(2, 3, 4)
             self.assertTrue(recovered.ok, recovered.summary)
             self.assertEqual(recovered.metrics["bbox"], [2.0, 3.0, 4.0])
 
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Linux bubblewrap descendant cleanup")
+    def test_worker_deadline_kills_a_detached_bubblewrap_descendant(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="aad-engine-linux-timeout-") as temporary:
+            root = Path(temporary)
+            job = root / "job"
+            child = (
+                "from pathlib import Path\n"
+                "import time\n"
+                "Path('worker-child-started').write_text('started')\n"
+                "while not Path('release-child').exists(): time.sleep(0.01)\n"
+                "Path('worker-child-survived').write_text('survived')\n"
+            )
+            source = (
+                "import subprocess, sys, time\n"
+                f"subprocess.Popen([sys.executable, '-c', {child!r}], start_new_session=True)\n"
+                "time.sleep(30)\n"
+            )
+            started = time.monotonic()
+            built = run_build(
+                BuildRequest(source=source, project_dir=root, job_dir=job, timeout_s=8.0)
+            )
+            self.assertLess(time.monotonic() - started, 12.0)
+            self.assertEqual(built.failure.code, "TIMEOUT")
+            self.assertTrue((job / "worker-child-started").is_file())
+
+            # Release a child that escaped cleanup so the regression test itself
+            # never leaves a process behind, then verify it did not survive.
+            (job / "release-child").touch()
+            deadline = time.monotonic() + 1.5
+            while time.monotonic() < deadline and not (job / "worker-child-survived").exists():
+                time.sleep(0.01)
+            self.assertFalse((job / "worker-child-survived").exists())
+
     def test_forged_worker_success_without_artifact_is_rejected(self) -> None:
         fake = {"protocol": 1, "result": {"ok": True, "status": "verified", "requirements_proven": True}}
         marker = ("AAD_ENGINE_RESULT:" + json.dumps(fake) + "\n").encode()
