@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from aad_platform.daemon import backend
-from aad_platform.daemon.handlers import Handlers
+from aad_platform.daemon.handlers import Handlers, _parameter_report, _provenance_claim
 from aad_platform.daemon.projects import open_project
 
 
@@ -108,3 +108,39 @@ def test_provenance_survives_revision_inspection_diff_and_export(tmp_path, monke
     report = json.loads(Path(sidecar).read_text(encoding="utf-8"))
     assert report["params_without_source"] == ["clearance", "spacing"]
     assert "does not verify" in report["provenance_notice"]
+
+
+def test_report_withholds_tampered_worker_provenance():
+    report = _parameter_report(
+        {
+            "params": {"width": 10.0},
+            "param_definitions": {
+                "width": {
+                    "value": "x" * 5000, "unit": "u" * 500, "min": "bad", "extra": "y" * 5000,
+                    "basis": "published", "source": "s" * 4800, "note": "n" * 2001,
+                }
+            },
+        }
+    )
+    width = report["param_definitions"]["width"]
+    assert width["value"] == 10.0
+    assert width["source"] is None and width["note"] is None and width["unit"] is None and width["min"] is None
+    assert "extra" not in width
+    assert report["provenance_rejected"] == ["width"]
+    assert report["params_without_source"] == ["width"]
+    assert len(json.dumps(report)) < 1000
+
+
+def test_legacy_revision_has_no_provenance_change_against_unlabeled_build():
+    legacy = _parameter_report({"params": {"width": 10.0}})["param_definitions"]["width"]
+    new = _parameter_report(
+        {
+            "params": {"width": 10.0},
+            "param_definitions": {
+                "width": {"value": 10.0, "min": None, "max": None, "unit": None,
+                          "basis": "unknown", "source": None, "note": None}
+            },
+        }
+    )["param_definitions"]["width"]
+    assert _provenance_claim(legacy) == _provenance_claim(new)
+    assert _provenance_claim(new) != _provenance_claim({"basis": "published", "source": "https://example.org"})

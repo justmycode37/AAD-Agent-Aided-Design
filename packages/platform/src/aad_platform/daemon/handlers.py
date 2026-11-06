@@ -588,7 +588,7 @@ class Handlers:
         changed_provenance = {
             k: {"from": old_definitions.get(k), "to": new_definitions.get(k)}
             for k in sorted({*old_definitions, *new_definitions})
-            if old_definitions.get(k) != new_definitions.get(k)
+            if _provenance_claim(old_definitions.get(k)) != _provenance_claim(new_definitions.get(k))
         }
         lines = source.count("\n")
         return reply(
@@ -1157,14 +1157,23 @@ def _rev_meta(project: Project, rev: int) -> dict[str, Any]:
 
 
 _PARAM_BASES = ("published", "measured", "fitted", "assumed", "derived", "unknown")
+_PARAM_SOURCE_MAX_LENGTH = 2048
+_PARAM_NOTE_MAX_LENGTH = 2000
+_PARAM_UNIT_MAX_LENGTH = 64
 _PROVENANCE_NOTICE = (
     "Parameter bases and sources are author claims. AAD does not verify that a source supports its value; "
     "unknown basis is not evidence of a source."
 )
 
 
+def _bounded_text(value: Any, maximum: int) -> str | None:
+    if not isinstance(value, str) or not value.strip() or len(value) > maximum:
+        return None
+    return value
+
+
 def _parameter_report(revision_meta: dict[str, Any]) -> dict[str, Any]:
-    """Build a backward-compatible, bounded-by-model provenance report."""
+    """Build a bounded provenance report; worker-written metadata is untrusted here."""
     params = revision_meta.get("params")
     if not isinstance(params, dict):
         params = {}
@@ -1172,29 +1181,48 @@ def _parameter_report(revision_meta: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(raw_definitions, dict):
         raw_definitions = {}
     definitions: dict[str, dict[str, Any]] = {}
+    rejected: list[str] = []
     for name in sorted({*params, *raw_definitions}):
         raw = raw_definitions.get(name)
-        definition = dict(raw) if isinstance(raw, dict) else {"value": params.get(name)}
-        basis = definition.get("basis")
-        if basis not in _PARAM_BASES:
-            basis = "unknown"
-        source = definition.get("source")
-        if not isinstance(source, str) or not source.strip():
-            source = None
-        definition.update(basis=basis, source=source)
-        definition.setdefault("value", params.get(name))
-        definition.setdefault("note", None)
+        if not isinstance(raw, dict):
+            raw = {}
+        basis = raw.get("basis")
+        source = _bounded_text(raw.get("source"), _PARAM_SOURCE_MAX_LENGTH)
+        note = _bounded_text(raw.get("note"), _PARAM_NOTE_MAX_LENGTH)
+        if (raw.get("source") is not None and source is None) or (raw.get("note") is not None and note is None):
+            rejected.append(name)
+        definition = {
+            "value": params[name] if name in params else raw.get("value"),
+            "basis": basis if basis in _PARAM_BASES else "unknown",
+            "source": source,
+            "note": note,
+        }
+        for bound in ("min", "max"):
+            if bound in raw:
+                value = raw[bound]
+                definition[bound] = value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+        if "unit" in raw:
+            definition["unit"] = _bounded_text(raw["unit"], _PARAM_UNIT_MAX_LENGTH)
         definitions[name] = definition
     counts = {basis: 0 for basis in _PARAM_BASES}
     for definition in definitions.values():
         counts[definition["basis"]] += 1
     missing = [name for name, definition in definitions.items() if definition["source"] is None]
-    return {
+    report = {
         "param_definitions": definitions,
         "param_basis_counts": counts,
         "params_without_source": missing,
         "provenance_notice": _PROVENANCE_NOTICE,
     }
+    if rejected:
+        report["provenance_rejected"] = rejected
+    return report
+
+
+def _provenance_claim(definition: dict[str, Any] | None) -> tuple[Any, Any, Any]:
+    """The fields a provenance diff compares, so legacy records match unlabeled new ones."""
+    definition = definition or {}
+    return definition.get("basis", "unknown"), definition.get("source"), definition.get("note")
 
 
 def _parameter_summary(counts: dict[str, int], missing: list[str]) -> str:
