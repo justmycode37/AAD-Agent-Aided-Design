@@ -155,6 +155,10 @@ TOOLS: list[dict[str, Any]] = [
                 },
                 "preview": {"type": "boolean", "description": "Add a 4-up image. Default false."},
                 "dry_run": {"type": "boolean", "description": "Full build and checks, no new head."},
+                "part_cache": {
+                    "type": "boolean",
+                    "description": "False rebuilds every cached_part() without using the cache. Default true.",
+                },
                 "wait_s": {"type": "number", "minimum": 0, "description": "Seconds to wait. Default 30."},
                 "timeout_s": {
                     "type": "number",
