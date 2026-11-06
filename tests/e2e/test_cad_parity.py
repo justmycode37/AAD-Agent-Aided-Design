@@ -150,6 +150,7 @@ def test_2d_bbox_requirements_use_measured_sheet_geometry(mcp_process: Any, widt
     else:
         check = next(item for item in result["checks"] if item["id"] == "size")
         assert check["status"] == expected_status
+        assert result["failure"]["code"] == "REQUIREMENT_FAILED"
 
 
 def test_2d_hole_mismatch_fails_and_unsupported_type_skips(mcp_process: Any) -> None:

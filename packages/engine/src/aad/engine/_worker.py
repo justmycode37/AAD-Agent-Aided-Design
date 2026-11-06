@@ -626,7 +626,8 @@ def _finish_sheet(
         stderr=stderr_stream.getvalue(),
     )
     if failing is not None:
-        result.failure = Failure(code="NOT_VERIFIED", phase="validate", message=result.summary,
+        code = "REQUIREMENT_FAILED" if failing.suite in {"spec", "process"} else "HARD_GATE_FAILED"
+        result.failure = Failure(code=code, phase="validate", message=result.summary,
                                  feature=failing.feature, file=source_path.name)
     result.checks_summary = _checks_summary(checks)
     return _result_wire(result)
