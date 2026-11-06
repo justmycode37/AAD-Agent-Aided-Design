@@ -594,7 +594,7 @@ Drafts need `allow_unverified`. Their files get `-UNVERIFIED` in the name, and y
 ```
 <project>/
   project.json   model.py   spec.yaml   request.json   exports/   imports/
-  .aad/revs/000007/   immutable: model.py, spec, request.json, meta, part.brep, scene
+  .aad/revs/000007/   immutable: model.py, spec, request.json, compressed metadata, part.brep, scene
 ```
 
 Revisions never change. A failed build leaves the head alone. Use `checkout` to go back, and `branch` to try something else in a new project.

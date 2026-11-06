@@ -64,6 +64,8 @@ def test_request_capture_is_saved_and_reviewed_through_revisions(tmp_path, monke
 
     first = _call(handler, "aad_build", {"project": "plate", "source": "result = Box(60, 40, 6)\n"})
     assert first["rev"] == 1
+    assert (project.rev_dir(1) / "meta.json.gz").is_file()
+    assert not (project.rev_dir(1) / "meta.json").exists()
     assert json.loads((project.rev_dir(1) / "request.json").read_text()) == original
     assert any("hole_count" in hint and "covers link" in hint for hint in first["next"])
     assert any("Open questions still open: 1" in hint for hint in first["next"])

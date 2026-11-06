@@ -117,13 +117,15 @@ The guide agents read is `skills/aad/SKILL.md`, which `aad_library` also serves 
   request.json             original wording, assumptions, questions, unchecked items
   exports/                 files for the user
   .aad/
-    revs/000007/           model.py, spec, request.json, meta.json, part.brep, scene
+    revs/000007/           model.py, spec, request.json, meta.json.gz, part.brep, scene
     jobs/                  job directories, the only place sandboxed code may write
 
 ~/.aad/                    config, daemon socket and token, logs, project index
 ```
 
 `model.py` is the source of truth. It is ordinary build123d Python plus AAD's helpers (`params`, `feature`, `part`, `meta`, selectors, gears), and it must not do I/O. Each build reruns the whole script.
+
+New revisions store inspection metadata as gzip-compressed `meta.json.gz`; readers also accept the uncompressed `meta.json` written by older revisions.
 
 ## Why it is built this way
 
