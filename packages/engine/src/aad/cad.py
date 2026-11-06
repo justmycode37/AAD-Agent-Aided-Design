@@ -54,12 +54,14 @@ def configure_assets(directory: Path | None, units: str = "mm") -> None:
 
 
 def asset(name: str, *, source_units: str | None = None) -> Any:
-    """Load a file added with ``aad_import``: STEP, IGES, BREP, STL, or DXF/SVG as a Sheet2D.
+    """Load a file added with ``aad_import``: STEP, IGES, BREP, STL, or DXF/SVG as Imported2D.
 
     Files are copied into the job before the sandboxed build starts, and this is the only
     file access model code has. Geometry is converted into the project's units. STEP and
     IGES declare their own. For BREP, STL, DXF and SVG, ``source_units`` states what the
     file's numbers mean, and defaults to mm for BREP and STL and to the project's for sheets.
+    Convert a DXF/SVG ``Imported2D`` to a ``Sheet2D`` with ``.to_sheet()`` before using it
+    as the result of a 2D project.
     """
     if not isinstance(name, str) or not _ASSET_NAME.fullmatch(name) or name in {".", ".."}:
         raise CadOperationError(f"Asset name {name!r} must be a plain file name from aad_import.")
