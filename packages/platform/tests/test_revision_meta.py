@@ -19,6 +19,25 @@ def test_revision_metadata_is_gzipped_and_round_trips(tmp_path):
     assert read_revision_meta(tmp_path) == value
 
 
+def test_revision_metadata_preserves_validator_receipt_fields(tmp_path):
+    value = {
+        "status": "verified",
+        "metrics": {"volume": 125},
+        "verification_receipt": {
+            "rev": 7,
+            "brep_sha256": "brep-hash",
+            "project_settings": {"units": "mm", "process": {"material": "steel"}},
+            "requirement_results": [{"id": "size", "status": "pass"}],
+            "proven_error_requirement_ids": ["size"],
+            "revision_evidence_sha256": "evidence-hash",
+        },
+    }
+
+    write_revision_meta(tmp_path, value)
+
+    assert read_revision_meta(tmp_path) == value
+
+
 def test_revision_metadata_reads_legacy_json(tmp_path):
     value = {"features": [], "status": "draft"}
     (tmp_path / "meta.json").write_text(json.dumps(value), encoding="utf-8")
