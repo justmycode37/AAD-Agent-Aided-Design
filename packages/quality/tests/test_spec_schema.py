@@ -250,3 +250,39 @@ def test_subsystem_text_and_encoded_payload_have_capture_style_limits():
     many = [{**base, "id": f"subsystem_{index}", "purpose": "x" * 2000} for index in range(40)]
     with pytest.raises(SpecValidationError, match="64 KiB"):
         load_spec({"requirements": [], "subsystems": many})
+
+
+def test_subsystem_evidence_ids_use_the_identifier_limit():
+    base = {"id": "drive", "purpose": "turn", "parts": ["motor"], "interfaces": [], "status": "modeled"}
+    with pytest.raises(SpecValidationError):
+        load_spec({"requirements": [], "subsystems": [{**base, "evidence": ["x" * 201]}]})
+
+
+def test_subsystem_review_withholds_oversized_text():
+    from aad_quality.spec import subsystem_review
+
+    subsystem = {
+        "id": "drive", "purpose": "turn", "parts": [], "interfaces": [], "evidence": [],
+        "status": "not_modeled", "reason": "x" * 70_000,
+    }
+    review = subsystem_review({"subsystems": [subsystem]}, [], is_assembly=True)
+    assert "invalid" in review["hint"]
+    assert "x" * 2_001 not in json.dumps(review)
+
+
+@pytest.mark.parametrize("declared, expected", [("modeled", "fail"), ("not_modeled", "skip")])
+def test_interface_with_an_unknown_endpoint_is_not_a_pass(declared, expected):
+    from aad_quality.spec import subsystem_checks
+
+    subsystem = {
+        "id": "drive", "purpose": "turn", "parts": ["base"], "evidence": ["count"], "status": declared,
+        "reason": "planned",
+        "interfaces": [{"id": "mount", "kind": "bolted", "between": ["base", "ghost"], "requirements": ["count"]}],
+    }
+    ctx = SimpleNamespace(
+        shape=None, features=[SimpleNamespace(name="base", intent=None)], assembly=None, meta={}, units="mm",
+    )
+    checks = subsystem_checks({"subsystems": [subsystem]}, [{"id": "count", "status": "pass"}], ctx)
+    interface = next(check for check in checks if "mount" in (check["id"] if isinstance(check, dict) else check.id))
+    status = interface["status"] if isinstance(interface, dict) else interface.status
+    assert status == expected

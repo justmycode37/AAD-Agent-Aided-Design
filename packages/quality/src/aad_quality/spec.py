@@ -9,7 +9,14 @@ import re
 from typing import Any
 
 from ._checks import finite, make_check, mm_per_unit, record
-from .schema import NumericRange, SpecIssue, load_spec, parse_numeric_range, parse_spec_for_checks
+from .schema import (
+    NumericRange,
+    SpecIssue,
+    _validate_subsystems,
+    load_spec,
+    parse_numeric_range,
+    parse_spec_for_checks,
+)
 from . import spec_geometry as geometry
 
 
@@ -1032,7 +1039,14 @@ def subsystem_checks(document: dict[str, Any], requirement_checks: list[Any], ct
             interface_id = interface["id"]
             evidence = interface.get("requirements") if isinstance(interface.get("requirements"), list) else []
             evidence_status, failed_ids, unknown_ids = _evidence_result(evidence, checks_by_id)
-            if evidence_status == "fail":
+            between = interface.get("between") if isinstance(interface.get("between"), list) else []
+            missing_endpoints = [label for label in between if isinstance(label, str) and label not in labels]
+            if missing_endpoints:
+                # A subsystem declared not modeled is not expected to have this geometry.
+                evidence_status = "skip" if declared_status == "not_modeled" else "fail"
+                interface_message = f"Interface {interface_id!r} names labels that do not match model geometry."
+                interface_actual = "unmatched geometry label(s): " + ", ".join(missing_endpoints)
+            elif evidence_status == "fail":
                 interface_message = f"Interface {interface_id!r} has failed evidence requirement(s): {', '.join(failed_ids)}."
                 interface_actual = "failed linked requirement check(s)"
             elif evidence_status == "skip":
@@ -1119,6 +1133,9 @@ def subsystem_review(
     subsystems = spec.get("subsystems") if isinstance(spec, dict) else None
     if not isinstance(subsystems, list) or not subsystems:
         return {"hint": "Assembly has no subsystem breakdown; add spec.subsystems to review its functional structure."} if is_assembly else None
+    if _validate_subsystems(subsystems):
+        # Keep oversized or malformed untrusted text out of agent-facing results.
+        return {"hint": "spec.subsystems is invalid, so it is not reported here; run the spec checks for details."}
 
     checks_by_id: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for check in checks or []:

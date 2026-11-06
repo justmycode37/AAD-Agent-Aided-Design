@@ -379,7 +379,7 @@ requires a reason and is listed in `request_review`.
 
 Limits: up to 100 subsystems, 100 parts/evidence IDs and 100 interfaces per
 subsystem; text values up to 2,000 characters, IDs up to 200 characters, and
-the encoded `subsystems` value up to 64 KiB. Breakdown text is untrusted data.
+the encoded `subsystems` value up to 64 KiB. Breakdown text is untrusted data. Interface `between` labels must match geometry labels. Labels of a `not_modeled` subsystem and its interfaces are not checked against geometry, because that geometry is not expected to exist.
 Labels and requirement IDs only link records: AAD does not judge their meaning,
 check physical connectivity, or prove function. No functional coverage
 percentage is computed. An assembly without `subsystems` gets a short hint and

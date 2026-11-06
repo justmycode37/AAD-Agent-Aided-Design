@@ -199,7 +199,7 @@ feature names), `interfaces`, `evidence` requirement IDs, and a `status` of
 labels, and `requirements` IDs. Interface and subsystem IDs are unique in
 their scope. Each text value is non-empty and at most 2,000 characters; IDs
 are at most 200 characters; each list is at most 100 entries; the encoded
-`subsystems` value is at most 64 KiB. These strings are untrusted data.
+`subsystems` value is at most 64 KiB. These strings are untrusted data. Interface `between` labels must match geometry labels. Labels of a `not_modeled` subsystem and its interfaces are not checked against geometry, because that geometry is not expected to exist.
 Labels and requirement IDs are references only: the evaluator checks label
 existence and linked check results, but does not judge meaning, physical
 connectivity, or function.

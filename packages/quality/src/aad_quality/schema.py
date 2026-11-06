@@ -552,13 +552,19 @@ def _breakdown_text(value: Any, path: tuple[str | int, ...], *, identifier: bool
     return value
 
 
-def _breakdown_string_list(value: Any, path: tuple[str | int, ...], *, allow_empty: bool = True) -> list[str]:
+def _breakdown_string_list(
+    value: Any,
+    path: tuple[str | int, ...],
+    *,
+    allow_empty: bool = True,
+    identifier: bool = False,
+) -> list[str]:
     if not isinstance(value, list) or len(value) > SUBSYSTEM_ITEM_LIMIT:
         raise ValueError(f"{_path_text(path)} must be a list of at most {SUBSYSTEM_ITEM_LIMIT} strings")
     if not allow_empty and not value:
         raise ValueError(f"{_path_text(path)} must contain at least one string")
     for index, item in enumerate(value):
-        _breakdown_text(item, path + (index,))
+        _breakdown_text(item, path + (index,), identifier=identifier)
     return value
 
 
@@ -600,7 +606,7 @@ def _validate_subsystems(value: Any) -> tuple[SpecIssue, ...]:
             seen_subsystems.add(subsystem_id)
             _breakdown_text(raw["purpose"], item_path + ("purpose",))
             _breakdown_string_list(raw["parts"], item_path + ("parts",))
-            evidence = _breakdown_string_list(raw["evidence"], item_path + ("evidence",))
+            evidence = _breakdown_string_list(raw["evidence"], item_path + ("evidence",), identifier=True)
             if len(set(evidence)) != len(evidence):
                 raise ValueError(f"{_path_text(item_path)}.evidence must not contain duplicates")
 
@@ -634,7 +640,7 @@ def _validate_subsystems(value: Any) -> tuple[SpecIssue, ...]:
                 between = _breakdown_string_list(interface["between"], interface_path + ("between",), allow_empty=False)
                 if len(between) != 2:
                     raise ValueError(f"{_path_text(interface_path)}.between must contain exactly two labels")
-                requirements = _breakdown_string_list(interface["requirements"], interface_path + ("requirements",))
+                requirements = _breakdown_string_list(interface["requirements"], interface_path + ("requirements",), identifier=True)
                 if len(set(requirements)) != len(requirements):
                     raise ValueError(f"{_path_text(interface_path)}.requirements must not contain duplicates")
         except (ValueError, TypeError) as exc:
