@@ -26,18 +26,37 @@ of the same part measured 281 ms. Reproduce with
 uses geometry nothing has seen, because repeating a part measures OCCT's and ocp-tessellate's mesh caches. `make_scene`
 clears ocp-tessellate's cache itself, so a reloaded revision gets the same bytes and feature map as the first build.
 
-Both run inside kernel workers. `import aad_render` stays cheap; kernel and renderer imports happen on first use.
+`make_scene` runs in a kernel worker; `render` does too, with 3D VTK drawing in a separate one-shot
+worker. `import aad_render` stays cheap; kernel and renderer imports happen on first use.
+
+On local macOS and Linux installs, a 3D `render` operation parses the B-rep and computes its
+inspection report in the OS-sandboxed worker. It serializes only the tessellated render scene and
+the view/annotation inputs to a one-shot VTK process outside the sandbox; that process writes the
+PNGs and returns pixel visibility metadata. The VTK process does not receive a project, revision or
+B-rep path. Check, measure, query, export, drawing and 2D preview operations continue to run under
+the normal sandbox policy; remote mode still refuses rendering.
+
+The transport helpers `prepare_render(ctx, req)`, `render_mesh(payload, out)`, and
+`finish_render(prepared, rendered, out)` split exact preparation from VTK rendering. They exchange
+a compact JSON header and bounded binary geometry arrays so callers can keep B-rep parsing inside a
+stronger process boundary without expanding mesh numbers into decimal JSON.
 
 `render(ctx, req, out)` writes PNG images and `inspection.json` under an output directory and
 returns all their paths. With labels it also returns `labels.json`. Callers must distinguish
 PNG and JSON files. The `aad_render` MCP tool returns the report in `inspection`, the label
 legend in `labels`, and paths in `artifacts`; only PNG files become image content blocks.
+The output directory and any existing render artifact must not be symlinks.
 Install the optional `aad-render[vtk]` extra for the production backend. The context needs a
 build123d shape, units, and optional feature metadata; both dictionaries and objects are accepted.
 Requests accept the fields below and size (1–2048 pixels for Python, 64–2048 for MCP, default
 1024). A sheet is one square image containing front, right, top,
 and isometric panes. Below 64 pixels it uses a single isometric view because annotations and a
 four-pane layout do not fit.
+
+3D renders are bounded to a 384 MiB mesh payload, 8 million vertices, 12 million triangles,
+50,000 labels, 50,000 probes, 50,000 measurements and 32 MiB per PNG. Overlay text is limited to
+4,096 characters. A request that exceeds a render limit fails in the render phase; it does not
+modify the saved revision or its B-rep.
 
 Representative output from `examples/agent_renders.py`: [dimensioned housing sheet](examples/images/housing-sheet.png),
 [capped section](examples/images/housing-section.png), and [sampled wall thickness](examples/images/housing-thickness.png).

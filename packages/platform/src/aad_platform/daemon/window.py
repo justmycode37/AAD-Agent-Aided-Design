@@ -11,9 +11,10 @@ import re
 import secrets
 import socket
 import webbrowser
-from pathlib import Path
 from typing import Any, Awaitable, Callable
 from urllib.parse import quote
+
+from ..image_payload import read_render_image
 
 _PROJECT_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z")
 _ALLOWED_RPC_METHODS = frozenset(
@@ -415,7 +416,7 @@ class WindowServer:
             content.append(
                 {
                     "type": "image",
-                    "data": base64.b64encode(Path(image["path"]).read_bytes()).decode("ascii"),
+                    "data": base64.b64encode(read_render_image(image["path"])).decode("ascii"),
                     "mimeType": image.get("mime", "image/png"),
                 }
             )

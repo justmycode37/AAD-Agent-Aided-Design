@@ -19,6 +19,7 @@ from mcp.server.stdio import stdio_server
 
 from . import __version__, paths, viewer
 from .daemon_ctl import spawn_daemon
+from .image_payload import read_render_image
 from .rpc import INVALID_PARAMS, PROTOCOL, RpcClient, RpcError
 from .tools import INSTRUCTIONS, TOOL_NAMES, TOOLS, UI_EXTENSION, VIEWER_MIME, VIEWER_URI
 
@@ -126,7 +127,7 @@ async def _roots(ctx: ServerRequestContext[Any], cache: dict[str, str | None]) -
 def _result(reply: dict[str, Any]) -> types.CallToolResult:
     content: list[Any] = [types.TextContent(type="text", text=reply.get("text", ""))]
     for image in reply.get("images") or []:
-        data = base64.b64encode(Path(image["path"]).read_bytes()).decode("ascii")
+        data = base64.b64encode(read_render_image(image["path"])).decode("ascii")
         content.append(types.ImageContent(type="image", data=data, mime_type=image.get("mime", "image/png")))
     structured = reply.get("structured")
     is_error = isinstance(structured, dict) and structured.get("ok") is False

@@ -21,13 +21,13 @@ class RenderFace:
     section_cap: bool = False
     highlighted: bool = False
     color: RGB = (194, 201, 208)
-    triangle_colors: tuple[RGB, ...] = ()
+    triangle_colors: Any = ()  # Optional N x 3 uint8 colors, one per triangle
     uv: Any = None  # N x 2 surface parameters of points, when the kernel gave them
 
 
 @dataclass(slots=True)
 class RenderLine:
-    points: tuple[Vec3, ...]
+    points: Any  # N x 3 floats
     role: str = "edge"  # edge, tangent, seam or hatch
     index: int | None = None
     source_index: int | None = None

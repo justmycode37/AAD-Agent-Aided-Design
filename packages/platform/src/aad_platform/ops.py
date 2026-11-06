@@ -12,14 +12,16 @@ import importlib
 import json
 import os
 import shutil
+import stat
 import sys
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from numbers import Real
 from pathlib import Path
 from typing import Any
 
 RESULT_MARKER = b"AAD_OPS_RESULT:"
 NOT_READY = "NOT_READY"
+PREPARED_RENDER_FILENAME = "prepared-render.bin"
 
 
 class OpFailure(Exception):
@@ -153,21 +155,119 @@ def op_render(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
     if ctx.kind == "2d":
         return _sheet_preview(ctx, out)
     render = _required("aad_render", "render", "Agent rendering")
+    request = _render_request(args)
+    paths = render(ctx, request, out)
+    return _render_result(paths)
+
+
+def op_render_prepare(ctx: Any, args: dict[str, Any], _out: Path) -> dict[str, Any]:
+    """Prepare 3D render data while the B-rep is still inside the sandbox."""
+    if ctx.kind == "2d":
+        raise ValueError("2D sheet previews do not use the 3D mesh render worker")
+    prepare_render = _required("aad_render", "prepare_render", "Agent render preparation")
+    prepared = prepare_render(ctx, _render_request(args))
+    from aad_render.render_limits import (
+        MAX_INSPECTION_JSON_BYTES,
+        MAX_PREPARED_RENDER_BYTES,
+        MAX_RENDER_PAYLOAD_BYTES,
+        json_size_limited,
+    )
+    from aad_render.render_wire import pack_render_payload
+
+    if not isinstance(prepared, dict) or set(prepared) != {"version", "render", "inspection"}:
+        raise ValueError("render preparation returned a malformed bundle")
+    json_size_limited(prepared["inspection"], MAX_INSPECTION_JSON_BYTES, "render inspection")
+    render_wire = pack_render_payload(prepared["render"])
+    if render_wire.size > MAX_RENDER_PAYLOAD_BYTES:
+        raise ValueError(f"render payload exceeds the {MAX_RENDER_PAYLOAD_BYTES}-byte limit")
+
+    # The packed mesh bypasses worker stdout and the parent's JSON decoder.
+    # The fixed sidecar lives in the operation's write-only job directory;
+    # stdout returns only the exact report and request needed to finish it.
+    render_request = prepared["render"].get("request")
+    if not isinstance(render_request, dict):
+        raise ValueError("render preparation returned no render request")
+    metadata = {
+        "version": prepared["version"],
+        "render": {"request": render_request},
+        "inspection": prepared["inspection"],
+        "render_payload_file": PREPARED_RENDER_FILENAME,
+    }
+    json_size_limited(metadata, MAX_PREPARED_RENDER_BYTES, "prepared render result")
+    _write_prepared_render_payload(_out, render_wire.iter_bytes())
+    return {"prepared_render": metadata}
+
+
+def _write_prepared_render_payload(out: Path, chunks: bytes | Iterable[bytes | memoryview]) -> None:
+    """Create the fixed mesh sidecar without following or replacing a link."""
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    if nofollow is None:
+        raise ValueError("safe render payload writes require O_NOFOLLOW support")
+    path = Path(out) / PREPARED_RENDER_FILENAME
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow, 0o600)
+    try:
+        for chunk in (chunks,) if isinstance(chunks, bytes) else chunks:
+            remaining = memoryview(chunk)
+            while remaining:
+                written = os.write(fd, remaining)
+                if written <= 0:
+                    raise OSError("could not write the prepared render payload")
+                remaining = remaining[written:]
+    except BaseException:
+        os.close(fd)
+        path.unlink(missing_ok=True)
+        raise
+    else:
+        os.close(fd)
+
+
+def _render_request(args: dict[str, Any]) -> Any:
     from aad.engine.types import RenderRequest
 
     known = {f.name for f in dataclasses.fields(RenderRequest)}
-    request = RenderRequest(**{k: v for k, v in args.items() if k in known and v is not None})
-    paths = render(ctx, request, out)
+    return RenderRequest(**{k: v for k, v in args.items() if k in known and v is not None})
+
+
+def _render_result(paths: list[Path]) -> dict[str, Any]:
+    from aad_render.render_limits import MAX_INSPECTION_JSON_BYTES, MAX_LABELS_JSON_BYTES
+
     artifacts = {path.name: str(path) for path in paths}
     result = {
         "images": [{"path": str(path), "mime": "image/png"} for path in paths if path.suffix == ".png"],
         "artifacts": artifacts,
     }
     if "inspection.json" in artifacts:
-        result["inspection"] = json.loads(Path(artifacts["inspection.json"]).read_text())
+        result["inspection"] = _read_limited_json(Path(artifacts["inspection.json"]), MAX_INSPECTION_JSON_BYTES)
     if "labels.json" in artifacts:
-        result["labels"] = json.loads(Path(artifacts["labels.json"]).read_text())
+        result["labels"] = _read_limited_json(Path(artifacts["labels.json"]), MAX_LABELS_JSON_BYTES)
     return result
+
+
+def _read_limited_json(path: Path, maximum: int) -> Any:
+    """Read a renderer artifact without following symlinks or trusting its length."""
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    if nofollow is None:
+        raise ValueError("safe render artifact reads require O_NOFOLLOW support")
+    fd = os.open(path, os.O_RDONLY | nofollow)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > maximum:
+            raise ValueError(f"render artifact {path.name!r} is not a regular file within its size limit")
+        chunks = bytearray()
+        while len(chunks) <= maximum:
+            chunk = os.read(fd, min(64 * 1024, maximum + 1 - len(chunks)))
+            if not chunk:
+                break
+            chunks.extend(chunk)
+        if len(chunks) > maximum:
+            raise ValueError(f"render artifact {path.name!r} exceeds the {maximum}-byte limit")
+        return json.loads(bytes(chunks), parse_constant=_reject_json_constant)
+    finally:
+        os.close(fd)
+
+
+def _reject_json_constant(token: str) -> None:
+    raise ValueError(f"non-finite JSON number {token} is not allowed")
 
 
 def op_scene(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
@@ -528,6 +628,7 @@ def op_library(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
 
 OPS: dict[str, Callable[[Any, dict[str, Any], Path], dict[str, Any]]] = {
     "render": op_render,
+    "render_prepare": op_render_prepare,
     "scene": op_scene,
     "drawing": op_drawing,
     "check": op_check,
@@ -566,7 +667,12 @@ def main() -> int:
             payload = CONTEXT_FREE[op](None, dict(request["args"]), out)
         else:
             payload = OPS[op](load_context(request), dict(request["args"]), out)
-        result: dict[str, Any] = {"ok": True, **_plain(payload)}
+        if op == "render_prepare":
+            if not isinstance(payload, dict):
+                raise ValueError("render preparation returned a malformed result")
+            result: dict[str, Any] = {"ok": True, **payload}
+        else:
+            result = {"ok": True, **_plain(payload)}
     except OpFailure as exc:
         result = {"ok": False, "failure": exc.failure}
     except ImportError as exc:
@@ -576,7 +682,7 @@ def main() -> int:
         }
     except Exception as exc:
         result = {"ok": False, "failure": _classify(exc)}
-    os.write(protocol, RESULT_MARKER + json.dumps(result, default=str).encode() + b"\n")
+    os.write(protocol, RESULT_MARKER + json.dumps(result, default=str, separators=(",", ":")).encode() + b"\n")
     return 0
 
 

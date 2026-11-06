@@ -256,6 +256,19 @@ for op in [lambda: Path({str(self.secret)!r}).read_text(), lambda: Path({str(sel
         self.assertEqual(result.stdout.splitlines(), ['denied', 'denied'])
         self.assertEqual(self.secret.read_text(), 'outside-fixture')
 
+    def test_host_home_directory_is_not_readable(self) -> None:
+        home = Path.home().resolve()
+        if home == self.job:
+            self.skipTest("the sandbox fixture is also the host home directory")
+        source = f'''from pathlib import Path
+try: list(Path({str(home)!r}).iterdir())
+except PermissionError: print('denied')
+else: raise RuntimeError('host home directory was readable')
+'''
+        result = self.run_script(source)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), 'denied')
+
     def test_symlink_and_hardlink_escapes_are_denied(self) -> None:
         (self.job/'link').symlink_to(self.secret)
         source = f'''from pathlib import Path

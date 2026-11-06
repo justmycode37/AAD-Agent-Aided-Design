@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import ctypes.util
+import importlib
 import os
 import sys
+from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
@@ -66,12 +68,38 @@ class VtkBackend:
     def __init__(self) -> None:
         prepare_headless_gl()
         try:
-            import vtk
+            from vtkmodules.vtkCommonCore import VTK_UNSIGNED_CHAR, vtkFloatArray, vtkPoints
+            from vtkmodules.vtkCommonDataModel import vtkCellArray, vtkPlane, vtkPolyData
+            from vtkmodules.vtkFiltersCore import vtkPolyDataNormals
+            from vtkmodules.vtkRenderingCore import (
+                vtkActor,
+                vtkLight,
+                vtkPolyDataMapper,
+                vtkRenderWindow,
+                vtkRenderer,
+                vtkWindowToImageFilter,
+            )
+
+            importlib.import_module("vtkmodules.vtkRenderingOpenGL2")
         except ImportError as exc:  # pragma: no cover - depends on optional extra
             raise RuntimeError(
                 "VTK rendering requires the optional aad-render[vtk] extra"
             ) from exc
-        self._vtk = vtk
+        self._vtk = SimpleNamespace(
+            VTK_UNSIGNED_CHAR=VTK_UNSIGNED_CHAR,
+            vtkActor=vtkActor,
+            vtkCellArray=vtkCellArray,
+            vtkFloatArray=vtkFloatArray,
+            vtkLight=vtkLight,
+            vtkPlane=vtkPlane,
+            vtkPoints=vtkPoints,
+            vtkPolyData=vtkPolyData,
+            vtkPolyDataMapper=vtkPolyDataMapper,
+            vtkPolyDataNormals=vtkPolyDataNormals,
+            vtkRenderWindow=vtkRenderWindow,
+            vtkRenderer=vtkRenderer,
+            vtkWindowToImageFilter=vtkWindowToImageFilter,
+        )
 
     def render(
         self,
@@ -166,7 +194,7 @@ class VtkBackend:
 
     def _depth(self, window: Any, width: int, height: int) -> Any:
         """Depth left by the last pass. It stays readable after that pass's renderer is removed."""
-        from vtk.util.numpy_support import vtk_to_numpy
+        from vtkmodules.util.numpy_support import vtk_to_numpy
 
         buffer = self._vtk.vtkFloatArray()
         window.GetZbufferData(0, 0, int(width) - 1, int(height) - 1, buffer)
@@ -343,7 +371,7 @@ class VtkBackend:
             self._add_lights(renderer, camera, scene)
 
     def _capture(self, window: Any, width: int, height: int) -> Any:
-        from vtk.util.numpy_support import vtk_to_numpy
+        from vtkmodules.util.numpy_support import vtk_to_numpy
 
         window.Render()
         capture = self._vtk.vtkWindowToImageFilter()
@@ -358,7 +386,7 @@ class VtkBackend:
         return np.ascontiguousarray(np.flipud(pixels))
 
     def _surface_polydata(self, scene: RenderScene) -> Any:
-        from vtk.util.numpy_support import numpy_to_vtk, numpy_to_vtkIdTypeArray
+        from vtkmodules.util.numpy_support import numpy_to_vtk, numpy_to_vtkIdTypeArray
 
         vtk = self._vtk
         all_points, all_cells, all_colors, all_ids = [], [], [], []
@@ -394,7 +422,7 @@ class VtkBackend:
         return polydata
 
     def _polylines(self, lines: list[tuple[Any, tuple[int, int, int]]]) -> Any:
-        from vtk.util.numpy_support import numpy_to_vtk
+        from vtkmodules.util.numpy_support import numpy_to_vtk
 
         vtk = self._vtk
         points = vtk.vtkPoints()
