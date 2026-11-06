@@ -401,7 +401,9 @@ TOOLS: list[dict[str, Any]] = [
         "name": "aad_library",
         "description": (
             "Look up real purchasable components (screws, bearings, transistors, motors, connectors and more), "
-            "materials, playbooks and API docs. search returns five at a time; pass offset for more. "
+            "materials, playbooks and API docs. Search returns five at a time; pass offset for more. "
+            "Component partial results require meaningful term overlap and are relevance-ranked; if none qualify, "
+            "the result says so and suggests kind=material when the query matches a known material name or alias. "
             "check validates a bill of materials in items. The aad.guide.v1 playbook returns a short core by default; "
             "use section for one heading or all for the complete guide."
         ),
