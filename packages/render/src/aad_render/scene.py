@@ -468,26 +468,42 @@ def _assert_finite_scene_data(value: Any) -> None:
     import numpy as np
 
     pending = [value]
+    seen_containers: set[int] = set()
     while pending:
         item = pending.pop()
+        if isinstance(item, np.ndarray):
+            identity = id(item)
+            if identity in seen_containers:
+                continue
+            seen_containers.add(identity)
+            if item.dtype.kind in "fc" and not bool(np.isfinite(item).all()):
+                raise ValueError("scene tessellation produced a non-finite coordinate")
+            if item.dtype.kind == "O":
+                pending.extend(item.flat)
+            continue
         if isinstance(item, Mapping):
+            identity = id(item)
+            if identity in seen_containers:
+                continue
+            seen_containers.add(identity)
             pending.extend(item.values())
         elif isinstance(item, (list, tuple)):
+            identity = id(item)
+            if identity in seen_containers:
+                continue
+            seen_containers.add(identity)
             pending.extend(item)
         elif isinstance(item, (float, np.floating)):
             if not math.isfinite(float(item)):
-                raise ValueError("scene tessellation produced a non-finite coordinate")
-        elif isinstance(item, np.ndarray):
-            if item.dtype.kind in "fc" and not bool(np.isfinite(item).all()):
                 raise ValueError("scene tessellation produced a non-finite coordinate")
         else:
             scalar = getattr(item, "item", None)
             if callable(scalar):
                 try:
-                    value = scalar()
+                    scalar_value = scalar()
                 except (TypeError, ValueError):
                     continue
-                if isinstance(value, (float, np.floating)) and not math.isfinite(float(value)):
+                if isinstance(scalar_value, (float, np.floating)) and not math.isfinite(float(scalar_value)):
                     raise ValueError("scene tessellation produced a non-finite coordinate")
 
 
@@ -618,7 +634,6 @@ def _write_single_scene(ctx: Any, out: Path) -> tuple[Any, dict[str, Any]]:
         sort_keys=True,
         separators=(",", ":"),
         allow_nan=False,
-    )
     ).encode("utf-8")
     compressed = gzip.compress(payload, compresslevel=6, mtime=0)
 
