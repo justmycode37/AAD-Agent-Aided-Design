@@ -34,6 +34,7 @@ def test_every_standard_part_family_generates_a_scene_over_stdio(mcp_process):
 result = make_part({entry['id']!r}{', ' if arguments else ''}{arguments})
 """
         built = call("aad_build", project=project, source=source, wait_s=200)
+        assert built.get("ok"), (entry["id"], built)
         scene_failures = [
             check for check in built.get("checks", [])
             if check["id"] == "scene_generation_failed"

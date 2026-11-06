@@ -1097,7 +1097,7 @@ def _step_volume_check(ctx: ModelContext, tolerance: GateTolerances, unit_scale:
         f"{_fmt(threshold_rel)} × source volume)"
     )
     try:
-        from build123d import Unit, export_step
+        from build123d import PrecisionMode, Unit, export_step
 
         source_volume = fsum(float(solid.volume) for solid in ctx.shape.solids()) * unit_scale**3
         if not isfinite(source_volume):
@@ -1114,7 +1114,12 @@ def _step_volume_check(ctx: ModelContext, tolerance: GateTolerances, unit_scale:
         unit = Unit.IN if ctx.units == "in" else Unit.MM
         with tempfile.TemporaryDirectory(prefix="aad-gate-", dir=job_dir) as temporary:
             step_path = Path(temporary) / "roundtrip.step"
-            exported = export_step(ctx.shape, step_path, unit=unit)
+            exported = export_step(
+                ctx.shape,
+                step_path,
+                unit=unit,
+                precision_mode=PrecisionMode.GREATEST,
+            )
             if not exported:
                 return _skip("step_volume_drift", "export_step returned false", expected=expected)
             if not step_path.is_file() or step_path.stat().st_size == 0:

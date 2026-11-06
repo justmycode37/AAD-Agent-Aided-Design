@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from build123d import Box, Compound, Cone, Cylinder, Face, Pos, Shell, Solid, Sphere
+from build123d import Box, Compound, Cone, Cylinder, Face, Pos, PrecisionMode, Shell, Solid, Sphere, export_step
 
 from aad.engine.gate import (
     GateTolerances,
@@ -40,6 +40,18 @@ def actual_number(check, name: str) -> float:
 
 
 class GeometricGateTests(unittest.TestCase):
+    def test_step_volume_gate_uses_greatest_export_precision(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="aad-gate-test-") as tmp:
+            with patch("build123d.export_step", wraps=export_step) as exported:
+                check = check_map(hard_checks(context(Box(10, 10, 10), Path(tmp))))[
+                    "step_volume_drift"
+                ]
+
+        self.assertEqual(check.status, "pass", check.actual)
+        self.assertIs(
+            exported.call_args.kwargs["precision_mode"], PrecisionMode.GREATEST
+        )
+
     def test_box_cylinder_and_holed_part_pass_every_error_check(self) -> None:
         shapes = {
             "box": Box(20, 10, 6),
