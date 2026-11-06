@@ -56,6 +56,14 @@ def test_independent_assembly_reports_multiple_solids_once(tmp_path):
         )
     )
     assert result.ok and result.status == "verified", result.summary
+    assert result.metrics["build_ms"] == result.build_ms > 0
+    assert {"model", "write", "other"} <= set(result.metrics["phase_timings_ms"])
+    assert all(
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and 0 <= value < float("inf")
+        for value in result.metrics["phase_timings_ms"].values()
+    )
     multiple_solids = [
         check for check in result.checks if check.id == "multiple_solids"
     ]
