@@ -77,7 +77,9 @@ def _publish_to_active_builder(source: Any, result: Any) -> Any:
     except Exception:
         is_current = False
     if is_current and not active.wrapped.IsSame(result.wrapped):
-        build123d.add(result, clean=False, mode=build123d.Mode.REPLACE)
+        # add() would move a copy to each active location, which breaks topology
+        # identity and hands every earlier feature's faces to the current feature.
+        builder._add_to_context(result, clean=False, mode=build123d.Mode.REPLACE)
         return builder.part
     return result
 
@@ -531,8 +533,9 @@ def split_flange(
     across = across.normalized()
     if abs(float(axis.dot(tangent))) > 1e-6:
         raise CadOperationError("split_flange bolt_axis must be perpendicular to the seam.")
-    if bolt_d >= 2 * rail_width:
-        raise CadOperationError("split_flange bolt diameter must fit within each rail width.")
+    # Holes sit on rail centerlines, so paired holes are one rail width plus the gap apart.
+    if bolt_d >= rail_width:
+        raise CadOperationError("split_flange bolt diameter must be smaller than the rail width.")
 
     rails = []
     hole_centers = []

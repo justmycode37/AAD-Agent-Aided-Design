@@ -22,7 +22,7 @@ from aad._runtime import (
 from aad.modeling import (
     configure_modeling, context_metadata, current_part_name, finalize_modeling, named_shape, record_operation,
 )
-from .gate import _hard_checks_with_timings
+from .gate import _hard_checks_with_timings, finishing_warning_checks
 from .memory import is_memory_exhaustion
 from .select import SelectorError
 from .types import (
@@ -379,7 +379,7 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
 
     checks, gate_timings = _hard_checks_with_timings(context)
     phase_timings.update(gate_timings)
-    checks.extend(_finishing_warning_checks(metadata))
+    checks.extend(finishing_warning_checks(metadata))
     if params_warning is not None:
         checks.append(params_warning)
 
@@ -1157,35 +1157,6 @@ def _checks_summary(checks: list[Check]) -> dict[str, int]:
         status: sum(1 for check in checks if check.status == status)
         for status in ("pass", "fail", "warn", "skip")
     }
-
-
-def _finishing_warning_checks(metadata: dict[str, Any]) -> list[Check]:
-    """Make unresolved helper operations visible in the normal build checks."""
-    checks = []
-    reports = metadata.get("finishing_reports", [])
-    if not isinstance(reports, list):
-        return checks
-    for index, report in enumerate(reports, start=1):
-        if not isinstance(report, dict) or report.get("operation") != "blend":
-            continue
-        counts = report.get("counts", {})
-        failed = counts.get("failed", 0) if isinstance(counts, dict) else 0
-        if not isinstance(failed, int) or failed <= 0:
-            continue
-        reduced = counts.get("reduced", 0)
-        applied = counts.get("applied", 0)
-        checks.append(Check(
-            id=f"blend_unresolved_edges_{index}",
-            suite="hard",
-            level="warn",
-            status="warn",
-            message=f"blend left {failed} requested edge(s) unresolved; inspect the feature metadata report.",
-            expected="every requested edge applied or reduced",
-            actual=f"{applied} applied, {reduced} reduced, {failed} failed",
-            feature=report.get("feature"),
-            fix_hint="Inspect the per-edge blend report, select a smaller edge group, or add an explicit smaller fallback radius.",
-        ))
-    return checks
 
 
 def _preserved_artifacts(job_dir: Path) -> dict[str, str]:

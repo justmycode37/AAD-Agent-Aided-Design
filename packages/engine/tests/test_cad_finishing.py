@@ -5,6 +5,9 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
+import pytest
+
+from aad.cad import CadOperationError, split_flange
 from aad.engine.jobs import run_build
 from aad.engine.types import BuildRequest
 
@@ -60,6 +63,7 @@ result = bp.part
     warning, = [check for check in result.checks if check.id.startswith("blend_unresolved_edges")]
     assert warning.status == "warn"
     assert warning.feature == "edge_blend"
+    assert result.context.meta["finishing_reports"][0]["counts"]["failed"] == 12
     assert "12 requested edge(s) unresolved" in warning.message
 
 
@@ -129,3 +133,52 @@ def test_cast_housing_fixture_passes_aad_build_and_has_section_wall_evidence(tmp
     assert section_view.is_valid
     assert len(section_view.wires()) == 2
     assert section_view.area > 0
+
+
+@pytest.mark.parametrize("helper", [
+    "rib(bp.part, Face(Wire.make_polygon([(-8, -1, 5), (8, -1, 5), (8, 1, 5), (-8, 1, 5)], close=True)), (0, 0, 3))",
+    "boss(bp.part, (0, 0, 5), radius=4, height=4)",
+])
+def test_helpers_keep_earlier_feature_ownership(tmp_path, helper):
+    result = _build(
+        f"""from aad import *
+with part("coupon") as bp:
+    with feature("stock"):
+        Box(20, 20, 10)
+    with feature("added"):
+        {helper}
+result = bp.part
+""",
+        tmp_path,
+    )
+    assert result.ok, result.failure
+    features = {item.name: item for item in result.context.features}
+    assert len(features["stock"].faces) >= 5
+    assert features["added"].faces
+
+
+def test_helper_does_not_shift_geometry_under_active_locations(tmp_path):
+    result = _build(
+        """from aad import *
+with part("coupon") as bp:
+    with feature("stock"):
+        Box(20, 20, 10)
+    with feature("added"):
+        with Locations((100, 0, 0)):
+            boss(bp.part, (0, 0, 5), radius=4, height=4)
+result = bp.part
+""",
+        tmp_path,
+    )
+    assert result.ok, result.failure
+    assert max(result.metrics["bbox"][:2]) == pytest.approx(20)
+
+
+def test_split_flange_refuses_holes_that_merge_across_the_gap():
+    from build123d import Box, Edge
+
+    with pytest.raises(CadOperationError, match="smaller than the rail width"):
+        split_flange(
+            Box(20, 20, 10), Edge.make_line((-8, 0, 5), (8, 0, 5)), width=3, thickness=2,
+            gap=0.4, bolt_diameter=4, bolt_count=2, bolt_axis=(0, 0, 1), end_margin=2,
+        )

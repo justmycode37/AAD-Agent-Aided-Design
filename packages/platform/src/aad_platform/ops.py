@@ -335,6 +335,11 @@ def op_check(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
                 checks.extend(_plain(function(ctx, limits=_sheet_laser_limits(ctx))))
             else:
                 checks.extend(_plain(function(ctx)))
+                if suite == "hard":
+                    from aad.engine.gate import finishing_warning_checks
+
+                    meta = ctx.meta if isinstance(getattr(ctx, "meta", None), dict) else {}
+                    checks.extend(_plain(finishing_warning_checks(meta)))
         except Exception as exc:  # A suite that crashed is not a suite that passed.
             from aad.engine.memory import is_memory_exhaustion
 
