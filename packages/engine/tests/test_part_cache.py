@@ -184,3 +184,64 @@ result.add("large", large, at=Pos(10, 0, 0))
     shape = _geometry(result)
     assert len(shape.solids()) == 2
     assert sorted(solid.bounding_box().size.X for solid in shape.solids()) == [2, 5]
+
+
+def _project(tmp_path: Path) -> Path:
+    project = tmp_path / "project"
+    project.mkdir()
+    return project
+
+
+def test_offered_cached_geometry_stays_unproven_until_a_clean_rebuild(tmp_path):
+    project = _project(tmp_path)
+    assert not any(c.id == "part_cache_unreproduced" for c in _build(project, 1).checks)
+    second = _build(project, 2)
+    unproven = [c for c in second.checks if c.id == "part_cache_unreproduced"]
+    assert second.ok and unproven[0].level == "error" and unproven[0].status == "skip"
+    clean = run_build(BuildRequest(
+        source=SOURCE, project_dir=project, job_dir=project / "job-3", kind="assembly", part_cache=False, timeout_s=120,
+    ))
+    assert clean.ok, clean.failure
+    assert not any(c.id == "part_cache_unreproduced" for c in clean.checks)
+    assert clean.metrics["geometry_cache"]["persistent_hits"] == 0
+
+
+def test_cache_prune_removes_oldest_entries(tmp_path):
+    from aad.engine.cache import GeometryCache
+
+    root = tmp_path / "cache"
+    root.mkdir()
+    for index, name in enumerate(("a" * 64, "b" * 64)):
+        entry = root / name
+        entry.mkdir()
+        (entry / "part.brep").write_bytes(b"x" * 100)
+        os.utime(entry, ns=(index + 1, index + 1))
+    cache = GeometryCache(root)
+    assert cache.prune(150) == 1
+    assert not (root / ("a" * 64)).exists() and (root / ("b" * 64)).exists()
+
+
+def test_oversized_candidate_record_is_not_published(tmp_path):
+    from aad.engine import jobs
+
+    pending = tmp_path / "exchange" / "pending" / ("a" * 64)
+    pending.mkdir(parents=True)
+    (pending / "part.brep").write_bytes(b"x")
+    (pending / "input_record.json").write_bytes(b" " * (jobs._MAX_CACHE_RECORD_BYTES + 1))
+    (tmp_path / ".aad").mkdir()
+    stored, errors = jobs._publish_part_cache(
+        tmp_path, tmp_path / "exchange", _Result(), source="", pipeline_identity="",
+        kernel_versions={}, asset_sha256={}, spec={}, kind="part", units="mm",
+    )
+    assert (stored, errors) == (0, 0)
+
+
+class _Context:
+    material = None
+    process = None
+    params: dict = {}
+
+
+class _Result:
+    ok = True
+    context = _Context()

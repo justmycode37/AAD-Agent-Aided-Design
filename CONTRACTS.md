@@ -675,3 +675,4 @@ Build workers inherit `AAD_DISABLE_GEOMETRY_CACHE=1` from the trusted daemon env
 - 2026-11-04: S1 removed the mandatory stop-and-ask GitHub access note at the user's request; agents may run repository connection and authentication setup themselves.
 - 2026-11-04: v0 written with `PLAN.md`.
 - 2026-11-04: renamed to AAD. Switched from a shared working tree to per-sector worktrees and PRs into `main`. Cross-sector messages moved to GitHub issues.
+- 2026-11-07: S1 added `aad_build(part_cache=false)` and an error-level `part_cache_unreproduced` skip on builds offered cached geometry, because model-written cache entries cannot be proven to match their builder. The per-project cache is limited to 2 GiB.

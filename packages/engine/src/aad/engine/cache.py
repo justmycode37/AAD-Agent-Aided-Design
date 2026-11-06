@@ -289,6 +289,26 @@ class GeometryCache:
                 if staging.exists():
                     shutil.rmtree(staging)
 
+    def prune(self, max_bytes: int) -> int:
+        """Delete the oldest entries until the cache fits; return how many were removed."""
+        with self._locked(create=True) as root:
+            sizes = []
+            for entry in root.iterdir():
+                if not _digest(entry.name):
+                    continue
+                info = entry.lstat()
+                size = sum(item.lstat().st_size for item in entry.iterdir()) if stat.S_ISDIR(info.st_mode) else info.st_size
+                sizes.append((info.st_mtime_ns, entry.name, size))
+            total = sum(size for _, _, size in sizes)
+            removed = 0
+            for _, name, size in sorted(sizes):
+                if total <= max_bytes:
+                    break
+                shutil.rmtree(root / name)
+                total -= size
+                removed += 1
+            return removed
+
     def lookup(self, key: str, input_record: dict[str, Any]) -> CachedGeometry:
         """Return an entry only after checking its full identity and payload."""
         identity = _identity(key, input_record)

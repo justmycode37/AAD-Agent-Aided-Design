@@ -93,7 +93,7 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
         }
         if re.search(r"\basset\b", request.source):
             _stage_assets(project_dir, job_dir)
-        cache_enabled = not _part_cache_disabled()
+        cache_enabled = request.part_cache and not _part_cache_disabled()
         pipeline = _part_cache_pipeline() if cache_enabled and "cached_part" in request.source else None
         cache_enabled = cache_enabled and pipeline is not None and "cached_part" in request.source
         exchange_dir = Path(tempfile.mkdtemp(prefix=".aad-part-cache-", dir=job_dir)) if cache_enabled else job_dir
@@ -247,6 +247,9 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
             stderr=_decode(stderr_bytes),
         )
 
+    if cache_seeds:
+        _mark_unreproduced_geometry(result)
+
     if exchange_dir != job_dir:
         stored, write_errors = _publish_part_cache(
             project_dir, exchange_dir, result,
@@ -299,6 +302,12 @@ def _finish_phase_timings(result: BuildResult, elapsed_ms: float, *, preview_ms:
     if elapsed_ms > 20_000 and normalized:
         slowest, milliseconds = max(normalized.items(), key=lambda item: item[1])
         result.summary = f"{result.summary} Slowest phase: {slowest} ({milliseconds / 1000:.1f} s)."
+
+
+# Candidates come from model code, so these bound what it can make the parent read or keep.
+_MAX_CACHE_RECORD_BYTES = 8 * 1024 * 1024
+_MAX_CACHE_ENTRY_BYTES = 256 * 1024 * 1024
+_MAX_CACHE_PROJECT_BYTES = 2 * 1024 * 1024 * 1024
 
 
 def _part_cache_disabled() -> bool:
@@ -493,7 +502,11 @@ def _publish_part_cache(
                 continue
             record_path = entry / "input_record.json"
             record_info = record_path.lstat()
-            if not stat.S_ISREG(record_info.st_mode) or record_info.st_nlink != 1:
+            if (not stat.S_ISREG(record_info.st_mode) or record_info.st_nlink != 1
+                    or record_info.st_size > _MAX_CACHE_RECORD_BYTES):
+                continue
+            brep_info = (entry / "part.brep").lstat()
+            if brep_info.st_size > _MAX_CACHE_ENTRY_BYTES:
                 continue
             with record_path.open("rb") as stream:
                 record = json.loads(stream.read().decode("utf-8"))
@@ -512,12 +525,33 @@ def _publish_part_cache(
                 continue
             try:
                 cache.put(key, record, entry / "part.brep", candidate_dir=exchange_dir)
+                cache.prune(_MAX_CACHE_PROJECT_BYTES)
                 stored += 1
             except (CacheError, OSError, ValueError):
                 errors += 1
         except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError, ValueError):
             errors += 1
     return stored, errors
+
+
+def _mark_unreproduced_geometry(result: BuildResult) -> None:
+    """Keep a build that was offered cached geometry from reaching ``verified``.
+
+    Entries are written by model code, so their bytes cannot be proven to match
+    the builder. The offer decides this, because the worker's hit count is also
+    untrusted. The returned geometry still gets every check; a clean rebuild
+    with ``part_cache=False`` shows the source reproduces it.
+    """
+    result.checks.append(Check(
+        id="part_cache_unreproduced", suite="hard", level="error", status="skip",
+        message="This build was offered cached part geometry that AAD cannot prove matches its builder.",
+        fix_hint="Rebuild with part_cache=false to confirm the source reproduces this geometry.",
+    ))
+    result.checks_summary["skip"] = result.checks_summary.get("skip", 0) + 1
+    if result.status == "verified":
+        result.status = "draft"
+    if result.scene is not None:
+        result.scene.checks_summary = dict(result.checks_summary)
 
 
 def _cleanup_part_cache_exchange(exchange_dir: Path, job_dir: Path) -> None:

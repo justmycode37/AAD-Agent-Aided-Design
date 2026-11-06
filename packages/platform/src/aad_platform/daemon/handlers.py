@@ -302,6 +302,7 @@ class Handlers:
             process=meta.get("process"),
             preview=bool(params.get("preview")),
             timeout_s=timeout_s,
+            part_cache=params.get("part_cache") is not False,
         )
         if not result.get("ok"):
             envelope = failure_envelope(

@@ -98,6 +98,7 @@ Projects live in the host's MCP root, otherwise `~/AAD/<name>`.
 | `base_rev` | The revision this edit is based on. A stale value fails with `BASE_REV_CONFLICT` |
 | `preview` | Add a 4-up image. Default false |
 | `dry_run` | Full build and checks, without moving the head |
+| `part_cache` | `false` rebuilds every `cached_part()` without reading the cache. Default true |
 | `wait_s` | Seconds to wait before returning `running` with a job id. Default 30 |
 | `timeout_s` | Seconds before the build is killed. Default 60, maximum 600 |
 
@@ -217,7 +218,7 @@ with part("plate") as bp:
 
 - It runs in an OS sandbox with no network, no subprocesses, and writes only to its job folder. It must not do I/O. The only project files it can read are imports, through `asset()`.
 - Each build reruns the whole script in a fresh process. Explicit `cached_part()` calls can reuse eligible part geometry from the same project; the builder is still called when the key or cache entry cannot be validated, and all checks always rerun.
-- Cache hits and misses appear in `metrics.geometry_cache`. The cache is per-project under `.aad/cache` and can be deleted safely. Set `AAD_DISABLE_GEOMETRY_CACHE=1` in the trusted engine environment to disable it. The model sandbox never gets access to the persistent cache.
+- Cache hits and misses appear in `metrics.geometry_cache`. The cache is per-project under `.aad/cache`, keeps at most 2 GiB (256 MiB per entry, oldest removed first) and can be deleted safely. Model code writes the entries, so AAD cannot prove they match the builder: a build offered cached geometry gets an error-level `part_cache_unreproduced` skip and stays `draft`. Run `aad_build` with `part_cache=false` to confirm the source reproduces it. Set `AAD_DISABLE_GEOMETRY_CACHE=1` in the trusted engine environment to disable it. The model sandbox never gets access to the persistent cache.
 - It is killed after 60 s unless you pass `timeout_s`. When it outlasts `wait_s`, you get `running` and a job id; poll with `aad_history(action="job", job=...)`.
 - Coordinates are plain numbers. Project units never rescale them.
 
