@@ -1,12 +1,41 @@
 # Requirement evidence
 
-`spec_checks(ctx)` evaluates each requested requirement against `ctx.shape`. `load_spec(text_or_bytes_or_dict)` validates the safe YAML/data format; it raises `SpecValidationError` for malformed input. Evaluation instead returns explicit diagnostics so a built revision can remain draft. No supplied spec or an empty requirement list is unproven, rather than a failed geometric build.
+`spec_checks(ctx)` evaluates each requested requirement against `ctx.shape` and adds checks for any declared `subsystems` breakdown. `load_spec(text_or_bytes_or_dict)` validates the safe YAML/data format; it raises `SpecValidationError` for malformed input. Evaluation instead returns explicit diagnostics so a built revision can remain draft. No supplied spec or an empty requirement list is unproven, rather than a failed geometric build.
 
 Duplicate YAML keys and requirement IDs, YAML aliases, ambiguous YAML 1.1 integers (octal/sexagesimal), non-string keys, booleans used as measurements, non-finite values, overflowing unit conversions and malformed ranges are rejected by `load_spec`. Text is limited to 1 MiB, 64 nesting levels and 10,000 nodes; dictionary input has the same depth/node limits. Unknown requirement types produce `skip`. Mixed known/unknown fields cannot silently drop the unknown condition. In build evaluation, requirement-structure errors that survive YAML parsing (such as duplicate IDs or invalid `covers`) produce error-level `skip` diagnostics; an otherwise successful build stays `draft` but can commit a revision and advance the head. YAML syntax and duplicate YAML keys fail input parsing with `BAD_INPUT`.
 
 Lengths default to `spec.units` (`mm` by default or `in`). The geometry's native coordinate unit is `ctx.units`; the engine/export boundary must preserve that convention. Explicit `mm`/`in` suffixes, `nominal ± tolerance`, `{nominal, tolerance}`, and inclusive `{min, max}` bounds are accepted. Bare exact measurements have a numerical comparison band of 1e-6 in canonical mm, mm² or mm³ (1e-9 for dimensionless values). Explicit tolerance/range boundaries receive no additional band; integer counts remain exact. Dimension powers apply for area/volume. `mass_g` is in grams. Angle values are unoriented degrees between two planar faces or two straight edges.
 
 Each requirement may include a `covers` string or list to name the request excerpt it is intended to address. This records a trace link; it does not establish semantic coverage.
+
+## Functional breakdown checks
+
+`subsystems` is an optional top-level list with at most 100 entries. Every
+entry has a unique `id`, non-empty `purpose`, `parts`, `interfaces`,
+`evidence`, and a `status` of `modeled`, `representative`, or `not_modeled`.
+`not_modeled` entries require a non-empty `reason`. A part is an exact
+assembly component label or feature name. Each interface has a unique local
+`id`, descriptive `kind`, exactly two `between` labels, and `requirements`
+IDs. Subsystem/interface text values are limited to 2,000 characters; IDs to
+200 characters; each list to 100 items; and the encoded `subsystems` value to
+64 KiB.
+
+The evaluator mechanically matches every listed part label against recorded
+feature names and assembly component labels. A missing label fails its
+subsystem check. A subsystem and each interface require at least one linked
+requirement whose check has exactly one result with status `pass`; a failed
+requirement fails that check, while an absent link or skipped, unknown,
+warning, or otherwise non-pass requirement is not proven. `representative`
+and `not_modeled` are not proven; the request review lists `not_modeled`
+entries and their reasons. An assembly with no breakdown gets a hint and no
+failure.
+
+All breakdown text is untrusted. Labels and requirement IDs are references,
+not semantic assertions. These checks do not judge the breakdown's meaning,
+check whether `between` describes physical connectivity, or prove subsystem
+function. There is no functional coverage percentage.
+`subsystem_review(spec, checks, is_assembly=...)` formats the result for
+`request_review`.
 
 A high reference score measures geometric closeness to that reference only. It proves nothing about function and is meaningless if the reference was traced into the model. The scan noise floor demonstrates that F@0.1%D can remain below 0.99 for two scans of the same object: the supplied gearbox scan pair scored 0.958 with volumetric IoU 0.925. Scores depend on which surfaces each side contains, including internal parts, cast detail, and scan coverage.
 
@@ -29,7 +58,7 @@ A high reference score measures geometric closeness to that reference only. It p
 
 `process` and `process_settings` are accepted alongside requirements; the process evaluator validates its own declared assumptions. [PROCESS.md](PROCESS.md) describes those screens.
 
-`verification_ready(spec, checks, hard_checks, process=ctx.process)` is a conservative integration helper, not a source of trusted evidence. Pass the context process even when it is absent from the spec. It requires a valid nonempty specification, exact unique per-requirement coverage, matching severity, meaningful measured evidence, a nonempty passing error hard gate and no unproven error results. Spec and process passes with missing or unknown measurements are unproven. A requested process needs matching profile evidence; context/spec conflicts block readiness. Skipped spec requirements and error-level process screens withhold readiness. An explicitly warning-level process screen remains advisory, including when unavailable. This deliberately exceeds the contract's minimum error-level coverage rule; a measured warning may remain advisory. The `process` keyword is required, even when its value is `None`. The caller must bind checks to the actual revision/spec/kernel/artifact and protect evaluation from model code.
+`verification_ready(spec, checks, hard_checks, process=ctx.process)` is a conservative integration helper, not a source of trusted evidence. Pass the context process even when it is absent from the spec. It requires a valid nonempty specification, exact unique per-requirement and declared subsystem/interface check coverage, matching severity, passing linked evidence, meaningful measured evidence, a nonempty passing error hard gate and no unproven error results. Spec and process passes with missing or unknown measurements are unproven. A requested process needs matching profile evidence; context/spec conflicts block readiness. Skipped spec requirements and error-level process screens withhold readiness. An explicitly warning-level process screen remains advisory, including when unavailable. This deliberately exceeds the contract's minimum error-level coverage rule; a measured warning may remain advisory. The `process` keyword is required, even when its value is `None`. The caller must bind checks to the actual revision/spec/kernel/artifact and protect evaluation from model code.
 
 The `aad compare <project> <reference> [--rev N] [--tau-pct 0.1] [--json]` CLI runs the comparison in a sandboxed worker. It is not exposed as an MCP tool. Mesh references do not carry reliable unit metadata; the spec's `units` (or project units in the CLI) are assumed. STEP units are read by the kernel.
 

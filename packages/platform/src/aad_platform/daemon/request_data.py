@@ -42,7 +42,13 @@ def serialize_request(value: dict[str, Any]) -> str:
     return json.dumps(normalized, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
 
 
-def request_review(request: dict[str, Any] | None, spec: Any) -> dict[str, Any]:
+def request_review(
+    request: dict[str, Any] | None,
+    spec: Any,
+    checks: list[Any] | None = None,
+    *,
+    is_assembly: bool = False,
+) -> dict[str, Any]:
     """Report declared links and unresolved request notes without judging meaning."""
     requirements = spec.get("requirements", []) if isinstance(spec, dict) else None
     if isinstance(requirements, list):
@@ -70,6 +76,14 @@ def request_review(request: dict[str, Any] | None, spec: Any) -> dict[str, Any]:
     if request is not None:
         report["open_questions"] = list(request["open_questions"])
         report["not_checked"] = [dict(item) for item in request["not_checked"]]
+    try:
+        from aad_quality.spec import subsystem_review
+
+        breakdown = subsystem_review(spec, checks, is_assembly=is_assembly)
+    except ImportError:
+        breakdown = None
+    if breakdown is not None:
+        report["functional_breakdown"] = breakdown
     return report
 
 
@@ -92,6 +106,9 @@ def request_next_hints(
             hints.extend(["Fix failed checks before rebuilding.", "Review with aad_render after a successful build."])
         else:
             hints.extend(["Add measurable requirements to spec.yaml; draft means not proven.", "Review with aad_render."])
+        breakdown_hint = _breakdown_hint(report)
+        if breakdown_hint:
+            hints.insert(1, breakdown_hint)
         if lead_hint:
             hints[0] = _short_hint(lead_hint, 100) + " " + _short_hint(hints[0], 120)
         return hints[:3]
@@ -114,7 +131,8 @@ def request_next_hints(
         status_hint = "Fix failed checks before rebuilding."
     else:
         status_hint = "Add measurable requirements if needed; draft is not proven. Review with aad_render."
-    link_hint = _short_hint(f"{link_hint} {status_hint}", 200)
+    breakdown_hint = _breakdown_hint(report)
+    link_hint = _short_hint(f"{link_hint} {status_hint} {breakdown_hint or ''}", 200)
 
     questions = request["open_questions"]
     question_hint = (
@@ -132,6 +150,21 @@ def request_next_hints(
     if lead_hint:
         hints[0] = _short_hint(lead_hint, 90) + " " + _short_hint(hints[0], 200)
     return hints
+
+
+def _breakdown_hint(report: dict[str, Any]) -> str | None:
+    breakdown = report.get("functional_breakdown")
+    if not isinstance(breakdown, dict):
+        return None
+    if isinstance(breakdown.get("hint"), str):
+        return breakdown["hint"]
+    not_modeled = breakdown.get("not_modeled")
+    if isinstance(not_modeled, list) and not_modeled:
+        return f"{len(not_modeled)} subsystem(s) are declared not modeled; report them from request_review.functional_breakdown."
+    not_proven = breakdown.get("not_proven")
+    if isinstance(not_proven, list) and not_proven:
+        return "Some subsystem or interface checks are not proven; see request_review.functional_breakdown."
+    return None
 
 
 def _text(value: Any, path: str, limit: int) -> str:

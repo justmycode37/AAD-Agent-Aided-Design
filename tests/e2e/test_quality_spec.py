@@ -34,3 +34,41 @@ def test_an_84_mm_candidate_fails_the_80_mm_spec_over_stdio(mcp_process: Any):
     assert '84 mm' in width['actual'] and '80 mm' in width['expected'], width
     history = call(mcp_process, 'aad_history', project='quality-width')['structuredContent']
     assert history['head_rev'] == 1, history
+
+
+@pytest.mark.usefixtures('engine')
+def test_functional_breakdown_checks_labels_evidence_and_review_over_stdio(mcp_process: Any):
+    initialize(mcp_process)
+    spec = (
+        "requirements:\n  - id: body_count\n    solids: 2\n"
+        "subsystems:\n  - id: drive\n    purpose: Transmit motor torque\n"
+        "    parts: [base, motor]\n    interfaces:\n      - id: mount\n"
+        "        kind: mounting\n        between: [base, motor]\n"
+        "        requirements: [body_count]\n    evidence: [body_count]\n"
+        "    status: modeled\n"
+    )
+    created = call(mcp_process, 'aad_new', name='functional-drive', kind='assembly', spec=spec)
+    assert created['structuredContent']['ok'], created
+    source = (
+        "from aad import assembly\nfrom build123d import Box, Pos\n"
+        "asm = assembly('drive')\n"
+        "asm.add('base', Box(10, 10, 2))\n"
+        "asm.add('motor', Box(4, 4, 4), at=Pos(0, 0, 4))\n"
+        "result = asm\n"
+    )
+    built = call(mcp_process, 'aad_build', project='functional-drive', source=source,
+                 wait_s=WAIT_S)['structuredContent']
+    assert built['ok'] and built['head_rev'] == 1, built
+
+    checked = call(mcp_process, 'aad_check', project='functional-drive', suites=['spec'])['structuredContent']
+    assert checked['ok'], checked
+    assert checked['checks_summary']['pass'] >= 3, checked
+    assert not checked.get('checks'), checked
+
+    inspected = call(mcp_process, 'aad_inspect', project='functional-drive', what='summary')['structuredContent']
+    breakdown = inspected['request_review']['functional_breakdown']
+    assert breakdown['meaning_assessed'] is False
+    assert breakdown['function_proven'] is False
+    assert breakdown['subsystems'][0]['review_status'] == 'checks_passed'
+    assert breakdown['subsystems'][0]['interfaces'][0]['review_status'] == 'checks_passed'
+    assert 'meaning and function are not assessed' in inspected['summary']

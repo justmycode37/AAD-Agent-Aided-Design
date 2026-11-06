@@ -202,3 +202,87 @@ def test_covers_is_an_optional_link_and_is_validated():
     assert parsed["requirements"][0]["covers"] == "the requested width"
     with pytest.raises(SpecValidationError):
         load_spec({"requirements": [{"id": "size", "bbox": {"x": 10}, "covers": []}]})
+
+
+def test_subsystems_accept_labeled_parts_interfaces_and_evidence_links():
+    parsed = load_spec({"requirements": [{"id": "mount", "solids": 2}], "subsystems": [
+        {
+            "id": "drive",
+            "purpose": "Transmit torque to the output",
+            "parts": ["motor", "shaft"],
+            "interfaces": [{
+                "id": "coupling",
+                "kind": "shaft_coupling",
+                "between": ["motor", "shaft"],
+                "requirements": ["mount"],
+            }],
+            "evidence": ["mount"],
+            "status": "modeled",
+        },
+        {
+            "id": "controller",
+            "purpose": "Switch motor current",
+            "parts": [],
+            "interfaces": [],
+            "evidence": [],
+            "status": "not_modeled",
+            "reason": "No geometry or electrical evidence is available",
+        },
+    ]})
+    assert len(parsed["subsystems"]) == 2
+    assert parsed["subsystems"][0]["interfaces"][0]["between"] == ["motor", "shaft"]
+
+
+@pytest.mark.parametrize("subsystem", [
+    {"id": "unmodeled", "purpose": "A system", "parts": [], "interfaces": [], "evidence": [], "status": "not_modeled"},
+    {"id": "bad_status", "purpose": "A system", "parts": [], "interfaces": [], "evidence": [], "status": "estimated"},
+    {"id": "bad_interface", "purpose": "A system", "parts": [], "interfaces": [{"id": "joint", "kind": "mount", "between": ["one"], "requirements": []}], "evidence": [], "status": "modeled"},
+])
+def test_subsystem_schema_rejects_missing_reason_or_malformed_interface(subsystem):
+    with pytest.raises(SpecValidationError):
+        load_spec({"requirements": [], "subsystems": [subsystem]})
+
+
+def test_subsystem_text_and_encoded_payload_have_capture_style_limits():
+    base = {"id": "x", "purpose": "ok", "parts": [], "interfaces": [], "evidence": [], "status": "modeled"}
+    with pytest.raises(SpecValidationError, match="2000 characters"):
+        load_spec({"requirements": [], "subsystems": [{**base, "purpose": "x" * 2001}]})
+    many = [{**base, "id": f"subsystem_{index}", "purpose": "x" * 2000} for index in range(40)]
+    with pytest.raises(SpecValidationError, match="64 KiB"):
+        load_spec({"requirements": [], "subsystems": many})
+
+
+def test_subsystem_evidence_ids_use_the_identifier_limit():
+    base = {"id": "drive", "purpose": "turn", "parts": ["motor"], "interfaces": [], "status": "modeled"}
+    with pytest.raises(SpecValidationError):
+        load_spec({"requirements": [], "subsystems": [{**base, "evidence": ["x" * 201]}]})
+
+
+def test_subsystem_review_withholds_oversized_text():
+    from aad_quality.spec import subsystem_review
+
+    subsystem = {
+        "id": "drive", "purpose": "turn", "parts": [], "interfaces": [], "evidence": [],
+        "status": "not_modeled", "reason": "x" * 70_000,
+    }
+    review = subsystem_review({"subsystems": [subsystem]}, [], is_assembly=True)
+    assert "invalid" in review["hint"]
+    assert "x" * 2_001 not in json.dumps(review)
+
+
+@pytest.mark.parametrize("declared, expected", [("modeled", "fail"), ("not_modeled", "skip")])
+def test_interface_with_an_unknown_endpoint_is_not_a_pass(declared, expected):
+    from aad_quality.spec import subsystem_checks
+
+    subsystem = {
+        "id": "drive", "purpose": "turn", "parts": ["base"], "evidence": ["count"], "status": declared,
+        "reason": "planned",
+        "interfaces": [{"id": "mount", "kind": "bolted", "between": ["base", "ghost"], "requirements": ["count"]}],
+    }
+    ctx = SimpleNamespace(
+        shape=None, features=[SimpleNamespace(name="base", intent=None)], assembly=None, meta={}, units="mm",
+    )
+    checks = subsystem_checks({"subsystems": [subsystem]}, [{"id": "count", "status": "pass"}], ctx)
+    interface = next(check for check in checks if "mount" in (check["id"] if isinstance(check, dict) else check.id))
+    status = interface["status"] if isinstance(interface, dict) else interface.status
+    assert status == expected
