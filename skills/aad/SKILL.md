@@ -142,7 +142,7 @@ On a 2D sheet, only whole-sheet `area` and `bbox` work, and they return the shee
 
 ### aad_render: images and exact facts for you
 
-See [Render](#render) for what each option does. Arguments: `views`, `style`, `section`, `labels`, `heatmap`, `heatmap_range`, `min_wall`, `direction`, `highlight`, `size`, `camera`, `focus`, `dimensions`, `probes`, `measure`, `inspection`.
+See [Render](#render) for what each option does. Arguments: `views`, `style`, `section`, `labels`, `heatmap`, `heatmap_range`, `min_wall`, `direction`, `highlight`, `size`, `camera`, `focus`, `dimensions`, `probes`, `measure`, `inspection`, `review_packet`.
 
 ### aad_show: show the user
 
@@ -436,7 +436,7 @@ A sliver edge is usually a coincidence between two surfaces; moving one by a sma
 
 ## Render
 
-`aad_render` makes images for you, plus an exact `inspection` report. Look at these before calling work done.
+`aad_render` makes images for you, plus an exact `inspection` report. Look at these before calling work done. Set `review_packet=true` to prepare a bounded packet for an independent visual critique.
 
 | Argument | Values |
 |---|---|
@@ -456,11 +456,24 @@ A sliver edge is usually a coincidence between two surfaces; moving one by a sma
 | `probes` | `{image, x, y}` for a pixel (`image` is a view name, no `.png`), or `{point, direction}` for a ray. Returns the exact point, normal, selector, bend radius and wall thickness |
 | `measure` | `{a, b}` pairs. Returns minimum distance, closest points, and angle when both have a direction |
 | `inspection` | `summary` (default) or `full`. Summary leaves the per-face, per-edge and visible-selector tables, and legends over 64 entries, in the `inspection.json` and `labels.json` artifacts. `full` returns them inline, which is large on big models |
+| `review_packet` | `true` writes a review directory instead of returning inline image blocks. It uses its own standard views, so other render options are ignored in this mode. The directory contains `request.txt`, `manifest.json`, and hashed PNG files. The manifest includes measured part sizes, all saved revision checks including skips, unresolved request items, and view coverage. The packet omits model source and assumptions. The result is a short directory handle. Local mode only; remote mode refuses rendering |
 
 3D renders are limited to a 384 MiB mesh payload, 8 million vertices, 12 million triangles,
 50,000 labels, 50,000 probes, 50,000 measurement pairs and 32 MiB per PNG. Overlay text is limited
 to 4,096 characters. A render that exceeds a cap fails in the render phase and leaves the saved
 revision and B-rep unchanged.
+
+Review packets are limited to 20 render cases, 32 images, 8 major parts for centered sections and
+isolated views, 2 MiB per image, 2 MiB for the manifest, 80,000 UTF-8 bytes for the captured
+request and 64 MiB total. The overview has six orthographic directions plus iso; section views pass
+through the assembly center and up to eight largest part centers. The manifest lists any component
+omitted by the view cap. It includes open questions, `not_checked` items and non-pass check results
+as unresolved items; captured assumptions are omitted. A missing request is recorded as unresolved.
+
+When a host supports separate reviewers, give the packet to a separate reviewer that sees only the
+packet. Use [Render review rubric](../playbooks/render-review-rubric.md) for its response format.
+If no separate reviewer is available, label the critique as self-review. Reviewer findings do not
+change revision status and never count as verification.
 
 The `inspection` report holds exact B-rep facts: mass properties, bounding box, section loops, per-image scale, a `world_to_pixel` matrix for mapping 3D points to pixels, and your `probes` and `measure` answers. With `inspection="full"` or in the artifact, it also has face types and dimensions, edge types and adjacency, and visible selectors. Cylinders distinguish holes from bosses. Edge classes and adjacency are omitted above 2,048 edges, and `edge_classification` says so.
 

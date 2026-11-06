@@ -238,7 +238,7 @@ aad_render({ project, rev?: number,
                        { point: number[3], direction: number[3] })[],
              measure?: { a: string, b: string }[],
              heatmap_range?: number[2], min_wall?: number, direction?: number[3],
-             size?: number })                       // default 1024, max 2048
+             size?: number, review_packet?: boolean }) // default 1024, max 2048; packet writes bounded review files
 
 aad_show({ project, rev?: number, compare_to?: number, title?: string,
            view?: "iso"|"front"|"rear"|"left"|"right"|"top"|"bottom",
@@ -324,6 +324,7 @@ type Envelope = {
   checks_summary?: { pass: number, fail: number, warn: number, skip: number },
   failure?: Failure,
   artifacts?: Record<string, string>,  // aad://<project>/<rev>/<name>, plus file paths for exports
+  review_packet?: { path: string, manifest: string, image_count: number, bytes: number }, // aad_render only; directory handle, no image blocks
   scene?: SceneManifest,               // aad_show, aad_set_param
   viewer?: { mode: "inline"|"window"|"none", url?: string, view?: string,
              title?: string, presentation?: ViewerPresentation, views?: NamedView[] },
@@ -608,6 +609,17 @@ only PNGs as image blocks; it includes the JSON data in structured `inspection` 
 fields, with all file paths in `artifacts`. Inspection version 1 includes B-rep face/edge facts,
 mass properties, exact section loops, image pane scales, world-to-pixel matrices, visible
 selectors, probe results and measurements. Face/edge indexes belong to the current revision.
+
+`aad_render(review_packet=true)` writes a bounded `review-packet/` directory under the operation
+cache and returns its directory and manifest paths without image blocks; other render options are
+ignored in this mode. The packet contains the
+captured original request, generated PNGs, measured part sizes, revision check results including
+skips, unresolved questions and `manifest.json` hashes. It excludes model source and captured
+assumptions. The packet is an input to an external reviewer; its findings never change revision
+status and are not verification evidence. Review packet rendering uses the same sandboxed B-rep
+preparation and clean local VTK worker as ordinary 3D rendering, and remote mode refuses it.
+Limits: 20 render cases, 32 images, 8 major parts for component-centered and isolated views,
+2 MiB per image, 2 MiB manifest, 80,000 UTF-8 bytes for request text, and 64 MiB total packet.
 Exact sharp/tangent/seam edge classification and adjacent-face lists are included up to 2,048
 edges. Above that explicit limit, curve facts remain available, edge classes are omitted, and
 `inspection.edge_classification` says so; rendered edges use the general edge style.
@@ -629,6 +641,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 
 ## 11. Changelog
 
+- 2026-11-06: S3 added `aad_render(review_packet=true)` for bounded, hashed visual review packets, including request text, measured parts, check skips, unresolved items and orthographic/section/isolated views; packets omit model source and assumptions, do not change revision status or count as verification, and remain unavailable in remote mode.
 - 2026-11-05: S1 applied configurable `engine.memory` virtual-address growth budgets to build and operation workers and made explicit `MemoryError`/`ENOMEM` results report `OUT_OF_MEMORY`, while keeping unrelated startup diagnostics and signal-only exits unclassified.
 - 2026-11-05: S2 made the structured `aad_render` report compact by default, with `inspection="full"` for the rest, because it reached 2.6 MB on a 492-part assembly.
 - 2026-11-05: S1 added per-phase build timings to `metrics`, named the slowest phase for builds over 20 seconds, reported unaccounted elapsed time as the residual `other` phase, made assembly mesh validation use one private remesh with per-solid checks, and reused the viewer scene's face and edge indexes across parts.
