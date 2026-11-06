@@ -38,6 +38,11 @@ The gate checks:
   A private native topology copy is cleaned and remeshed with absolute OCCT
   deflection, so pre-existing linear or angular triangulation cannot replace
   the configured settings or mutate the source shape's cached mesh.
+  An assembly is copied and remeshed once; the topology is walked once to build
+  separate vertex and triangle arrays for each solid. Those arrays are
+  validated independently, so touching bodies are never welded together. If
+  the batched path cannot produce a passing result, the gate retries through
+  the established per-body path.
   Vertices are welded to the nearest
   existing representative within the configured distance; zero tolerance
   welds only exactly coincident coordinates. After welding, triangles must be
@@ -121,6 +126,67 @@ separately. Times are milliseconds, median with minimum–maximum in parentheses
 | Cylinder, radius 5, height 12 | 3 / 3 | 0.21 (0.18–0.23) | 15.99 (15.73–16.26) |
 | 20 × 20 × 6 box with radius 3 through-hole | 7 / 15 | 2.14 (2.11–2.18) | 30.91 (30.12–31.43) |
 
+### Assembly scaling before and after the 2026-11-05 mesh-path change
+
+These are three warm-process runs per size on macOS arm64, Python 3.12.10,
+build123d 0.13.0 and OCP 8.0.1.1.0. Each synthetic body was a 1 × 1 × 1 mm
+box spaced 3 mm apart. `Model` is direct shape construction (`Box`, `Pos`, and
+`Compound`), not worker startup. `Hard gate` is `hard_checks()` and includes
+STEP export/re-import and the watertight mesh check; it excludes spec/process
+checks and viewer scene generation. Values are median seconds (min–max).
+
+| Parts | Model before | Gate before | Total before | Model after | Gate after | Total after |
+|---:|---:|---:|---:|---:|---:|---:|
+| 100 | 0.033 (0.030–0.041) | 2.743 (2.695–2.773) | 2.776 (2.726–2.815) | 0.021 (0.021–0.022) | 1.949 (1.904–2.140) | 1.970 (1.925–2.161) |
+| 500 | 0.182 (0.171–0.268) | 14.926 (14.699–15.151) | 15.108 (14.967–15.322) | 0.140 (0.138–0.143) | 10.109 (9.939–10.338) | 10.249 (10.077–10.481) |
+| 1,500 | 1.015 (0.820–1.239) | 45.378 (36.050–50.023) | 46.393 (36.869–51.262) | 0.904 (0.731–0.949) | 34.409 (32.319–44.470) | 35.358 (33.049–45.374) |
+
+The medians fell by 29%, 32%, and 24% for 100, 500, and 1,500 bodies. The
+1,500-run ranges overlap, so the single-machine result is suggestive rather
+than conclusive. The default hard gate does not run pairwise interference
+checks; the explicitly requested interference suite is pairwise. The STEP
+round trip runs once per build and is retained as a required check, not
+repeated per body.
+
+Before the scene-index fix, one 1,500-part end-to-end worker build completed
+in 74.5 s with `timeout_s=280`. Its phase timings were model 2.6 s, all hard
+checks 31.0 s (mesh 24.9 s, STEP 4.6 s), spec 0.04 s, process 0.01 s, scene
+37.9 s, write 0.09 s, and worker startup/transport 2.9 s. The summary named
+`scene` as the slowest phase. Three full worker builds per size after the
+scene-index fix measured these medians and ranges in seconds:
+
+| Parts | Total build | Model | Hard gate | Scene | Worker startup/transport |
+|---:|---:|---:|---:|---:|---:|
+| 100 | 5.949 (5.128–8.052) | 0.252 (0.236–0.304) | 2.725 (2.482–3.338) | 0.105 (0.098–0.122) | 2.822 (2.255–4.226) |
+| 500 | 15.420 (15.324–16.605) | 1.122 (1.003–1.263) | 11.519 (11.277–11.957) | 0.423 (0.421–0.439) | 2.527 (2.310–2.872) |
+| 1,500 | 42.684 (42.547–46.244) | 3.066 (2.935–3.111) | 34.609 (33.553–37.327) | 2.009 (1.565–2.614) | 3.310 (3.309–3.635) |
+
+The earlier end-to-end values are one sample per size, not a repeated
+baseline. Worker startup and transport varied, so use the repeated ranges
+above and the direct model/gate table rather than treating that single run as
+a controlled comparison.
+
+A cProfile of `make_scene()` on 1,500 separated boxes exposed a quadratic
+feature-index rebuild: `_index_by_hash` ran 3,000 times, consuming 77.7 s
+cumulative, while the profiler counted about 40.5 million wrapper and hash
+calls. Each part rebuilt face and edge indexes over the full assembly. The
+fix builds those two indexes once per scene. The post-fix profile made 3.6
+million calls, used `_index_by_hash` twice (0.04 s cumulative), and completed
+in 4.0 s wall (1.5 s in cProfile). Three additional unprofiled scene runs took
+3.022–3.278 s (median 3.054 s). The worker phase took 1.565–2.614 s in its
+three 1,500-part runs.
+
+A cProfile run with wall timers around each gate check found that C-extension
+calls dominated the mesh phase; Python-only cProfile time alone missed most
+of that cost. Before the assembly mesh change, a 1,500-part profile measured
+25.7 s for `mesh_watertight`, 6.2 s for `step_volume_drift`, and 1.1 s for
+`brep_valid`; after it measured 26.8 s, 6.7 s, and 1.2 s respectively. The
+gate makes one private assembly remesh and retains isolated checks, but the
+profile did not show a meaningful reduction in its mesh phase. That remains
+the slowest hard check at 26.8–28.3 s in the repeated full worker builds. The
+reported 422 s outlier was not reproduced; without its original profile or
+job artifacts, its cause remains unknown.
+
 These are direct calls using a temporary job directory, not end-to-end worker
 or sandbox timings; cold imports and complex models were not measured. To
 repeat the measurement from the repository root:
@@ -132,7 +198,7 @@ from pathlib import Path
 from statistics import median
 from tempfile import TemporaryDirectory
 from time import perf_counter_ns
-from build123d import Box, Cylinder
+from build123d import Box, Compound, Cylinder, Pos
 from aad.engine.gate import hard_checks
 from aad.engine.types import ModelContext
 
@@ -156,5 +222,22 @@ with TemporaryDirectory(prefix="aad-s1-benchmark-") as job:
             gate_ms.append((end - middle) / 1e6)
         for label, times in (("build", build_ms), ("gate", gate_ms)):
             print(name, label, "median", median(times), "range", min(times), max(times), "ms")
+
+    for count in (100, 500, 1500):
+        model_s, gate_s = [], []
+        for repeat in range(3):
+            job_dir = Path(job) / f"assembly-{count}-{repeat}"
+            job_dir.mkdir()
+            start = perf_counter_ns()
+            shape = Compound(children=[Pos(index * 3, 0, 0) * Box(1, 1, 1) for index in range(count)])
+            middle = perf_counter_ns()
+            checks = hard_checks(ModelContext(shape=shape, kind="assembly", job_dir=job_dir))
+            end = perf_counter_ns()
+            assert all(c.status == "pass" for c in checks if c.level == "error")
+            model_s.append((middle - start) / 1e9)
+            gate_s.append((end - middle) / 1e9)
+        for label, times in (("model", model_s), ("gate", gate_s),
+                             ("total", [a + b for a, b in zip(model_s, gate_s)])):
+            print("assembly", count, label, "median", median(times), "range", min(times), max(times), "s")
 PY
 ```

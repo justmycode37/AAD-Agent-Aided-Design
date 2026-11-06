@@ -11,8 +11,8 @@ import unittest
 from unittest.mock import patch
 from pathlib import Path
 
-from aad.engine.jobs import run_build
-from aad.engine.types import BuildRequest
+from aad.engine.jobs import _finish_phase_timings, run_build
+from aad.engine.types import BuildRequest, BuildResult
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -49,6 +49,17 @@ class EngineBootstrapTests(unittest.TestCase):
             self.assertEqual(result.metrics["solids"], 1)
             self.assertEqual(result.metrics["faces"], 6)
             self.assertEqual(result.metrics["edges"], 12)
+            self.assertEqual(result.metrics["build_ms"], result.build_ms)
+            phase_timings = result.metrics["phase_timings_ms"]
+            for phase in (
+                "model", "write", "gate.brep_valid", "gate.solid_count", "gate.closed_shells",
+                "gate.edge_quality", "gate.face_quality", "gate.step_volume_drift",
+                "gate.mesh_watertight", "spec", "process", "scene", "render",
+                "other",
+            ):
+                self.assertIn(phase, phase_timings)
+                self.assertGreaterEqual(phase_timings[phase], 0)
+            self.assertEqual(result.context.metrics["phase_timings_ms"], phase_timings)
             self.assertEqual(result.context.features[0].name, "main")
             self.assertEqual(len(result.context.features[0].faces), 6)
             self.assertIsNone(result.context.shape)
@@ -61,6 +72,16 @@ class EngineBootstrapTests(unittest.TestCase):
             self.assertTrue(loaded.is_valid)
             self.assertEqual(len(loaded.solids()), 1)
             self.assertAlmostEqual(loaded.volume, 1200.0, places=5)
+
+    def test_slow_build_summary_names_the_longest_timed_phase(self) -> None:
+        result = BuildResult(
+            summary="Built the model.",
+            metrics={"phase_timings_ms": {"model": 1_000.0, "gate.mesh_watertight": 22_500.0}},
+        )
+        _finish_phase_timings(result, 25_000.0)
+        self.assertIn("Slowest phase: gate.mesh_watertight (22.5 s)", result.summary)
+        self.assertIn("other", result.metrics["phase_timings_ms"])
+        self.assertEqual(result.metrics["build_ms"], 25_000.0)
 
 
     def test_buildpart_fixture_produces_implicit_main_feature(self) -> None:

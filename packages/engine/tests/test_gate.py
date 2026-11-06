@@ -13,6 +13,8 @@ from aad.engine.gate import (
     GateTolerances,
     _check_mesh_arrays,
     _fresh_mesh_arrays,
+    _fresh_mesh_arrays_by_solid,
+    _mesh_watertight_check,
     hard_checks,
     interference_checks,
 )
@@ -74,6 +76,15 @@ class GeometricGateTests(unittest.TestCase):
         self.assertEqual(assembly.status, "pass", assembly.actual)
         self.assertIn("bodies_checked=2", assembly.actual)
         self.assertEqual(part.status, "fail", part.actual)
+
+    def test_valid_assembly_meshes_once_and_checks_each_solid_separately(self) -> None:
+        touching = Compound(children=[Box(10, 10, 10), Pos(10, 0, 0) * Box(10, 10, 10)])
+        with patch("aad.engine.gate._fresh_mesh_arrays_by_solid", wraps=_fresh_mesh_arrays_by_solid) as batched:
+            with patch("aad.engine.gate._shape_watertight_check", side_effect=AssertionError("per-body remesh")):
+                mesh = _mesh_watertight_check(touching, GateTolerances(), 1.0, "assembly")
+        batched.assert_called_once()
+        self.assertEqual(mesh.status, "pass", mesh.actual)
+        self.assertIn("bodies_checked=2", mesh.actual)
 
     def test_assembly_with_loose_faces_keeps_the_whole_shape_mesh_check(self) -> None:
         loose = Shell([Pos(40, 0, 0) * Box(4, 4, 4).faces()[0]])

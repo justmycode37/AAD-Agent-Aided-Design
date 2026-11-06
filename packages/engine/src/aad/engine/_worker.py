@@ -22,7 +22,7 @@ from aad._runtime import (
 from aad.modeling import (
     configure_modeling, context_metadata, current_part_name, finalize_modeling, named_shape, record_operation,
 )
-from .gate import hard_checks
+from .gate import _hard_checks_with_timings
 from .select import SelectorError
 from .types import (
     BuildResult,
@@ -104,6 +104,7 @@ def main() -> None:
 
 def _build(payload: dict[str, Any]) -> dict[str, Any]:
     started = time.perf_counter()
+    phase_timings: dict[str, float] = {}
     job_dir = Path(payload["job_dir"])
     project_dir = Path(payload["project_dir"])
     source_path = job_dir / "model.py"
@@ -112,8 +113,12 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
     stderr_stream = _TailTextStream()
 
     try:
+        phase_started = time.perf_counter()
         source_path.write_text(source, encoding="utf-8")
+        _add_phase_time(phase_timings, "write", phase_started)
+        phase_started = time.perf_counter()
         code = compile(source, str(source_path), "exec")
+        _add_phase_time(phase_timings, "model", phase_started)
     except SyntaxError as exc:
         failure = Failure(
             code="SYNTAX_ERROR",
@@ -200,6 +205,7 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
     for name in cad.__all__:
         namespace[name] = getattr(cad, name)
 
+    model_phase_started = time.perf_counter()
     try:
         with contextlib.redirect_stdout(stdout_stream), contextlib.redirect_stderr(stderr_stream):
             configure_params(payload.get("params", {}))
@@ -251,15 +257,20 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
             job_dir=job_dir,
             stdout=stdout_stream.getvalue(),
             stderr=stderr_stream.getvalue(),
+            metrics={"phase_timings_ms": _rounded_timings(phase_timings)},
         )
-        build123d.BuildPart = original_build_part
+        _add_phase_time(phase_timings, "model", model_phase_started)
+        result.metrics["phase_timings_ms"] = _rounded_timings(phase_timings)
         return _result_wire(result)
     finally:
         build123d.BuildPart = original_build_part
 
     if payload.get("kind") == "2d":
-        return _finish_sheet(namespace, payload, metadata, source_path, started, stdout_stream, stderr_stream)
+        return _finish_sheet(
+            namespace, payload, metadata, source_path, started, stdout_stream, stderr_stream, phase_timings,
+        )
 
+    model_phase_started = time.perf_counter()
     try:
         candidate = namespace.get("result")
         if isinstance(candidate, cad.Assembly):
@@ -267,6 +278,7 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
             namespace["result"] = candidate.compound()
         shape = _extract_shape(namespace, tracked_build_parts, build123d.Shape)
     except (TypeError, ValueError) as exc:
+        _add_phase_time(phase_timings, "model", model_phase_started)
         failure = Failure(
             code="BAD_INPUT",
             phase="validate",
@@ -281,11 +293,15 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
                 job_dir=job_dir,
                 stdout=stdout_stream.getvalue(),
                 stderr=stderr_stream.getvalue(),
+                metrics={"phase_timings_ms": _rounded_timings(phase_timings)},
             )
         )
+    else:
+        _add_phase_time(phase_timings, "model", model_phase_started)
 
     artifacts: dict[str, str] = {}
     brep_path = job_dir / "part.brep"
+    write_started = time.perf_counter()
     try:
         exported = bool(build123d.export_brep(shape, brep_path))
         if not exported or not brep_path.is_file() or brep_path.stat().st_size == 0:
@@ -306,8 +322,11 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
                 job_dir=job_dir,
                 stdout=stdout_stream.getvalue(),
                 stderr=stderr_stream.getvalue(),
+                metrics={"phase_timings_ms": _rounded_timings(phase_timings)},
             )
         )
+    finally:
+        _add_phase_time(phase_timings, "write", write_started)
 
     params = current_params()
     if payload.get("params") and not params:
@@ -322,6 +341,7 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
     else:
         params_warning = None
 
+    model_phase_started = time.perf_counter()
     build_ms = _elapsed_ms(started)
     metrics = _shape_metrics(shape, build123d, metadata.get("units", "mm"), build_ms)
     features, _ = finalize_modeling(shape)
@@ -342,11 +362,14 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
         param_definitions=current_param_definitions(),
         part_name=current_part_name(),
     )
+    _add_phase_time(phase_timings, "model", model_phase_started)
 
-    checks = hard_checks(context)
+    checks, gate_timings = _hard_checks_with_timings(context)
+    phase_timings.update(gate_timings)
     if params_warning is not None:
         checks.append(params_warning)
 
+    phase_started = time.perf_counter()
     spec_checks, spec_hook_available = _optional_checks(
         module_name="aad_quality",
         function_name="spec_checks",
@@ -355,8 +378,10 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
         unavailable_id="spec_checks_unavailable",
         unavailable_message="Specification checks are unavailable because aad_quality is not installed.",
     )
+    _add_phase_time(phase_timings, "spec", phase_started)
     checks.extend(spec_checks)
 
+    phase_started = time.perf_counter()
     process_checks, process_hook_available = _optional_checks(
         module_name="aad_quality",
         function_name="process_checks",
@@ -365,12 +390,17 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
         unavailable_id="process_checks_unavailable",
         unavailable_message="Process checks are unavailable because aad_quality is not installed.",
     )
+    _add_phase_time(phase_timings, "process", phase_started)
     checks.extend(process_checks)
 
+    phase_started = time.perf_counter()
     scene, scene_check = _optional_scene(context)
+    _add_phase_time(phase_timings, "scene", phase_started)
     checks.append(scene_check)
 
+    phase_started = time.perf_counter()
     render_artifacts, render_check = _optional_render(context, bool(payload.get("preview", False)))
+    _add_phase_time(phase_timings, "render", phase_started)
     checks.append(render_check)
     artifacts.update(render_artifacts)
 
@@ -441,6 +471,7 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
         ok = True
         summary = "The model built and passed the available hard checks; requirements are not fully proven."
 
+    metrics["phase_timings_ms"] = _rounded_timings(phase_timings)
     result = BuildResult(
         ok=ok,
         status=status,
@@ -469,6 +500,7 @@ def _finish_sheet(
     started: float,
     stdout_stream: Any,
     stderr_stream: Any,
+    phase_timings: dict[str, float],
 ) -> dict[str, Any]:
     """Finish a kind='2d' build: save the Sheet2D, run the 2D suite and write its scene."""
     job_dir = Path(payload["job_dir"])
@@ -479,6 +511,7 @@ def _finish_sheet(
         return _result_wire(_failed_result(failure, elapsed_ms=_elapsed_ms(started), job_dir=job_dir,
                                            stdout=stdout_stream.getvalue(), stderr=stderr_stream.getvalue()))
 
+    model_phase_started = time.perf_counter()
     try:
         drafting = importlib.import_module("aad_drafting")
         from aad_drafting.model2d import Sheet2D, latest_sheet
@@ -497,10 +530,14 @@ def _finish_sheet(
         return failed("BAD_INPUT", f"The sheet uses {sheet.units} but the project declares {units}. Numbers are never rescaled.")
     try:
         data = sheet.to_dict()
+        _add_phase_time(phase_timings, "model", model_phase_started)
+        write_started = time.perf_counter()
         (job_dir / "sheet.json").write_text(json.dumps(data, allow_nan=False), encoding="utf-8")
+        _add_phase_time(phase_timings, "write", write_started)
     except (OSError, TypeError, ValueError) as exc:
         return failed("BAD_INPUT", "The sheet could not be saved.", f"{type(exc).__name__}: {exc}")
 
+    model_phase_started = time.perf_counter()
     context = ModelContext(
         project_dir=Path(payload["project_dir"]),
         rev=payload.get("rev", 0),
@@ -516,9 +553,11 @@ def _finish_sheet(
         param_definitions=current_param_definitions(),
     )
     context.metrics = _sheet_metrics(sheet, units, _elapsed_ms(started))
+    _add_phase_time(phase_timings, "model", model_phase_started)
     if not any(entity.layer == "cut" and entity.kind != "text" for entity in sheet.entities.values()):
         return failed("BAD_INPUT", "The sheet has no cut geometry, so its contours cannot be checked.")
     keep = {item.name for item in fields(Check)}
+    phase_started = time.perf_counter()
     checks = [
         Check(**{key: value for key, value in dict(item).items() if key in keep})
         for item in drafting.checks(context)
@@ -534,7 +573,9 @@ def _finish_sheet(
         checks.append(Check(id="2d_spec_evaluation_failed", suite="spec", level="error", status="fail",
                             message="2D specification or process checks could not be evaluated.",
                             actual=f"{type(exc).__name__}: {exc}"))
+    _add_phase_time(phase_timings, "gate.2d", phase_started)
     scene = None
+    phase_started = time.perf_counter()
     try:
         scene_dir = job_dir / "scene"
         scene_dir.mkdir(exist_ok=True)
@@ -544,6 +585,8 @@ def _finish_sheet(
         checks.append(Check(id="scene_generation_failed", suite="2d", level="warn", status="warn",
                             message="Scene generation failed; the saved sheet was retained.",
                             actual=f"{type(exc).__name__}: {exc}"))
+    _add_phase_time(phase_timings, "scene", phase_started)
+    context.metrics["phase_timings_ms"] = _rounded_timings(phase_timings)
     failing = next((c for c in checks if c.level == "error" and c.status == "fail"), None)
     if failing is not None:
         summary = f"2D check {failing.id} failed: {failing.message}"
@@ -1114,6 +1157,14 @@ def _json_default(value: Any) -> Any:
     if is_dataclass(value):
         return asdict(value)
     raise TypeError(f"{type(value).__name__} is not JSON serializable")
+
+
+def _add_phase_time(timings: dict[str, float], name: str, started: float) -> None:
+    timings[name] = timings.get(name, 0.0) + (time.perf_counter() - started) * 1000
+
+
+def _rounded_timings(timings: dict[str, float]) -> dict[str, float]:
+    return {name: round(milliseconds, 3) for name, milliseconds in timings.items()}
 
 
 def _elapsed_ms(started: float) -> float:
