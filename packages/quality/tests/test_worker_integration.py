@@ -35,15 +35,18 @@ def test_parent_independently_evaluates_saved_brep_and_spec(tmp_path,spec,measur
         assert all(req['id'] in result.summary for req in spec['requirements'])
 
 
-def test_warn_only_spec_is_evaluated_without_blocking_verified(tmp_path):
+def test_warn_only_spec_is_evaluated_but_remains_draft(tmp_path):
     spec = {'units': 'mm', 'requirements': [
         {'id': 'advisory_size', 'level': 'warn', 'bbox': {'x': '8 ± 0.1'}},
     ]}
     result = run_build(BuildRequest(source='from build123d import Box\nresult=Box(10,8,4)\n',
         project_dir=tmp_path, job_dir=tmp_path/'warn-only', spec=spec, timeout_s=60))
-    assert result.ok and result.status == 'verified'
+    assert result.ok and result.status == 'draft'
+    assert not result.requirements_proven
+    assert result.verification_receipt is None
     assert any(check.id == 'advisory_size' and check.status == 'warn' for check in result.checks)
-    assert 'advisory_size (warn)' in result.summary
+    assert 'only advisory requirements' in result.summary
+    assert 'nothing required was proven' in result.summary
 
 
 def test_independent_spec_rejects_tampered_worker_pass_and_accepts_real_pass(tmp_path):
