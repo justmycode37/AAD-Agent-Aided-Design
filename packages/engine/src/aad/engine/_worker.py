@@ -22,7 +22,7 @@ from aad._runtime import (
 from aad.modeling import (
     configure_modeling, context_metadata, current_part_name, finalize_modeling, named_shape, record_operation,
 )
-from .gate import _hard_checks_with_timings
+from .gate import _hard_checks_with_timings, finishing_warning_checks
 from .memory import is_memory_exhaustion
 from .select import SelectorError
 from .types import (
@@ -379,6 +379,7 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
 
     checks, gate_timings = _hard_checks_with_timings(context)
     phase_timings.update(gate_timings)
+    checks.extend(finishing_warning_checks(metadata))
     if params_warning is not None:
         checks.append(params_warning)
 
@@ -1023,6 +1024,7 @@ _KERNEL_OPERATIONS = {
     "fillet": "KERNEL_FILLET_FAILED",
     "max_fillet": "KERNEL_FILLET_FAILED",
     "chamfer": "KERNEL_CHAMFER_FAILED",
+    "draft": "KERNEL_OTHER",
     "offset": "KERNEL_SHELL_FAILED",
     "offset_3d": "KERNEL_SHELL_FAILED",
     "shell": "KERNEL_SHELL_FAILED",
