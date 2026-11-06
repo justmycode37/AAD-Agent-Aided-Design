@@ -1820,6 +1820,9 @@ def make_drawing(
 ) -> DrawingResult:
     """Project a structural model context onto a composed drawing sheet."""
     request = _normalize_request(req)
+    cosmetic_thread_notes = _cosmetic_thread_notes(context_value(ctx, "meta", {}))
+    if cosmetic_thread_notes:
+        request = replace(request, notes=tuple(dict.fromkeys((*request.notes, *cosmetic_thread_notes))))
     if revision_status is not None and revision_status.strip().lower() != "verified":
         title_block = {**request.title_block, "status": "DRAFT - UNVERIFIED"}
         request = replace(request, title_block=title_block)
@@ -2086,3 +2089,25 @@ def make_drawing(
         revisions=[dict(row) for row in request.revisions],
         bom=[dict(row) for row in bom],
     )
+
+
+def _cosmetic_thread_notes(metadata: Any) -> list[str]:
+    """Put metadata-declared cosmetic thread callouts in the drawing notes."""
+    if not isinstance(metadata, Mapping):
+        return []
+    components = metadata.get("aad_component_geometries", [])
+    if not isinstance(components, Sequence) or isinstance(components, (str, bytes)):
+        return []
+    notes = []
+    for component in components:
+        if not isinstance(component, Mapping):
+            continue
+        thread = component.get("thread")
+        if not isinstance(thread, Mapping) or thread.get("representation") != "cosmetic":
+            continue
+        designation = thread.get("designation")
+        if isinstance(designation, str) and designation.strip():
+            notes.append(
+                f"{designation.strip()} external thread: cosmetic representation; thread form omitted from B-rep."
+            )
+    return list(dict.fromkeys(notes))

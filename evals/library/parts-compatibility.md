@@ -22,11 +22,11 @@ Each default adapter result was built through its pinned upstream constructor. `
 |---|---|---:|---:|---:|
 | Fastener — `SocketHeadCapScrew` | M6-1, 20 mm under-head length; 10.22 mm head diameter, 6 mm head height | yes | 1 | 10.22, 10.22, 26.00 |
 | Bearing — `SingleRowDeepGrooveBallBearing` | SKT M8-22-7; 8 mm bore, 22 mm outside diameter, 7 mm width | yes | 14 | 22.00, 22.00, 7.00 |
-| Thread — `IsoThread` | external M6-1, 8 mm length, square ends | yes | 9 | 6.00, 5.999901, 8.00 |
+| Thread — AAD cosmetic envelope | external M6-1, 8 mm length | yes | 1 | 6.00, 6.00, 8.00 |
 
-These checks establish that the selected API calls build valid shapes with the expected units and major dimensions. They do not establish manufacturing compliance, tolerance fit, bearing rating, or load capacity. The adapter uses full helical fastener threads and documents simplified bearing internals; the thread-only result has no shaft or mating part.
+The fastener and bearing constructors use the pinned upstream parameter tables; `thread.iso_metric_external` uses those metric dimensions for an AAD cosmetic major-diameter cylinder and does not import `IsoThread`. These checks establish valid B-reps and nominal extents, not manufacturing compliance, tolerance fit, bearing rating, or load capacity. The thread-only result has no mating shaft or hole.
 
-The parent strengthened the native BREP oracle after review: bounds alone admitted a smooth cylinder in place of the thread and an annulus in place of the bearing. It now checks helical edge lead/handedness, two sampled axial tooth profiles, and the bearing's separate races and twelve spherical rolling elements. The profile equations and rolling-element layout are scoped to the pinned default models, not a reproduction of a paid standard. Negative cylinder, annulus, wrong-pitch, and wrong-profile models are regression fixtures in `test_library_evidence.py`. These witnesses do not prove complete thread tolerances, interference-free bearing motion, or purchased-hardware compliance.
+The M3×0.5×8 full helical trial failed the unchanged hard gate with 10 edges at or below 0.01 mm and 107 sliver faces. The API now rejects `thread="helical"`; AAD records the thread as cosmetic in model metadata and adds a drawing note stating that the thread form is omitted from the B-rep. The native witness verifies the major-diameter envelope, while separate tests check metadata/drawing behavior. Bearing witnesses check separate races and twelve spherical rolling elements. These controls do not prove thread fit or tolerances, interference-free bearing motion, or purchased-hardware compliance.
 
 ## Reproduce
 
@@ -68,10 +68,10 @@ for entry in list_parts():
 PY
 ```
 
-The installed adapter environment ran `test_standard_parts.py`: **14 passed**. The tests cover kernel-free lookup, defensive catalog copies, closed-registry and parameter rejection, supported size/length data against upstream tables, and real builds with dimension/validity checks, a single fused full-thread screw, alternate screw sizes, and rejection of construction inside an active builder.
+The installed adapter environment ran `test_standard_parts.py`: the tests cover kernel-free lookup, defensive catalog copies, closed-registry and parameter rejection, supported size/length data against upstream tables, valid nominal geometry, cosmetic thread output, rejection of helical geometry, and rejection of construction inside an active builder.
 
 The parent reran all adapter tests and separately repeated the native OCCT validity and optimal-bounds measurements above. These are deterministic construction controls, not sampled agent results or timing benchmarks; no model-quality variance is estimated. For repeated geometric variation evidence, use `evals/library/probe_parts.py` below.
 
-Parent correction: the default screw now uses `simple=False`. In upstream 0.4.0, `simple=True` returns a minor-diameter thread core, which understates the external clearance envelope. The repeated probe isolates the shaft thread zone with a native boolean and requires an approximately 6 mm X/Y envelope; this would reject the simplified M6 core. Bearing bore occupancy is probed on both sides of the 4 mm radius. These are bounded geometric witnesses, not tolerance-fit certificates.
+The cosmetic representation uses the major diameter, preserving the true external clearance envelope. The repeated probe isolates the screw shaft zone with a native boolean and requires an approximately 6 mm X/Y envelope. Bearing bore occupancy is probed on both sides of the 4 mm radius. These are bounded geometric witnesses, not tolerance-fit certificates.
 
 Repeated parent evidence: `PYTHONPATH=packages/quality/src packages/quality/.parts-venv/bin/python evals/library/probe_parts.py --repetitions 3` writes parts-evidence.json, invalidates prior evidence at startup, binds source/BREP hashes, and measures each freshly imported BREP using native OCCT optimal bounds and validity. Every default part was valid in all three repetitions. Per-axis sample SD was 0 mm for these deterministic extents; the full means and probe observations are in the JSON. No speed, model-quality, or population-variance claim follows from that repetition.

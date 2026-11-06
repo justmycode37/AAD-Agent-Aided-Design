@@ -86,7 +86,7 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
             "preview": False,
         }
         input_bytes = (json.dumps(payload, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
-        if re.search(r"\basset\b", request.source):
+        if re.search(r"\b(?:asset|vendor_step)\b", request.source):
             _stage_assets(project_dir, job_dir)
     except (TypeError, ValueError, OSError, OverflowError) as exc:
         return _failed(

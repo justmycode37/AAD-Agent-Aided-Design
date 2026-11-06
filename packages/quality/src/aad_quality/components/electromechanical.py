@@ -98,7 +98,7 @@ def _connectors() -> list[Record]:
         for n in ways:
             mpn = template.format(n=n)
             x = round((n - 1) * per_way + 4.9, 2)
-            out.append(_rec(f"connector.{family}.{n}pin", "connector", f"{family} connector", f"{mpn} {family} {n} way", f"{mpn}: {n} way, {pitch} mm pitch. {summary}. About {x} x {y} x {z} mm.", f"connector header wire-to-board {family} {pitch}mm {n}pin {mpn}", manufacturer=maker, mpn=mpn, kicad_footprint_hint=footprint, specs={"pitch_mm": pitch, "ways": n}, dimensions_mm={"x": x, "y": y, "z": z}, envelope=_box(x, y, z)))
+            out.append(_rec(f"connector.{family}.{n}pin", "connector", f"{family} connector", f"{mpn} {family} {n} way", f"{mpn}: {n} way, {pitch} mm pitch. {summary}. About {x} x {y} x {z} mm.", f"connector header wire-to-board {family} {pitch}mm {n}pin {mpn}", manufacturer=maker, mpn=mpn, kicad_footprint_hint=footprint, specs={"rows": 2 if "dual-row" in summary else 1, "pitch_mm": pitch, "ways": n}, dimensions_mm={"x": x, "y": y, "z": z}, envelope=_box(x, y, z)))
     for n in range(1, 41):
         for row in (1, 2):
             if n > 20 and row == 1 and n % 5:
@@ -131,7 +131,7 @@ def _connectors() -> list[Record]:
     for slug, category, family, x, y, z, mpn, maker, summary in trade:
         out.append(_rec(f"connector.{slug}", category, family, f"{mpn} {family}", f"{mpn}: {summary}. About {x} x {y} x {z} mm.", f"connector {slug} {family} {mpn} {maker}", manufacturer=maker, mpn=mpn, dimensions_mm={"x": x, "y": y, "z": z}, envelope=_box(x, y, z)))
     for ways in (10, 20, 26, 40):
-        out.append(_rec(f"connector.idc.2x{ways // 2}", "connector", "Boxed IDC header", f"{ways} way boxed IDC header", f"2 row {ways} way 2.54 mm shrouded IDC header.", f"connector idc ribbon box header 2.54 {ways}", source_type="generic_series", specs={"pitch_mm": 2.54, "ways": ways}, dimensions_mm={"x": 2.54 * ways / 2 + 7.6, "y": 8.9, "z": 9}, envelope=_box(2.54 * ways / 2 + 7.6, 8.9, 9)))
+        out.append(_rec(f"connector.idc.2x{ways // 2}", "connector", "Boxed IDC header", f"{ways} way boxed IDC header", f"2 row {ways} way 2.54 mm shrouded IDC header.", f"connector idc ribbon box header 2.54 {ways}", source_type="generic_series", specs={"rows": 2, "pitch_mm": 2.54, "ways": ways}, dimensions_mm={"x": 2.54 * ways / 2 + 7.6, "y": 8.9, "z": 9}, envelope=_box(2.54 * ways / 2 + 7.6, 8.9, 9)))
     return out
 
 

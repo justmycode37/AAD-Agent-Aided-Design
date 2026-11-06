@@ -629,6 +629,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 
 ## 11. Changelog
 
+- 2026-11-06: S1/S5 added `aad_quality.components.make_detailed` beside unchanged `make_envelope`, with catalog evidence and representative-geometry metadata, vendor STEP/origin/evidence inputs, and LOD selection; `aad_build` now stages imported assets when a model uses `vendor_step`. Replaced failing helical fastener/thread solids with cosmetic thread envelopes and automatic drawing notes, preserving all hard-gate checks.
 - 2026-11-05: S1 applied configurable `engine.memory` virtual-address growth budgets to build and operation workers and made explicit `MemoryError`/`ENOMEM` results report `OUT_OF_MEMORY`, while keeping unrelated startup diagnostics and signal-only exits unclassified.
 - 2026-11-05: S2 made the structured `aad_render` report compact by default, with `inspection="full"` for the rest, because it reached 2.6 MB on a 492-part assembly.
 - 2026-11-05: S1 added per-phase build timings to `metrics`, named the slowest phase for builds over 20 seconds, reported unaccounted elapsed time as the residual `other` phase, made assembly mesh validation use one private remesh with per-solid checks, and reused the viewer scene's face and edge indexes across parts.
