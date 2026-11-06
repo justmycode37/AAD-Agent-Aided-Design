@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Iterable
 import math
 import time
 from typing import Any
@@ -64,10 +65,12 @@ def _assembly_parts(ctx: Any) -> tuple[list[str], list[Any], list[Any]]:
             raise ValueError("assembly component labels are malformed")
         names = list(declared_names)
         if len(children) != len(names):
-            solids = list(shape.solids())
-            if len(solids) != len(names):
+            # A reloaded BREP has no child tree, but its direct sub-shapes keep the
+            # recorded order, including a component made of several solids.
+            direct = list(shape) if isinstance(shape, Iterable) else []
+            if len(direct) != len(names):
                 raise ValueError("assembly labels cannot be matched to component B-reps")
-            children = solids
+            children = direct
     elif children:
         names = [str(getattr(child, "label", "") or f"component_{index + 1}") for index, child in enumerate(children)]
     else:
@@ -300,6 +303,11 @@ def connected_evidence(
         if timed_out:
             break
         active.append(current)
+
+    # The last measurement may have run past the budget after its deadline check.
+    if not timed_out and time.monotonic() >= deadline:
+        mark_unknown("connection graph check exceeded its 60 second geometry budget")
+        timed_out = True
 
     joint_unconnected = _component_paths(joint_graph, names, ground_index, allowed)
     contact_unconnected = _component_paths(contact_graph, names, ground_index, allowed)

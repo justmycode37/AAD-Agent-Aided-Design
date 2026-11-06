@@ -244,6 +244,10 @@ class AssemblyJoint:
         return {"a": self.a, "b": self.b, "kind": self.kind, "details": details}
 
 
+_JOINT_MAX_BYTES = 16 * 1024
+_JOINTS_MAX_BYTES = 1024 * 1024
+
+
 class Assembly:
     """Named components, declared joints, a bill of materials and motion clearance.
 
@@ -263,6 +267,7 @@ class Assembly:
         self.components: list[Component] = []
         self._component_names: set[str] = set()
         self.joints: list[AssemblyJoint] = []
+        self._joint_bytes = 0
 
     def add(
         self,
@@ -325,6 +330,12 @@ class Assembly:
             details = json.loads(json.dumps(details, allow_nan=False))
         except (TypeError, ValueError, OverflowError) as exc:
             raise CadOperationError("Joint details must contain only finite JSON-compatible data.") from exc
+        size = len(json.dumps(details, allow_nan=False).encode("utf-8")) + len(kind.encode("utf-8"))
+        if size > _JOINT_MAX_BYTES:
+            raise CadOperationError(f"Joint kind and details must be at most {_JOINT_MAX_BYTES} bytes.")
+        if self._joint_bytes + size > _JOINTS_MAX_BYTES:
+            raise CadOperationError(f"An assembly's joint kinds and details must total at most {_JOINTS_MAX_BYTES} bytes.")
+        self._joint_bytes += size
         self.joints.append(AssemblyJoint(a, b, kind.strip(), details))
 
     def compound(self) -> Any:

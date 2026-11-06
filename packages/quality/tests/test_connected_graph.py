@@ -164,3 +164,60 @@ def test_large_separated_assembly_uses_bounding_box_broad_phase(monkeypatch):
     assert "and 1099 more" in result["actual"]
     assert calls < count * 4
     assert elapsed < 15.0
+
+
+def test_multi_solid_component_keeps_its_label_after_brep_reload(tmp_path):
+    from build123d import export_brep, import_brep
+
+    asm = assembly("reloaded")
+    asm.add("frame", Box(10, 10, 2))
+    asm.add("outer", Compound(children=[Box(2, 2, 2).moved(Pos(0, 0, 2)), Box(2, 2, 2).moved(Pos(0, 0, 4))]))
+    path = tmp_path / "assembly.brep"
+    export_brep(asm.compound(), str(path))
+    ctx = SimpleNamespace(
+        kind="assembly", units="mm", shape=import_brep(str(path)), meta={"assembly": asm.record()},
+        spec={"units": "mm", "requirements": [
+            {"id": "structure", "connected": {"ground": "frame", "allow_floating": [], "tolerance": 0.1}}
+        ]},
+        features=[], params={}, metrics={},
+    )
+    assert len(ctx.shape.solids()) == 3
+    result = record(spec_checks(ctx)[0])
+    assert result["status"] != "skip", result
+    assert "assembly labels cannot be matched" not in str(result)
+
+
+def test_measurement_finishing_past_the_budget_is_not_a_pass(monkeypatch):
+    from aad_quality import connections
+
+    # Joints measure a-b and a-c, so b-c is the final, uncached contact measurement.
+    asm = assembly("slow")
+    for name in ("a", "b", "c"):
+        asm.add(name, Box(10, 10, 2))
+    asm.connect("a", "b", "bolted")
+    asm.connect("a", "c", "bolted")
+    clock = [1000.0]
+    calls = []
+    real_distance = connections.spec_geometry.distance_mm
+
+    def slow_last_distance(*args):
+        calls.append(args)
+        if len(calls) == 3:
+            clock[0] += connections.CONNECTION_CHECK_BUDGET_S + 1
+        return real_distance(*args)
+
+    monkeypatch.setattr(connections.spec_geometry, "distance_mm", slow_last_distance)
+    monkeypatch.setattr(connections.time, "monotonic", lambda: clock[0])
+    result = check_for(asm, {"ground": "a", "allow_floating": [], "tolerance": 0.1})
+    assert len(calls) == 3
+    assert result["status"] != "pass", result
+
+
+def test_joint_details_are_size_limited():
+    from aad.cad import CadOperationError
+
+    asm = assembly("big")
+    asm.add("a", Box(1, 1, 1))
+    asm.add("b", Box(1, 1, 1), at=Pos(0, 0, 1))
+    with pytest.raises(CadOperationError, match="at most"):
+        asm.connect("a", "b", "joint", blob="x" * (17 * 1024))

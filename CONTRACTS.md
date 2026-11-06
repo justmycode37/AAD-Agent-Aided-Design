@@ -105,7 +105,7 @@ normal module. Geometry assumptions and limits are documented in
 - `feature(name)` must be unique. It records created and modified faces and edges, source lines and dependencies.
 - `face()`, `edge()`, `vertex()` resolve semantically. `expect=n` turns a count mismatch into a `SELECTOR_AMBIGUOUS` or `SELECTOR_EMPTY` failure with candidates.
 - A script produces one `part`, one `assembly` (assign `assembly()` to `result`), or (for `kind: "2d"`) one `sheet2d`.
-- `Assembly.connect(a, b, kind, **details)` records a declared joint between two existing component names. `kind` is non-empty text, details are finite JSON-compatible data, and optional `details.tolerance` is a non-negative distance in model units. `Assembly.record()` includes `components`, `bom`, and `joints` metadata; a declared joint is not proof of contact or fastening.
+- `Assembly.connect(a, b, kind, **details)` records a declared joint between two existing component names. `kind` is non-empty text, details are finite JSON-compatible data (at most 16 KiB per joint with `kind`, 1 MiB per assembly), and optional `details.tolerance` is a non-negative distance in model units. `Assembly.record()` includes `components`, `bom`, and `joints` metadata; a declared joint is not proof of contact or fastening.
 - The script must not do I/O. Files come in through `asset("name")`, which reads from the project's imports.
 - Plain build123d is valid, and everything lands in an implicit `main` feature. Named features are what make edits reliable.
 
