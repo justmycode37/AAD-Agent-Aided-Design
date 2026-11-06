@@ -65,10 +65,17 @@ jobs:
         if: runner.os == 'Linux'
         run: bash .github/scripts/setup_linux_runtime.sh
       - name: Run package tests
+        if: matrix.package.dir != 'engine'
         run: >-
           uv run --locked --package "${{ matrix.package.name }}" --all-extras
           --with pytest --with pytest-timeout
           python -m pytest "packages/${{ matrix.package.dir }}/tests"
+      - name: Run engine tests with workspace dependencies
+        if: matrix.package.dir == 'engine'
+        run: >-
+          uv run --locked --all-packages --all-extras
+          --with pytest --with pytest-timeout
+          python -m pytest "packages/engine/tests"
 
   e2e:
     needs: discover
@@ -89,20 +96,8 @@ jobs:
       - name: Install graphics and sandbox runtime
         if: runner.os == 'Linux'
         run: bash .github/scripts/setup_linux_runtime.sh
-      - name: Run integrated workspace and smoke tests
-        env:
-          AAD_TEST_PACKAGES: ${{ needs.discover.outputs.packages }}
-        run: |
-          uv run --locked --all-packages --all-extras python - <<'PY'
-          import json
-          import os
-          import subprocess
-          import sys
-
-          packages = json.loads(os.environ["AAD_TEST_PACKAGES"])
-          tests = [f"packages/{package['dir']}/tests" for package in packages]
-          raise SystemExit(subprocess.call([sys.executable, "-m", "pytest", *tests, "tests/e2e"]))
-          PY
+      - name: Run end-to-end smoke tests
+        run: uv run --locked --all-packages --all-extras python -m pytest tests/e2e
 
   benchmark:
     runs-on: ubuntu-latest
