@@ -56,6 +56,14 @@ class CachedGeometry:
     sha256: str
 
 
+@dataclass(frozen=True)
+class CachedGeometryEntry:
+    """A validated geometry candidate and the identity that names it."""
+
+    geometry: CachedGeometry
+    input_record: dict[str, Any]
+
+
 _FIELDS = {
     "schema", "source", "applied_params", "spec", "kind", "units", "material",
     "process", "kernel_versions", "tolerances", "asset_sha256", "pipeline_identity",
@@ -286,6 +294,35 @@ class GeometryCache:
         identity = _identity(key, input_record)
         with self._locked() as root:
             return self._entry(root, key, identity)
+
+    def candidates(self, *, source: str, pipeline_identity: str) -> tuple[CachedGeometryEntry, ...]:
+        """List valid candidates for one exact source and pipeline snapshot.
+
+        Corrupt, missing and unrelated entries are ignored. The coordinator
+        must still filter the returned input records against the current
+        request before staging them for a worker.
+        """
+        with self._locked() as root:
+            matches: list[CachedGeometryEntry] = []
+            for entry in root.iterdir():
+                key = entry.name
+                if not _digest(key):
+                    continue
+                try:
+                    _directory(entry)
+                    with _open_regular(entry / "manifest.json") as stream:
+                        manifest = json.loads(stream.read().decode("utf-8"), object_pairs_hook=_unique_object)
+                    if type(manifest) is not dict or set(manifest) != {"key", "input_record", "byte_length", "sha256"}:
+                        continue
+                    record = manifest["input_record"]
+                    identity = _identity(key, record)
+                    geometry = self._entry(root, key, identity)
+                except (CacheError, OSError, ValueError, RecursionError):
+                    # A damaged cache entry is a miss, never a build failure.
+                    continue
+                if record["source"] == source and record["pipeline_identity"] == pipeline_identity:
+                    matches.append(CachedGeometryEntry(geometry=geometry, input_record=record))
+            return tuple(matches)
 
     def restore(self, key: str, input_record: dict[str, Any], fresh_candidate_dir: Path) -> Path:
         """Copy into a new directory; recheck the bytes during that copy."""
