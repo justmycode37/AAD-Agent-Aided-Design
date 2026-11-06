@@ -945,6 +945,8 @@ class Handlers:
             metadata_path.write_text(json.dumps(export_metadata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
             result["files"]["metadata"] = str(metadata_path)
             files = _publish_exports(exports, out, result["files"], stem)
+            # `artifacts` stays one entry per requested format.
+            metadata_file = files.pop("metadata")
         except (OSError, ValueError) as exc:
             return reply(failure_envelope(project.name, "EXPORT_FAILED", "runtime", str(exc), head_rev=project.head_rev))
         note = "" if status == "verified" else " Files are marked UNVERIFIED."
@@ -957,6 +959,7 @@ class Handlers:
                 "summary": f"Exported {', '.join(files)} to {exports}.{note}",
                 "artifacts": files,
                 "metadata": export_metadata,
+                "metadata_file": metadata_file,
             }
         )
 

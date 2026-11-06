@@ -581,7 +581,7 @@ Files land in `exports/<project>-r<rev>-drawing/`. `notes` is a list of strings,
 
 **`aad_export` formats:** `step`, `iges`, `stl`, `obj`, `ply`, `3mf`, `glb`, `brep`, `dxf`, `svg`, `pdf`, `viewer_html`. On a 2D sheet, only `dxf`, `svg`, `pdf` and `viewer_html` work. Files go to `exports/`.
 
-Every export also writes `<project>-r<rev>[-UNVERIFIED].metadata.json` with parameter definitions, counts per basis and names lacking a source. The tool result returns this report as `metadata` and the sidecar path as `artifacts.metadata`.
+Every export also writes `<project>-r<rev>[-UNVERIFIED].metadata.json` with parameter definitions, counts per basis and names lacking a source. The tool result returns this report as `metadata` and the sidecar path as `metadata_file`.
 
 **`options`:**
 

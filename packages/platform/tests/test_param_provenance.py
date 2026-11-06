@@ -104,7 +104,8 @@ def test_provenance_survives_revision_inspection_diff_and_export(tmp_path, monke
         "project": "gearbox", "rev": 2, "formats": ["step"], "allow_unverified": True,
     })
     assert exported["metadata"]["param_basis_counts"]["assumed"] == 1
-    sidecar = exported["artifacts"]["metadata"]
+    assert "metadata" not in exported["artifacts"]
+    sidecar = exported["metadata_file"]
     report = json.loads(Path(sidecar).read_text(encoding="utf-8"))
     assert report["params_without_source"] == ["clearance", "spacing"]
     assert "does not verify" in report["provenance_notice"]

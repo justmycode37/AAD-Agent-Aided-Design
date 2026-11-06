@@ -280,7 +280,7 @@ computes a request-coverage percentage.
 `provenance_notice`. `params` remains the map of applied values for
 compatibility. `aad_history(action="diff")` includes value changes in `diff.params`
 and declaration/source changes in `diff.param_provenance`. `aad_export` writes
-an additional `<project>-r<rev>[-UNVERIFIED].metadata.json` sidecar and returns
+an additional `<project>-r<rev>[-UNVERIFIED].metadata.json` sidecar and returns its path as `metadata_file` and
 the same report as `metadata`. These labels are the model author's claims;
 AAD never checks whether a source actually states a parameter value. `unknown`
 is not counted as sourced. A `published` or `measured` label without source
@@ -369,6 +369,7 @@ type Envelope = {
   params_without_source?: string[],
   provenance_notice?: string,
   metadata?: unknown,                   // aad_export provenance sidecar report
+  metadata_file?: string,               // aad_export path of that sidecar
   parameter_provenance?: unknown,        // aad_drawing provenance report
   diff?: { source: string, params: unknown, param_provenance?: unknown, metrics: unknown },  // aad_history, aad_inspect
   imported?: unknown,                  // aad_import
