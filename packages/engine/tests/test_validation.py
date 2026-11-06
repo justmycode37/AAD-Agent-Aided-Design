@@ -339,12 +339,15 @@ main()
             root = Path(temporary).resolve()
             path = root / 'part.brep'
             path.write_bytes(b'validator deadline fixture')
+            # Bound the child so a communicate() regression cannot leave the
+            # inspector's pipes open indefinitely.
             child = (
                 "from pathlib import Path\n"
                 "import time\n"
                 "Path('validator-child-started').write_text('started')\n"
-                "while not Path('release-child').exists(): time.sleep(0.01)\n"
-                "Path('validator-child-survived').write_text('survived')\n"
+                "deadline = time.monotonic() + 20.0\n"
+                "while not Path('release-child').exists() and time.monotonic() < deadline: time.sleep(0.01)\n"
+                "if Path('release-child').exists(): Path('validator-child-survived').write_text('survived')\n"
             )
             bootstrap = (
                 "import subprocess, sys, time\n"

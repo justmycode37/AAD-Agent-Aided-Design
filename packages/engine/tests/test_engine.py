@@ -564,12 +564,15 @@ result = Box(2, 3, 4)
         with tempfile.TemporaryDirectory(prefix="aad-engine-linux-timeout-") as temporary:
             root = Path(temporary)
             job = root / "job"
+            # Bound the child so a communicate() regression cannot leave the
+            # build worker's pipes open indefinitely.
             child = (
                 "from pathlib import Path\n"
                 "import time\n"
                 "Path('worker-child-started').write_text('started')\n"
-                "while not Path('release-child').exists(): time.sleep(0.01)\n"
-                "Path('worker-child-survived').write_text('survived')\n"
+                "deadline = time.monotonic() + 20.0\n"
+                "while not Path('release-child').exists() and time.monotonic() < deadline: time.sleep(0.01)\n"
+                "if Path('release-child').exists(): Path('worker-child-survived').write_text('survived')\n"
             )
             source = (
                 "import subprocess, sys, time\n"
