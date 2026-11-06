@@ -32,13 +32,14 @@ def audit(task, *, verified=True, verdict="good", coverage="complete", origin="r
     return AuditObservation(task, repetition, verified, verdict, coverage, origin, "synthetic-arm")
 
 
-def summarize(observations, selected=None):
+def summarize(observations, selected=None, *, host_manifest_validated=True):
     return false_verified_summary(
         observations,
         arm_id="synthetic-arm",
         selected=selected if selected is not None else [(p.task_id, p.repetition) for p in observations],
         sampling_plan_sha256="a" * 64,
         sampling_assumptions="Synthetic fixture only; no real-world inference.",
+        host_manifest_validated=host_manifest_validated,
     )
 
 
@@ -144,6 +145,14 @@ def test_empty_unknown_and_scripted_audits_cannot_support_threshold():
         assert report["statistical_criterion_met"] is False
         assert report["blockers"]
         assert report["inference"]["upper"] is None
+
+
+def test_unauthenticated_host_manifest_blocks_false_verified_inference():
+    report = summarize([audit("one")], host_manifest_validated=False)
+    assert report["host_manifest_validated"] is False
+    assert "authenticated host manifest validation is required" in report["blockers"]
+    assert report["statistical_criterion_met"] is False
+    assert report["inference"]["upper"] is None
 
 
 def test_missing_selected_audit_cannot_be_dropped():

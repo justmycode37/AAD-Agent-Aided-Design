@@ -78,7 +78,8 @@
                       5.9,
                       6.1
                     ],
-                    "through": true
+                    "through": true,
+                    "center_tolerance_mm": 0.05
                   },
                   {
                     "axis_mm": [
@@ -99,7 +100,8 @@
                       5.9,
                       6.1
                     ],
-                    "through": true
+                    "through": true,
+                    "center_tolerance_mm": 0.05
                   },
                   {
                     "axis_mm": [
@@ -120,7 +122,8 @@
                       5.9,
                       6.1
                     ],
-                    "through": true
+                    "through": true,
+                    "center_tolerance_mm": 0.05
                   },
                   {
                     "axis_mm": [
@@ -141,7 +144,8 @@
                       5.9,
                       6.1
                     ],
-                    "through": true
+                    "through": true,
+                    "center_tolerance_mm": 0.05
                   }
                 ]
               },
@@ -2448,7 +2452,8 @@
                       29.9,
                       30.1
                     ],
-                    "through": true
+                    "through": true,
+                    "center_tolerance_mm": 0.05
                   }
                 ]
               },
@@ -2475,7 +2480,8 @@
                       3.95,
                       4.05
                     ],
-                    "through": false
+                    "through": false,
+                    "center_tolerance_mm": 0.05
                   }
                 ]
               }
@@ -4117,11 +4123,11 @@
                 "type": "bbox_mm",
                 "ranges": [
                   [
-                    65.9,
+                    63.9,
                     66.1
                   ],
                   [
-                    65.9,
+                    63.9,
                     66.1
                   ],
                   [
@@ -4168,7 +4174,8 @@
                       15.9,
                       16.1
                     ],
-                    "through": true
+                    "through": true,
+                    "center_tolerance_mm": 0.05
                   }
                 ]
               },
@@ -4232,17 +4239,11 @@
                     4.0
                   ]
                 ],
-                "tolerance_mm": 0.1
-              },
-              {
-                "id": "lobe_tip",
-                "type": "point_material",
-                "point_mm": [
-                  32.0,
-                  0.0,
-                  4.0
-                ],
-                "equals": "solid"
+                "tolerance_mm": 0.1,
+                "feature_tip_radius_mm": [
+                  32.95,
+                  33.05
+                ]
               }
             ],
             "preserve_check_ids": []
@@ -4496,6 +4497,7 @@
               {
                 "id": "core_material",
                 "type": "point_material",
+                "xy_translation_invariant": true,
                 "point_mm": [
                   38.0,
                   0.0,
@@ -4506,6 +4508,7 @@
               {
                 "id": "axial_bore",
                 "type": "cylindrical_bores",
+                "xy_translation_invariant": true,
                 "bores": [
                   {
                     "axis_mm": [
@@ -4526,13 +4529,15 @@
                       9.9,
                       10.1
                     ],
-                    "through": true
+                    "through": true,
+                    "center_tolerance_mm": 0.05
                   }
                 ]
               },
               {
                 "id": "spoke_pattern",
                 "type": "rotational_pattern",
+                "xy_translation_invariant": true,
                 "axis_mm": [
                   0.0,
                   0.0,
@@ -4575,22 +4580,13 @@
               {
                 "id": "rim_material",
                 "type": "point_material",
+                "xy_translation_invariant": true,
                 "point_mm": [
                   38.0,
                   0.0,
                   0.0
                 ],
                 "equals": "solid"
-              },
-              {
-                "id": "window_void",
-                "type": "point_material",
-                "point_mm": [
-                  20.0,
-                  20.0,
-                  0.0
-                ],
-                "equals": "void"
               }
             ],
             "preserve_check_ids": []
@@ -6333,7 +6329,8 @@
                       5.9,
                       6.1
                     ],
-                    "through": true
+                    "through": true,
+                    "center_tolerance_mm": 0.05
                   },
                   {
                     "axis_mm": [
@@ -6354,7 +6351,8 @@
                       5.9,
                       6.1
                     ],
-                    "through": true
+                    "through": true,
+                    "center_tolerance_mm": 0.05
                   }
                 ]
               },
@@ -6436,7 +6434,8 @@
                       5.9,
                       6.1
                     ],
-                    "through": true
+                    "through": true,
+                    "center_tolerance_mm": 0.05
                   },
                   {
                     "axis_mm": [
@@ -6457,7 +6456,8 @@
                       5.9,
                       6.1
                     ],
-                    "through": true
+                    "through": true,
+                    "center_tolerance_mm": 0.05
                   }
                 ]
               },
@@ -9621,7 +9621,29 @@
                   0.0,
                   22.0
                 ],
-                "equals": "void"
+                "equals": "void",
+                "additional_points_mm": [
+                  [
+                    20.0,
+                    0.0,
+                    22.0
+                  ],
+                  [
+                    -20.0,
+                    0.0,
+                    22.0
+                  ],
+                  [
+                    0.0,
+                    15.0,
+                    22.0
+                  ],
+                  [
+                    0.0,
+                    -15.0,
+                    22.0
+                  ]
+                ]
               },
               {
                 "id": "side_wall",
@@ -9701,7 +9723,8 @@
                       3.9,
                       4.1
                     ],
-                    "through": true
+                    "through": true,
+                    "center_tolerance_mm": 0.05
                   },
                   {
                     "axis_mm": [
@@ -9722,7 +9745,8 @@
                       3.9,
                       4.1
                     ],
-                    "through": true
+                    "through": true,
+                    "center_tolerance_mm": 0.05
                   },
                   {
                     "axis_mm": [
@@ -9743,7 +9767,8 @@
                       3.9,
                       4.1
                     ],
-                    "through": true
+                    "through": true,
+                    "center_tolerance_mm": 0.05
                   },
                   {
                     "axis_mm": [
@@ -9764,7 +9789,8 @@
                       3.9,
                       4.1
                     ],
-                    "through": true
+                    "through": true,
+                    "center_tolerance_mm": 0.05
                   }
                 ]
               },
@@ -9776,7 +9802,29 @@
                   0.0,
                   22.0
                 ],
-                "equals": "void"
+                "equals": "void",
+                "additional_points_mm": [
+                  [
+                    20.0,
+                    0.0,
+                    22.0
+                  ],
+                  [
+                    -20.0,
+                    0.0,
+                    22.0
+                  ],
+                  [
+                    0.0,
+                    15.0,
+                    22.0
+                  ],
+                  [
+                    0.0,
+                    -15.0,
+                    22.0
+                  ]
+                ]
               },
               {
                 "id": "side_wall",
@@ -10922,7 +10970,8 @@
                       24.9,
                       25.1
                     ],
-                    "through": true
+                    "through": true,
+                    "center_tolerance_mm": 0.05
                   }
                 ]
               },
@@ -11004,7 +11053,8 @@
                       24.9,
                       25.1
                     ],
-                    "through": true
+                    "through": true,
+                    "center_tolerance_mm": 0.05
                   },
                   {
                     "axis_mm": [
@@ -11025,7 +11075,8 @@
                       39.9,
                       40.1
                     ],
-                    "through": true
+                    "through": true,
+                    "center_tolerance_mm": 0.05
                   }
                 ]
               },
@@ -11414,17 +11465,25 @@
                   2.05
                 ],
                 "feature_kind": "solid",
-                "tolerance_mm": 0.1
-              },
-              {
-                "id": "fin_gap",
-                "type": "point_material",
-                "point_mm": [
-                  -24.0,
+                "tolerance_mm": 0.1,
+                "axis_options_mm": [
+                  [
+                    1.0,
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                ],
+                "scan_point_mm": [
+                  0.0,
                   0.0,
                   18.0
                 ],
-                "equals": "void"
+                "spacing_tolerance_mm": 0.2
               }
             ],
             "preserve_check_ids": []
@@ -11521,17 +11580,25 @@
                   2.05
                 ],
                 "feature_kind": "solid",
-                "tolerance_mm": 0.1
-              },
-              {
-                "id": "fin_gap_edited",
-                "type": "point_material",
-                "point_mm": [
-                  -28.57142857142857,
+                "tolerance_mm": 0.1,
+                "axis_options_mm": [
+                  [
+                    1.0,
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                ],
+                "scan_point_mm": [
+                  0.0,
                   0.0,
                   18.0
                 ],
-                "equals": "void"
+                "spacing_tolerance_mm": 0.2
               }
             ],
             "preserve_check_ids": [
@@ -15483,7 +15550,8 @@
                     "diameter_mm": [
                       9.95,
                       10.05
-                    ]
+                    ],
+                    "center_tolerance_mm": 0.05
                   }
                 ],
                 "segments": [
@@ -16006,156 +16074,49 @@
                 ],
                 "contour_count": 8,
                 "closed_contours": true,
-                "extents_mm": [
-                  [
-                    79.9,
-                    80.1
-                  ],
-                  [
-                    92.276,
-                    92.476
-                  ]
-                ],
                 "circles": [
                   {
                     "center_mm": [
                       0.0,
                       0.0
                     ],
+                    "center_tolerance_mm": 0.05,
                     "diameter_mm": [
                       15.95,
                       16.05
                     ]
-                  },
+                  }
+                ],
+                "circle_patterns": [
                   {
                     "center_mm": [
-                      28.0,
+                      0.0,
                       0.0
                     ],
-                    "diameter_mm": [
-                      5.95,
-                      6.05
-                    ]
-                  },
-                  {
-                    "center_mm": [
-                      14.000000000000004,
-                      24.24871130596428
+                    "count": 6,
+                    "pitch_radius_mm": [
+                      28.0,
+                      28.0
                     ],
-                    "diameter_mm": [
-                      5.95,
-                      6.05
-                    ]
-                  },
-                  {
-                    "center_mm": [
-                      -13.999999999999995,
-                      24.248711305964285
-                    ],
-                    "diameter_mm": [
-                      5.95,
-                      6.05
-                    ]
-                  },
-                  {
-                    "center_mm": [
-                      -28.0,
-                      3.429011037612589e-15
-                    ],
-                    "diameter_mm": [
-                      5.95,
-                      6.05
-                    ]
-                  },
-                  {
-                    "center_mm": [
-                      -14.000000000000012,
-                      -24.248711305964274
-                    ],
-                    "diameter_mm": [
-                      5.95,
-                      6.05
-                    ]
-                  },
-                  {
-                    "center_mm": [
-                      14.000000000000004,
-                      -24.24871130596428
-                    ],
+                    "center_tolerance_mm": 0.05,
                     "diameter_mm": [
                       5.95,
                       6.05
                     ]
                   }
                 ],
-                "segments": [
-                  {
-                    "start_mm": [
-                      -40.0,
-                      -23.094
-                    ],
-                    "end_mm": [
-                      -40.0,
-                      23.094
-                    ],
-                    "tolerance_mm": 0.1
-                  },
-                  {
-                    "start_mm": [
-                      -40.0,
-                      23.094
-                    ],
-                    "end_mm": [
-                      0.0,
-                      46.188
-                    ],
-                    "tolerance_mm": 0.1
-                  },
-                  {
-                    "start_mm": [
-                      0.0,
-                      46.188
-                    ],
-                    "end_mm": [
-                      40.0,
-                      23.094
-                    ],
-                    "tolerance_mm": 0.1
-                  },
-                  {
-                    "start_mm": [
-                      40.0,
-                      23.094
-                    ],
-                    "end_mm": [
-                      40.0,
-                      -23.094
-                    ],
-                    "tolerance_mm": 0.1
-                  },
-                  {
-                    "start_mm": [
-                      40.0,
-                      -23.094
-                    ],
-                    "end_mm": [
-                      0.0,
-                      -46.188
-                    ],
-                    "tolerance_mm": 0.1
-                  },
-                  {
-                    "start_mm": [
-                      0.0,
-                      -46.188
-                    ],
-                    "end_mm": [
-                      -40.0,
-                      -23.094
-                    ],
-                    "tolerance_mm": 0.1
-                  }
-                ]
+                "regular_polygon": {
+                  "vertex_count": 6,
+                  "center_mm": [
+                    0.0,
+                    0.0
+                  ],
+                  "across_flats_mm": [
+                    79.9,
+                    80.1
+                  ],
+                  "tolerance_mm": 0.1
+                }
               }
             ],
             "preserve_check_ids": []
@@ -16678,7 +16639,8 @@
                     "diameter_mm": [
                       89.95,
                       90.05
-                    ]
+                    ],
+                    "center_tolerance_mm": 0.05
                   },
                   {
                     "center_mm": [
@@ -16688,7 +16650,8 @@
                     "diameter_mm": [
                       69.95,
                       70.05
-                    ]
+                    ],
+                    "center_tolerance_mm": 0.05
                   }
                 ]
               }

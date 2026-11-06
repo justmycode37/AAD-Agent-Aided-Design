@@ -12,7 +12,7 @@ from typing import Any, Callable
 
 from .loop import run_agent_loop
 from .security import safe_exception_message
-from .types import IsolationPreflight, PublicStageProjection, RunConfig, TrialResult
+from .types import IsolationPreflight, PublicStageProjection, RunConfig, SpendConsent, TrialResult
 
 
 @dataclass(frozen=True)
@@ -46,6 +46,7 @@ async def run_from_files(
     public_projection_path: Path,
     stage_id: str,
     launcher_spec: str,
+    spend_consent: SpendConsent,
 ) -> TrialResult:
     config = RunConfig.from_mapping(_load_json(config_path))
     projection_data = _load_json(public_projection_path)
@@ -61,7 +62,13 @@ async def run_from_files(
         preflight = launched.isolation_preflight
         if not isinstance(preflight, IsolationPreflight):
             preflight = IsolationPreflight.from_mapping(preflight)
-        return await run_agent_loop(config, stage, launched.backend, preflight)
+        return await run_agent_loop(
+            config,
+            stage,
+            launched.backend,
+            preflight,
+            spend_consent=spend_consent,
+        )
     finally:
         if launched.close is not None:
             closed = launched.close()
@@ -82,6 +89,12 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Parent-owned async launcher in module:function form; it must run isolation probes",
     )
+    parser.add_argument(
+        "--confirm-spend",
+        action="store_true",
+        required=True,
+        help="Explicitly authorize a live provider call for this single-stage harness run",
+    )
     return parser
 
 
@@ -94,6 +107,7 @@ def main(argv: list[str] | None = None) -> int:
                 public_projection_path=args.public_projection,
                 stage_id=args.stage,
                 launcher_spec=args.launcher,
+                spend_consent=SpendConsent._from_cli_flag(args.confirm_spend),
             )
         )
     except Exception as error:

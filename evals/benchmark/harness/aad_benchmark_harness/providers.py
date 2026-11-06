@@ -10,6 +10,7 @@ from .types import (
     ProviderToolCall,
     ProviderTurn,
     PublicStageProjection,
+    SpendConsent,
     ToolInvocationResult,
     ToolSpec,
     UsageReceipt,
@@ -256,11 +257,18 @@ def _provider_tool_specs(tools: Sequence[ToolSpec]) -> tuple[ToolSpec, ...]:
     return tuple(tools) + (_finish_tool_spec(),)
 
 
+def _require_spend_consent(spend_consent: SpendConsent | None) -> None:
+    """Guard every path that creates a provider adapter, including direct use."""
+    if not isinstance(spend_consent, SpendConsent) or not spend_consent.confirmed:
+        raise PermissionError("provider adapter creation requires explicit --confirm-spend consent")
+
+
 class OpenAIResponsesAdapter:
     family = "openai"
     origin = "custom"
 
-    def __init__(self, client: Any, model: str):
+    def __init__(self, client: Any, model: str, *, spend_consent: SpendConsent):
+        _require_spend_consent(spend_consent)
         if not isinstance(model, str) or not model.strip():
             raise ValueError("OpenAI Responses model name must be explicit")
         self.client = client
@@ -290,6 +298,13 @@ class OpenAIResponsesAdapter:
             }
             for spec in self._specs
         ]
+
+    def advance_stage(self, stage: PublicStageProjection) -> None:
+        """Append the next stage request while retaining prior task context."""
+        self._input.append({
+            "role": "user",
+            "content": [{"type": "input_text", "text": stage_prompt(stage)}],
+        })
 
     def tool_catalog_payload(self) -> Any:
         return self._tools
@@ -424,7 +439,8 @@ class AnthropicMessagesAdapter:
     family = "anthropic"
     origin = "custom"
 
-    def __init__(self, client: Any, model: str):
+    def __init__(self, client: Any, model: str, *, spend_consent: SpendConsent):
+        _require_spend_consent(spend_consent)
         if not isinstance(model, str) or not model.strip():
             raise ValueError("Anthropic Messages model name must be explicit")
         self.client = client
@@ -448,6 +464,14 @@ class AnthropicMessagesAdapter:
             }
             for spec in self._specs
         ]
+
+    def advance_stage(self, stage: PublicStageProjection) -> None:
+        """Append the next stage request after the preceding tool result."""
+        prompt = {"type": "text", "text": stage_prompt(stage)}
+        if self._messages and self._messages[-1].get("role") == "user" and isinstance(self._messages[-1].get("content"), list):
+            self._messages[-1]["content"].append(prompt)
+        else:
+            self._messages.append({"role": "user", "content": [prompt]})
 
     def tool_catalog_payload(self) -> Any:
         return self._tools
@@ -568,20 +592,25 @@ class AnthropicMessagesAdapter:
                 await result
 
 
-def create_provider_adapter(family: str, model: str):
-    """Create a pinned official async SDK adapter; model is always caller-supplied."""
+def create_provider_adapter(family: str, model: str, *, spend_consent: SpendConsent):
+    """Create a live SDK adapter only after explicit spend consent was provided."""
+    _require_spend_consent(spend_consent)
     if not model or not model.strip():
         raise ValueError("provider model name is required; no default model is selected")
     if family == "openai":
         from openai import AsyncOpenAI
 
-        adapter = OpenAIResponsesAdapter(AsyncOpenAI(max_retries=0), model)
+        adapter = OpenAIResponsesAdapter(
+            AsyncOpenAI(max_retries=0), model, spend_consent=spend_consent
+        )
         adapter.origin = "live"
         return adapter
     if family == "anthropic":
         from anthropic import AsyncAnthropic
 
-        adapter = AnthropicMessagesAdapter(AsyncAnthropic(max_retries=0), model)
+        adapter = AnthropicMessagesAdapter(
+            AsyncAnthropic(max_retries=0), model, spend_consent=spend_consent
+        )
         adapter.origin = "live"
         return adapter
     raise ValueError("provider must be explicitly set to openai or anthropic")

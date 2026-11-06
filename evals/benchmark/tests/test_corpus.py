@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import os
 import subprocess
 import sys
@@ -295,9 +296,39 @@ class CorpusContractTests(unittest.TestCase):
                 elif hasattr(artifact, "audit"):
                     audit = artifact.audit()
                     self.assertEqual(audit.errors, [], f"DXF audit errors: {task_id}/{stage_id}")
-                    measured = extents(artifact.modelspace()).size
-                    ranges = stage["oracle"]["checks"][0]["extents_mm"]
-                    self.assertTrue(all(a <= value <= b for value, (a, b) in zip((measured.x, measured.y), ranges)), f"DXF size: {measured}")
+                    profile_check = next(
+                        check for check in stage["oracle"]["checks"] if check["type"] == "dxf_profile"
+                    )
+                    if "extents_mm" in profile_check:
+                        measured = extents(artifact.modelspace()).size
+                        ranges = profile_check["extents_mm"]
+                        self.assertTrue(
+                            all(a <= value <= b for value, (a, b) in zip((measured.x, measured.y), ranges)),
+                            f"DXF size: {measured}",
+                        )
+                    else:
+                        polygon = profile_check["regular_polygon"]
+                        polylines = list(artifact.modelspace().query("LWPOLYLINE"))
+                        self.assertEqual(len(polylines), 1)
+                        vertices = [tuple(point[:2]) for point in polylines[0].get_points("xy")]
+                        self.assertEqual(len(vertices), polygon["vertex_count"])
+                        center = polygon["center_mm"]
+                        radii = [math.dist(point, center) for point in vertices]
+                        across_flats = 2 * sum(radii) / len(radii) * math.cos(math.pi / len(vertices))
+                        low, high = polygon["across_flats_mm"]
+                        self.assertTrue(low <= across_flats <= high, f"DXF across-flats: {across_flats}")
+                        pattern = profile_check["circle_patterns"][0]
+                        center = pattern["center_mm"]
+                        pitch = pattern["pitch_radius_mm"]
+                        diameter = pattern["diameter_mm"]
+                        matching_holes = [
+                            circle for circle in artifact.modelspace().query("CIRCLE")
+                            if pitch[0] - pattern["center_tolerance_mm"]
+                            <= math.dist(tuple(circle.dxf.center)[:2], center)
+                            <= pitch[1] + pattern["center_tolerance_mm"]
+                            and diameter[0] <= 2 * circle.dxf.radius <= diameter[1]
+                        ]
+                        self.assertEqual(len(matching_holes), pattern["count"])
 
     def test_artifact_coverage_and_drawing_placeholders_cannot_self_certify(self) -> None:
         for task in self.corpus["tasks"]:

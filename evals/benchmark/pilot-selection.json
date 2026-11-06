@@ -1,0 +1,517 @@
+{
+  "schema_version": 1,
+  "selection_id": "s5-benchmark-pilot-20-v1",
+  "seed": "aad-benchmark-pilot-v1",
+  "rule": "Within each predeclared task-category stratum, rank every task by SHA-256(seed + NUL + category + NUL + task_id), ascending, and take the first fixed quota. Order the chosen tasks by SHA-256(seed + NUL + 'order' + NUL + task_id), ascending. No difficulty, oracle support, reference availability, or observed outcome is used to select tasks.",
+  "corpus_sha256": "cb8c452ad9eda73bfa078a62e7d7e6c0f947b13bf1e12a87c3aaf02736458f6f",
+  "quotas": {
+    "part": 5,
+    "edit_chain": 4,
+    "assembly": 3,
+    "2d_profile": 3,
+    "drawing": 2,
+    "clarification": 2,
+    "infeasible": 1
+  },
+  "strata": {
+    "part": {
+      "population_n": 40,
+      "quota": 5,
+      "ranked": [
+        {
+          "task_id": "part_lobe_wheel_001",
+          "sha256": "016561971c4ce189759f69fed361698b5d7437d2f64d3b421101dd72195ae4a8"
+        },
+        {
+          "task_id": "part_plate_001",
+          "sha256": "0580327ade10ff70a71e61d4c733310cfccd30c4f7a6a367dafa6532f507c8f6"
+        },
+        {
+          "task_id": "part_spoked_wheel_001",
+          "sha256": "114ff2f1046a07480cac207adf77fb73458b21d19cdd65c0b8bb18c0cefe9f43"
+        },
+        {
+          "task_id": "part_lid_002",
+          "sha256": "1ae52e8159bc884d7d8c199f5e0d07fea85f7cc32247fe07c8af92848dd0655b"
+        },
+        {
+          "task_id": "part_step_bushing_002",
+          "sha256": "25dd99e75175cfe732f131956d20bbb29a60f0edc76cb4dbe99a4077c9478a38"
+        },
+        {
+          "task_id": "part_clevis_002",
+          "sha256": "2792116e6f55b976ce3a55c9ead51972a325013040d119cd3400cc050de2edde"
+        },
+        {
+          "task_id": "part_slot_rail_002",
+          "sha256": "2d7d06a7d52a0c9e283737827b551b0997d952432aa8428a06613a6fbb104fdb"
+        },
+        {
+          "task_id": "part_slot_rail_001",
+          "sha256": "30a428da77ae00e6837bbfe3740e17f6756ab98e38431d5f6012313dcb26b0ba"
+        },
+        {
+          "task_id": "part_ribbed_cover_001",
+          "sha256": "35295eac1b1d890d77fc1f5027de5b6dc8e1d289ede3a8d88e555d2fb29afaca"
+        },
+        {
+          "task_id": "part_sleeve_001",
+          "sha256": "3c58b201e501a19aea969deef14a4c75a28f9bdb3c21912a3ec61cac2a9d18e4"
+        },
+        {
+          "task_id": "part_pulley_001",
+          "sha256": "3f8aeeae0df443b454cbcdb6cf70fdb1d57dd760cae00bd7826552b87c7e1a68"
+        },
+        {
+          "task_id": "part_split_clamp_002",
+          "sha256": "446ddc2a99383767cf9b1875f8e646d42edc12255e18816a9ceb89da0b9cdf8c"
+        },
+        {
+          "task_id": "part_ribbed_cover_002",
+          "sha256": "47affa59ed3a85e8ed85833fa821520bb354b706bab6fcefaf0d74dd377dbe12"
+        },
+        {
+          "task_id": "part_u_channel_001",
+          "sha256": "48b11dc32d7dd97fd3758582b2c3d87f3ecd334f66f6e0602ac337a926bc1645"
+        },
+        {
+          "task_id": "part_gusset_002",
+          "sha256": "4d199e2f935e35833b55c11b4e2a8f016c39aac6742845c0cbfce375612f9a6d"
+        },
+        {
+          "task_id": "part_flange_001",
+          "sha256": "56a5ea051ba352e8bd5f3fdb7c5d1d368e956b8510395de9adb35ca3c01f1627"
+        },
+        {
+          "task_id": "part_c_channel_002",
+          "sha256": "62dffaeb01125fecc56ecc454f32c5d1b942f470678ef823d5a8fca709cd5fd1"
+        },
+        {
+          "task_id": "part_spoked_wheel_002",
+          "sha256": "6c0d5a447e34d80847c6ce2a69ce3bbd34b20d5dcd341c13421ed6a2b56b9320"
+        },
+        {
+          "task_id": "part_enclosure_001",
+          "sha256": "7dd48d772ed0a25b7bc6c40db75fea00a3ccf21517189519312c2682fc2b4cea"
+        },
+        {
+          "task_id": "part_hose_adapter_001",
+          "sha256": "80ca506717cc89516498ca573a26713aeb88ef78f394dfbf1bb00d3ef33422d3"
+        },
+        {
+          "task_id": "part_lobe_wheel_002",
+          "sha256": "84a80b41a431888161f4dc7f6e0c210be334c9f4756392b69a21df14cfea3de8"
+        },
+        {
+          "task_id": "part_sleeve_002",
+          "sha256": "85b13e3c6b8b1c08db78c4ba22a4f8396bc68afa08b28c4676310d577ffc307a"
+        },
+        {
+          "task_id": "part_u_channel_002",
+          "sha256": "89504b7139fe2668c25cde8429386972378674ab82dbefea7bbdb57a252a6e99"
+        },
+        {
+          "task_id": "part_l_bracket_002",
+          "sha256": "9467c9fcf18d1ab78dca34a8694b59bee01da607b051be2061aa47a0a7de603e"
+        },
+        {
+          "task_id": "part_step_bushing_001",
+          "sha256": "963530061eecccab33c21fa67f72ead5c7df43de28033904c45244451d2992df"
+        },
+        {
+          "task_id": "part_heat_sink_001",
+          "sha256": "a16e9c060ff94c841c2689c2a24b3faba392fd7f439c4110177642274ee1e32c"
+        },
+        {
+          "task_id": "part_gusset_001",
+          "sha256": "a20f722e9767c3f0b298aa36d6f3ac4b7622a3f8b298709b41000c91241f9e52"
+        },
+        {
+          "task_id": "part_c_channel_001",
+          "sha256": "a49c187a018b69fa8af4066b4ea55a60ca1b4443b3f2f8bea192bb1faf1e36dc"
+        },
+        {
+          "task_id": "part_hose_adapter_002",
+          "sha256": "b1f3eb1443025245ffb1a13e6d42382c56ac55aa862dc496a3f1354e8557619f"
+        },
+        {
+          "task_id": "part_blocked_counterbore_001",
+          "sha256": "b8179babc19a14e1d27e79ee2c0ee830e063c4d14045966720e85141e9885bb2"
+        },
+        {
+          "task_id": "part_fan_carrier_001",
+          "sha256": "bcaf084c3a96d6fb6933a4aeeb55d3d2cd1028edb53e75e9a3c4fa1eaf545557"
+        },
+        {
+          "task_id": "part_pipe_saddle_001",
+          "sha256": "c635ad38a9080c467dae2730d4885e7071084a72d901e6572898454a7b3eb212"
+        },
+        {
+          "task_id": "part_l_bracket_001",
+          "sha256": "cd484941ce9109bbb420d66609215fa77ec762439ac2cc8d792fa6762ca4a005"
+        },
+        {
+          "task_id": "part_enclosure_002",
+          "sha256": "ceb40c6f19d7f811178e771ba06168a36c01d6bf659d34182ba303f3c4596ff9"
+        },
+        {
+          "task_id": "part_heat_sink_002",
+          "sha256": "d7ce094279ea8a0943dd8f3114ae5d1673a53ca8bfaa4644ffcb289efe33f403"
+        },
+        {
+          "task_id": "part_split_clamp_001",
+          "sha256": "ddf600078228814342a2afe89bca68c6318f250f71608277c6043760e11696e2"
+        },
+        {
+          "task_id": "part_clevis_001",
+          "sha256": "df1397c328ce15516d45c34be37e5b38a05f6c8ab72a5790ef474b9388d2a88c"
+        },
+        {
+          "task_id": "part_plate_002",
+          "sha256": "e85b9a37329b3645b9a8020ea795156983ea91ba084b4e6889640e1290c78adc"
+        },
+        {
+          "task_id": "part_lid_001",
+          "sha256": "ed967cc0fdff00502af9da051ed11cc0953d5ef4384249695333d0ba4536aeda"
+        },
+        {
+          "task_id": "part_flange_002",
+          "sha256": "ee791b043172d98e8fb77b6710cab085ddbac5f32a60dadafe42508dcd593670"
+        }
+      ],
+      "selected_task_ids": [
+        "part_lobe_wheel_001",
+        "part_plate_001",
+        "part_spoked_wheel_001",
+        "part_lid_002",
+        "part_step_bushing_002"
+      ]
+    },
+    "edit_chain": {
+      "population_n": 20,
+      "quota": 4,
+      "ranked": [
+        {
+          "task_id": "edit_heat_sink_add_fins_017",
+          "sha256": "085081633f9b8d1e731de774630c58407efa9f3b76af869eb6ad99406328f49f"
+        },
+        {
+          "task_id": "edit_enclosure_add_mounts_011",
+          "sha256": "19b3bf49b4ac28c58c9ee1428d5289683ce7700a0c6e042f4a2b99fc956a029a"
+        },
+        {
+          "task_id": "edit_plate_widen_001",
+          "sha256": "207674aa3a19bb34a9a98b6deb5772d7e5c33b3c346db3b0a156c2fa96545ff2"
+        },
+        {
+          "task_id": "edit_clamp_add_bolt_015",
+          "sha256": "213e7ca526989e5f6c1f1fc4e1269c340adcd5e60258bfe9f1d8908fbdb6f4d1"
+        },
+        {
+          "task_id": "edit_l_bracket_add_hole_005",
+          "sha256": "29a3ac08705e5f42223f25caed568b5f328b580284b765e6e30efc5fd255a9d7"
+        },
+        {
+          "task_id": "edit_heat_sink_add_two_more_018",
+          "sha256": "30bd53dda9a443010864958d2f1eb79fe4f8d488c015c531132d93863a82ba4f"
+        },
+        {
+          "task_id": "edit_lid_enlarge_holes_020",
+          "sha256": "387ec1d3e511885779613fd4773c9250ee53f0923e29be1947b1901acb42e76c"
+        },
+        {
+          "task_id": "edit_slot_rail_add_center_003",
+          "sha256": "437556f00aec4bf0ca5c50ac36fadfaa9ef3a1cacb46b37324fae8513779b3a6"
+        },
+        {
+          "task_id": "edit_sleeve_bore_008",
+          "sha256": "4662374c4a7941477b1b3c97f31638d78c0647532d69f58b3f2b98ce9594d054"
+        },
+        {
+          "task_id": "edit_flange_add_bolts_010",
+          "sha256": "4b2ec66ae0c6462edceea56b16e567c345776cead67123172051eb15a52df6db"
+        },
+        {
+          "task_id": "edit_channel_add_four_drains_014",
+          "sha256": "4be13ad429e358f733bd3708437db7d1ba3f8e2fee8746fb55d4b183cfd6df1c"
+        },
+        {
+          "task_id": "edit_l_bracket_third_hole_006",
+          "sha256": "6d0455a600fcba81bb896b1d12e1d3c58ca2f271041b1fd6ff4d5fd9e8617f1e"
+        },
+        {
+          "task_id": "edit_clamp_widen_split_016",
+          "sha256": "a4e680145f17e3da10b265b97d126a90830bc29114b21f561122cdc32de243a7"
+        },
+        {
+          "task_id": "edit_flange_counterbores_009",
+          "sha256": "aeb7d705c083594a4a2382739017ab37d906289a49f68988b862f327ed93736d"
+        },
+        {
+          "task_id": "edit_sleeve_counterbore_007",
+          "sha256": "c1df8d5090d0ee8c7ece6f68d814266b72cd1378551c062cc5557bd98397c583"
+        },
+        {
+          "task_id": "edit_enclosure_add_pair_012",
+          "sha256": "cda84d513c4f50ca63bbba6238cbed131f542f12a3665c457cd6d943988a985c"
+        },
+        {
+          "task_id": "edit_plate_counterbore_002",
+          "sha256": "d8291d9c316bf2c6db43441d31f8a2d7b928054e5c3c1692027583e364d71146"
+        },
+        {
+          "task_id": "edit_channel_add_drains_013",
+          "sha256": "e28109b518f610b02092f46b0a1e79c597b6c1b3ca38fe9fd3ad421ebae74cdb"
+        },
+        {
+          "task_id": "edit_slot_rail_widen_004",
+          "sha256": "e7c192555b8594dd2112304a86e9179731e9c080edd0fa30e06bdd22b4cebdf9"
+        },
+        {
+          "task_id": "edit_import_mesh_019",
+          "sha256": "ff48b92665f0a2c761e50f98e8fa6a65e78b8fbe2b2d199335e36eb98ddc48f4"
+        }
+      ],
+      "selected_task_ids": [
+        "edit_heat_sink_add_fins_017",
+        "edit_enclosure_add_mounts_011",
+        "edit_plate_widen_001",
+        "edit_clamp_add_bolt_015"
+      ]
+    },
+    "assembly": {
+      "population_n": 10,
+      "quota": 3,
+      "ranked": [
+        {
+          "task_id": "assembly_spacer_stack_010",
+          "sha256": "08c83a92fa3b328a342b085db036c6c13aa0d8ad81c9bd222a8654d207360dd9"
+        },
+        {
+          "task_id": "assembly_corner_stop_008",
+          "sha256": "0f9f25bbd13aea45296af5eb53bdd33de412cbdb7a976a7235a8acd6039867d1"
+        },
+        {
+          "task_id": "assembly_fan_support_007",
+          "sha256": "34378b15b544f977c6549b46cb745b0aff35027a045badde3edfcd918660b6c6"
+        },
+        {
+          "task_id": "assembly_rail_slide_003",
+          "sha256": "3532bc561c245532ac05908432e0213bc31a8d4c38054955d3d0e5ac628c93c5"
+        },
+        {
+          "task_id": "assembly_two_rotors_009",
+          "sha256": "9aadc21e17b9d66bfc37abc74d301c42e13021847aa1887c3b454d72ee94e935"
+        },
+        {
+          "task_id": "assembly_standoffs_001",
+          "sha256": "b598eecccc323c1372200d550acebef668e2de25820925c4ce51850884fae600"
+        },
+        {
+          "task_id": "assembly_panel_spacers_005",
+          "sha256": "d358d829cf1040f5c828b3267f4b6aca81d9ffff775741322235f34d7675dc09"
+        },
+        {
+          "task_id": "assembly_case_lid_006",
+          "sha256": "d96ec1f8cecf31e1f6ec6611187520ce220441172bae34d8781ca37c075b9615"
+        },
+        {
+          "task_id": "assembly_hinge_004",
+          "sha256": "f3a163e80f52cf5e3e095735cb37f3330dc161a6e7478405cd49ccc7246cd3f6"
+        },
+        {
+          "task_id": "assembly_spool_002",
+          "sha256": "fe714e7270b5cce55e29219c339e120471cac2c0bf68d362d22049b879c14415"
+        }
+      ],
+      "selected_task_ids": [
+        "assembly_spacer_stack_010",
+        "assembly_corner_stop_008",
+        "assembly_fan_support_007"
+      ]
+    },
+    "2d_profile": {
+      "population_n": 15,
+      "quota": 3,
+      "ranked": [
+        {
+          "task_id": "profile_hex_flange_009",
+          "sha256": "19c21e3ba008708160de540690f78be46d9abb35163eb02397b75bdb3f38c4d4"
+        },
+        {
+          "task_id": "profile_keyhole_006",
+          "sha256": "242427ab8e94ca0a2cde45692c6f26dc3b7a1c7929a800d92e44a21769647e87"
+        },
+        {
+          "task_id": "profile_gasket_012",
+          "sha256": "30d4723a7be5a85137bd60816597e913662156466e2c72531c0dc0f726291d14"
+        },
+        {
+          "task_id": "profile_t_plate_005",
+          "sha256": "3596bf09779a6af043ce644d64c8f6e45814cdf5643a33ea434eca03130611e2"
+        },
+        {
+          "task_id": "profile_octagon_002",
+          "sha256": "386fc65676917f6cd15fd2adfacbbd7fafbf36cf9f01111ba4bde4e43a4b4d97"
+        },
+        {
+          "task_id": "profile_clipped_panel_013",
+          "sha256": "4e71b0a7373470273a705d81ba7eebff374ffb8df7bab833d31527f65e1f2855"
+        },
+        {
+          "task_id": "profile_tab_010",
+          "sha256": "87a153a67bc17654c6ef2bd0be0b70b9cdfa1a4b7a0eb464aba92661e342a1f6"
+        },
+        {
+          "task_id": "profile_round_plate_001",
+          "sha256": "8c253d9c615fb0430a00d24423d7d7271b19aede9946cd97c85847d4f881f23d"
+        },
+        {
+          "task_id": "profile_pipe_gauge_015",
+          "sha256": "8c71113551c1b802f1657d7b0556f15c3336b31286eadd839470a560df6201fe"
+        },
+        {
+          "task_id": "profile_hinge_leaf_014",
+          "sha256": "a06b5bc11eb6d2934c8ed6f1bc888f11f41b695ac42d27188443b3c1ea1ada82"
+        },
+        {
+          "task_id": "profile_five_hole_rail_011",
+          "sha256": "a7852fb02f115df9abd303ce15771c1b08804f28f318ad90a82af452acc22720"
+        },
+        {
+          "task_id": "profile_strap_008",
+          "sha256": "af590dfc98caddfec4345867e45c2a378a7653cfbfc93cdc7b3f73eefffddfa2"
+        },
+        {
+          "task_id": "profile_washer_007",
+          "sha256": "c2d69415390dc6d76b25c7a32aa849b0bb13346d1316d27d727b9d55fa78f6a4"
+        },
+        {
+          "task_id": "profile_l_plate_003",
+          "sha256": "eecb63fced6b05369d766f72b890d01b56e0f23eef1bd758c70ccfa04ef80720"
+        },
+        {
+          "task_id": "profile_u_plate_004",
+          "sha256": "f4cf3133cd010fe4c2b63c6ce4d4f5c11b065a885534a37f5b12b224ace045e3"
+        }
+      ],
+      "selected_task_ids": [
+        "profile_hex_flange_009",
+        "profile_keyhole_006",
+        "profile_gasket_012"
+      ]
+    },
+    "drawing": {
+      "population_n": 5,
+      "quota": 2,
+      "ranked": [
+        {
+          "task_id": "drawing_flange_004",
+          "sha256": "18fbea405ed200b772bc941ff7b7af82519bf870d457cf64b8a4c7273b025d92"
+        },
+        {
+          "task_id": "drawing_clevis_002",
+          "sha256": "285a166f18885567fe7ab7f08652b76024ac28e675480613a77c53858179e9cb"
+        },
+        {
+          "task_id": "drawing_fan_plate_001",
+          "sha256": "34e306530692e7044d31ba3ff2acf8579fdb75a0f01eec29d4a18fd8a1500931"
+        },
+        {
+          "task_id": "drawing_enclosure_003",
+          "sha256": "77a88ddf454d7e7c8881bda9cfc1ee433a83c6d978d0de4659b50d0947a77600"
+        },
+        {
+          "task_id": "drawing_channel_005",
+          "sha256": "8f3dc67ec23ff38a95715b7254e3756c9964ed6757300822d38b96560f32ae54"
+        }
+      ],
+      "selected_task_ids": [
+        "drawing_flange_004",
+        "drawing_clevis_002"
+      ]
+    },
+    "clarification": {
+      "population_n": 5,
+      "quota": 2,
+      "ranked": [
+        {
+          "task_id": "clarify_pipe_adapter_004",
+          "sha256": "1eb9987d50340e2beb0c2fb5da3a24f76cb23015eeb56ee61afb9af05c3f90c2"
+        },
+        {
+          "task_id": "clarify_electronics_box_002",
+          "sha256": "96071524f54f091765da6d4550f16898f6c13d018dd891c9715321b6f8536ca3"
+        },
+        {
+          "task_id": "clarify_pump_bracket_001",
+          "sha256": "a70d9fb3fe93dc9fed58f756926794c2340d6a45dc7408257834d3e65084983d"
+        },
+        {
+          "task_id": "clarify_laser_panel_005",
+          "sha256": "bdd601f4b5c93f70d3d77080e9365a0cf48d5233868e619b1896dc31dbe369c4"
+        },
+        {
+          "task_id": "clarify_hinge_003",
+          "sha256": "dede0e891af8bbb6394a1ba2fb603cdd8256f48e7c242769dfe3b96fbe2a30b9"
+        }
+      ],
+      "selected_task_ids": [
+        "clarify_pipe_adapter_004",
+        "clarify_electronics_box_002"
+      ]
+    },
+    "infeasible": {
+      "population_n": 5,
+      "quota": 1,
+      "ranked": [
+        {
+          "task_id": "infeasible_envelope_005",
+          "sha256": "507d9580a72b3f86b487a82071c938d826f1b6de47a31459229722ec9c85030a"
+        },
+        {
+          "task_id": "infeasible_wall_stack_002",
+          "sha256": "54ffc3f53a78c8f6797ff3f7c375e9603e6e7af2dcf85281f7001cda5d863c04"
+        },
+        {
+          "task_id": "infeasible_ring_wall_004",
+          "sha256": "7c568ae14c6df88e4f857a32d706b6e91e68e459069c7034d1079cfa65d13bae"
+        },
+        {
+          "task_id": "infeasible_double_width_001",
+          "sha256": "ad26e711cd60f68e327f9d636f71f6bbe74cd031dba63561b38029ded3388a24"
+        },
+        {
+          "task_id": "infeasible_hole_depth_003",
+          "sha256": "e694322b8b130de7783180b4f5f161ee19aa655b44c894fa94b20f142095c24e"
+        }
+      ],
+      "selected_task_ids": [
+        "infeasible_envelope_005"
+      ]
+    }
+  },
+  "run_order": [
+    "infeasible_envelope_005",
+    "edit_clamp_add_bolt_015",
+    "drawing_flange_004",
+    "clarify_electronics_box_002",
+    "part_plate_001",
+    "edit_enclosure_add_mounts_011",
+    "part_lobe_wheel_001",
+    "part_lid_002",
+    "assembly_corner_stop_008",
+    "profile_keyhole_006",
+    "profile_gasket_012",
+    "edit_heat_sink_add_fins_017",
+    "part_spoked_wheel_001",
+    "profile_hex_flange_009",
+    "drawing_clevis_002",
+    "clarify_pipe_adapter_004",
+    "assembly_fan_support_007",
+    "assembly_spacer_stack_010",
+    "part_step_bushing_002",
+    "edit_plate_widen_001"
+  ],
+  "stage_count": 24
+}

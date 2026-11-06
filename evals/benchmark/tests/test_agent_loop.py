@@ -26,6 +26,7 @@ from evals.benchmark.harness.aad_benchmark_harness.loop import (
 from evals.benchmark.harness.aad_benchmark_harness.providers import (
     AnthropicMessagesAdapter,
     OpenAIResponsesAdapter,
+    create_provider_adapter,
     parse_anthropic_usage,
     parse_openai_usage,
 )
@@ -40,6 +41,7 @@ from evals.benchmark.harness.aad_benchmark_harness.types import (
     ProviderTurn,
     PublicStageProjection,
     RunConfig,
+    SpendConsent,
     ToolInvocationResult,
     ToolSpec,
     UsageReceipt,
@@ -144,6 +146,7 @@ class FakeProvider:
         self.estimates = list(estimates)
         self.count_calls = 0
         self.complete_calls = 0
+        self.output_caps: list[int] = []
         self.tool_results: list[Sequence[ToolInvocationResult]] = []
         self.exposed_tools: tuple[ToolSpec, ...] = ()
 
@@ -160,6 +163,7 @@ class FakeProvider:
 
     async def complete(self, max_output_tokens: int) -> ProviderTurn:
         self.complete_calls += 1
+        self.output_caps.append(max_output_tokens)
         return self.turns.pop(0)
 
     def add_tool_results(self, turn: ProviderTurn, results: Sequence[ToolInvocationResult]) -> None:
@@ -248,6 +252,7 @@ def test_run_loop_rechecks_mutable_public_asset_projection() -> None:
 def test_filter_removes_app_host_and_oracle_tools() -> None:
     tools = [
         safe_tool("aad_build"),
+        safe_tool("aad_import"),
         safe_tool("aad_scene_read"),
         safe_tool("aad_fs_read"),
         safe_tool("aad_browser_open_url"),
@@ -447,6 +452,83 @@ def test_budget_reserves_prompt_margin_and_full_output_before_generation() -> No
     assert result.model_calls_attempted == 0
 
 
+def test_provider_factory_rejects_missing_consent_before_sdk_creation() -> None:
+    with pytest.raises(PermissionError, match="explicit --confirm-spend"):
+        create_provider_adapter("openai", "offline-mock-model", spend_consent=None)
+
+
+def test_single_stage_route_cannot_create_a_live_adapter_without_consent() -> None:
+    backend = FakeBackend([safe_tool()])
+    result = asyncio.run(run_agent_loop(
+        make_config(),
+        make_stage(),
+        backend,
+        make_preflight(),
+        trace_sink=InMemoryTraceWriter(),
+    ))
+    assert result.state == "provider_error"
+    assert result.model_calls_attempted == 0
+    assert backend.calls == []
+    assert "provider_adapter_initialization_failed" in result.eligibility_reasons
+
+
+def test_single_stage_route_rejects_injected_live_adapter_without_consent() -> None:
+    provider = FakeProvider(())
+    provider.origin = "live"
+    assert not hasattr(provider, "requires_spend_consent")
+    backend = FakeBackend([safe_tool()])
+    result = asyncio.run(run_agent_loop(
+        make_config(),
+        make_stage(),
+        backend,
+        make_preflight(),
+        provider=provider,
+        trace_sink=InMemoryTraceWriter(),
+    ))
+    assert result.state == "ineligible"
+    assert result.stop_reason == "explicit_spend_consent_required"
+    assert provider.count_calls == 0
+    assert provider.complete_calls == 0
+    assert backend.list_calls == 0
+
+
+def test_spend_consent_cannot_be_directly_constructed() -> None:
+    with pytest.raises(TypeError, match="private confirmation factory"):
+        SpendConsent(True, "cli:--confirm-spend")
+    with pytest.raises(PermissionError, match="explicit --confirm-spend"):
+        SpendConsent._from_cli_flag(False)
+
+
+def test_single_stage_cli_requires_flag_and_passes_consent_object(monkeypatch, capsys) -> None:
+    from types import SimpleNamespace
+
+    from evals.benchmark.harness.aad_benchmark_harness import cli
+
+    called = []
+
+    async def fake_run_from_files(**kwargs):
+        called.append(kwargs)
+        return SimpleNamespace(as_dict=lambda: {"state": "mock"})
+
+    monkeypatch.setattr(cli, "run_from_files", fake_run_from_files)
+    arguments = [
+        "--config", "config.json",
+        "--public-projection", "public.json",
+        "--stage", "stage-1",
+        "--launcher", "example:launch",
+    ]
+    with pytest.raises(SystemExit):
+        cli.main(arguments)
+    assert called == []
+
+    assert cli.main([*arguments, "--confirm-spend"]) == 0
+    assert len(called) == 1
+    consent = called[0]["spend_consent"]
+    assert isinstance(consent, SpendConsent)
+    assert consent.confirmed is True
+    assert capsys.readouterr().out.strip() == '{"state": "mock"}'
+
+
 @pytest.mark.parametrize("family", ["openai", "anthropic"])
 def test_cumulative_budget_reservation_is_shared_by_provider_families(family: str) -> None:
     provider = FakeProvider(
@@ -479,6 +561,36 @@ def test_cumulative_budget_reservation_is_shared_by_provider_families(family: st
     assert result.model_calls_attempted == 1
     assert provider.complete_calls == 1
     assert result.tool_calls_attempted == 1
+
+
+def test_provider_usage_overage_is_reported_and_stops_before_tool_execution() -> None:
+    provider = FakeProvider(
+        [make_turn(
+            ProviderToolCall("call-over-budget", "aad_build", {"source": "mock"}),
+            usage=make_usage(250, 300),
+        )],
+        estimates=(100,),
+    )
+    backend = FakeBackend([safe_tool()])
+    result = asyncio.run(run_agent_loop(
+        make_config(
+            token_budget=500,
+            max_output_tokens_per_call=300,
+            input_token_safety_margin_ratio=0.1,
+            input_token_safety_margin_tokens=0,
+        ),
+        make_stage(),
+        backend,
+        make_preflight(),
+        provider=provider,
+        trace_sink=InMemoryTraceWriter(),
+    ))
+
+    assert provider.output_caps == [300]
+    assert result.provider_total_tokens == 550
+    assert result.stop_reason == "provider_usage_exceeded_pre_call_reservation"
+    assert result.tool_calls_attempted == 0
+    assert backend.calls == []
 
 
 def test_missing_usage_stops_before_mcp_and_total_stays_unknown() -> None:
@@ -595,7 +707,9 @@ def test_openai_responses_adapter_uses_offline_sdk_surface_and_image_outputs() -
             self.responses = Responses()
 
     client = Client()
-    adapter = OpenAIResponsesAdapter(client, "offline-mock-model")
+    adapter = OpenAIResponsesAdapter(
+        client, "offline-mock-model", spend_consent=SpendConsent._from_cli_flag(True)
+    )
     adapter.origin = "mock"
     adapter.initialize(make_stage(), "mock instructions", [safe_tool("aad_render")])
     estimate = asyncio.run(adapter.count_prompt_tokens())
@@ -653,7 +767,9 @@ def test_anthropic_messages_adapter_preserves_tool_result_order_and_images() -> 
             self.messages = Messages()
 
     client = Client()
-    adapter = AnthropicMessagesAdapter(client, "offline-mock-model")
+    adapter = AnthropicMessagesAdapter(
+        client, "offline-mock-model", spend_consent=SpendConsent._from_cli_flag(True)
+    )
     adapter.origin = "mock"
     adapter.initialize(make_stage(), "mock instructions", [safe_tool("aad_render")])
     estimate = asyncio.run(adapter.count_prompt_tokens())
@@ -811,9 +927,23 @@ def test_live_labels_alone_never_authenticate_an_agent_sample():
     }), usage=make_usage())])
     backend, trace = FakeBackend([safe_tool()]), InMemoryTraceWriter()
     provider.origin = backend.origin = trace.origin = "live"
-    result = asyncio.run(run_agent_loop(make_config(), make_stage(), backend, make_preflight(), provider=provider, trace_sink=trace))
+    result = asyncio.run(run_agent_loop(
+        make_config(), make_stage(), backend, make_preflight(), provider=provider,
+        spend_consent=SpendConsent._from_cli_flag(True), trace_sink=trace,
+    ))
     assert result.provisional_eligible is True
     assert result.sample_eligible is False
     assert "host_manifest_validation_required" in result.eligibility_reasons
-    assert OpenAIResponsesAdapter(object(), "mock").origin == "custom"
-    assert AnthropicMessagesAdapter(object(), "mock").origin == "custom"
+    test_consent = SpendConsent._from_cli_flag(True)
+    assert OpenAIResponsesAdapter(
+        object(), "mock", spend_consent=test_consent
+    ).origin == "custom"
+    assert AnthropicMessagesAdapter(
+        object(), "mock", spend_consent=test_consent
+    ).origin == "custom"
+
+
+@pytest.mark.parametrize("adapter_type", [OpenAIResponsesAdapter, AnthropicMessagesAdapter])
+def test_live_provider_adapters_reject_missing_consent_at_construction(adapter_type):
+    with pytest.raises(PermissionError, match="explicit --confirm-spend"):
+        adapter_type(object(), "offline-mock-model", spend_consent=None)

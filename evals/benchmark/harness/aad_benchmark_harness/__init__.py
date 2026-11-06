@@ -13,6 +13,7 @@ from .types import (
     IsolationPreflight,
     PublicStageProjection,
     RunConfig,
+    SpendConsent,
     TrialResult,
 )
 
@@ -23,6 +24,7 @@ __all__ = [
     "OpenAIResponsesAdapter",
     "PublicStageProjection",
     "RunConfig",
+    "SpendConsent",
     "StagedArtifact",
     "TrialLaunch",
     "TrialResult",

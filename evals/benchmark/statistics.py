@@ -13,7 +13,7 @@ import math
 import random
 import re
 import statistics
-from typing import Iterable
+from typing import Iterable, Mapping
 
 
 def _finite(value: object, field: str) -> float:
@@ -238,6 +238,119 @@ def paired_task_bootstrap(
     }
 
 
+def task_cluster_bootstrap(
+    observations: Iterable[MetricObservation],
+    *,
+    expected: Iterable[tuple[str, int]],
+    strata: Mapping[str, str],
+    population_counts: Mapping[str, int],
+    seed: int,
+    resamples: int = 10000,
+    confidence: float = 0.95,
+) -> dict:
+    """Stratified percentile bootstrap with task IDs as the sampling unit.
+
+    The headline statistic is the population-size-weighted mean of each
+    stratum's task means. All planned cells must be present and known; repeated
+    observations are first averaged within task. Singleton strata are retained
+    and reported as degenerate rather than silently dropped.
+    """
+    confidence = _confidence(confidence)
+    if type(seed) is not int:
+        raise ValueError("seed must be an integer")
+    if type(resamples) is not int or resamples < 100:
+        raise ValueError("resamples must be an integer of at least 100")
+    points = list(observations)
+    indexed = _index(points)
+    planned = _expected_keys(expected)
+    missing = sorted(planned - set(indexed))
+    unexpected = sorted(set(indexed) - planned)
+    unknown = sorted(key for key in planned & set(indexed) if indexed[key] is None)
+    planned_tasks = {task_id for task_id, _ in planned}
+    if set(strata) != planned_tasks:
+        raise ValueError("strata must name each expected task exactly once")
+    if not isinstance(population_counts, Mapping) or not population_counts:
+        raise ValueError("population_counts must define the selected strata")
+    if any(not isinstance(name, str) or type(count) is not int or count <= 0 for name, count in population_counts.items()):
+        raise ValueError("population_counts must contain positive integer task counts")
+    if set(strata.values()) != set(population_counts):
+        raise ValueError("population_counts strata must match the expected task strata")
+    task_values: dict[str, list[float]] = {task_id: [] for task_id in planned_tasks}
+    for (task_id, _), value in indexed.items():
+        if task_id in task_values and value is not None:
+            task_values[task_id].append(float(value))
+    missing_tasks = [task_id for task_id, values in task_values.items() if not values]
+    if missing or unexpected or unknown or missing_tasks:
+        return {
+            "estimate": None,
+            "confidence_interval": None,
+            "method": "stratified task-cluster percentile bootstrap",
+            "confidence": confidence,
+            "seed": seed,
+            "resamples": resamples,
+            "expected_cells": len(planned),
+            "observed_cells": len(indexed),
+            "missing": [list(item) for item in missing],
+            "unexpected": [list(item) for item in unexpected],
+            "unknown": [list(item) for item in unknown],
+            "missing_tasks": missing_tasks,
+            "reason": "the planned task matrix is incomplete or has unknown observations",
+        }
+
+    means: dict[str, list[float]] = {name: [] for name in population_counts}
+    for task_id, values in task_values.items():
+        means[strata[task_id]].append(sum(values) / len(values))
+    if any(not values or len(values) > population_counts[name] for name, values in means.items()):
+        raise ValueError("each stratum must have a nonempty sample no larger than its population")
+    population_total = sum(population_counts.values())
+
+    def weighted_mean(sampled: Mapping[str, list[float]]) -> float:
+        return sum(
+            population_counts[name] / population_total * (sum(values) / len(values))
+            for name, values in sampled.items()
+        )
+
+    estimate = weighted_mean(means)
+    rng = random.Random(seed)
+    draws = []
+    for _ in range(resamples):
+        sampled = {
+            name: [rng.choice(values) for _ in range(len(values))]
+            for name, values in means.items()
+        }
+        draws.append(weighted_mean(sampled))
+    draws.sort()
+
+    def quantile(probability: float) -> float:
+        position = probability * (len(draws) - 1)
+        lower = math.floor(position)
+        upper = math.ceil(position)
+        if lower == upper:
+            return draws[lower]
+        fraction = position - lower
+        return draws[lower] * (1 - fraction) + draws[upper] * fraction
+
+    alpha = 1 - confidence
+    return {
+        "estimate": estimate,
+        "confidence_interval": [quantile(alpha / 2), quantile(1 - alpha / 2)],
+        "method": "stratified task-cluster percentile bootstrap",
+        "confidence": confidence,
+        "seed": seed,
+        "resamples": resamples,
+        "expected_cells": len(planned),
+        "observed_cells": len(indexed),
+        "n_tasks": len(planned_tasks),
+        "by_stratum": {
+            name: {"selected_n": len(means[name]), "population_n": population_counts[name]}
+            for name in sorted(means)
+        },
+        "degenerate_strata": sorted(name for name, values in means.items() if len(values) == 1),
+        "sampling_unit": "task cluster; repetitions averaged within task",
+        "assumptions": "within-stratum hash-ranked tasks are exchangeable samples; this interval is descriptive and does not establish corpus representativeness",
+    }
+
+
 @dataclass(frozen=True)
 class AuditObservation:
     task_id: str
@@ -287,6 +400,7 @@ def false_verified_summary(
     arm_id: str,
     sampling_plan_sha256: str,
     sampling_assumptions: str,
+    host_manifest_validated: bool = False,
     confidence: float = 0.95,
     threshold: float = 0.05,
 ) -> dict:
@@ -308,6 +422,8 @@ def false_verified_summary(
         raise ValueError("a sampling plan SHA-256 is required")
     if not isinstance(sampling_assumptions, str) or not sampling_assumptions.strip():
         raise ValueError("sampling assumptions are required")
+    if type(host_manifest_validated) is not bool:
+        raise ValueError("host_manifest_validated must be a bool")
     indexed = {}
     for point in observations:
         if not isinstance(point, AuditObservation):
@@ -335,6 +451,8 @@ def false_verified_summary(
     counts = {verdict: sum(point.verdict == verdict for point in verified) for verdict in ("good", "bad", "indeterminate")}
     n = len(verified)
     blockers = []
+    if not host_manifest_validated:
+        blockers.append("authenticated host manifest validation is required")
     if not sample:
         blockers.append("empty independent audit sample")
     if missing:
@@ -356,6 +474,7 @@ def false_verified_summary(
         "arm_id": arm_id,
         "sampling_plan_sha256": sampling_plan_sha256,
         "sampling_assumptions": sampling_assumptions,
+        "host_manifest_validated": host_manifest_validated,
         "inference_scope": "selected native-verified trials, at most one trial per task, one comparison arm",
         "selected": [list(key) for key in sample],
         "n_selected_tasks": len(sample),

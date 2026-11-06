@@ -10,6 +10,30 @@ from typing import Any, Literal, Mapping, Protocol, Sequence, runtime_checkable
 ProviderFamily = Literal["openai", "anthropic"]
 TrialOrigin = Literal["live", "mock", "custom"]
 
+
+@dataclass(frozen=True, init=False)
+class SpendConsent:
+    """Accidental-spend guard passed to live provider adapters after CLI confirmation.
+
+    This is not an authentication token or a security boundary. Its private
+    factory keeps ordinary callers from constructing consent by accident.
+    """
+
+    confirmed: bool
+    source: str
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        raise TypeError("SpendConsent must be created by the private confirmation factory")
+
+    @classmethod
+    def _from_cli_flag(cls, confirmed: bool) -> "SpendConsent":
+        if type(confirmed) is not bool or not confirmed:
+            raise PermissionError("explicit --confirm-spend consent is required before provider use")
+        consent = object.__new__(cls)
+        object.__setattr__(consent, "confirmed", True)
+        object.__setattr__(consent, "source", "cli:--confirm-spend")
+        return consent
+
 PRIVATE_PROJECTION_KEYS = {
     "oracle",
     "expected_outcome",
@@ -821,6 +845,8 @@ class ProviderAdapter(Protocol):
     def initialize(
         self, stage: PublicStageProjection, instructions: str, tools: Sequence[ToolSpec]
     ) -> None: ...
+
+    def advance_stage(self, stage: PublicStageProjection) -> None: ...
 
     async def count_prompt_tokens(self) -> InputTokenEstimate: ...
 

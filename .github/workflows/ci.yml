@@ -115,11 +115,11 @@ jobs:
       - name: Run offline harness and SDK controls
         run: >-
           uv run --locked --project evals/benchmark/harness --with pytest-timeout
-          python -m pytest evals/benchmark/tests/test_agent_loop.py evals/benchmark/tests/test_provider_sdk.py
+          python -m pytest evals/benchmark/tests/test_agent_loop.py evals/benchmark/tests/test_task_loop.py evals/benchmark/tests/test_provider_sdk.py
       - name: Run statistics and native corpus controls
         run: >-
           uv run --locked --all-packages --all-extras python -m pytest
-          evals/benchmark/tests/test_statistics.py evals/benchmark/tests/test_corpus.py
+          evals/benchmark/tests/test_pilot.py evals/benchmark/tests/test_statistics.py evals/benchmark/tests/test_corpus.py
 
   viewer:
     needs: discover
