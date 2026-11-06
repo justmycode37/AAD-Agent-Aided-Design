@@ -276,7 +276,7 @@ main()
                          lambda w: w['checks'].append(asdict(Check(id='failed', status='fail')))]
             for mutate in mutations:
                 with self.subTest(mutation=mutate):
-                    def launch(argv, job, mutate=mutate):
+                    def launch(argv, job, mutate=mutate, **kwargs):
                         process = Mock(returncode=0)
                         process.poll.return_value = 0
                         def communicate(*, input, timeout):

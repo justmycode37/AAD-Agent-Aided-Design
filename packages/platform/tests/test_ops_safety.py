@@ -205,32 +205,56 @@ def test_operation_worker_starts_under_configured_memory_budget(tmp_path, projec
 def test_graphics_operation_keeps_memory_bootstrap_without_seatbelt(tmp_path, monkeypatch, project):
     import json
 
-    from aad.engine import memory
+    from aad.engine import memory, sandbox
     from aad_platform import config
     from aad_platform.daemon import ops_client
 
     config.set_value("engine.memory", "5GiB")
     monkeypatch.delenv("AAD_REMOTE", raising=False)
     seen = {}
+    prepared = {
+        "version": 1,
+        "render": {"request": {}},
+        "inspection": {},
+        "render_payload_file": ops_client.PREPARED_RENDER_FILENAME,
+    }
 
-    def communicate(data, timeout):
+    def worker_communicate(data, timeout):
         seen["request"] = json.loads(data)
-        return ops_client.RESULT_MARKER + json.dumps({"ok": True}).encode() + b"\n", b""
+        return ops_client.RESULT_MARKER + json.dumps({"ok": True, "prepared_render": prepared}).encode() + b"\n", b""
 
-    process = SimpleNamespace(
+    worker_process = SimpleNamespace(
         returncode=0,
-        communicate=communicate,
+        communicate=worker_communicate,
+    )
+    renderer_process = SimpleNamespace(
+        returncode=0,
+        communicate=lambda data, timeout: (
+            ops_client.RESULT_MARKER + json.dumps({"ok": True, "rendered": {}}).encode() + b"\n",
+            b"",
+        ),
     )
 
-    def fake_popen(argv, **kwargs):
-        seen.update(argv=argv, **kwargs)
-        return process
+    def fake_sandbox_popen(argv, job_dir, **kwargs):
+        seen.update(worker_argv=argv, worker_job_dir=job_dir, worker_kwargs=kwargs)
+        (Path(job_dir) / ops_client.PREPARED_RENDER_FILENAME).write_bytes(b"mesh payload")
+        return worker_process
 
-    monkeypatch.setattr(ops_client.subprocess, "Popen", fake_popen)
+    def fake_renderer_popen(argv, **kwargs):
+        seen.update(renderer_argv=argv, renderer_kwargs=kwargs)
+        return renderer_process
+
+    monkeypatch.setattr(sandbox, "popen", fake_sandbox_popen)
+    monkeypatch.setattr(ops_client.subprocess, "Popen", fake_renderer_popen)
+    import aad_render
+
+    monkeypatch.setattr(aad_render, "finish_render", lambda _prepared, _rendered, out: [Path(out) / "front.png"])
     result = ops_client._run_sandboxed({"op": "render", "args": {}, "out_dir": str(tmp_path / "out")}, timeout_s=10)
-    assert result == {"ok": True}
-    assert Path(seen["argv"][4]) == Path(memory.__file__).resolve()
-    assert seen["argv"][5] == str(memory.bootstrap_address_space_budget(5 * 1024 ** 3).bytes)
+    assert result["ok"]
+    assert result["images"][0]["path"].endswith("front.png")
+    assert seen["worker_kwargs"]["address_space"].bytes == memory.bootstrap_address_space_budget(5 * 1024 ** 3).bytes
+    assert Path(seen["renderer_argv"][4]) == Path(memory.__file__).resolve()
+    assert seen["renderer_argv"][5] == str(memory.bootstrap_address_space_budget(5 * 1024 ** 3).bytes)
     assert seen["request"]["memory_limit_bytes"] == 5 * 1024 ** 3
 
 
