@@ -9,8 +9,12 @@ from unittest.mock import patch
 
 import pytest
 
-from aad.engine.jobs import run_build
+from aad.engine.jobs import _part_cache_pipeline, run_build
 from aad.engine.types import BuildRequest
+
+# The cache needs the whole workspace to identify its pipeline, and the
+# engine-only CI job installs just aad-engine.
+pytestmark = pytest.mark.skipif(_part_cache_pipeline() is None, reason="needs every AAD workspace package")
 
 
 SOURCE = '''from aad import *
