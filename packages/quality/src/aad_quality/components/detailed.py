@@ -59,6 +59,8 @@ def make_detailed(
             raise ValueError("Do not combine vendor_step geometry with component selection, contact_count, or thread options")
         if not isinstance(vendor_step, str) or not vendor_step.strip():
             raise ValueError("vendor_step must be an asset filename added with aad_import")
+        if not vendor_step.lower().endswith((".step", ".stp")):
+            raise ValueError("vendor_step must name a .step or .stp asset")
         if not isinstance(vendor_evidence, Mapping) or not any(
             isinstance(vendor_evidence.get(key), str) and vendor_evidence[key].strip()
             for key in ("source", "url", "document")
@@ -357,8 +359,10 @@ def _motor(record: dict[str, Any], selection: dict[str, Any], lod: str) -> tuple
     pieces = [body, shaft]
     pilot_d, pilot_h = envelope.get("pilot_d"), envelope.get("pilot_h")
     if pilot_d and pilot_h:
-        pieces.append(Cylinder(float(pilot_d) / 2, float(pilot_h),
-                               align=(Align.CENTER, Align.CENTER, Align.MIN)))
+        # The shaft passes through the pilot, so the pilot is a ring around it.
+        pilot = Cylinder(float(pilot_d) / 2, float(pilot_h),
+                         align=(Align.CENTER, Align.CENTER, Align.MIN))
+        pieces.append(pilot.cut(shaft))
     if isinstance(spacing, int | float) and spacing > 0 and lod == "full":
         hole_d = 3.5
         hole_depth = min(float(body_length) * 0.15, 5.0)

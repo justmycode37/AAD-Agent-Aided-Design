@@ -28,7 +28,7 @@ requirements:
 
 ## Placing parts in the model
 
-`make_envelope` builds the unchanged simplified nominal solid for fit and clearance checks. `make_detailed` is an additive geometry tier beside it. Both build outside an active Builder context.
+`make_envelope` builds the unchanged simplified nominal solid for fit and clearance checks. `make_detailed` is an additive geometry tier beside it. Both build outside an active Builder context. Detailed bearings, connectors and motors are several solids, so use them in `kind="assembly"` projects.
 
 ```python
 from aad_quality.components import make_envelope

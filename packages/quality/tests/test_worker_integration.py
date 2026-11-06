@@ -214,3 +214,31 @@ def test_detailed_unsupported_bearing_family_does_not_receive_ball_bearing_inter
     ))
     assert not built.ok
     assert built.failure and "not a registered radial deep-groove bearing family" in built.failure.kernel_message
+
+
+def test_motor_pilot_does_not_overlap_the_shaft():
+    from aad.cad import overlap_volume
+    from aad_quality.components import make_detailed
+
+    solids = make_detailed("motor.stepper.17HS19-2004S1", lod="fit").solids()
+    assert len(solids) == 3
+    pairs = [(0, 1), (0, 2), (1, 2)]
+    assert sum(overlap_volume(solids[a], solids[b]) for a, b in pairs) < 1e-6
+
+
+@pytest.mark.parametrize("component_id, ways", [
+    ("connector.idc.2x5", 10),
+    ("connector.Molex-MicroFit.4pin", 4),
+    ("connector.pinheader.2.54.2x5", 10),
+])
+def test_multi_row_connectors_build_with_catalog_rows(component_id, ways):
+    from aad_quality.components import make_detailed
+
+    assert len(make_detailed(component_id, lod="fit").solids()) == ways + 1
+
+
+def test_vendor_step_refuses_other_formats():
+    from aad_quality.components import make_detailed
+
+    with pytest.raises(ValueError, match=r"\.step or \.stp"):
+        make_detailed("motor.stepper.17HS19-2004S1", vendor_step="supplier.brep", vendor_evidence={"source": "maker"})
