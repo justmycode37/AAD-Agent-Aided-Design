@@ -109,6 +109,7 @@ def load_context(request: dict[str, Any]) -> Any:
         sheet=sheet,
         features=features,
         params=meta.get("params") or {},
+        param_definitions=meta.get("param_definitions") or {},
         metrics=meta.get("metrics") or {},
         spec=spec,
         material=request.get("material") or (meta.get("meta") or {}).get("material"),
