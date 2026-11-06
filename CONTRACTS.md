@@ -651,6 +651,7 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 ## 11. Changelog
 
 - 2026-11-05: S1 applied configurable `engine.memory` virtual-address growth budgets to build and operation workers and made explicit `MemoryError`/`ENOMEM` results report `OUT_OF_MEMORY`, while keeping unrelated startup diagnostics and signal-only exits unclassified.
+- 2026-11-06: S1 passed the configured `engine.memory` budget to the clean 3D and 2D validator workers and installs it before validation code loads.
 - 2026-11-06: S1 requires at least one independently passing error-level requirement for `verified`, reports failing warn-level requirements in build and export summaries, labels `aad_check` with the saved `revision_status`, preserves downgrade reasons in history with accurate dry-run hints, and independently checks saved 2D sheet snapshots.
 - 2026-11-05: S2 made the structured `aad_render` report compact by default, with `inspection="full"` for the rest, because it reached 2.6 MB on a 492-part assembly.
 - 2026-11-05: S1 added per-phase build timings to `metrics`, named the slowest phase for builds over 20 seconds, reported unaccounted elapsed time as the residual `other` phase, made assembly mesh validation use one private remesh with per-solid checks, and reused the viewer scene's face and edge indexes across parts.

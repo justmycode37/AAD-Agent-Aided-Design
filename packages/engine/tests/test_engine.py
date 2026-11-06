@@ -52,14 +52,15 @@ class EngineBootstrapTests(unittest.TestCase):
             self.assertEqual(result.metrics["edges"], 12)
             self.assertEqual(result.metrics["build_ms"], result.build_ms)
             phase_timings = result.metrics["phase_timings_ms"]
-            for phase in (
-                "model", "write", "gate.brep_valid", "gate.solid_count", "gate.closed_shells",
-                "gate.edge_quality", "gate.face_quality", "gate.step_volume_drift",
-                "gate.mesh_watertight", "spec", "process", "scene", "render",
-                "other",
-            ):
+            # The model worker measures extraction and BREP writing. Hard,
+            # spec, process and scene checks run later in the trusted validator.
+            for phase in ("model", "write", "other"):
                 self.assertIn(phase, phase_timings)
                 self.assertGreaterEqual(phase_timings[phase], 0)
+            self.assertIn("validation_ms", result.metrics)
+            self.assertIn("validation_only_ms", result.metrics)
+            self.assertIn("scene_ms", result.metrics)
+            self.assertGreaterEqual(result.metrics["validation_ms"], result.metrics["scene_ms"])
             self.assertEqual(result.context.metrics["phase_timings_ms"], phase_timings)
             self.assertEqual(result.context.features[0].name, "main")
             self.assertEqual(len(result.context.features[0].faces), 6)

@@ -73,7 +73,7 @@ What a CAD package such as SolidWorks, Fusion or NX does, and how an agent does 
 | STEP AP214/AP242, BREP, STL, 3MF, GLB, DXF, SVG, PDF export | Existing | `aad_export` |
 | IGES, OBJ, PLY export | Added | `aad_export` |
 | Standalone viewer export | Added | `viewer_html` used to fail as not installed |
-| Independent verification | Added | One sandboxed validator loads saved BREP once, checks hard gate/spec/process and geometry-only checks, then builds the scene from that same shape. Metrics, checks and proven IDs are bound to the revision receipt. |
+| Independent verification | Added | One sandboxed validator loads saved BREP once, checks hard gate/spec/process and geometry-only checks, then builds the scene from that same shape. 3D and 2D validator processes receive the build's configured `engine.memory` budget. The VTK image renderer remains a separate mesh-only process for agent renders; viewer-scene serialization stays in the BREP validator. Metrics, checks and proven IDs are bound to the revision receipt. |
 | STEP, BREP, STL import | Existing | `aad_import` |
 | Using an imported file in a model | Added | `asset()`: the sandbox had no way to read it before |
 | IGES import | Added | `aad_import`, `asset()` |
