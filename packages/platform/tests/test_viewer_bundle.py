@@ -194,7 +194,7 @@ def test_oversize_opt_in_opens_complete_standalone_in_safari(saved_scene, tmp_pa
     assert len(opened) == 1 and opened[0][1] == 2
     assert opened[0][0].startswith(target.resolve().as_uri() + "?aad_scene=" + manifest["scene_id"] + "&aad_viewer=")
     assert not (output / "viewer.html").exists()
-    config = json.loads(target.read_text().split("window.__AAD_EMBEDDED_SCENE__ = ", 1)[1].split(";</script>", 1)[0])
+    config = json.loads(target.read_text(encoding="utf-8").split("window.__AAD_EMBEDDED_SCENE__ = ", 1)[1].split(";</script>", 1)[0])
     assert config["manifest"] == manifest
     assert decode_rgb_png(base64.b64decode(config["assets"][0].split(",", 1)[1]), len(payload)) == payload
 
