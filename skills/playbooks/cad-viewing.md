@@ -187,3 +187,29 @@ offline; `--controls cad` enables native CAD controls only in that standalone
 file. The chat artifact always stays simple. No preview server is needed.
 Preserve original scene bytes, hash and triangle count. Never use mesh
 simplification or coordinate rounding to get under a host's HTML size limit.
+
+### Oversized HTML viewer fallback
+
+`python -m aad_platform.viewer.bundle SCENE_DIR OUTPUT_DIR --open-on-limit`
+writes the complete offline viewer first. If the 25 MiB inlined-size limit or
+512,000-character argument limit is exceeded, this explicitly requested option
+opens `standalone.html` in Safari on macOS, or the default browser elsewhere,
+and returns its path. Browser launch failure reports the saved path as an error.
+The Python `export_bundle(..., open_on_limit=True)` option has the same behavior.
+Without the flag, oversized exports raise with the standalone path. An older
+`viewer.html` in that output directory is removed on oversized export so it cannot
+be mistaken for the current revision. Scene bytes are preserved. Use
+`--controls simple` for the same controls as chat; `--controls cad` retains the
+advanced CAD panels in a separate standalone export.
+
+The simple Pull apart / Put together control animates component translations
+and camera framing in both directions. A second click reverses an ongoing
+transition from its current pose. Reduced-motion preference switches directly
+to the requested pose. Reset and selecting another view cancel an unfinished
+transition before applying the new recipe; scene bytes remain unchanged.
+
+Standalone browser pages automatically size the canvas to the available browser
+window height and refit on resize, using the same viewer runtime and controls.
+Embedded chat keeps its compact height. This uses the browser viewport without
+entering operating-system fullscreen; the fullscreen button still requests or
+exits actual browser fullscreen and reports that state.

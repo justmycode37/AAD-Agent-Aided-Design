@@ -10,6 +10,8 @@ import base64
 import hashlib
 import json
 import struct
+import sys
+import webbrowser
 import zlib
 from pathlib import Path
 
@@ -49,13 +51,16 @@ def _script_json(value: object) -> str:
     return json.dumps(value, ensure_ascii=True).replace("<", r"\u003c").replace(">", r"\u003e").replace("&", r"\u0026")
 
 
-def export_bundle(scene_dir: Path, output_dir: Path, *, presentation: dict | None = None, view: str | None = None, title: str | None = None, views: list | None = None, controls: str = "simple") -> Path:
+def export_bundle(scene_dir: Path, output_dir: Path, *, presentation: dict | None = None, view: str | None = None, title: str | None = None, views: list | None = None, controls: str = "simple", open_on_limit: bool = False) -> Path:
     """Write chat and standalone viewers for one saved scene.
 
     Pass viewer.html's text to an HTML host with local image inlining support.
     The scene is carried in lossless PNG chunks and the viewer runtime in an SVG
     asset. Opening viewer.html directly reports missing host-inlined assets
     instead of silently substituting geometry. standalone.html works offline.
+    With open_on_limit=True, an oversized export opens the standalone file in
+    Safari on macOS (the default browser elsewhere) and returns that path.
+    A refused/failed browser launch still raises with the saved file path.
     """
     manifest = json.loads((scene_dir / "scene.json").read_text(encoding="utf-8"))
     payload = (scene_dir / "scene.bin.gz").read_bytes()
@@ -149,21 +154,30 @@ try {
     standalone_config = _script_json({"manifest": manifest, "assets": ["data:image/png;base64," + base64.b64encode(p.read_bytes()).decode("ascii") for p in assets], "chunk_bytes": [len(c) for c in chunks], "controls": controls, **settings})
     standalone = html.replace("<head>", f"<head>\n<script>window.__AAD_EMBEDDED_SCENE__ = {standalone_config};</script>", 1)
     (output_dir / "standalone.html").write_text(standalone, encoding="utf-8")
-    # Refuse before writing a file that cannot fit T3's tool argument limit.
+    # Remove an older chat page before refusing a new oversized revision.
+    target = output_dir / "viewer.html"
     argument_chars = len(html_bundle.encode("utf-16-le")) // 2
-    if argument_chars > HTML_ARGUMENT_LIMIT:
-        raise ValueError(
-            f"viewer.html is {argument_chars:,} characters, above the 512,000-character html_preview/html_render argument limit; "
-            f"standalone.html was written to {output_dir / 'standalone.html'}. Use it locally or split the scene/part listing."
-        )
-    # T3 currently allows 25 MiB after local image inlining. Estimate one
-    # base64 expansion for each PNG plus the bundled viewer SVG; this is host-specific.
     inline_estimate = len(html_bundle.encode("utf-8")) + sum(p.stat().st_size for p in assets + [runtime_asset]) * 4 // 3 + 4096
-    if inline_estimate > HTML_INLINE_LIMIT:
-        raise ValueError(
-            f"Estimated inlined viewer size {inline_estimate / 1048576:.2f} MiB exceeds the host-specific 25 MiB html_preview limit; "
-            f"standalone.html was written to {output_dir / 'standalone.html'}. Open that file locally or use a host with a larger limit."
-        )
+    reason = None
+    if argument_chars > HTML_ARGUMENT_LIMIT:
+        reason = f"viewer.html is {argument_chars:,} characters, above the 512,000-character html_preview/html_render argument limit"
+    elif inline_estimate > HTML_INLINE_LIMIT:
+        reason = f"Estimated inlined viewer size {inline_estimate / 1048576:.2f} MiB exceeds the host-specific 25 MiB html_preview limit"
+    if reason:
+        target.unlink(missing_ok=True)
+        standalone_path = output_dir / "standalone.html"
+        message = f"{reason}; standalone.html was written to {standalone_path}."
+        if open_on_limit:
+            try:
+                browser = webbrowser.get("safari") if sys.platform == "darwin" else webbrowser.get()
+                launch_uri = standalone_path.resolve().as_uri() + f"?aad_scene={manifest['scene_id']}&aad_viewer={runtime_id}"
+                opened = browser.open(launch_uri, new=2)
+            except (webbrowser.Error, OSError) as exc:
+                raise ValueError(f"{message} Could not open the browser: {exc}") from exc
+            if not opened:
+                raise ValueError(f"{message} The browser did not accept the open request.")
+            return standalone_path
+        raise ValueError(f"{message} Open that file locally or use a host with a larger limit.")
     target = output_dir / "viewer.html"
     target.write_text(html_bundle, encoding="utf-8")
     return target
@@ -180,5 +194,6 @@ if __name__ == "__main__":
     parser.add_argument("--title")
     parser.add_argument("--views", type=json.loads, help="Named user-selectable view recipes as JSON")
     parser.add_argument("--controls", choices=("simple", "cad"), default="simple", help="Standalone controls; chat exports always remain simple")
+    parser.add_argument("--open-on-limit", action="store_true", help="If chat limits are exceeded, open the complete standalone viewer in Safari on macOS or the default browser elsewhere")
     args = parser.parse_args()
-    print(export_bundle(args.scene_dir, args.output_dir, presentation=args.presentation, view=args.view, title=args.title, views=args.views, controls=args.controls))
+    print(export_bundle(args.scene_dir, args.output_dir, presentation=args.presentation, view=args.view, title=args.title, views=args.views, controls=args.controls, open_on_limit=args.open_on_limit))
