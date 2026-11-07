@@ -436,6 +436,12 @@ await scenario("grid-new-scene-uses-its-recipe", { scene: assembly, fakeOpts: { 
     await page.goto(`file://${file}`);
     await page.waitForFunction(() => ["ready", "error"].includes(globalThis.__aad?.state), null, { timeout: 60_000 });
     check(await page.evaluate(() => globalThis.__aad.state) === "ready", "full CAD grid page reaches ready");
+    check(await page.locator('.aad-stage').evaluate(e => e.getBoundingClientRect().height > 700), "standalone CAD canvas fills the browser window");
+    check(await page.getByRole('button', { name: 'Make bigger', exact: true }).count() === 1, "window filling does not pretend to enter browser fullscreen");
+    await page.setViewportSize({ width: 1200, height: 1100 });
+    await page.waitForFunction(() => document.querySelector('.aad-stage').getBoundingClientRect().height > 1000);
+    check(true, "standalone canvas expands with browser height");
+    await page.setViewportSize({ width: 1200, height: 800 });
     await checkFraming(page, check, "native CAD model", 24);
     check(await page.locator(".tcv_cad_toolbar").isVisible() && await page.locator(".tcv_cad_navigation").isVisible(), "full CAD grid page retains the native toolbar and tree");
     const nativeChecks = () => page.evaluate(() => ["xy", "xz", "yz"].map(p => document.querySelector(`.tcv_grid-${p}`).checked));

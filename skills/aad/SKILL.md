@@ -778,3 +778,9 @@ and camera framing in both directions. A second click reverses an ongoing
 transition from its current pose. Reduced-motion preference switches directly
 to the requested pose. Reset and selecting another view cancel an unfinished
 transition before applying the new recipe; scene bytes remain unchanged.
+
+Standalone browser pages automatically size the canvas to the available browser
+window height and refit on resize, using the same viewer runtime and controls.
+Embedded chat keeps its compact height. This uses the browser viewport without
+entering operating-system fullscreen; the fullscreen button still requests or
+exits actual browser fullscreen and reports that state.

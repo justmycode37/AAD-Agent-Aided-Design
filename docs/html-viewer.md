@@ -74,3 +74,9 @@ chat limit is exceeded, export opens the complete standalone page in Safari on
 macOS (the default browser elsewhere) and returns that file path. It opens no
 browser for a scene that fits. Without this opt-in, export continues to report
 the limit as an error. A stale `viewer.html` is removed on oversized export.
+
+Standalone browser pages automatically size the canvas to the available browser
+window height and refit on resize, using the same viewer runtime and controls.
+Embedded chat keeps its compact height. This uses the browser viewport without
+entering operating-system fullscreen; the fullscreen button still requests or
+exits actual browser fullscreen and reports that state.

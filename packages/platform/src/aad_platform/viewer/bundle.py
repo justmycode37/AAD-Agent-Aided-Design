@@ -170,7 +170,8 @@ try {
         if open_on_limit:
             try:
                 browser = webbrowser.get("safari") if sys.platform == "darwin" else webbrowser.get()
-                opened = browser.open(standalone_path.resolve().as_uri(), new=2)
+                launch_uri = standalone_path.resolve().as_uri() + f"?aad_scene={manifest['scene_id']}&aad_viewer={runtime_id}"
+                opened = browser.open(launch_uri, new=2)
             except (webbrowser.Error, OSError) as exc:
                 raise ValueError(f"{message} Could not open the browser: {exc}") from exc
             if not opened:

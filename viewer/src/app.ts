@@ -248,7 +248,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
     control("fullscreen").setAttribute("aria-label", label); control("fullscreen").title = label;
   };
   const size = () => {
-    const fullscreen = transport.displayMode?.() === "fullscreen";
+    const fullscreen = transport.displayMode?.() === "fullscreen" || transport.fillsWindow === true;
     const other = q(".aad-frame").offsetHeight - q(".aad-stage").offsetHeight;
     q(".aad-stage").style.height = `${fullscreen ? Math.max(300, innerHeight - other - 16) : transport.controls === "cad" ? 640 : STAGE_HEIGHT}px`;
     const bounds = q(".aad-cad").getBoundingClientRect(); view?.resize(bounds.width, bounds.height);
