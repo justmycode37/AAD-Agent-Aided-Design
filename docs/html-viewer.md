@@ -68,3 +68,9 @@ Allow content to determine the frame height. Do not set `height: 100%` on the
 document roots: a host may add padding around the viewer. Pass the measured
 height from the HTML preview to the display tool so that padding and the
 bottom corners are included.
+
+For a requested automatic browser fallback, add `--open-on-limit`. When either
+chat limit is exceeded, export opens the complete standalone page in Safari on
+macOS (the default browser elsewhere) and returns that file path. It opens no
+browser for a scene that fits. Without this opt-in, export continues to report
+the limit as an error. A stale `viewer.html` is removed on oversized export.

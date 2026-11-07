@@ -233,7 +233,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
   };
   const syncControls = () => {
     if (!view) return;
-    const exploded = view.viewer.state.get("animationMode") === "explode";
+    const exploded = view.isExploded();
     const grid = view.viewer.getGrids().some(Boolean);
     control("explode").setAttribute("aria-pressed", String(exploded));
     control("grid").setAttribute("aria-pressed", String(grid));
@@ -263,7 +263,7 @@ export async function runApp(transport: Transport, root: HTMLElement): Promise<v
     applySelected();
   };
   control("explode").addEventListener("click", () => {
-    if (view) view.batch(() => view!.setExploded(view!.viewer.state.get("animationMode") !== "explode"));
+    if (view) view.setExploded(!view.isExploded());
   });
   control("grid").addEventListener("click", () => { if (view) view.batch(() => view!.setGrid(!view!.viewer.getGrids().some(Boolean))); });
   control("views").addEventListener("click", () => {
