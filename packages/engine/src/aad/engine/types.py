@@ -138,6 +138,7 @@ class BuildRequest:
     process: str | None = None
     timeout_s: float = 60.0
     preview: bool = False
+    part_cache: bool = True
 
 
 @dataclass

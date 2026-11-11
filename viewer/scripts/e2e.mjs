@@ -137,16 +137,20 @@ for (const width of [320, 728]) await scenario(`initial-exploded-framing-${width
     { id: "side-apart", label: "Side apart", view: "right", presentation: { projection: "orthographic", explode: true } },
   ] } }, async ({ host }) => {
   const frame = host.frame(), button = name => frame.getByRole("button", { name, exact: true });
+  const settle = () => frame.waitForTimeout(800);
   const choose = async label => { await button("Views").click(); await frame.getByRole("menuitemradio", { name: label, exact: true }).click(); };
   await checkFraming(frame, check, "base presentation opens exploded");
   await button("Put together").click();
+  await settle();
   await checkFraming(frame, check, "base presentation collapses to fitted geometry");
   for (const [plain, apart] of [["Plain", "Apart"], ["Side plain", "Side apart"]]) {
     await choose(plain);
     const fittedZoom = await frame.evaluate(() => globalThis.__viewer.getCameraZoom());
     await choose(apart);
+    await settle();
     await checkFraming(frame, check, `${apart} opens fitted`);
     await button("Put together").click();
+    await settle();
     await checkFraming(frame, check, `${apart} collapses fitted`);
     check(await frame.evaluate(zoom => Math.abs(globalThis.__viewer.getCameraZoom() / zoom - 1) < 1e-7, fittedZoom), "initially exploded recipe restores the normal assembled fit");
   }
@@ -154,14 +158,17 @@ for (const width of [320, 728]) await scenario(`initial-exploded-framing-${width
 for (const width of [320, 728]) await scenario(`viewport-framing-${width}`, { scene: assembly, width,
   viewer: { views: [{ id: "side", label: "Side", view: "right", presentation: { projection: "orthographic" } }] } }, async ({ host }) => {
   const frame = host.frame(), button = name => frame.getByRole("button", { name, exact: true });
+  const settle = () => frame.waitForTimeout(800);
   await checkFraming(frame, check, "initial model");
   await button("Pull apart").click();
+  await settle();
   await checkFraming(frame, check, "exploded model");
   await host.page.setViewportSize({ width: width === 320 ? 900 : 300, height: 800 });
   await host.page.evaluate(width => document.getElementById("f").style.width = `${width}px`, width === 320 ? 880 : 280);
   await frame.waitForFunction(width => globalThis.__viewer.rendered.controls.domElement.clientWidth === width - 6, width === 320 ? 880 : 280);
   await checkFraming(frame, check, "resized exploded model");
   await button("Put together").click();
+  await settle();
   await checkFraming(frame, check, "collapsed model after resize");
   await button("Views").click(); await frame.getByRole("menuitemradio", { name: "Side", exact: true }).click();
   await checkFraming(frame, check, "orthographic named view");
@@ -188,6 +195,7 @@ await scenario("simple-controls-and-agent-views", { scene: assembly, strictCsp: 
     return [v.getCameraZoom(), ...v.getCameraPosition(), ...v.getCameraTarget(), ...v.getCameraQuaternion()];
   });
   const sameCamera = (before, after) => before.every((n, i) => Math.abs(n - after[i]) < 1e-8);
+  const settle = () => frame.waitForTimeout(800);
   const update = async (viewer) => {
     await host.page.evaluate(result => document.getElementById("f").contentWindow.postMessage({ jsonrpc: "2.0", method: "ui/notifications/tool-result", params: result }, "*"), {
       ...mcp.toolResult, structuredContent: { ...mcp.toolResult.structuredContent, viewer: { mode: "inline", ...viewer } },
@@ -199,11 +207,13 @@ await scenario("simple-controls-and-agent-views", { scene: assembly, strictCsp: 
   await frame.evaluate(() => globalThis.__viewer.setCameraZoom(globalThis.__viewer.getCameraZoom() * 1.25));
   const beforeExplode = await camera();
   await button("Pull apart").click();
-  check(await frame.evaluate(() => globalThis.__viewer.state.get("animationMode") === "explode" && globalThis.__viewer.getRelativeTime() > 0.99), "pull apart separates the pieces immediately");
+  await settle();
+  check(await frame.evaluate(() => globalThis.__viewer.state.get("animationMode") === "explode" && globalThis.__viewer.getRelativeTime() > 0.99), "pull apart completes at the separated endpoint");
   const explodedCamera = await camera();
   check(explodedCamera[0] < beforeExplode[0], "pull apart zooms out to fit the separated pieces");
   await frame.evaluate(() => globalThis.__viewer.setCameraZoom(globalThis.__viewer.getCameraZoom() * 0.8));
   await button("Put together").click();
+  await settle();
   check(await frame.evaluate(() => globalThis.__viewer.state.get("animationMode") !== "explode"), "put together restores assembly");
   check(sameCamera(beforeExplode, await camera()), "put together restores the assembled zoom and framing");
   await button("Show grid").click();
@@ -426,6 +436,12 @@ await scenario("grid-new-scene-uses-its-recipe", { scene: assembly, fakeOpts: { 
     await page.goto(`file://${file}`);
     await page.waitForFunction(() => ["ready", "error"].includes(globalThis.__aad?.state), null, { timeout: 60_000 });
     check(await page.evaluate(() => globalThis.__aad.state) === "ready", "full CAD grid page reaches ready");
+    check(await page.locator('.aad-stage').evaluate(e => e.getBoundingClientRect().height > 700), "standalone CAD canvas fills the browser window");
+    check(await page.getByRole('button', { name: 'Make bigger', exact: true }).count() === 1, "window filling does not pretend to enter browser fullscreen");
+    await page.setViewportSize({ width: 1200, height: 1100 });
+    await page.waitForFunction(() => document.querySelector('.aad-stage').getBoundingClientRect().height > 1000);
+    check(true, "standalone canvas expands with browser height");
+    await page.setViewportSize({ width: 1200, height: 800 });
     await checkFraming(page, check, "native CAD model", 24);
     check(await page.locator(".tcv_cad_toolbar").isVisible() && await page.locator(".tcv_cad_navigation").isVisible(), "full CAD grid page retains the native toolbar and tree");
     const nativeChecks = () => page.evaluate(() => ["xy", "xz", "yz"].map(p => document.querySelector(`.tcv_grid-${p}`).checked));

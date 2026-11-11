@@ -51,6 +51,14 @@ def test_library_schema_documents_the_guide_core_alias():
     assert "all" in description
 
 
+def test_aad_render_schema_declares_review_packet():
+    from jsonschema import Draft202012Validator
+
+    tool = next(tool for tool in TOOLS if tool["name"] == "aad_render")
+    Draft202012Validator.check_schema(tool["inputSchema"])
+    Draft202012Validator(tool["inputSchema"]).validate({"project": "part", "review_packet": True})
+
+
 @pytest.mark.parametrize("resource_delay_s", [0.0, 0.05])
 def test_stray_stdout_cannot_corrupt_the_mcp_stream(tmp_path, resource_delay_s):
     """Issue #11: native code writing to fd 1 must not land in the protocol stream."""

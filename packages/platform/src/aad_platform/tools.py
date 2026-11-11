@@ -155,6 +155,10 @@ TOOLS: list[dict[str, Any]] = [
                 },
                 "preview": {"type": "boolean", "description": "Add a 4-up image. Default false."},
                 "dry_run": {"type": "boolean", "description": "Full build and checks, no new head."},
+                "part_cache": {
+                    "type": "boolean",
+                    "description": "False rebuilds every cached_part() without using the cache. Default true.",
+                },
                 "wait_s": {"type": "number", "minimum": 0, "description": "Seconds to wait. Default 30."},
                 "timeout_s": {
                     "type": "number",
@@ -240,7 +244,12 @@ TOOLS: list[dict[str, Any]] = [
             "probe image pixels or world rays for exact points, normals and wall thickness; measure "
             "between selectors. Use sections, labels and thickness/overhang/draft/curvature heatmaps. "
             "face:N and edge:N are revision-local inspection selectors. Look at these before calling "
-            "the work done. To show the user, use aad_show."
+            "the work done. Set review_packet=true to write a bounded directory of orthographic, "
+            "assembly/part-center section and isolated major-part PNGs plus request.txt and a hashed "
+            "manifest.json for a separate reviewer; other render options are ignored in this mode and "
+            "the result returns only its directory handle. "
+            "The packet omits model source and captured assumptions. This requires the local graphics "
+            "worker and is refused in remote mode. To show the user, use aad_show."
         ),
         "inputSchema": _schema(
             {
@@ -259,6 +268,7 @@ TOOLS: list[dict[str, Any]] = [
                 "labels": _enum("none", "features", "faces", "edges"),
                 "heatmap": _enum("thickness", "overhang", "draft", "curvature"),
                 "inspection": _enum("summary", "full", description="Default summary leaves the per-face and per-edge tables in the inspection.json artifact. full returns them inline, which is large on big models."),
+                "review_packet": {"type": "boolean", "description": "Write a bounded independent review packet directory instead of returning inline render images. Local mode only; remote mode refuses rendering."},
                 "highlight": {"type": "array", "items": {"type": "string"}},
                 "size": {"type": "integer", "minimum": 64, "maximum": 2048},
                 "camera": {

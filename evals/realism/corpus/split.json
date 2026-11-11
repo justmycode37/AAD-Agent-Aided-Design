@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "split_id": "aad-realism-objects-v1",
+  "seed": "aad-realism-split-v1",
+  "rule": "Group tasks by independent real-object cluster. Rank each cluster by SHA-256(seed + NUL + cluster_id), ascending; the first two clusters are tuning and the remaining cluster is held-out. Freeze this manifest before any ratings. Never split revisions of one object across sets.",
+  "tuning_clusters": 2,
+  "tasks_sha256": "db15709b9fdc8638b2be3f6eb021b9a6f41d9359b37c2a47036bd193fa2e5033",
+  "ranked": [
+    {
+      "cluster_id": "raspberry_pi_4_enclosure",
+      "task_id": "enclosure_rpi4_serviceable",
+      "sha256": "48c005e18aa18c65bb8ea5244373f43d3db012ad8dacb3c162df3b6d156ee4ae",
+      "split": "tuning"
+    },
+    {
+      "cluster_id": "audi_0b5_dl501",
+      "task_id": "gearbox_0b5_dl501",
+      "sha256": "608812095ab46c956a8d11ed10f1ae007e50f9825767e4a26f4eba9a69d7182d",
+      "split": "tuning"
+    },
+    {
+      "cluster_id": "bitcraze_crazyflie_21",
+      "task_id": "drone_crazyflie_21",
+      "sha256": "6c25099eedc78dc5baa91be6c08184263f159633273953c5a22a9ede786cfcf8",
+      "split": "held_out"
+    }
+  ],
+  "frozen_before_scoring": true
+}
