@@ -206,6 +206,37 @@ def test_malformed_requirement_specs_commit_draft_with_skip_checks(tmp_path, mon
         assert open_project(name).head_rev == 1
 
 
+def test_assembly_review_lists_not_modeled_subsystems_and_hints_when_absent(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("AAD_HOME", str(tmp_path / ".aad"))
+    (tmp_path / ".aad").mkdir()
+    monkeypatch.setattr(backend, "engine_available", lambda: True)
+    monkeypatch.setattr(backend, "run_build", _successful_build)
+    handler = Handlers()
+
+    spec = (
+        "requirements:\n  - id: body_count\n    solids: 2\n"
+        "subsystems:\n  - id: controller\n    purpose: Control motor commutation\n"
+        "    parts: []\n    interfaces: []\n    evidence: []\n    status: not_modeled\n"
+        "    reason: Controller geometry is unavailable\n"
+    )
+    _call(handler, "aad_new", {"name": "assembly_with_gap", "kind": "assembly", "spec": spec})
+    built = _call(handler, "aad_build", {"project": "assembly_with_gap", "source": "result = Box(1, 1, 1)\n"})
+    assert built["request_review"]["functional_breakdown"]["not_modeled"] == [{
+        "id": "controller",
+        "reason": "Controller geometry is unavailable",
+    }]
+    inspected = _call(handler, "aad_inspect", {"project": "assembly_with_gap", "what": "summary"})
+    assert "controller" in inspected["request_review"]["functional_breakdown"]["not_proven"][0]["subsystem"]
+    assert "not modeled" in inspected["summary"]
+
+    _call(handler, "aad_new", {"name": "assembly_without_breakdown", "kind": "assembly"})
+    _call(handler, "aad_build", {"project": "assembly_without_breakdown", "source": "result = Box(1, 1, 1)\n"})
+    no_breakdown = _call(handler, "aad_inspect", {"project": "assembly_without_breakdown", "what": "summary"})
+    assert "no subsystem breakdown" in no_breakdown["request_review"]["functional_breakdown"]["hint"]
+    assert "no subsystem breakdown" in no_breakdown["summary"]
+
+
 def test_invalid_request_is_rejected_without_creating_project(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("AAD_HOME", str(tmp_path / ".aad"))

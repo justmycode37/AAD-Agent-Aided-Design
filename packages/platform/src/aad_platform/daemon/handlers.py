@@ -266,7 +266,8 @@ class Handlers:
         except ValueError as exc:
             project.discard_job(job_dir)
             return reply(failure_envelope(project.name, "BAD_INPUT", "input", f"spec is not valid YAML: {exc}", head_rev=head))
-        review = request_review(request_data, spec)
+        is_assembly = meta.get("kind") == "assembly"
+        review = request_review(request_data, spec, is_assembly=is_assembly)
         if not backend.engine_available():
             project.discard_job(job_dir)
             return reply(
@@ -304,6 +305,7 @@ class Handlers:
             timeout_s=timeout_s,
             part_cache=params.get("part_cache") is not False,
         )
+        review = request_review(request_data, spec, result.get("checks") or [], is_assembly=is_assembly)
         if not result.get("ok"):
             envelope = failure_envelope(
                 project.name,
@@ -736,7 +738,12 @@ class Handlers:
                     head_rev=project.head_rev,
                 )
             )
-        review = request_review(request_data, spec)
+        review = request_review(
+            request_data,
+            spec,
+            meta.get("checks") or [],
+            is_assembly=project.meta().get("kind") == "assembly",
+        )
         if request_data is None:
             review_summary = "No captured request; spec meaning is not assessed."
         else:
@@ -750,6 +757,9 @@ class Handlers:
                 f"open questions: {len(request_data['open_questions'])}; "
                 f"not checked: {len(request_data['not_checked'])}. Meaning is not assessed."
             )
+        breakdown_summary = _breakdown_review_summary(review)
+        if breakdown_summary:
+            review_summary += " " + breakdown_summary
         return reply(_request_response(
             {
                 **base,
@@ -1307,6 +1317,26 @@ def _request_response(
     if include_request and request_data is not None:
         result["request"] = request_data
     return result
+
+
+def _breakdown_review_summary(review: dict[str, Any]) -> str:
+    breakdown = review.get("functional_breakdown")
+    if not isinstance(breakdown, dict):
+        return ""
+    hint = breakdown.get("hint")
+    if isinstance(hint, str):
+        return hint
+    count = breakdown.get("declared_count")
+    not_modeled = breakdown.get("not_modeled")
+    not_proven = breakdown.get("not_proven")
+    if not isinstance(count, int):
+        return ""
+    return (
+        f"Functional breakdown: {count} subsystem(s), "
+        f"{len(not_modeled) if isinstance(not_modeled, list) else 0} not modeled, "
+        f"{len(not_proven) if isinstance(not_proven, list) else 0} subsystem/interface check(s) not proven. "
+        "Labels are references; meaning and function are not assessed."
+    )
 
 
 def _scene_payload(rev_dir: Path) -> Path | None:

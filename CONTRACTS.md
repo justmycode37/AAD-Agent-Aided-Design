@@ -163,6 +163,24 @@ requirements:
     fit: {a: insert, b: housing, interference: {min: 1, max: 3}}
   - id: no_interference
     interference: {volume_threshold_mm3: 1e-6}
+subsystems:
+  - id: drive_support
+    purpose: Support the output shaft
+    parts: [shaft, bearing]
+    interfaces:
+      - id: radial_fit
+        kind: shaft_bearing_fit
+        between: [shaft, bearing]
+        requirements: [bearing_fit]
+    evidence: [bearing_fit]
+    status: modeled
+  - id: controller
+    purpose: Control motor commutation
+    parts: []
+    interfaces: []
+    evidence: []
+    status: not_modeled
+    reason: Controller geometry and electrical evidence are not available yet
 ```
 
 An optional `covers` field on a requirement is one request excerpt or a list of
@@ -190,6 +208,31 @@ S5 owns the evaluator and may add requirement types. Unknown types return a `ski
 excerpts (2,000 characters per excerpt and at most 100 links). A link does not prove semantic coverage. Request review lists
 requirements without links, open questions and `not_checked` entries; it never
 computes a request-coverage percentage.
+
+`subsystems` is an optional list of at most 100 functional breakdown entries.
+Each entry has a unique `id`, `purpose`, `parts` (assembly component labels or
+feature names), `interfaces`, `evidence` requirement IDs, and a `status` of
+`modeled`, `representative`, or `not_modeled`; `not_modeled` requires a
+`reason`. An interface has an `id`, descriptive `kind`, exactly two `between`
+labels, and `requirements` IDs. Interface and subsystem IDs are unique in
+their scope. Each text value is non-empty and at most 2,000 characters; IDs
+are at most 200 characters; each list is at most 100 entries; the encoded
+`subsystems` value is at most 64 KiB. These strings are untrusted data. Interface `between` labels must match geometry labels. Labels of a `not_modeled` subsystem and its interfaces are not checked against geometry, because that geometry is not expected to exist.
+Labels and requirement IDs are references only: the evaluator checks label
+existence and linked check results, but does not judge meaning, physical
+connectivity, or function.
+
+Subsystem and interface checks are part of the `spec` suite. Every declared
+part label must match a recorded assembly component or feature name. Missing
+labels fail the associated subsystem check. A subsystem or interface needs at
+least one linked requirement, and every linked requirement must have exactly
+one passing check; no link, an unknown ID, `skip`, or any other non-pass result
+is reported as not proven. A failing linked requirement fails the breakdown
+check. `representative` geometry and `not_modeled` subsystems are not proven;
+the latter appear with their reason in `request_review.functional_breakdown`.
+Assemblies without a breakdown get a hint and no failure. These checks do not
+compute a functional coverage percentage or prove mechanical/electrical
+operation.
 The optional `interference` requirement runs the same exact solid-pair check as
 `aad_check(suites=["interference"])`. It accepts an optional
 `volume_threshold_mm3` (default `1e-6`); a common volume must be strictly above
@@ -249,7 +292,8 @@ type ParamOverride = {
 
 aad_inspect({ project, rev?: number,
               what?: "summary"|"features"|"params"|"topology"|"bom"|"diff", against?: number })
-// summary includes the revision request and an honest request_review report
+// summary includes the revision request and an honest request_review report,
+// including subsystem/interface evidence state when a functional breakdown exists
 
 aad_query({ project, rev?: number, selector: string, expect?: number, limit?: number })
 
@@ -316,6 +360,12 @@ the same report as `metadata`. These labels are the model author's claims;
 AAD never checks whether a source actually states a parameter value. `unknown`
 is not counted as sourced. A `published` or `measured` label without source
 text produces a build warning.
+
+When `spec.subsystems` is present, `request_review.functional_breakdown` reports
+subsystem and interface check state, lists `not_modeled` entries with reasons,
+and states that meaning and function are not assessed. An assembly with no
+breakdown gets a short hint and no failure. `aad_check` exposes the mechanical
+subsystem and interface results in the `spec` suite.
 
 For playbook `aad.guide.v1`, `section` omitted returns the short core, a heading slug returns
 that section, and `section: "all"` returns the complete guide. Other playbooks remain whole.
@@ -386,7 +436,18 @@ type Envelope = {
     requirements_available?: boolean,
     open_questions?: string[],
     not_checked?: { item: string, reason: string }[],
-    meaning_assessed: false
+    meaning_assessed: false,
+    functional_breakdown?: {
+      hint?: string,
+      declared_count?: number,
+      subsystems?: { id: string, declared_status: "modeled"|"representative"|"not_modeled",
+                     review_status: "checks_passed"|"not_proven"|"not_modeled",
+                     interfaces: { id: string, review_status: "checks_passed"|"not_proven" }[] }[],
+      not_modeled?: { id: string, reason?: string }[],
+      not_proven?: { subsystem: string, interface?: string, reason: string }[],
+      meaning_assessed: false,
+      function_proven: false
+    }
   },                                   // inspect summary and build; never a percentage
   // Tool-specific payloads, each small and only on its own tool's result:
   entities?: unknown[],                // aad_query
@@ -645,6 +706,7 @@ def aad_drafting.make_scene(ctx: ModelContext, out: Path) -> SceneManifest   # f
 
 # S5
 def aad_quality.spec_checks(ctx: ModelContext) -> list[Check]
+def aad_quality.subsystem_review(spec: dict, checks=None, *, is_assembly=False) -> dict | None
 def aad_quality.process_checks(ctx: ModelContext) -> list[Check]
 def aad_quality.library(action: str, **kw) -> dict
 ```
@@ -666,6 +728,12 @@ The platform resolves `engine.memory` for each build and sandboxed operation, th
 `run_build` integrates the per-project geometry cache for model scripts that call `cached_part`. The trusted parent validates and stages same-project candidate B-reps inside the job directory before launching the unchanged OS sandbox; model code receives no access to `.aad/cache`. It publishes newly built candidates only after the worker exits and only when the build result succeeds. Cache identity binds source, applied parameters, spec, units, staged asset digests, kernel/AAD versions, and the code/runtime pipeline digest. Cache data contains geometry only: the worker reruns all hard, spec and process checks, and cached or worker-written data is not an attestation or a trusted `verified` claim. Missing, corrupt, unsupported or mismatched candidates fall back to the builder. Set `AAD_DISABLE_GEOMETRY_CACHE=1` in the trusted engine environment to disable cache reads and writes; the per-project cache can be deleted safely.
 
 The engine's independent `inspect_brep` helper accepts the same `memory_limit_bytes` argument and uses the platform default when omitted. It is not wired into `aad_build` on main. The clean validator proposed in PR #96 must pass the build's resolved value into its 3D inspector and use the same budgeted launch for its new 2D inspector; otherwise a user override will not reach those child processes.
+
+`aad_quality.spec_checks` uses `ModelContext.features` and recorded
+`ModelContext.meta.assembly.components` as geometry labels for
+`spec.subsystems`. The same checks run in builds and the standalone `aad_check`
+spec suite. `subsystem_review` formats those links and check results for
+`request_review`; it does not evaluate text meaning.
 
 `render` returns PNG paths plus `inspection.json` and optional `labels.json`. The platform emits
 only PNGs as image blocks; it includes the JSON data in structured `inspection` and `labels`
@@ -712,6 +780,7 @@ Build workers inherit `AAD_DISABLE_GEOMETRY_CACHE=1` from the trusted daemon env
 - 2026-11-06: S1/S5 added `aad_quality.components.make_detailed` beside unchanged `make_envelope`, with catalog evidence and representative-geometry metadata, vendor STEP/origin/evidence inputs, and LOD selection; `aad_build` now stages imported assets when a model uses `vendor_step`. Replaced failing helical fastener/thread solids with cosmetic thread envelopes and automatic drawing notes, preserving all hard-gate checks.
 - 2026-11-06: S1 added grouped blend retries with per-edge reports and visible unresolved-edge warnings, cast-housing finishing helpers and the `family.cast_housing.v1` recipe, after measuring all-edge and local fillet failures on the boolean-heavy 0B5 housing.
 - 2026-11-06: S1 added author-claimed parameter provenance to `Param`, revision and export metadata, inspection summaries and history diffs; plain value overrides now become `assumed`, and source-less `published`/`measured` labels warn.
+- 2026-11-06: S5 added bounded `spec.subsystems` functional breakdowns, mechanical label/evidence checks in builds and `aad_check`, and a request-review report for not-proven and not-modeled subsystems; labels remain references and no function or meaning is assessed.
 - 2026-11-05: S1 applied configurable `engine.memory` virtual-address growth budgets to build and operation workers and made explicit `MemoryError`/`ENOMEM` results report `OUT_OF_MEMORY`, while keeping unrelated startup diagnostics and signal-only exits unclassified.
 - 2026-11-05: S2 made the structured `aad_render` report compact by default, with `inspection="full"` for the rest, because it reached 2.6 MB on a 492-part assembly.
 - 2026-11-05: S1 added per-phase build timings to `metrics`, named the slowest phase for builds over 20 seconds, reported unaccounted elapsed time as the residual `other` phase, made assembly mesh validation use one private remesh with per-solid checks, and reused the viewer scene's face and edge indexes across parts.

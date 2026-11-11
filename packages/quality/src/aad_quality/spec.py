@@ -9,7 +9,14 @@ import re
 from typing import Any
 
 from ._checks import finite, make_check, mm_per_unit, record
-from .schema import NumericRange, SpecIssue, load_spec, parse_numeric_range, parse_spec_for_checks
+from .schema import (
+    NumericRange,
+    SpecIssue,
+    _validate_subsystems,
+    load_spec,
+    parse_numeric_range,
+    parse_spec_for_checks,
+)
 from . import spec_geometry as geometry
 
 
@@ -1093,6 +1100,252 @@ def _issue_check(issue: SpecIssue, number: int) -> Any:
     )
 
 
+def _breakdown_check_id(subsystem_id: str, interface_id: str | None = None) -> str:
+    identifier = f"subsystem:{subsystem_id}"
+    return identifier if interface_id is None else f"{identifier}:interface:{interface_id}"
+
+
+def _geometry_labels(ctx: Any) -> set[str]:
+    """Return exact feature and assembly component labels recorded for this model."""
+    labels: set[str] = set()
+    for feature in getattr(ctx, "features", []) or []:
+        name = getattr(feature, "name", None)
+        if isinstance(name, str) and name:
+            labels.add(name)
+    meta = getattr(ctx, "meta", None)
+    assembly = meta.get("assembly") if isinstance(meta, dict) else None
+    if isinstance(assembly, dict):
+        for name in assembly.get("components", []) or []:
+            if isinstance(name, str) and name:
+                labels.add(name)
+    return labels
+
+
+def _evidence_result(
+    requirement_ids: list[str],
+    checks_by_id: dict[str, list[dict[str, Any]]],
+) -> tuple[str, list[str], list[str]]:
+    """Return pass/fail/skip and the failed or not-proven requirement IDs."""
+    if not requirement_ids:
+        return "skip", [], []
+    failed: list[str] = []
+    not_proven: list[str] = []
+    for requirement_id in requirement_ids:
+        matching = checks_by_id.get(requirement_id, [])
+        if len(matching) != 1:
+            not_proven.append(requirement_id)
+            continue
+        status = matching[0].get("status")
+        if status == "fail":
+            failed.append(requirement_id)
+        elif status != "pass":
+            # In particular, skip and unknown are never evidence of a pass.
+            not_proven.append(requirement_id)
+    if failed:
+        return "fail", failed, not_proven
+    if not_proven:
+        return "skip", [], not_proven
+    return "pass", [], []
+
+
+def subsystem_checks(document: dict[str, Any], requirement_checks: list[Any], ctx: Any) -> list[Any]:
+    """Mechanically review declared subsystem labels and linked requirement checks.
+
+    A passing result confirms only that labels exist and linked requirement
+    checks passed. The evaluator does not judge the meaning of those labels or
+    prove that the assembly functions.
+    """
+    subsystems = document.get("subsystems")
+    if not isinstance(subsystems, list) or not subsystems:
+        return []
+    labels = _geometry_labels(ctx)
+    checks_by_id: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for check in requirement_checks:
+        row = _check_mapping(check)
+        if row is not None and isinstance(row.get("id"), str):
+            checks_by_id[row["id"]].append(row)
+
+    results: list[Any] = []
+    for subsystem in subsystems:
+        if not isinstance(subsystem, dict) or not isinstance(subsystem.get("id"), str):
+            continue  # The schema diagnostic below is the authoritative result.
+        subsystem_id = subsystem["id"]
+        declared_status = subsystem.get("status")
+        parts = subsystem.get("parts") if isinstance(subsystem.get("parts"), list) else []
+        missing_parts = [part for part in parts if isinstance(part, str) and part not in labels]
+        valid_parts = bool(parts) and not missing_parts
+        interfaces = subsystem.get("interfaces") if isinstance(subsystem.get("interfaces"), list) else []
+        interface_states: list[str] = []
+
+        for interface in interfaces:
+            if not isinstance(interface, dict) or not isinstance(interface.get("id"), str):
+                continue
+            interface_id = interface["id"]
+            evidence = interface.get("requirements") if isinstance(interface.get("requirements"), list) else []
+            evidence_status, failed_ids, unknown_ids = _evidence_result(evidence, checks_by_id)
+            between = interface.get("between") if isinstance(interface.get("between"), list) else []
+            missing_endpoints = [label for label in between if isinstance(label, str) and label not in labels]
+            if missing_endpoints:
+                # A subsystem declared not modeled is not expected to have this geometry.
+                evidence_status = "skip" if declared_status == "not_modeled" else "fail"
+                interface_message = f"Interface {interface_id!r} names labels that do not match model geometry."
+                interface_actual = "unmatched geometry label(s): " + ", ".join(missing_endpoints)
+            elif evidence_status == "fail":
+                interface_message = f"Interface {interface_id!r} has failed evidence requirement(s): {', '.join(failed_ids)}."
+                interface_actual = "failed linked requirement check(s)"
+            elif evidence_status == "skip":
+                interface_message = f"Interface {interface_id!r} is not proven; it needs passing evidence requirements."
+                interface_actual = (
+                    "no evidence requirements"
+                    if not evidence
+                    else "not proven evidence requirement(s): " + ", ".join(unknown_ids)
+                )
+            else:
+                interface_message = f"Interface {interface_id!r} has passing linked requirement checks; interface meaning is not assessed."
+                interface_actual = "all linked requirement checks passed"
+            interface_check_status = evidence_status
+            interface_states.append(interface_check_status)
+            results.append(_check(
+                _breakdown_check_id(subsystem_id, interface_id),
+                level="error",
+                status=interface_check_status,
+                message=interface_message,
+                expected="at least one passing, known evidence requirement",
+                actual=interface_actual,
+                fix_hint="Add measurable requirements for this interface and ensure every linked requirement has a passing check.",
+            ))
+
+        if declared_status == "not_modeled":
+            status = "skip"
+            actual = "declared not modeled; the recorded reason is untrusted project data"
+            message = f"Subsystem {subsystem_id!r} is declared not modeled and is not proven."
+        elif not valid_parts:
+            status = "fail"
+            actual = (
+                "no parts were declared"
+                if not parts
+                else "unmatched geometry label(s): " + ", ".join(missing_parts)
+            )
+            message = f"Subsystem {subsystem_id!r} has part labels that do not match model geometry labels."
+        else:
+            evidence = subsystem.get("evidence") if isinstance(subsystem.get("evidence"), list) else []
+            evidence_status, failed_ids, unknown_ids = _evidence_result(evidence, checks_by_id)
+            if evidence_status == "fail":
+                status = "fail"
+                actual = "failed linked requirement check(s): " + ", ".join(failed_ids)
+                message = f"Subsystem {subsystem_id!r} has failed evidence requirement(s)."
+            elif evidence_status == "skip" or any(state != "pass" for state in interface_states):
+                status = "skip"
+                if not evidence:
+                    actual = "no evidence requirements"
+                elif evidence_status == "skip":
+                    actual = "not proven evidence requirement(s): " + ", ".join(unknown_ids)
+                else:
+                    actual = "one or more interfaces are not proven"
+                message = f"Subsystem {subsystem_id!r} is not proven; every linked requirement must pass."
+            elif declared_status == "representative":
+                status = "skip"
+                actual = "representative geometry is recorded; full subsystem function is not proven"
+                message = f"Subsystem {subsystem_id!r} is representative and remains not proven as a complete subsystem."
+            else:
+                status = "pass"
+                actual = "all declared labels match and linked requirement checks passed; function is not assessed"
+                message = f"Subsystem {subsystem_id!r} has matching labels and passing linked checks; function is not assessed."
+        results.append(_check(
+            _breakdown_check_id(subsystem_id),
+            level="error",
+            status=status,
+            message=message,
+            expected="modeled or evidenced subsystem labels with passing linked requirements",
+            actual=actual,
+            fix_hint=(
+                "Correct the part labels to match feature or assembly component names."
+                if status == "fail" and declared_status != "not_modeled"
+                else "Add passing requirements for the subsystem and each interface, or record why it is not modeled."
+            ),
+        ))
+    return results
+
+
+def subsystem_review(
+    spec: Any,
+    checks: Sequence[Any] | None = None,
+    *,
+    is_assembly: bool = False,
+) -> dict[str, Any] | None:
+    """Create a compact request-review summary from a spec and optional checks."""
+    subsystems = spec.get("subsystems") if isinstance(spec, dict) else None
+    if not isinstance(subsystems, list) or not subsystems:
+        return {"hint": "Assembly has no subsystem breakdown; add spec.subsystems to review its functional structure."} if is_assembly else None
+    if _validate_subsystems(subsystems):
+        # Keep oversized or malformed untrusted text out of agent-facing results.
+        return {"hint": "spec.subsystems is invalid, so it is not reported here; run the spec checks for details."}
+
+    checks_by_id: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for check in checks or []:
+        row = _check_mapping(check)
+        if row is not None and row.get("suite") == "spec" and isinstance(row.get("id"), str):
+            checks_by_id[row["id"]].append(row)
+
+    report: dict[str, Any] = {
+        "declared_count": len(subsystems),
+        "subsystems": [],
+        "not_modeled": [],
+        "not_proven": [],
+        "meaning_assessed": False,
+        "function_proven": False,
+    }
+    for subsystem in subsystems:
+        if not isinstance(subsystem, dict) or not isinstance(subsystem.get("id"), str):
+            continue
+        subsystem_id = subsystem["id"]
+        declared_status = subsystem.get("status", "unknown")
+        subsystem_checks = checks_by_id.get(_breakdown_check_id(subsystem_id), [])
+        subsystem_status = subsystem_checks[0].get("status") if len(subsystem_checks) == 1 else None
+        if declared_status == "not_modeled":
+            review_status = "not_modeled"
+            reason = subsystem.get("reason")
+            not_modeled = {"id": subsystem_id}
+            if isinstance(reason, str):
+                not_modeled["reason"] = reason
+            report["not_modeled"].append(not_modeled)
+            report["not_proven"].append({"subsystem": subsystem_id, "reason": "subsystem is declared not modeled"})
+        elif subsystem_status == "pass":
+            review_status = "checks_passed"
+        else:
+            review_status = "not_proven"
+            report["not_proven"].append({"subsystem": subsystem_id, "reason": _review_reason(subsystem_status)})
+
+        interfaces_report: list[dict[str, str]] = []
+        for interface in subsystem.get("interfaces", []) if isinstance(subsystem.get("interfaces"), list) else []:
+            if not isinstance(interface, dict) or not isinstance(interface.get("id"), str):
+                continue
+            interface_id = interface["id"]
+            interface_checks = checks_by_id.get(_breakdown_check_id(subsystem_id, interface_id), [])
+            interface_status = interface_checks[0].get("status") if len(interface_checks) == 1 else None
+            interface_review_status = "checks_passed" if interface_status == "pass" else "not_proven"
+            interfaces_report.append({"id": interface_id, "review_status": interface_review_status})
+            if interface_status != "pass":
+                report["not_proven"].append({
+                    "subsystem": subsystem_id,
+                    "interface": interface_id,
+                    "reason": _review_reason(interface_status),
+                })
+        report["subsystems"].append({
+            "id": subsystem_id,
+            "declared_status": declared_status,
+            "review_status": review_status,
+            "interfaces": interfaces_report,
+        })
+    return report
+
+
+def _review_reason(status: Any) -> str:
+    if status == "fail":
+        return "a required label or linked requirement failed"
+    return "passing evidence is missing, skipped, or unknown"
+
+
 def spec_checks(ctx: Any) -> list[Any]:
     """Evaluate each declared requirement once and return explicit evidence.
 
@@ -1112,6 +1365,7 @@ def spec_checks(ctx: Any) -> list[Any]:
         return [_issue_check(issues[0] if issues else SpecIssue("requirements must be a list"), 1)]
 
     checks = [_issue_check(issue, number) for number, issue in enumerate((i for i in issues if i.requirement_index is None), 1)]
+    breakdown_invalid = any(issue.path[:1] == ("subsystems",) for issue in issues)
     issues_by_index: dict[int, list[SpecIssue]] = defaultdict(list)
     for issue in issues:
         if issue.requirement_index is not None:
@@ -1127,6 +1381,8 @@ def spec_checks(ctx: Any) -> list[Any]:
                 fix_hint="Add one or more requirements to spec.yaml.",
             )
         )
+        if not breakdown_invalid:
+            checks.extend(subsystem_checks(document, checks, ctx))
         return checks
 
     spec_unit = document.get("units", "mm")
@@ -1221,6 +1477,8 @@ def spec_checks(ctx: Any) -> list[Any]:
                     fix_hint="Correct the input or geometry error and rerun the evaluator; this check is not proven.",
                 )
             )
+    if not breakdown_invalid:
+        checks.extend(subsystem_checks(document, checks, ctx))
     return checks
 
 
@@ -1292,13 +1550,26 @@ def verification_ready(spec: Any, checks: Sequence[Any], hard_checks: Sequence[A
             check.get('suite')=='process' and str(check.get('id','')).startswith(f'process.{requested}.') for check in check_maps
         ):
             return False
+    expected_breakdown_ids: list[str] = []
+    for subsystem in document.get("subsystems", []):
+        if not isinstance(subsystem, dict) or not isinstance(subsystem.get("id"), str):
+            return False
+        subsystem_id = subsystem["id"]
+        expected_breakdown_ids.extend(
+            _breakdown_check_id(subsystem_id, interface["id"])
+            for interface in subsystem.get("interfaces", [])
+        )
+        expected_breakdown_ids.append(_breakdown_check_id(subsystem_id))
+    expected_spec_ids = requirement_ids + expected_breakdown_ids
     spec_ids = [check.get("id") for check in spec_checks_only]
-    if len(spec_ids) != len(requirement_ids) or any(not isinstance(check_id, str) for check_id in spec_ids):
+    if len(spec_ids) != len(expected_spec_ids) or any(not isinstance(check_id, str) for check_id in spec_ids):
         return False
-    if len(set(spec_ids)) != len(spec_ids) or set(spec_ids) != set(requirement_ids):
+    if len(set(spec_ids)) != len(spec_ids) or set(spec_ids) != set(expected_spec_ids):
         return False
 
     by_id = {check.get("id"): check for check in spec_checks_only}
+    if any(by_id[check_id].get("status") != "pass" for check_id in expected_breakdown_ids):
+        return False
     measured_pass = False
     for requirement in requirements:
         req_id = requirement["id"]
@@ -1343,4 +1614,4 @@ def verification_ready(spec: Any, checks: Sequence[Any], hard_checks: Sequence[A
     return True
 
 
-__all__ = ["spec_checks", "load_spec", "verification_ready"]
+__all__ = ["spec_checks", "load_spec", "verification_ready", "subsystem_review"]
