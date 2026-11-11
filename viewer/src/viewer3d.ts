@@ -26,7 +26,8 @@ export interface Cad3dView {
   hidePart(id: string): void;
   isolatePart(id: string): void;
   isolateParts(ids: string[]): void;
-  setExploded(flag: boolean): void;
+  setExploded(flag: boolean, animate?: boolean): void;
+  isExploded(): boolean;
   setGrid(flag: boolean): void;
   canExplode(): boolean;
   fit(): void;
@@ -114,6 +115,7 @@ export function mountCad3d(
     });
     const nativeReset = viewer.reset;
     viewer.reset = () => {
+      cancelExplodeTransition();
       nativeReset();
       // The engine resets its controls target but leaves the camera wrapper's
       // zoom origin at the last pan position.
@@ -224,6 +226,28 @@ export function mountCad3d(
     let assembledCamera = viewer.getCameraLocationSettings();
     let assembledWrapperTarget = viewer.rendered.camera.target.clone();
     let assembledViewport = lastSize;
+    let explodeFrame = 0;
+    let explodeGeneration = 0;
+    let transitionTarget = viewer.state.get("animationMode") === "explode";
+    const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const cancelExplodeTransition = () => {
+      explodeGeneration++;
+      if (explodeFrame) cancelAnimationFrame(explodeFrame);
+      explodeFrame = 0;
+    };
+    const cameraPose = () => ({
+      settings: viewer.getCameraLocationSettings(),
+      wrapperTarget: camera.target.clone(),
+    });
+    const applyCameraPose = (from: ReturnType<typeof cameraPose>, to: ReturnType<typeof cameraPose>, t: number) => {
+      const mix = (a: number[], b: number[]) => a.map((value, i) => value + (b[i] - value) * t);
+      camera.target.copy(from.wrapperTarget).lerp(to.wrapperTarget, t);
+      const s = from.settings, e = to.settings;
+      const quaternion = camera.getCamera().quaternion.clone().fromArray(s.quaternion)
+        .slerp(camera.getCamera().quaternion.clone().fromArray(e.quaternion), t).toArray();
+      viewer.setCameraLocationSettings(mix(s.position, e.position), quaternion,
+        mix(s.target, e.target), s.zoom + (e.zoom - s.zoom) * t, false);
+    };
     const fit = () => {
       const bounds = (viewer.bbox! as any).clone().makeEmpty();
       for (const [id, state] of Object.entries(viewer.getStates())) {
@@ -247,21 +271,70 @@ export function mountCad3d(
       viewer.setCameraZoom(c.isOrthographicCamera ? zoom * fitted.zoomFactor : camera.camera_distance / fitted.distance);
       extendFarPlanes(bounds);
     };
-    const setExploded = (flag: boolean) => {
-      if (flag === (viewer.state.get("animationMode") === "explode")) return;
+    const setExploded = (flag: boolean, animate = true) => {
+      const currentlyExploded = viewer.state.get("animationMode") === "explode";
+      if (flag === currentlyExploded && !explodeFrame) return;
+      cancelExplodeTransition();
+      transitionTarget = flag;
       if (flag) {
-        assembledCamera = viewer.getCameraLocationSettings();
-        assembledWrapperTarget = viewer.rendered.camera.target.clone();
-        assembledViewport = lastSize;
-        viewer.setExplode(true); viewer.setRelativeTime(1);
-        fit();
+        if (!currentlyExploded) {
+          assembledCamera = viewer.getCameraLocationSettings();
+          assembledWrapperTarget = viewer.rendered.camera.target.clone();
+          assembledViewport = lastSize;
+          viewer.setExplode(true);
+        }
       } else {
-        viewer.setExplode(false);
-        viewer.rendered.camera.target.copy(assembledWrapperTarget);
-        viewer.setCameraLocationSettings(assembledCamera.position, assembledCamera.quaternion, assembledCamera.target, assembledCamera.zoom);
-        restoreFarPlanes();
-        if (lastSize !== assembledViewport) fit();
+        if (!currentlyExploded) return;
       }
+      const startTime = viewer.getRelativeTime();
+      const startCamera = cameraPose();
+      const destinationTime = flag ? 1 : 0;
+      let endCamera!: ReturnType<typeof cameraPose>;
+      batch(() => {
+        if (flag) {
+          viewer.setRelativeTime(1); fit();
+          endCamera = cameraPose();
+        } else {
+          viewer.setRelativeTime(0);
+          viewer.rendered.camera.target.copy(assembledWrapperTarget);
+          viewer.setCameraLocationSettings(assembledCamera.position, assembledCamera.quaternion, assembledCamera.target, assembledCamera.zoom);
+          endCamera = cameraPose();
+          if (lastSize !== assembledViewport) { fit(); endCamera = cameraPose(); }
+        }
+        viewer.setRelativeTime(startTime);
+        applyCameraPose(startCamera, endCamera, 0); // preserve the visible starting pose
+      });
+      if (!animate || reducedMotion() || startTime === destinationTime) {
+        viewer.setRelativeTime(destinationTime);
+        applyCameraPose(startCamera, endCamera, 1);
+        if (!flag) {
+          viewer.setExplode(false);
+          for (const range of clipRanges) { range.camera.far = range.far; range.camera.updateProjectionMatrix(); }
+        }
+        viewer.update(true, false);
+        return;
+      }
+      const generation = explodeGeneration;
+      const duration = Math.max(100, 420 * Math.abs(destinationTime - startTime));
+      const started = performance.now();
+      const tick = (now: number) => {
+        if (generation !== explodeGeneration) return;
+        const t = Math.min(1, (now - started) / duration);
+        const eased = t * t * (3 - 2 * t);
+        batch(() => {
+          viewer.setRelativeTime(startTime + (destinationTime - startTime) * eased);
+          applyCameraPose(startCamera, endCamera, eased);
+        });
+        if (t < 1) explodeFrame = requestAnimationFrame(tick);
+        else {
+          explodeFrame = 0;
+          if (!flag) {
+            viewer.setExplode(false);
+            for (const range of clipRanges) { range.camera.far = range.far; range.camera.updateProjectionMatrix(); }
+          }
+        }
+      };
+      explodeFrame = requestAnimationFrame(tick);
     };
     const isolateParts = (ids: string[]) => {
       const selected = new Set(ids);
@@ -281,6 +354,7 @@ export function mountCad3d(
       setAnalysis,
       setDisplayMode,
       setExploded,
+      isExploded() { return explodeFrame ? transitionTarget : viewer.state.get("animationMode") === "explode"; },
       batch,
       fit,
       setGrid(flag) { viewer.setGrids([flag, flag, flag]); viewer.setAxes(flag); },
@@ -291,7 +365,7 @@ export function mountCad3d(
       isolateParts,
       reset() {
         setAnalysis();
-        setExploded(false);
+        setExploded(false, false);
         viewer.resetClip();
         viewer.setActiveTab("tree");
         for (const tool of ["distance", "properties", "select"]) viewer.activateTool(tool, false);
@@ -316,6 +390,7 @@ export function mountCad3d(
         if (camera) { camera.zoom = 0.8; camera.updateProjectionMatrix(); }
       },
       dispose() {
+        cancelExplodeTransition();
         disposeNavigation();
         disposeAdaptiveGrid();
         unsubscribeExplode();

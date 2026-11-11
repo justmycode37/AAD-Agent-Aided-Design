@@ -49,11 +49,13 @@ Kernel versions are pinned in `packages/engine/pyproject.toml`.
 1. The agent calls `aad_build` with full source, a patch, or param overrides, plus the `base_rev` it edited. A stale `base_rev` is refused.
 2. The adapter forwards the call over the socket, and the daemon queues it per project.
 3. The daemon starts a new Python process under the OS sandbox: `sandbox-exec` on macOS, bubblewrap on Linux. It has no network and can write only to its job directory. Without a working sandbox the build fails with `SANDBOX_DENIED`; there is no unsandboxed fallback.
-4. That process runs `model.py`. `feature()` records which faces and edges each named feature produced. It then runs the hard gate, spec checks and process checks, tessellates a scene, and optionally renders a preview.
-   Build metrics include per-phase elapsed times in milliseconds (`phase_timings_ms`), with one entry per hard-gate check plus model, spec, process, scene, render and write. The parent adds `other` as residual elapsed time not accounted for by those phases; it can include worker launch, protocol, parent validation and other uninstrumented work, so it does not identify a cause. A build over 20 seconds names its slowest measured phase in the summary. Assembly mesh checks mesh one private copy and validate each solid's triangle arrays separately. Scene generation builds assembly face and edge indexes once per scene.
-5. The daemon kills the process at the time limit: 60 s by default, up to 600 s with `timeout_s`. If the build outlasts `wait_s`, the call returns `running` with a job id, which the agent polls through `aad_history`.
-6. A successful build becomes an immutable revision on disk. A failure never moves the head revision; a built candidate that failed a check is kept for inspection.
-7. The agent gets a short text summary, plus an image only when requested.
+4. The trusted parent can copy validated, same-project part candidates into a private exchange directory inside the job. The sandbox policy does not change, and the model never receives access to `.aad/cache`. After the worker exits, the parent may publish new candidate B-reps from that job into the project's cache.
+5. That process runs `model.py`. `feature()` records which faces and edges each named feature produced. A model may call `cached_part(key_inputs, builder_fn)` for deterministic parts; the complete identity binds the exact source, effective model parameters, spec, assets, units, kernel and AAD versions, and the geometry/check pipeline code. Cache entries contain geometry only. The build reruns the full hard gate, spec checks and process checks; it never loads check results from the cache or trusts a worker `verified` claim.
+   In an assembly, the mesh gate meshes one private copy per exact shared OCCT topology group under rigid placements, then validates each body's mesh arrays. Independently built solids with equal normalized mesh arrays may share the same in-process mesh-check result after their arrays are produced. This result reuse lasts for one gate run only.
+   Build metrics include per-phase elapsed times in milliseconds (`phase_timings_ms`), with one entry per hard-gate check plus model, spec, process, scene, render and write. They include `geometry_cache` hit/miss counts. The parent adds `other` as residual elapsed time not accounted for by those phases; it can include worker launch, protocol, parent validation and other uninstrumented work, so it does not identify a cause. A build over 20 seconds names its slowest measured phase in the summary. Scene generation builds assembly face and edge indexes once per scene.
+6. The daemon kills the process at the time limit: 60 s by default, up to 600 s with `timeout_s`. If the build outlasts `wait_s`, the call returns `running` with a job id, which the agent polls through `aad_history`.
+7. A successful build becomes an immutable revision on disk. A failure never moves the head revision; a built candidate that failed a check is kept for inspection.
+8. The agent gets a short text summary, plus an image only when requested.
 
 Later operations such as render, check, measure, query, export, drawing and compare run in their own process through `aad_platform.ops`, against a stored revision. Check, measure, query, export, drawing and compare always use the OS sandbox. On local macOS and Linux 3D render, the worker loads the B-rep and computes inspection data inside that sandbox, then sends a versioned mesh and view payload to a clean one-shot VTK process outside it. The VTK process receives no project, revision or B-rep path. The sandbox policy is unchanged; 2D previews and all other operations still run entirely inside it. Remote mode continues to refuse render.
 
@@ -118,6 +120,7 @@ The guide agents read is `skills/aad/SKILL.md`, which `aad_library` also serves 
   exports/                 files for the user
   .aad/
     revs/000007/           model.py, spec, request.json, meta.json, part.brep, scene
+    cache/                 per-project candidate geometry; safe to delete
     jobs/                  job directories, the only place sandboxed code may write
 
 ~/.aad/                    config, daemon socket and token, logs, project index
@@ -137,8 +140,8 @@ The guide agents read is `skills/aad/SKILL.md`, which `aad_library` also serves 
 ## Not built yet
 
 - A warm worker pool. Every job starts a new process.
+- A whole-script build cache. `cached_part()` only reuses explicitly keyed deterministic part geometry; malformed or incomplete keys fall back to the builder. Set `AAD_DISABLE_GEOMETRY_CACHE=1` in the trusted engine process to disable it. The per-project cache may be deleted safely.
 - An aggregate resident-memory ceiling for each whole job. Builds and operations now apply `aad.engine.memory` as a per-process `RLIMIT_AS` growth budget (`auto`: 16 GiB on Linux and macOS), but it is virtual address space rather than RSS; Linux child processes each get their own budget.
-- Use of the content-addressed cache in `aad.engine.cache` by the daemon.
 - The independent validator in the build path, so `verified` is not reachable. When the clean 3D/2D validators are integrated, they must receive the same configured memory budget as the model worker; the callable `inspect_brep` helper is not currently used by `aad_build` on main.
 - A sandbox on Windows, so builds fail there with `SANDBOX_DENIED`.
 - Spec requirement types without a 2D meaning remain explicitly skipped on `kind="2d"` sheets.
