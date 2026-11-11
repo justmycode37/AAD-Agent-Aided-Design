@@ -24,7 +24,13 @@ from aad_render.render_limits import (
 )
 
 from .. import config
-from ..ops import PREPARED_RENDER_FILENAME, RESULT_MARKER, _render_result
+from ..ops import (
+    PREPARED_RENDER_FILENAME,
+    REVIEW_PACKET_RENDER_FILENAME,
+    RESULT_MARKER,
+    _render_result,
+    _write_private_file,
+)
 
 DEFAULT_TIMEOUT_S = 120.0
 
@@ -69,7 +75,11 @@ def _run_sandboxed(request: dict[str, Any], timeout_s: float) -> dict[str, Any]:
 
     if request.get("op") == "render":
         if os.environ.get("AAD_REMOTE"):
-            return _crash("SANDBOX_DENIED", "sandbox", "rendering needs a local graphics worker that remote mode does not grant")
+            return _crash(
+                "SANDBOX_DENIED",
+                "sandbox",
+                "aad_render, including review_packet, needs a local graphics worker; remote mode does not grant one.",
+            )
         if request.get("kind", "part") != "2d":
             return _run_mesh_render(request, timeout_s, sandbox, memory, memory_limit_bytes)
 
@@ -124,21 +134,39 @@ def _run_mesh_render(
     prepare_request = {**request, "op": "render_prepare"}
     prepared_result = _run_worker(prepare_request, timeout_s, sandbox, memory, memory_limit_bytes)
     out = Path(request["out_dir"])
-    payload_path = out / PREPARED_RENDER_FILENAME
+    requested_review_packet = bool((request.get("args") or {}).get("review_packet"))
+    payload_path = out / (REVIEW_PACKET_RENDER_FILENAME if requested_review_packet else PREPARED_RENDER_FILENAME)
     if not prepared_result.get("ok"):
         _discard_prepared_render_payload(payload_path)
         return _as_render_failure(prepared_result)
-    prepared = prepared_result.get("prepared_render")
-    if (
-        not isinstance(prepared, dict)
-        or set(prepared) != {"version", "render", "inspection", "render_payload_file"}
-        or prepared.get("version") != 1
-        or prepared.get("render_payload_file") != PREPARED_RENDER_FILENAME
-        or not isinstance(prepared.get("render"), dict)
-        or not isinstance(prepared["render"].get("request"), dict)
-    ):
+    prepared = prepared_result.get("prepared_review_packet")
+    is_review_packet = prepared is not None
+    if not is_review_packet:
+        prepared = prepared_result.get("prepared_render")
+    if is_review_packet:
+        valid_prepared = (
+            isinstance(prepared, dict)
+            and set(prepared) == {"version", "render_payload_file", "case_ids", "manifest"}
+            and prepared.get("version") == 1
+            and prepared.get("render_payload_file") == REVIEW_PACKET_RENDER_FILENAME
+            and isinstance(prepared.get("case_ids"), list)
+            and isinstance(prepared.get("manifest"), dict)
+        )
+        payload_filename = REVIEW_PACKET_RENDER_FILENAME
+    else:
+        valid_prepared = (
+            isinstance(prepared, dict)
+            and set(prepared) == {"version", "render", "inspection", "render_payload_file"}
+            and prepared.get("version") == 1
+            and prepared.get("render_payload_file") == PREPARED_RENDER_FILENAME
+            and isinstance(prepared.get("render"), dict)
+            and isinstance(prepared["render"].get("request"), dict)
+        )
+        payload_filename = PREPARED_RENDER_FILENAME
+    if not valid_prepared:
         _discard_prepared_render_payload(payload_path)
         return _crash("WORKER_CRASH", "render", "The sandboxed worker returned no prepared mesh payload.")
+    payload_path = out / payload_filename
     try:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -188,6 +216,11 @@ def _run_mesh_render(
     rendered = rendered_result.get("rendered")
     if not isinstance(rendered, dict):
         return _crash("WORKER_CRASH", "render", "The mesh renderer returned no image metadata.")
+    if is_review_packet:
+        try:
+            return {"ok": True, "review_packet": _finalize_review_packet(out, prepared, rendered)}
+        except Exception as exc:
+            return _crash("RENDER_FAILED", "render", f"The review packet could not be finalized: {exc}")
     try:
         from aad_render import finish_render
 
@@ -195,6 +228,106 @@ def _run_mesh_render(
         return {"ok": True, **_render_result(paths)}
     except Exception as exc:
         return _crash("RENDER_FAILED", "render", f"The render report could not be completed: {exc}")
+
+
+def _finalize_review_packet(out: Path, prepared: dict[str, Any], rendered: dict[str, Any]) -> dict[str, Any]:
+    """Hash bounded packet files and write the external evaluator's manifest."""
+    import hashlib
+
+    from aad_render.render_limits import (
+        MAX_REVIEW_PACKET_BYTES,
+        MAX_REVIEW_PACKET_IMAGE_BYTES,
+        MAX_REVIEW_PACKET_IMAGES,
+        MAX_REVIEW_PACKET_MANIFEST_BYTES,
+        MAX_REVIEW_PACKET_REQUEST_BYTES,
+        json_size_limited,
+    )
+
+    if set(rendered) != {"cases", "image_count", "image_bytes"} or not isinstance(rendered.get("cases"), list):
+        raise ValueError("mesh renderer returned malformed review packet metadata")
+    case_ids = prepared.get("case_ids")
+    manifest = prepared.get("manifest")
+    if not isinstance(case_ids, list) or not isinstance(manifest, dict):
+        raise ValueError("sandboxed worker returned malformed review packet metadata")
+    view_rows = manifest.get("views")
+    if not isinstance(view_rows, list) or [row.get("id") for row in view_rows if isinstance(row, dict)] != case_ids:
+        raise ValueError("review packet manifest cases do not match its render batch")
+    if len(case_ids) != len(rendered["cases"]):
+        raise ValueError("mesh renderer returned an incomplete review packet")
+
+    packet_dir = out / "review-packet"
+    files = dict(manifest.get("files") or {})
+    request_bytes = _read_review_packet_file(packet_dir / "request.txt", MAX_REVIEW_PACKET_REQUEST_BYTES)
+    files["request.txt"] = {
+        "sha256": hashlib.sha256(request_bytes).hexdigest(),
+        "bytes": len(request_bytes),
+        "content_type": "text/plain; charset=utf-8",
+    }
+    image_count = 0
+    image_bytes = 0
+    for expected, actual in zip(view_rows, rendered["cases"], strict=True):
+        if not isinstance(actual, dict) or set(actual) != {"id", "images"} or actual.get("id") != expected["id"]:
+            raise ValueError("mesh renderer returned a review image for the wrong case")
+        expected_images = expected.get("images")
+        if not isinstance(expected_images, list) or actual.get("images") != expected_images:
+            raise ValueError("mesh renderer returned unexpected review image names")
+        for name in expected_images:
+            if not isinstance(name, str) or Path(name).name != name:
+                raise ValueError("review packet contains an unsafe image name")
+            data = _read_review_packet_file(packet_dir / name, MAX_REVIEW_PACKET_IMAGE_BYTES)
+            if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+                raise ValueError(f"review packet image {name!r} is not a PNG")
+            image_count += 1
+            image_bytes += len(data)
+            files[name] = {
+                "sha256": hashlib.sha256(data).hexdigest(),
+                "bytes": len(data),
+                "content_type": "image/png",
+            }
+    if image_count > MAX_REVIEW_PACKET_IMAGES or image_count != rendered.get("image_count"):
+        raise ValueError("review packet image count is inconsistent or over limit")
+    if image_bytes != rendered.get("image_bytes"):
+        raise ValueError("review packet image byte count is inconsistent")
+
+    finalized = {**manifest, "files": files}
+    manifest_data = (json.dumps(finalized, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n").encode()
+    if len(manifest_data) > MAX_REVIEW_PACKET_MANIFEST_BYTES:
+        raise ValueError("review packet manifest exceeds its byte limit")
+    json_size_limited(finalized, MAX_REVIEW_PACKET_MANIFEST_BYTES, "review packet manifest")
+    total_bytes = len(request_bytes) + image_bytes + len(manifest_data)
+    if total_bytes > MAX_REVIEW_PACKET_BYTES:
+        raise ValueError("review packet directory exceeds its aggregate byte limit")
+    _write_private_file(packet_dir / "manifest.json", manifest_data, MAX_REVIEW_PACKET_MANIFEST_BYTES)
+    return {
+        "path": str(packet_dir),
+        "manifest": str(packet_dir / "manifest.json"),
+        "image_count": image_count,
+        "bytes": total_bytes,
+        "manifest_sha256": hashlib.sha256(manifest_data).hexdigest(),
+    }
+
+
+def _read_review_packet_file(path: Path, maximum: int) -> bytes:
+    """Read one regular packet file without following symlinks or trusting its size."""
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    if nofollow is None:
+        raise ValueError("safe review packet reads require O_NOFOLLOW support")
+    fd = os.open(path, os.O_RDONLY | nofollow)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > maximum:
+            raise ValueError(f"review packet file {path.name!r} is not a regular file within its size limit")
+        data = bytearray()
+        while len(data) <= maximum:
+            chunk = os.read(fd, min(64 * 1024, maximum + 1 - len(data)))
+            if not chunk:
+                break
+            data.extend(chunk)
+        if len(data) > maximum:
+            raise ValueError(f"review packet file {path.name!r} exceeds its size limit")
+        return bytes(data)
+    finally:
+        os.close(fd)
 
 
 def _read_prepared_render_payload(path: Path) -> bytes:

@@ -8,6 +8,7 @@ A function that does not exist yet reports that plainly, and nothing is guessed.
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import importlib
 import json
 import os
@@ -22,6 +23,7 @@ from typing import Any
 RESULT_MARKER = b"AAD_OPS_RESULT:"
 NOT_READY = "NOT_READY"
 PREPARED_RENDER_FILENAME = "prepared-render.bin"
+REVIEW_PACKET_RENDER_FILENAME = "review-packet-render.bin"
 
 
 class OpFailure(Exception):
@@ -100,7 +102,7 @@ def load_context(request: dict[str, Any]) -> Any:
     assembly = (meta.get("meta") or {}).get("assembly")
     if shape is not None and assembly:
         shape = _restore_assembly(shape, assembly)
-    return ModelContext(
+    context = ModelContext(
         project_dir=project_dir,
         rev=request["rev"],
         kind=request.get("kind", "part"),
@@ -117,6 +119,10 @@ def load_context(request: dict[str, Any]) -> Any:
         job_dir=Path(request["out_dir"]),
         meta=meta.get("meta") or {},
     )
+    # Keep the already-loaded revision checks available to packet generation
+    # without parsing a large meta.json a second time.
+    context._revision_checks = meta.get("checks")
+    return context
 
 
 def _restore_assembly(shape: Any, assembly: dict[str, Any]) -> Any:
@@ -153,6 +159,10 @@ def _sheet_preview(ctx: Any, out: Path) -> dict[str, Any]:
 
 
 def op_render(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
+    if args.get("review_packet"):
+        if ctx.kind == "2d":
+            raise ValueError("review packets require a 3D part or assembly revision")
+        raise ValueError("review packets must use the local sandboxed mesh render path")
     if ctx.kind == "2d":
         return _sheet_preview(ctx, out)
     render = _required("aad_render", "render", "Agent rendering")
@@ -165,6 +175,8 @@ def op_render_prepare(ctx: Any, args: dict[str, Any], _out: Path) -> dict[str, A
     """Prepare 3D render data while the B-rep is still inside the sandbox."""
     if ctx.kind == "2d":
         raise ValueError("2D sheet previews do not use the 3D mesh render worker")
+    if args.get("review_packet"):
+        return _prepare_review_packet(ctx, _out)
     prepare_render = _required("aad_render", "prepare_render", "Agent render preparation")
     prepared = prepare_render(ctx, _render_request(args))
     from aad_render.render_limits import (
@@ -197,6 +209,223 @@ def op_render_prepare(ctx: Any, args: dict[str, Any], _out: Path) -> dict[str, A
     json_size_limited(metadata, MAX_PREPARED_RENDER_BYTES, "prepared render result")
     _write_prepared_render_payload(_out, render_wire.iter_bytes())
     return {"prepared_render": metadata}
+
+
+def _prepare_review_packet(ctx: Any, out: Path) -> dict[str, Any]:
+    """Write request data and a bounded batch of geometry-only render cases."""
+    from aad_render.render_limits import (
+        MAX_RENDER_PAYLOAD_BYTES,
+        MAX_REVIEW_PACKET_IMAGE_BYTES,
+        MAX_REVIEW_PACKET_IMAGES,
+        MAX_REVIEW_PACKET_MANIFEST_BYTES,
+        MAX_REVIEW_PACKET_PARTS,
+        MAX_REVIEW_PACKET_REQUEST_BYTES,
+        json_size_limited,
+    )
+    from aad_render.render_wire import pack_render_batch
+    from aad_render.review_packet import prepare_review_packet
+
+    plan = prepare_review_packet(ctx)
+    cases = plan["renders"]
+    image_count = sum(len(case["images"]) for case in cases)
+    if image_count > MAX_REVIEW_PACKET_IMAGES:
+        raise ValueError(f"review packet exceeds the {MAX_REVIEW_PACKET_IMAGES}-image limit")
+
+    revision_dir = Path(ctx.project_dir) / ".aad" / "revs" / f"{int(ctx.rev):06d}"
+    request_data = _read_review_json(revision_dir / "request.json", 64 * 1024, missing_ok=True)
+    original = request_data.get("original") if isinstance(request_data, dict) else None
+    captured = isinstance(original, str) and bool(original)
+    request_bytes = original.encode("utf-8") if captured else b""
+    if len(request_bytes) > MAX_REVIEW_PACKET_REQUEST_BYTES:
+        raise ValueError(f"original request text exceeds the {MAX_REVIEW_PACKET_REQUEST_BYTES}-byte packet limit")
+
+    packet_dir = Path(out) / "review-packet"
+    packet_dir.mkdir(mode=0o700)
+    _write_private_file(packet_dir / "request.txt", request_bytes, MAX_REVIEW_PACKET_REQUEST_BYTES)
+
+    revision_meta = _read_review_json(revision_dir / "meta.json", 64 * 1024 * 1024, missing_ok=True)
+    raw_checks = ctx._revision_checks if hasattr(ctx, "_revision_checks") else revision_meta.get("checks")
+    checks_available = isinstance(raw_checks, list)
+    checks = _review_checks(raw_checks)
+    status = revision_meta.get("status")
+    status = status if status in {"failed", "draft", "verified"} else "unknown"
+    unresolved = _review_unresolved(request_data, checks, captured, checks_available)
+    if status != "verified":
+        unresolved.insert(0, {"type": "status", "item": f"Revision status is {status}, not verified."})
+    files = {
+        "request.txt": {
+            "sha256": hashlib.sha256(request_bytes).hexdigest(),
+            "bytes": len(request_bytes),
+            "content_type": "text/plain; charset=utf-8",
+        }
+    }
+    manifest = {
+        "schema": "aad.review-packet.v1",
+        "project": Path(ctx.project_dir).name,
+        "revision": int(ctx.rev),
+        "status": status,
+        "units": str(ctx.units),
+        "request": {"file": "request.txt", "captured": captured},
+        "parts": plan["parts"],
+        "checks_available": checks_available,
+        "checks": checks,
+        "unresolved": unresolved,
+        "views": [
+            {key: value for key, value in case.items() if key != "render"}
+            for case in cases
+        ],
+        "coverage": plan["coverage"],
+        "files": files,
+        "limits": {
+            "max_images": MAX_REVIEW_PACKET_IMAGES,
+            "image_count": image_count,
+            "max_image_bytes": MAX_REVIEW_PACKET_IMAGE_BYTES,
+            "max_packet_bytes": MAX_REVIEW_PACKET_IMAGE_BYTES * MAX_REVIEW_PACKET_IMAGES,
+            "max_major_parts": MAX_REVIEW_PACKET_PARTS,
+            "image_size_px": 512,
+        },
+    }
+    manifest_bytes = (json.dumps(manifest, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n").encode()
+    if len(manifest_bytes) > MAX_REVIEW_PACKET_MANIFEST_BYTES:
+        raise ValueError(f"review packet manifest exceeds the {MAX_REVIEW_PACKET_MANIFEST_BYTES}-byte limit")
+    json_size_limited(manifest, MAX_REVIEW_PACKET_MANIFEST_BYTES, "review packet manifest")
+
+    batch = pack_render_batch([(case["id"], case["render"]) for case in cases])
+    if batch.size > MAX_RENDER_PAYLOAD_BYTES:
+        raise ValueError(f"review packet render payload exceeds the {MAX_RENDER_PAYLOAD_BYTES}-byte limit")
+    _write_review_packet_payload(out, batch)
+    return {
+        "prepared_review_packet": {
+            "version": 1,
+            "render_payload_file": REVIEW_PACKET_RENDER_FILENAME,
+            "case_ids": [case["id"] for case in cases],
+            "manifest": manifest,
+        }
+    }
+
+
+def _review_checks(raw: Any) -> list[dict[str, Any]]:
+    """Copy revision check evidence while leaving model-authored assumptions out."""
+    if not isinstance(raw, list):
+        return []
+    fields = (
+        "id", "suite", "level", "status", "message", "expected", "actual",
+        "feature", "selector", "heuristic", "fix_hint",
+    )
+    return [
+        {key: item[key] for key in fields if key in item}
+        for item in raw
+        if isinstance(item, dict)
+    ]
+
+
+def _review_unresolved(
+    request_data: Any,
+    checks: list[dict[str, Any]],
+    captured: bool,
+    checks_available: bool,
+) -> list[dict[str, Any]]:
+    unresolved: list[dict[str, Any]] = []
+    if not captured:
+        unresolved.append({"type": "request", "item": "No original request was captured for this revision."})
+    if not checks_available:
+        unresolved.append({"type": "checks", "item": "No saved check results are available for this revision."})
+    if isinstance(request_data, dict):
+        for question in request_data.get("open_questions") or []:
+            if isinstance(question, str):
+                unresolved.append({"type": "open_question", "item": question})
+        for note in request_data.get("not_checked") or []:
+            if isinstance(note, dict) and isinstance(note.get("item"), str):
+                # The reason is the building agent's reasoning, so only the item travels.
+                unresolved.append({"type": "not_checked", "item": note["item"]})
+    for check in checks:
+        if check.get("status") in {"fail", "warn", "skip"}:
+            unresolved.append({
+                "type": "check",
+                "id": check.get("id"),
+                "status": check.get("status"),
+                "message": check.get("message", ""),
+            })
+    return unresolved
+
+
+def _read_review_json(path: Path, maximum: int, *, missing_ok: bool = False) -> Any:
+    """Read one revision JSON file without following links or trusting its size."""
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    if nofollow is None:
+        raise ValueError("safe review packet reads require O_NOFOLLOW support")
+    try:
+        fd = os.open(path, os.O_RDONLY | nofollow)
+    except FileNotFoundError:
+        if missing_ok:
+            return {}
+        raise
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > maximum:
+            raise ValueError(f"review packet input {path.name!r} is not a regular file within its size limit")
+        data = bytearray()
+        while len(data) <= maximum:
+            chunk = os.read(fd, min(64 * 1024, maximum + 1 - len(data)))
+            if not chunk:
+                break
+            data.extend(chunk)
+        if len(data) > maximum:
+            raise ValueError(f"review packet input {path.name!r} exceeds its size limit")
+        return json.loads(bytes(data), parse_constant=_reject_json_constant)
+    finally:
+        os.close(fd)
+
+
+def _write_private_file(path: Path, data: bytes, maximum: int) -> None:
+    if len(data) > maximum:
+        raise ValueError(f"review packet file {path.name!r} exceeds its {maximum}-byte limit")
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    if nofollow is None:
+        raise ValueError("safe review packet writes require O_NOFOLLOW support")
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow, 0o600)
+    try:
+        view = memoryview(data)
+        while view:
+            written = os.write(fd, view)
+            if written <= 0:
+                raise OSError("could not write review packet file")
+            view = view[written:]
+    finally:
+        os.close(fd)
+
+
+def _write_review_packet_payload(out: Path, batch: Any) -> None:
+    """Stream a review mesh batch into the sandbox job directory."""
+    from aad_render.render_limits import MAX_RENDER_PAYLOAD_BYTES
+
+    if batch.size > MAX_RENDER_PAYLOAD_BYTES:
+        raise ValueError(f"review packet render payload exceeds the {MAX_RENDER_PAYLOAD_BYTES}-byte limit")
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    if nofollow is None:
+        raise ValueError("safe review packet writes require O_NOFOLLOW support")
+    path = Path(out) / REVIEW_PACKET_RENDER_FILENAME
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow, 0o600)
+    written_total = 0
+    try:
+        for chunk in batch.iter_bytes():
+            remaining = memoryview(chunk)
+            while remaining:
+                written = os.write(fd, remaining)
+                if written <= 0:
+                    raise OSError("could not write review packet render payload")
+                written_total += written
+                if written_total > MAX_RENDER_PAYLOAD_BYTES:
+                    raise ValueError("review packet render payload exceeded its byte limit while writing")
+                remaining = remaining[written:]
+        if written_total != batch.size:
+            raise ValueError("review packet render payload size changed while writing")
+    except BaseException:
+        os.close(fd)
+        path.unlink(missing_ok=True)
+        raise
+    else:
+        os.close(fd)
 
 
 def _write_prepared_render_payload(out: Path, chunks: bytes | Iterable[bytes | memoryview]) -> None:

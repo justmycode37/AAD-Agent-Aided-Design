@@ -19,8 +19,8 @@ export function resolveParts(selectors: string[], ids: string[]): string[] {
 export function applyPresentation(view: Cad3dView, presentation: Presentation = {}): void {
   const viewer = view.viewer;
   setEnvironment(viewer as any, presentation.environment === "studio");
-  const wasExploded = viewer.state.get("animationMode") === "explode";
-  view.setExploded(false);
+  const wasExploded = view.isExploded();
+  view.setExploded(false, false);
   view.showAll();
   viewer.resetClip(); viewer.setActiveTab("tree");
   view.setDisplayMode(presentation.style ?? "shaded-edges");
@@ -69,7 +69,7 @@ export function applyPresentation(view: Cad3dView, presentation: Presentation = 
   // Exploded recipes must save an already fitted assembled camera, including
   // the requested projection, so Put together restores the same safe framing.
   view.fit();
-  view.setExploded((presentation.explode ?? wasExploded) && view.canExplode());
+  view.setExploded((presentation.explode ?? wasExploded) && view.canExplode(), false);
   viewer.showTools(view.fullControls); viewer.setPickHandler(view.fullControls);
 }
 

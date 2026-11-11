@@ -105,6 +105,7 @@ normal module. Geometry assumptions and limits are documented in
 - A bare `aad_build(params=...)` override is classified as `assumed` and clears the old source and note. To send new provenance with an override, pass `{value, basis?, source?, note?}`; omitted basis defaults to `assumed`. The same text limits apply.
 - `feature(name)` must be unique. It records created and modified faces and edges, source lines and dependencies.
 - `face()`, `edge()`, `vertex()` resolve semantically. `expect=n` turns a count mismatch into a `SELECTOR_AMBIGUOUS` or `SELECTOR_EMPTY` failure with candidates.
+- `cached_part(key_inputs, builder_fn)` may wrap an explicitly deterministic, repeatable part builder. `key_inputs` must be JSON data that names every additional geometry input read by the builder, including captured state. AAD binds the builder code and the exact model source, effective model parameters, whole spec, staged assets, units, material/process, kernel and AAD versions, and geometry/check pipeline identity. Unsupported or incomplete keys run the builder without caching. A hit reuses B-rep geometry only; the full hard, spec and process checks run again.
 - A script produces one `part`, one `assembly` (assign `assembly()` to `result`), or (for `kind: "2d"`) one `sheet2d`.
 - The script must not do I/O. Files come in through `asset("name")`, which reads from the project's imports.
 - Plain build123d is valid, and everything lands in an implicit `main` feature. Named features are what make edits reliable.
@@ -244,7 +245,7 @@ aad_render({ project, rev?: number,
                        { point: number[3], direction: number[3] })[],
              measure?: { a: string, b: string }[],
              heatmap_range?: number[2], min_wall?: number, direction?: number[3],
-             size?: number })                       // default 1024, max 2048
+             size?: number, review_packet?: boolean }) // default 1024, max 2048; packet writes bounded review files
 
 aad_show({ project, rev?: number, compare_to?: number, title?: string,
            view?: "iso"|"front"|"rear"|"left"|"right"|"top"|"bottom",
@@ -341,6 +342,7 @@ type Envelope = {
   checks_summary?: { pass: number, fail: number, warn: number, skip: number },
   failure?: Failure,
   artifacts?: Record<string, string>,  // aad://<project>/<rev>/<name>, plus file paths for exports
+  review_packet?: { path: string, manifest: string, image_count: number, bytes: number }, // aad_render only; directory handle, no image blocks
   scene?: SceneManifest,               // aad_show, aad_set_param
   viewer?: { mode: "inline"|"window"|"none", url?: string, view?: string,
              title?: string, presentation?: ViewerPresentation, views?: NamedView[] },
@@ -627,6 +629,8 @@ previews stay inside it. Remote mode refuses the VTK render worker.
 
 The platform resolves `engine.memory` for each build and sandboxed operation, then passes the byte budget to the worker. Direct `run_build` calls that omit `memory_limit_bytes` use the platform default; an explicit byte budget overrides it for that call. The worker adds the budget to its started Python VMS and installs both `RLIMIT_AS` limits before model or operation code. This keeps the cap usable on macOS, where Python already maps hundreds of GB of VMS. Linux applies the cap per process, so child processes each get their own budget. Neither platform has an aggregate RSS or physical-memory policy here.
 
+`run_build` integrates the per-project geometry cache for model scripts that call `cached_part`. The trusted parent validates and stages same-project candidate B-reps inside the job directory before launching the unchanged OS sandbox; model code receives no access to `.aad/cache`. It publishes newly built candidates only after the worker exits and only when the build result succeeds. Cache identity binds source, applied parameters, spec, units, staged asset digests, kernel/AAD versions, and the code/runtime pipeline digest. Cache data contains geometry only: the worker reruns all hard, spec and process checks, and cached or worker-written data is not an attestation or a trusted `verified` claim. Missing, corrupt, unsupported or mismatched candidates fall back to the builder. Set `AAD_DISABLE_GEOMETRY_CACHE=1` in the trusted engine environment to disable cache reads and writes; the per-project cache can be deleted safely.
+
 The engine's independent `inspect_brep` helper accepts the same `memory_limit_bytes` argument and uses the platform default when omitted. It is not wired into `aad_build` on main. The clean validator proposed in PR #96 must pass the build's resolved value into its 3D inspector and use the same budgeted launch for its new 2D inspector; otherwise a user override will not reach those child processes.
 
 `render` returns PNG paths plus `inspection.json` and optional `labels.json`. The platform emits
@@ -634,6 +638,17 @@ only PNGs as image blocks; it includes the JSON data in structured `inspection` 
 fields, with all file paths in `artifacts`. Inspection version 1 includes B-rep face/edge facts,
 mass properties, exact section loops, image pane scales, world-to-pixel matrices, visible
 selectors, probe results and measurements. Face/edge indexes belong to the current revision.
+
+`aad_render(review_packet=true)` writes a bounded `review-packet/` directory under the operation
+cache and returns its directory and manifest paths without image blocks; other render options are
+ignored in this mode. The packet contains the
+captured original request, generated PNGs, measured part sizes, revision check results including
+skips, unresolved questions and `manifest.json` hashes. It excludes model source and captured
+assumptions. The packet is an input to an external reviewer; its findings never change revision
+status and are not verification evidence. Review packet rendering uses the same sandboxed B-rep
+preparation and clean local VTK worker as ordinary 3D rendering, and remote mode refuses it.
+Limits: 20 render cases, 32 images, 8 major parts for component-centered and isolated views,
+2 MiB per image, 2 MiB manifest, 80,000 UTF-8 bytes for request text, and 64 MiB total packet.
 Exact sharp/tangent/seam edge classification and adjacent-face lists are included up to 2,048
 edges. Above that explicit limit, curve facts remain available, edge classes are omitted, and
 `inspection.edge_classification` says so; rendered edges use the general edge style.
@@ -651,10 +666,14 @@ JSON-RPC 2.0, newline-delimited, over `~/.aad/run/aadd.sock` (named pipe on Wind
 
 The daemon serializes jobs per project and runs different projects in parallel. Default pool: 2 warm workers, one spare.
 
+Build workers inherit `AAD_DISABLE_GEOMETRY_CACHE=1` from the trusted daemon environment to disable per-project part-cache reads and writes. The model sandbox policy is unchanged; the daemon stages validated geometry into the job directory and owns project-cache publication.
+
 ---
 
 ## 11. Changelog
 
+- 2026-11-06: S3 added `aad_render(review_packet=true)` for bounded, hashed visual review packets, including request text, measured parts, check skips, unresolved items and orthographic/section/isolated views; packets omit model source and assumptions, do not change revision status or count as verification, and remain unavailable in remote mode.
+- 2026-11-06: S1 connected the per-project geometry cache through deterministic `cached_part(key_inputs, builder_fn)`, scoped cache entries to full source/build identities, staged candidates without widening the model sandbox, reran all checks on hits, and reused exact duplicate-solid mesh checks. On the same machine, three sandboxed 1,500-box runs improved from 42.1/45.3/59.0 s (median 45.3 s) to 11.9/9.6/9.2 s (median 9.6 s); median hard mesh-gate time fell from 25.2 s to 146 ms.
 - 2026-11-06: S1 added author-claimed parameter provenance to `Param`, revision and export metadata, inspection summaries and history diffs; plain value overrides now become `assumed`, and source-less `published`/`measured` labels warn.
 - 2026-11-05: S1 applied configurable `engine.memory` virtual-address growth budgets to build and operation workers and made explicit `MemoryError`/`ENOMEM` results report `OUT_OF_MEMORY`, while keeping unrelated startup diagnostics and signal-only exits unclassified.
 - 2026-11-05: S2 made the structured `aad_render` report compact by default, with `inspection="full"` for the rest, because it reached 2.6 MB on a 492-part assembly.
@@ -683,3 +702,4 @@ The daemon serializes jobs per project and runs different projects in parallel. 
 - 2026-11-04: S1 removed the mandatory stop-and-ask GitHub access note at the user's request; agents may run repository connection and authentication setup themselves.
 - 2026-11-04: v0 written with `PLAN.md`.
 - 2026-11-04: renamed to AAD. Switched from a shared working tree to per-sector worktrees and PRs into `main`. Cross-sector messages moved to GitHub issues.
+- 2026-11-07: S1 added `aad_build(part_cache=false)` and an error-level `part_cache_unreproduced` skip on builds offered cached geometry, because model-written cache entries cannot be proven to match their builder. The per-project cache is limited to 2 GiB.

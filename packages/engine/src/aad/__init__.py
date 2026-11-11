@@ -13,6 +13,7 @@ from typing import Any
 
 from ._runtime import Param, params
 from .engine.select import SelectorError, entity_shape
+from .engine.part_cache import cached_part
 from .modeling import edge, feature, face, meta, part, vertex
 
 _HELPER_EXPORTS = {
@@ -47,6 +48,7 @@ _CAD_EXPORTS = {
     "SheetMetalPart",
     "assembly",
     "asset",
+    "cached_part",
     "delete_faces",
     "exploded",
     "motion_clearance",

@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "corpus_id": "aad-realism-objects-v1",
+  "split_seed": "aad-realism-split-v1",
+  "split_rule": "Group tasks by independent real-object cluster. Rank each cluster by SHA-256(seed + NUL + cluster_id), ascending; the first two clusters are tuning and the remaining cluster is held-out. Freeze this manifest before any ratings. Never split revisions of one object across sets.",
+  "sources": [
+    {
+      "id": "audi_0b5_ssp",
+      "title": "Audi Self-Study Programme 950143: 0B5 S tronic transmission",
+      "url": "https://content.datarunners.net/content/SSP/950143.pdf",
+      "citation": "pp. 6-14, 28-31, 37-41; manufacturer training material, public hosted copy",
+      "retrieved": "2026-11-06"
+    },
+    {
+      "id": "crazyflie_21_datasheet",
+      "title": "Bitcraze Crazyflie 2.1 Datasheet, Rev 3",
+      "url": "https://www.bitcraze.io/documentation/hardware/crazyflie_2_1/crazyflie_2_1-datasheet.pdf",
+      "citation": "pp. 1-3: weight, controller and sensor components, charging, expansion and flight-system facts",
+      "retrieved": "2026-11-06"
+    },
+    {
+      "id": "crazyflie_21_assembly_guide",
+      "title": "Bitcraze: Getting started with the Crazyflie 2.0 or Crazyflie 2.1(+)",
+      "url": "https://www.bitcraze.io/documentation/tutorials/getting-started-with-crazyflie-2-x/",
+      "citation": "Unpacking and assembly steps: control board, propellers, motor mounts, battery, battery holder and expansion pins",
+      "retrieved": "2026-11-06"
+    },
+    {
+      "id": "crazyflie_21_frame_faq",
+      "title": "Bitcraze FAQ",
+      "url": "https://www.bitcraze.io/support/f-a-q/",
+      "citation": "Crazyflie 2.x frame construction: PCB serves as the frame",
+      "retrieved": "2026-11-06"
+    },
+    {
+      "id": "crazyflie_sim_mesh_docs",
+      "title": "Bitcraze simulation meshes documentation",
+      "url": "https://www.bitcraze.io/documentation/repository/crazyflie-simulation/main/functional_areas/meshes/",
+      "citation": "Mesh inventory, low-polygon scope, component transforms and assembly arrangement",
+      "retrieved": "2026-11-06"
+    },
+    {
+      "id": "crazyflie_sim_license",
+      "title": "Bitcraze crazyflie-simulation MIT license and pinned source revision",
+      "url": "https://github.com/bitcraze/crazyflie-simulation/tree/38388c9da728fa98a2f00f195d55eed484e85d11",
+      "citation": "Repository LICENSE at pinned revision; mesh is from meshes/stl_files/cf2_assembly.stl",
+      "retrieved": "2026-11-06"
+    },
+    {
+      "id": "rpi4_specs",
+      "title": "Raspberry Pi 4 Model B specifications",
+      "url": "https://www.raspberrypi.com/products/raspberry-pi-4-model-b/specifications/",
+      "citation": "Dimensions, USB/Ethernet, USB-C, dual micro-HDMI, audio, GPIO, CSI/DSI and microSD interfaces",
+      "retrieved": "2026-11-06"
+    },
+    {
+      "id": "rpi4_drawing",
+      "title": "Raspberry Pi 4 Model B mechanical drawing",
+      "url": "https://pip-assets.raspberrypi.com/categories/545-raspberry-pi-4-model-b/documents/RP-008343-DS-1-raspberry-pi-4-mechanical-drawing.pdf",
+      "citation": "1-page dimensioned board outline, connector locations and mounting-hole positions; dimensions are approximate",
+      "retrieved": "2026-11-06"
+    },
+    {
+      "id": "rpi4_product_portal",
+      "title": "Raspberry Pi 4 Model B Product Information Portal",
+      "url": "https://pip.raspberrypi.com/categories/545-raspberry-pi-4-model-b",
+      "citation": "Public product-document index for the board drawing, datasheet and product brief",
+      "retrieved": "2026-11-06"
+    },
+    {
+      "id": "rpi_licensing",
+      "title": "Raspberry Pi document and design-file licensing",
+      "url": "https://www.raspberrypi.com/licensing/",
+      "citation": "Distinguishes CC BY-SA online documentation, CC BY-ND product PDFs, and separate terms for design files",
+      "retrieved": "2026-11-06"
+    }
+  ],
+  "reference_audit": [
+    {
+      "object_id": "audi_0b5_dl501",
+      "looked_for": ["0B5 DL501 STEP CAD free 3D model", "Audi DL501 gearbox CAD assembly license"],
+      "rejected": ["Public service-study cutaways and web photographs are not 3D CAD references and cannot establish 3D accuracy."],
+      "result": "No free, licence-usable CAD model of a real car dual-clutch gearbox was found in this search. The earlier search is also recorded in evals/dsg-0b5/README.md. The slot stays empty; this is a bounded search result, not a proof that no such file exists.",
+      "searched_on": "2026-11-06"
+    },
+    {
+      "object_id": "bitcraze_crazyflie_21",
+      "looked_for": ["Bitcraze Crazyflie 2.1 3D mesh license", "Crazyflie 2.1 CAD and simulation mesh license"],
+      "rejected": [],
+      "result": "Included the upstream low-resolution Crazyflie 2.1 assembly mesh from the pinned Bitcraze simulation repository. Its repository MIT license permits use, modification and redistribution with the notice retained. It is only an orientation/visible-layout reference; the upstream documentation says it is simplified and it is not a source for hidden electronics or engineering performance.",
+      "searched_on": "2026-11-06"
+    },
+    {
+      "object_id": "raspberry_pi_4_enclosure",
+      "looked_for": ["Raspberry Pi 4 case STEP CAD open license", "Raspberry Pi 4 enclosure CAD CC BY"],
+      "rejected": [
+        "MakerCore Hub's Pi 4/5 case is offered as CC BY-NC 4.0 for personal and educational use; the page does not clarify AI use, so no file was taken.",
+        "The Printables Pi 4 case listing identifies a Creative Commons 4.0 license but the reviewed page did not establish the exact license variant for the 3D file, so no file was taken.",
+        "Raspberry Pi's official Pi 4 mechanical drawing is a 2D PDF, not a 3D enclosure reference. Its product PDFs are CC BY-ND; no product PDF or case asset was copied.",
+        "The CC BY 4.0 raspberry.tips reference found in the search is for a Pi 5 DIN-rail enclosure, so it does not match this object."
+      ],
+      "result": "No licence-usable 3D enclosure reference was retained. The slot stays empty.",
+      "searched_on": "2026-11-06"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "gearbox_0b5_dl501",
+      "cluster_id": "audi_0b5_dl501",
+      "title": "Audi 0B5 / DL501 longitudinal dual-clutch transmission",
+      "family": "gearbox",
+      "kind": "assembly",
+      "request": "Create a review-ready, full mechanical assembly model of the Audi 0B5 / DL501 longitudinal seven-speed S tronic transmission. Include the internal power path, both clutch paths, shafts, gears, differential and front/rear outputs, hydraulic/electronic mechatronic assembly, case interfaces, lubrication boundaries and service connections. Preserve realistic part relationships and show useful exterior, longitudinal section and subsystem-isolated views. Do not replace internals with labeled blocks or infer performance from appearance.",
+      "reference_3d": {
+        "status": "empty",
+        "path": null,
+        "reason": "No free, licence-usable 3D CAD of a real car dual-clutch gearbox was found; see reference_audit and evals/dsg-0b5/README.md."
+      },
+      "checklist": [
+        {"id":"housing_and_case_joint","domain":"subsystem","weight":2,"prompt":"Does the housing read as a cast transmission case with plausible split surfaces, ribs, bearing supports and attachment bosses around the real internal layout?","source_ids":["audi_0b5_ssp"]},
+        {"id":"engine_input_interface","domain":"interface","weight":2,"prompt":"Is the engine-facing input interface represented by a located drive-plate/dual-mass-flywheel and clutch path, with a credible mounting face and access envelope?","source_ids":["audi_0b5_ssp"]},
+        {"id":"dual_clutch_pack","domain":"subsystem","weight":2,"prompt":"Are K1 and K2 represented as a real nested multi-plate dual-clutch unit with distinct input paths, hydraulic actuation and plausible bearing/seal interfaces?","source_ids":["audi_0b5_ssp"]},
+        {"id":"odd_even_input_shafts","domain":"subsystem","weight":2,"prompt":"Can a section trace separate coaxial input shafts and two sub-transmissions, with K1 driving odd gears and K2 driving even gears and reverse?","source_ids":["audi_0b5_ssp"]},
+        {"id":"gearsets_and_synchronizers","domain":"subsystem","weight":1,"prompt":"Are the seven forward ratios and reverse represented by gear pairs on supported shafts, with synchronizer/selector hardware in plausible positions rather than decorative teeth alone?","source_ids":["audi_0b5_ssp"]},
+        {"id":"bearing_and_seal_interfaces","domain":"interface","weight":2,"prompt":"Do shafts have believable bearing seats and supported ends, and do shaft/selector penetrations show seals where they cross housing or lubrication boundaries?","source_ids":["audi_0b5_ssp"]},
+        {"id":"common_output_and_center_diff","domain":"subsystem","weight":2,"prompt":"Does the common gear output connect physically into the center differential, with a coherent downstream torque path?","source_ids":["audi_0b5_ssp"]},
+        {"id":"rear_output_interface","domain":"interface","weight":1,"prompt":"Is the rear output/prop-shaft flange connected to the differential by a supported shaft and positioned as an external vehicle interface?","source_ids":["audi_0b5_ssp"]},
+        {"id":"front_final_drive_interface","domain":"interface","weight":2,"prompt":"Is the front final drive reached through the angled side-shaft/beveloid path and connected to the front axle output, rather than ending at a floating gear?","source_ids":["audi_0b5_ssp"]},
+        {"id":"mechatronic_module","domain":"subsystem","weight":2,"prompt":"Is the electro-hydraulic control unit, TCM, sensors/actuators, harness and case attachment represented as a coherent serviceable module with real interfaces to the clutches and selectors?","source_ids":["audi_0b5_ssp"]},
+        {"id":"separate_lubrication_systems","domain":"subsystem","weight":2,"prompt":"Are the ATF clutch/mechatronic circuit and gear-oil circuit distinct, with visible separation and seals rather than one undifferentiated cavity?","source_ids":["audi_0b5_ssp"]},
+        {"id":"cooler_and_service_ports","domain":"interface","weight":1,"prompt":"Are the ATF cooler lines, filler/level access, drains and vents attached to the correct housing regions and reachable for service?","source_ids":["audi_0b5_ssp"]}
+      ]
+    },
+    {
+      "id": "drone_crazyflie_21",
+      "cluster_id": "bitcraze_crazyflie_21",
+      "title": "Bitcraze Crazyflie 2.1 nano quadcopter",
+      "family": "small_drone",
+      "kind": "assembly",
+      "request": "Create a review-ready mechanical and electronics-envelope assembly model of the Bitcraze Crazyflie 2.1 nano quadcopter. Include the structural PCB frame, four motor and propeller stations, motor mounts, battery and holder, controller/sensor board envelope, expansion-deck connection, charging/service connection and coherent power/control routing. Show top, underside, section and isolated subsystem views. Use the documented product facts; do not claim flight performance from geometry.",
+      "reference_3d": {
+        "status": "included",
+        "path": "references/crazyflie/cf2_assembly.stl",
+        "format": "stl",
+        "license": "MIT",
+        "license_path": "references/crazyflie/LICENSE",
+        "license_source_id": "crazyflie_sim_license",
+        "upstream_revision": "38388c9da728fa98a2f00f195d55eed484e85d11",
+        "upstream_path": "meshes/stl_files/cf2_assembly.stl",
+        "sha256": "f69e10e1a18cd0a53f5356d88fafdf71694df51e41d1b9a691f8442fea65dc5c",
+        "permitted_use": "limited visual layout/orientation reference",
+        "limitations": "Low-polygon simulation mesh, not an exact production CAD model. It does not establish hidden PCB/electronics geometry, tolerances, fit, materials or flight performance. Do not report mesh or silhouette overlap as 3D accuracy."
+      },
+      "checklist": [
+        {"id":"pcb_structural_frame","domain":"subsystem","weight":2,"prompt":"Does the PCB read as the central structural frame with four arms supporting motor stations, rather than a plain center box carrying detached parts?","source_ids":["crazyflie_21_frame_faq","crazyflie_21_assembly_guide"]},
+        {"id":"four_motor_mount_interfaces","domain":"interface","weight":2,"prompt":"Are four motor/mount assemblies attached at the four frame arms with plausible retention and load paths into the PCB/frame?","source_ids":["crazyflie_21_assembly_guide","crazyflie_sim_mesh_docs"]},
+        {"id":"four_propellers","domain":"subsystem","weight":1,"prompt":"Are four propellers located on the motor axes with alternating handedness/rotation implied by the source, with no propellers floating away from motor shafts?","source_ids":["crazyflie_21_assembly_guide","crazyflie_sim_mesh_docs"]},
+        {"id":"battery_and_holder","domain":"subsystem","weight":2,"prompt":"Is the removable LiPo battery held below/within the frame by a real holder and physically connected to the board power input?","source_ids":["crazyflie_21_datasheet","crazyflie_21_assembly_guide","crazyflie_sim_mesh_docs"]},
+        {"id":"controller_and_sensor_envelope","domain":"subsystem","weight":2,"prompt":"Is there a plausible populated control-board envelope containing the two controller/radio roles and inertial/barometric sensing, positioned as one integrated PCB assembly?","source_ids":["crazyflie_21_datasheet"]},
+        {"id":"motor_power_and_control_paths","domain":"interface","weight":2,"prompt":"Can the four motor stations be traced to board-mounted control/power electronics through plausible short electrical paths, without detached labeled blocks or impossible crossings?","source_ids":["crazyflie_21_datasheet"]},
+        {"id":"expansion_deck_mount_and_bus","domain":"interface","weight":2,"prompt":"Is the expansion deck attached through the documented pin/header interface with a physically plausible stack and access to the exposed bus signals?","source_ids":["crazyflie_21_datasheet","crazyflie_21_assembly_guide"]},
+        {"id":"usb_service_interface","domain":"interface","weight":1,"prompt":"Is the micro-USB service/charging connector mounted on the board edge and reachable without removing the frame or battery?","source_ids":["crazyflie_21_datasheet"]},
+        {"id":"assembly_and_replacement_access","domain":"interface","weight":1,"prompt":"Can a viewer identify how battery, propellers, motor mounts and expansion deck are assembled or removed without dismantling the whole aircraft?","source_ids":["crazyflie_21_assembly_guide"]}
+      ]
+    },
+    {
+      "id": "enclosure_rpi4_serviceable",
+      "cluster_id": "raspberry_pi_4_enclosure",
+      "title": "Serviceable enclosure for Raspberry Pi 4 Model B",
+      "family": "electronics_enclosure",
+      "kind": "assembly",
+      "request": "Design a serviceable, two-piece benchtop enclosure around a Raspberry Pi 4 Model B. Use the published board outline and hole locations. Provide internal clearance for the board and components, four aligned board supports, a positively fastened removable lid, and openings that align with USB, Ethernet, USB-C power, both micro-HDMI ports, audio, microSD and the 40-pin GPIO header. Preserve access to CSI/DSI ribbon connectors where the board drawing allows. Include useful section and isolated views; do not claim thermal or electrical performance without evidence.",
+      "reference_3d": {
+        "status": "empty",
+        "path": null,
+        "reason": "The official Pi 4 mechanical drawing is 2D. Candidate case files reviewed had non-commercial, ambiguous or mismatched licenses; see reference_audit."
+      },
+      "checklist": [
+        {"id":"enclosure_cavity_and_wall","domain":"subsystem","weight":2,"prompt":"Does the enclosure have a real hollow cavity with continuous walls, a floor and a removable lid, with enough space for the board and component envelopes?","source_ids":["rpi4_drawing","rpi4_specs"]},
+        {"id":"board_mounting_pattern","domain":"interface","weight":2,"prompt":"Do four internal standoffs align with the board's actual mounting-hole pattern and support the PCB without blocking traces, ports or the underside?","source_ids":["rpi4_drawing"]},
+        {"id":"usb_ethernet_port_wall","domain":"interface","weight":2,"prompt":"Are the Ethernet jack and four USB ports aligned to their edge-wall openings with enough material around the openings to retain the enclosure wall?","source_ids":["rpi4_drawing","rpi4_specs"]},
+        {"id":"power_video_audio_ports","domain":"interface","weight":2,"prompt":"Are USB-C power, both micro-HDMI connectors and the four-pole audio/video jack independently aligned to accessible openings on the correct board edge?","source_ids":["rpi4_drawing","rpi4_specs"]},
+        {"id":"microsd_and_gpio_access","domain":"interface","weight":2,"prompt":"Can a microSD card be inserted/removed and the 40-pin GPIO header reached through deliberate openings without removing the board?","source_ids":["rpi4_drawing","rpi4_specs"]},
+        {"id":"camera_display_ribbon_access","domain":"interface","weight":1,"prompt":"Are the CSI and DSI ribbon connector areas left accessible with a credible cable exit and bend envelope?","source_ids":["rpi4_specs"]},
+        {"id":"lid_fastener_interface","domain":"interface","weight":1,"prompt":"Does the lid attach to the base through visible, mechanically plausible screws, bosses or clips, with a defined assembly direction and no floating fasteners?","source_ids":["rpi4_drawing"]},
+        {"id":"internal_clearance_and_retention","domain":"subsystem","weight":2,"prompt":"Do section views show board-component clearance, retained edge support and a plausible path to install/remove the board without forcing it past connectors?","source_ids":["rpi4_drawing","rpi4_specs"]},
+        {"id":"wall_strength_and_opening_edges","domain":"subsystem","weight":1,"prompt":"Are openings, corners, walls and mounting bosses connected and proportioned as a buildable enclosure rather than a thin exterior shell?","source_ids":["rpi4_drawing"]}
+      ]
+    }
+  ]
+}

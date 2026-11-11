@@ -24,6 +24,7 @@ from aad.modeling import (
 )
 from .gate import _hard_checks_with_timings
 from .memory import is_memory_exhaustion
+from .part_cache import configure_part_cache, part_cache_metrics
 from .select import SelectorError
 from .types import (
     BuildResult,
@@ -111,6 +112,11 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
     project_dir = Path(payload["project_dir"])
     source_path = job_dir / "model.py"
     source = payload["source"]
+    configure_part_cache(
+        payload,
+        Path(payload.get("part_cache_exchange_dir", job_dir)),
+        enabled=bool(payload.get("part_cache_enabled", False)),
+    )
     stdout_stream = _TailTextStream()
     stderr_stream = _TailTextStream()
 
@@ -205,7 +211,7 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
     for name in dir(build123d):
         if not name.startswith("_"):
             namespace[name] = getattr(build123d, name)
-    for name in ("Param", "params", "meta", "part", "feature", "face", "edge", "vertex", "entity_shape", "SelectorError"):
+    for name in ("Param", "params", "meta", "part", "feature", "face", "edge", "vertex", "entity_shape", "SelectorError", "cached_part"):
         namespace[name] = getattr(aad, name)
     for name in cad.__all__:
         namespace[name] = getattr(cad, name)
@@ -265,7 +271,8 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
             job_dir=job_dir,
             stdout=stdout_stream.getvalue(),
             stderr=stderr_stream.getvalue(),
-            metrics={"phase_timings_ms": _rounded_timings(phase_timings)},
+            metrics={"phase_timings_ms": _rounded_timings(phase_timings),
+                     "geometry_cache": part_cache_metrics()},
         )
         _add_phase_time(phase_timings, "model", model_phase_started)
         result.metrics["phase_timings_ms"] = _rounded_timings(phase_timings)
@@ -301,7 +308,8 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
                 job_dir=job_dir,
                 stdout=stdout_stream.getvalue(),
                 stderr=stderr_stream.getvalue(),
-                metrics={"phase_timings_ms": _rounded_timings(phase_timings)},
+                metrics={"phase_timings_ms": _rounded_timings(phase_timings),
+                         "geometry_cache": part_cache_metrics()},
             )
         )
     else:
@@ -319,7 +327,9 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
         if is_memory_exhaustion(exc):
             return _result_wire(
                 _failed_result(_memory_failure(exc, file="part.brep"), elapsed_ms=_elapsed_ms(started),
-                               job_dir=job_dir, stdout=stdout_stream.getvalue(), stderr=stderr_stream.getvalue())
+                               job_dir=job_dir, stdout=stdout_stream.getvalue(), stderr=stderr_stream.getvalue(),
+                               metrics={"geometry_cache": part_cache_metrics(),
+                                        "phase_timings_ms": _rounded_timings(phase_timings)})
             )
         failure = Failure(
             code="EXPORT_FAILED",
@@ -335,7 +345,8 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
                 job_dir=job_dir,
                 stdout=stdout_stream.getvalue(),
                 stderr=stderr_stream.getvalue(),
-                metrics={"phase_timings_ms": _rounded_timings(phase_timings)},
+                metrics={"phase_timings_ms": _rounded_timings(phase_timings),
+                         "geometry_cache": part_cache_metrics()},
             )
         )
     finally:
@@ -357,6 +368,7 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
     model_phase_started = time.perf_counter()
     build_ms = _elapsed_ms(started)
     metrics = _shape_metrics(shape, build123d, metadata.get("units", "mm"), build_ms)
+    metrics["geometry_cache"] = part_cache_metrics()
     features, _ = finalize_modeling(shape)
     context = ModelContext(
         project_dir=project_dir,

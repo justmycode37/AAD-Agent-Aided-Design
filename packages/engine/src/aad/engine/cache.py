@@ -56,6 +56,14 @@ class CachedGeometry:
     sha256: str
 
 
+@dataclass(frozen=True)
+class CachedGeometryEntry:
+    """A validated geometry candidate and the identity that names it."""
+
+    geometry: CachedGeometry
+    input_record: dict[str, Any]
+
+
 _FIELDS = {
     "schema", "source", "applied_params", "spec", "kind", "units", "material",
     "process", "kernel_versions", "tolerances", "asset_sha256", "pipeline_identity",
@@ -281,11 +289,60 @@ class GeometryCache:
                 if staging.exists():
                     shutil.rmtree(staging)
 
+    def prune(self, max_bytes: int) -> int:
+        """Delete the oldest entries until the cache fits; return how many were removed."""
+        with self._locked(create=True) as root:
+            sizes = []
+            for entry in root.iterdir():
+                if not _digest(entry.name):
+                    continue
+                info = entry.lstat()
+                size = sum(item.lstat().st_size for item in entry.iterdir()) if stat.S_ISDIR(info.st_mode) else info.st_size
+                sizes.append((info.st_mtime_ns, entry.name, size))
+            total = sum(size for _, _, size in sizes)
+            removed = 0
+            for _, name, size in sorted(sizes):
+                if total <= max_bytes:
+                    break
+                shutil.rmtree(root / name)
+                total -= size
+                removed += 1
+            return removed
+
     def lookup(self, key: str, input_record: dict[str, Any]) -> CachedGeometry:
         """Return an entry only after checking its full identity and payload."""
         identity = _identity(key, input_record)
         with self._locked() as root:
             return self._entry(root, key, identity)
+
+    def candidates(self, *, source: str, pipeline_identity: str) -> tuple[CachedGeometryEntry, ...]:
+        """List valid candidates for one exact source and pipeline snapshot.
+
+        Corrupt, missing and unrelated entries are ignored. The coordinator
+        must still filter the returned input records against the current
+        request before staging them for a worker.
+        """
+        with self._locked() as root:
+            matches: list[CachedGeometryEntry] = []
+            for entry in root.iterdir():
+                key = entry.name
+                if not _digest(key):
+                    continue
+                try:
+                    _directory(entry)
+                    with _open_regular(entry / "manifest.json") as stream:
+                        manifest = json.loads(stream.read().decode("utf-8"), object_pairs_hook=_unique_object)
+                    if type(manifest) is not dict or set(manifest) != {"key", "input_record", "byte_length", "sha256"}:
+                        continue
+                    record = manifest["input_record"]
+                    identity = _identity(key, record)
+                    geometry = self._entry(root, key, identity)
+                except (CacheError, OSError, ValueError, RecursionError):
+                    # A damaged cache entry is a miss, never a build failure.
+                    continue
+                if record["source"] == source and record["pipeline_identity"] == pipeline_identity:
+                    matches.append(CachedGeometryEntry(geometry=geometry, input_record=record))
+            return tuple(matches)
 
     def restore(self, key: str, input_record: dict[str, Any], fresh_candidate_dir: Path) -> Path:
         """Copy into a new directory; recheck the bytes during that copy."""

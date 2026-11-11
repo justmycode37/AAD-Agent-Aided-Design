@@ -29,6 +29,7 @@ def run_build(
     process: str | None,
     preview: bool,
     timeout_s: float,
+    part_cache: bool = True,
 ) -> dict[str, Any]:
     """Run one build in an S1 worker. Blocking; call it from a thread."""
     from .. import config
@@ -68,6 +69,7 @@ def run_build(
             process=process,
             timeout_s=timeout_s,
             preview=preview,
+            part_cache=part_cache,
         ),
         memory_limit_bytes=memory_limit_bytes,
     )

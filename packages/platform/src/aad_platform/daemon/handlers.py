@@ -302,6 +302,7 @@ class Handlers:
             process=meta.get("process"),
             preview=bool(params.get("preview")),
             timeout_s=timeout_s,
+            part_cache=params.get("part_cache") is not False,
         )
         if not result.get("ok"):
             envelope = failure_envelope(
@@ -844,10 +845,27 @@ class Handlers:
         keys = (
             "views", "style", "section", "labels", "heatmap", "highlight", "size",
             "camera", "focus", "dimensions", "probes", "measure", "heatmap_range", "min_wall", "direction",
+            "review_packet",
         )
         result, _ = await self._op(project, rev, "render", {k: params[k] for k in keys if k in params})
         if not result.get("ok"):
             return self._op_failed(project, rev, result)
+        packet = result.get("review_packet")
+        if packet:
+            return reply({
+                "ok": True,
+                "project": project.name,
+                "rev": rev,
+                "status": _rev_meta(project, rev).get("status", "draft"),
+                "summary": f"Created independent review packet for {project.name} rev {rev}: {packet['path']}",
+                "review_packet": {
+                    "path": packet["path"],
+                    "manifest": packet["manifest"],
+                    "image_count": packet["image_count"],
+                    "bytes": packet["bytes"],
+                },
+                "artifacts": {"review_packet": packet["path"], "manifest": packet["manifest"]},
+            })
         images = result.get("images") or []
         return reply(
             {

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import struct
 from dataclasses import dataclass
 from typing import Any, Iterator
@@ -13,8 +14,13 @@ from . import render_limits
 
 RENDER_WIRE_MAGIC = b"AADRMESH"
 _HEADER_LENGTH = struct.Struct(">I")
+_BATCH_COUNT = struct.Struct(">H")
+_BATCH_ID_LENGTH = struct.Struct(">B")
+_BATCH_PAYLOAD_LENGTH = struct.Struct(">Q")
 _ALIGNMENT = 8
 _ARRAY_TAG = "__aad_render_array__"
+RENDER_BATCH_MAGIC = b"AADRBAT1"
+_BATCH_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 _ARRAY_FIELDS = {
     "points": ("f64le", np.dtype("<f8")),
     "triangles": ("u32le", np.dtype("<u4")),
@@ -38,6 +44,87 @@ class RenderWirePayload:
 
     def to_bytes(self) -> bytes:
         return b"".join(self.iter_bytes())
+
+
+@dataclass(frozen=True, slots=True)
+class RenderWireBatch:
+    """Bounded sequence of individually versioned mesh payloads."""
+
+    cases: tuple[tuple[str, RenderWirePayload], ...]
+    size: int
+
+    def iter_bytes(self) -> Iterator[bytes | memoryview]:
+        yield RENDER_BATCH_MAGIC
+        yield _BATCH_COUNT.pack(len(self.cases))
+        for case_id, payload in self.cases:
+            encoded_id = case_id.encode("ascii")
+            yield _BATCH_ID_LENGTH.pack(len(encoded_id))
+            yield encoded_id
+            yield _BATCH_PAYLOAD_LENGTH.pack(payload.size)
+            yield from payload.iter_bytes()
+
+    def to_bytes(self) -> bytes:
+        return b"".join(self.iter_bytes())
+
+
+def pack_render_batch(cases: list[tuple[str, dict[str, Any]]]) -> RenderWireBatch:
+    """Pack a bounded set of render cases for one clean VTK process."""
+    if not cases or len(cases) > render_limits.MAX_REVIEW_PACKET_CASES:
+        raise ValueError(f"review packet must contain 1 to {render_limits.MAX_REVIEW_PACKET_CASES} render cases")
+    packed: list[tuple[str, RenderWirePayload]] = []
+    total = len(RENDER_BATCH_MAGIC) + _BATCH_COUNT.size
+    for case_id, render in cases:
+        if not isinstance(case_id, str) or not _BATCH_ID.fullmatch(case_id):
+            raise ValueError("review packet contains an invalid render case ID")
+        payload = pack_render_payload(render)
+        total += _BATCH_ID_LENGTH.size + len(case_id) + _BATCH_PAYLOAD_LENGTH.size + payload.size
+        if total > render_limits.MAX_RENDER_PAYLOAD_BYTES:
+            raise ValueError(
+                f"review packet render payload exceeds the {render_limits.MAX_RENDER_PAYLOAD_BYTES}-byte limit"
+            )
+        packed.append((case_id, payload))
+    return RenderWireBatch(tuple(packed), total)
+
+
+def iter_render_batch(data: bytes) -> Iterator[tuple[str, bytes]]:
+    """Decode one render case at a time from a bounded batch record."""
+    if not isinstance(data, bytes) or not data.startswith(RENDER_BATCH_MAGIC):
+        raise ValueError("render batch has an invalid binary header")
+    if len(data) > render_limits.MAX_RENDER_PAYLOAD_BYTES:
+        raise ValueError(f"render batch exceeds the {render_limits.MAX_RENDER_PAYLOAD_BYTES}-byte limit")
+    view = memoryview(data)
+    cursor = len(RENDER_BATCH_MAGIC)
+    if cursor + _BATCH_COUNT.size > len(view):
+        raise ValueError("render batch header is truncated")
+    count = _BATCH_COUNT.unpack_from(view, cursor)[0]
+    cursor += _BATCH_COUNT.size
+    if count < 1 or count > render_limits.MAX_REVIEW_PACKET_CASES:
+        raise ValueError("render batch has an invalid case count")
+    seen: set[str] = set()
+    for _ in range(count):
+        if cursor + _BATCH_ID_LENGTH.size > len(view):
+            raise ValueError("render batch case ID is truncated")
+        id_length = _BATCH_ID_LENGTH.unpack_from(view, cursor)[0]
+        cursor += _BATCH_ID_LENGTH.size
+        if id_length < 1 or cursor + id_length + _BATCH_PAYLOAD_LENGTH.size > len(view):
+            raise ValueError("render batch case header is out of bounds")
+        try:
+            case_id = bytes(view[cursor:cursor + id_length]).decode("ascii")
+        except UnicodeDecodeError as exc:
+            raise ValueError("render batch case ID is not ASCII") from exc
+        cursor += id_length
+        if not _BATCH_ID.fullmatch(case_id) or case_id in seen:
+            raise ValueError("render batch contains an invalid or duplicate case ID")
+        seen.add(case_id)
+        payload_size = _BATCH_PAYLOAD_LENGTH.unpack_from(view, cursor)[0]
+        cursor += _BATCH_PAYLOAD_LENGTH.size
+        if payload_size > render_limits.MAX_RENDER_PAYLOAD_BYTES or cursor + payload_size > len(view):
+            raise ValueError("render batch case payload is out of bounds")
+        payload = bytes(view[cursor:cursor + payload_size])
+        cursor += payload_size
+        yield case_id, payload
+    if cursor != len(view):
+        raise ValueError("render batch contains trailing bytes")
 
 
 def pack_render_payload(render: dict[str, Any]) -> RenderWirePayload:
