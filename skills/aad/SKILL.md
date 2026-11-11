@@ -707,23 +707,25 @@ Every command takes `--json` for machine-readable output.
 python -m aad_platform.viewer.bundle <revision>/scene <output_dir> [--title T] [--view V] [--presentation JSON] [--views JSON] [--controls simple|cad]
 ```
 
-HTML bundles split scene data into lossless PNG chunks. `viewer.html` stays below the 512,000-character `html_preview`/`html_render` argument limit and references each PNG once by absolute local path for host inlining. The viewer checks chunk and total byte counts and the scene SHA-256; missing chunks stop loading with an error. If the argument or current T3 inline limit (25 MiB, host-specific) is exceeded, export leaves `standalone.html` and reports that path.
+HTML bundles split scene data into lossless PNG chunks. `viewer.html` stays below the 512,000-character `html_preview`/`html_render` argument limit and references each PNG once by absolute local path for host inlining. The viewer checks chunk and total byte counts and the scene SHA-256; missing chunks stop loading with an error. If the argument or current T3 inline limit (25 MiB, host-specific) is exceeded, export opens the full `standalone.html` in Safari and returns that path.
 
 It writes `viewer.html` for chat, and an offline `standalone.html`. `--controls cad` enables the CAD panels in the standalone page only. The original scene bytes are preserved.
 
 ### Oversized HTML viewer fallback
 
-`python -m aad_platform.viewer.bundle SCENE_DIR OUTPUT_DIR --open-on-limit`
-writes the complete offline viewer first. If the 25 MiB inlined-size limit or
-512,000-character argument limit is exceeded, this explicitly requested option
-opens `standalone.html` in Safari on macOS, or the default browser elsewhere,
-and returns its path. macOS launches Safari through LaunchServices (`open -a
-Safari`), which needs no Automation permission; if Safari cannot open the page,
-the default browser is tried. Browser launch failure reports the saved path as
-an error. Scene chunks decode one at a time, so very large scenes stay within
-Safari's canvas memory.
-The Python `export_bundle(..., open_on_limit=True)` option has the same behavior.
-Without the flag, oversized exports raise with the standalone path. An older
+`python -m aad_platform.viewer.bundle SCENE_DIR OUTPUT_DIR`
+always exports the complete, full-detail scene. Never decimate, simplify or
+drop parts to fit chat. If the 25 MiB inlined-size limit or 512,000-character
+argument limit is exceeded, export opens the complete `standalone.html` in
+Safari on macOS (the default browser elsewhere) by default and returns its
+path; tell the user the full model opened in Safari instead of chat. macOS
+launches Safari through LaunchServices (`open -a Safari`), which needs no
+Automation permission; if Safari cannot open the page, the default browser is
+tried. Browser launch failure reports the saved path as an error. Scene chunks
+decode one at a time, so very large scenes stay within Safari's canvas memory.
+`--no-open` (Python `export_bundle(..., open_on_limit=False)`) only writes the
+file and raises with its path; `--open-on-limit` is accepted for compatibility.
+An older
 `viewer.html` in that output directory is removed on oversized export so it cannot
 be mistaken for the current revision. Scene bytes are preserved. Use
 `--controls simple` for the same controls as chat; `--controls cad` retains the

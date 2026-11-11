@@ -87,7 +87,7 @@ def test_bundle_rejects_corrupt_source_before_writing(saved_scene, tmp_path, fie
     (source / "scene.json").write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
     output = tmp_path / "export"
     with pytest.raises(ValueError, match=message):
-        export_bundle(source, output)
+        export_bundle(source, output, open_on_limit=False)
     assert not output.exists()
 
 
@@ -147,7 +147,7 @@ def test_14_34mb_scene_fits_inline_estimate_and_oversize_points_to_standalone(tm
     (source / "scene.json").write_text(json.dumps(manifest), encoding="utf-8")
     oversized = tmp_path / "oversized"
     with pytest.raises(ValueError, match=r"host-specific 25 MiB.*standalone.html"):
-        export_bundle(source, oversized)
+        export_bundle(source, oversized, open_on_limit=False)
     assert (oversized / "standalone.html").exists()
     assert not (oversized / "viewer.html").exists()
 
@@ -163,7 +163,7 @@ def test_bundle_refuses_manifest_over_html_argument_limit(tmp_path):
     (source / "scene.json").write_text(json.dumps(manifest), encoding="utf-8")
     output = tmp_path / "too-many-parts"
     with pytest.raises(ValueError, match=r"512,000-character html_preview/html_render argument limit.*standalone.html"):
-        export_bundle(source, output)
+        export_bundle(source, output, open_on_limit=False)
     assert (output / "standalone.html").exists()
     assert not (output / "viewer.html").exists()
 
@@ -229,3 +229,15 @@ def test_browser_opt_in_does_not_open_a_scene_that_fits(saved_scene, tmp_path, m
     def unexpected(*args): raise AssertionError("Fitting scene must remain inline")
     monkeypatch.setattr(bundle.webbrowser, "get", unexpected)
     assert export_bundle(source, tmp_path / "export", open_on_limit=True).name == "viewer.html"
+
+
+def test_oversized_export_opens_full_viewer_by_default(saved_scene, tmp_path, monkeypatch):
+    from aad_platform.viewer import bundle
+    source, payload, _ = saved_scene
+    monkeypatch.setattr(bundle, "HTML_INLINE_LIMIT", 1)
+    opened = []
+    monkeypatch.setattr(bundle, "_open_in_browser", opened.append)
+    target = export_bundle(source, tmp_path / "export")
+    assert target.name == "standalone.html" and len(opened) == 1
+    config = json.loads(target.read_text(encoding="utf-8").split("window.__AAD_EMBEDDED_SCENE__ = ", 1)[1].split(";</script>", 1)[0])
+    assert decode_rgb_png(base64.b64decode(config["assets"][0].split(",", 1)[1]), len(payload)) == payload  # Full scene, not reduced.

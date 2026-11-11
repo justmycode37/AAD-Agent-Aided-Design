@@ -76,16 +76,17 @@ def _script_json(value: object) -> str:
     return json.dumps(value, ensure_ascii=True).replace("<", r"\u003c").replace(">", r"\u003e").replace("&", r"\u0026")
 
 
-def export_bundle(scene_dir: Path, output_dir: Path, *, presentation: dict | None = None, view: str | None = None, title: str | None = None, views: list | None = None, controls: str = "simple", open_on_limit: bool = False) -> Path:
+def export_bundle(scene_dir: Path, output_dir: Path, *, presentation: dict | None = None, view: str | None = None, title: str | None = None, views: list | None = None, controls: str = "simple", open_on_limit: bool = True) -> Path:
     """Write chat and standalone viewers for one saved scene.
 
     Pass viewer.html's text to an HTML host with local image inlining support.
     The scene is carried in lossless PNG chunks and the viewer runtime in an SVG
     asset. Opening viewer.html directly reports missing host-inlined assets
     instead of silently substituting geometry. standalone.html works offline.
-    With open_on_limit=True, an oversized export opens the standalone file in
-    Safari on macOS (the default browser elsewhere, or if Safari cannot open
-    it) and returns that path.
+    The scene is never reduced to fit a host. By default (open_on_limit=True)
+    an export too large for chat opens the complete standalone file in Safari
+    on macOS (the default browser elsewhere, or if Safari cannot open it) and
+    returns that path. open_on_limit=False only writes it and raises.
     A refused/failed browser launch still raises with the saved file path.
     """
     manifest = json.loads((scene_dir / "scene.json").read_text(encoding="utf-8"))
@@ -217,6 +218,8 @@ if __name__ == "__main__":
     parser.add_argument("--title")
     parser.add_argument("--views", type=json.loads, help="Named user-selectable view recipes as JSON")
     parser.add_argument("--controls", choices=("simple", "cad"), default="simple", help="Standalone controls; chat exports always remain simple")
-    parser.add_argument("--open-on-limit", action="store_true", help="If chat limits are exceeded, open the complete standalone viewer in Safari on macOS or the default browser elsewhere")
+    parser.add_argument("--open-on-limit", action="store_true", help="Default; kept for compatibility")
+    parser.add_argument("--no-open", action="store_true", help="If chat limits are exceeded, only write standalone.html and report its path instead of opening it in Safari")
     args = parser.parse_args()
+    args.open_on_limit = not args.no_open
     print(export_bundle(args.scene_dir, args.output_dir, presentation=args.presentation, view=args.view, title=args.title, views=args.views, controls=args.controls, open_on_limit=args.open_on_limit))

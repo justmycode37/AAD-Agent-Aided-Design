@@ -795,7 +795,7 @@ def _viewer_page(ctx: Any, path: Path) -> str:
     if not (scene_dir / "scene.bin.gz").is_file():
         raise OpFailure("EXPORT_FAILED", "input", "This revision has no saved scene, so no standalone viewer can be written.")
     working = path.parent / f".{path.name}.bundle"
-    export_bundle(scene_dir, working)
+    export_bundle(scene_dir, working, open_on_limit=False)  # Only the standalone file is wanted.
     os.replace(working / "standalone.html", path)
     shutil.rmtree(working, ignore_errors=True)
     return str(path)

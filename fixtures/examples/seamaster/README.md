@@ -21,7 +21,7 @@ The full CAD build, checks, exports and tessellation take several minutes. Fonts
 
 Open `.aad/examples/seamaster/viewer/standalone.html` in a WebGL-capable browser. It is offline and retains AAD's full native CAD panels. Its Views menu offers the movement, mainspring, balance and escapement, motion works/calendar, automatic winding, bracelet, clasp, longitudinal section and caseback. The default view hides the two sapphire components so the dial and movement can be inspected; the original glass geometry remains in the saved assembly and native part tree.
 
-The script uses the canonical `aad_platform.viewer.bundle.export_bundle` without modifying its runtime or substituting a renderer. `viewer.html` is also generated for HTML hosts that inline its local assets; large scenes may exceed a host's inline size limit. Use `standalone.html` locally in that case; do not decimate the mesh to fit a chat limit.
+The script uses the canonical `aad_platform.viewer.bundle.export_bundle` without modifying its runtime or substituting a renderer. `viewer.html` is also generated for HTML hosts that inline its local assets; large scenes may exceed a host's inline size limit; export then opens the full `standalone.html` in Safari. Never decimate the mesh to fit a chat limit.
 
 Choose a different output location with `--output-dir PATH`. All outputs remain **draft**, including a build whose selected checks pass. A failed selected check returns a nonzero exit code after saving inspection outputs. `--allow-failed-checks` explicitly allows a zero exit status for unverified inspection; failures remain recorded. Kernel exceptions still fail the build.
 
