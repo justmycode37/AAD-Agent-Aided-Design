@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
+from types import SimpleNamespace
 
 from ezdxf import readfile
 from PIL import Image, ImageChops
 import pytest
+from build123d import Box
 
 from aad_drafting import DimensionSpec, DrawingRequest, make_drawing
 from examples.first_sheet import build_sample_context
@@ -218,3 +220,25 @@ def test_clockwise_pdf_arc_and_complementary_arc_keys():
     first = Curve("arc", False, center=(0,0), radius=2, start_angle=0, end_angle=180)
     second = Curve("arc", False, center=(0,0), radius=2, start_angle=180, end_angle=0)
     assert _curve_key(first) != _curve_key(second)
+
+
+def test_cosmetic_thread_metadata_is_shown_as_a_drawing_note(tmp_path):
+    designation = "M3 × 0.5"
+    context = SimpleNamespace(
+        shape=Box(6, 6, 8),
+        units="mm",
+        kind="part",
+        meta={
+            "aad_component_geometries": [
+                {"thread": {"designation": designation, "representation": "cosmetic"}}
+            ]
+        },
+    )
+    result = make_drawing(
+        context,
+        DrawingRequest(views=("iso",), dimensions="none", formats=("svg",)),
+        tmp_path / "cosmetic-thread",
+    )
+    note = "M3 × 0.5 external thread: cosmetic representation; thread form omitted from B-rep."
+    assert result.ok
+    assert note in result.notes

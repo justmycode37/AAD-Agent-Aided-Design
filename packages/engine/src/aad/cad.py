@@ -7,6 +7,7 @@ Imports of the kernel stay inside functions, so ``aad.engine.types`` remains ker
 
 from __future__ import annotations
 
+import json
 import math
 import errno
 import re
@@ -699,12 +700,34 @@ class Component:
     description: str | None = None
 
 
+@dataclass(frozen=True)
+class AssemblyJoint:
+    """A declared relationship between two named assembly components."""
+
+    a: str
+    b: str
+    kind: str
+    details: dict[str, Any] = field(default_factory=dict)
+
+    def record(self) -> dict[str, Any]:
+        details = json.loads(json.dumps(self.details, allow_nan=False))
+        return {"a": self.a, "b": self.b, "kind": self.kind, "details": details}
+
+
+_JOINT_MAX_BYTES = 16 * 1024
+_JOINTS_MAX_BYTES = 1024 * 1024
+
+
 class Assembly:
-    """Named components, a bill of materials, exploded output and motion clearance.
+    """Named components, declared joints, a bill of materials and motion clearance.
 
     Add components, then assign ``result = asm``. Position parts with ``at=`` (any build123d
     Location), or with build123d joints before adding them. Reusing one ``part_number`` makes
     rows in the BOM combine; geometry with a different volume under one number is refused.
+    ``connect(a, b, kind, **details)`` records a declared joint between existing component
+    names. Details are JSON data; a numeric ``tolerance`` is in the assembly's model units.
+    The declaration is metadata only: connected-spec checks measure the actual gap before
+    using it as connection evidence.
     """
 
     def __init__(self, name: str = "assembly") -> None:
@@ -712,6 +735,9 @@ class Assembly:
             raise CadOperationError("Assembly name must be non-empty text.")
         self.name = name
         self.components: list[Component] = []
+        self._component_names: set[str] = set()
+        self.joints: list[AssemblyJoint] = []
+        self._joint_bytes = 0
 
     def add(
         self,
@@ -727,7 +753,7 @@ class Assembly:
 
         if not isinstance(name, str) or not name.strip():
             raise CadOperationError("Component name must be non-empty text.")
-        if any(item.name == name for item in self.components):
+        if name in self._component_names:
             raise CadOperationError(f"Component name {name!r} is already used in this assembly.")
         if hasattr(shape, "part") and not hasattr(shape, "wrapped"):
             shape = shape.part
@@ -737,6 +763,7 @@ class Assembly:
         placed = shape.moved(at if at is not None else Location())
         placed.label = name
         self.components.append(Component(name, placed, part_number, material, description))
+        self._component_names.add(name)
         return placed
 
     def __getitem__(self, name: str) -> Any:
@@ -744,6 +771,42 @@ class Assembly:
             if item.name == name:
                 return item.shape
         raise KeyError(name)
+
+    def connect(self, a: str, b: str, kind: str, **details: Any) -> None:
+        """Record a declared joint between two previously added components.
+
+        Joint details are retained verbatim as JSON metadata for downstream checks and
+        future joint helpers. When present, ``tolerance`` is a non-negative distance in
+        the model's units and is used to validate this joint's geometric gap.
+        """
+        for side, name in (("a", a), ("b", b)):
+            if not isinstance(name, str) or not name.strip():
+                raise CadOperationError(f"Joint endpoint {side} must be a non-empty component name.")
+            if name not in self._component_names:
+                raise CadOperationError(f"Joint endpoint {side} references unknown component {name!r}.")
+        if a == b:
+            raise CadOperationError("A joint must connect two different components.")
+        if not isinstance(kind, str) or not kind.strip():
+            raise CadOperationError("Joint kind must be non-empty text.")
+        if "tolerance" in details:
+            try:
+                tolerance = _finite(details["tolerance"], "joint tolerance")
+            except OverflowError as exc:
+                raise CadOperationError("joint tolerance must be a finite number.") from exc
+            if tolerance < 0:
+                raise CadOperationError("joint tolerance must be non-negative.")
+            details["tolerance"] = tolerance
+        try:
+            details = json.loads(json.dumps(details, allow_nan=False))
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise CadOperationError("Joint details must contain only finite JSON-compatible data.") from exc
+        size = len(json.dumps(details, allow_nan=False).encode("utf-8")) + len(kind.encode("utf-8"))
+        if size > _JOINT_MAX_BYTES:
+            raise CadOperationError(f"Joint kind and details must be at most {_JOINT_MAX_BYTES} bytes.")
+        if self._joint_bytes + size > _JOINTS_MAX_BYTES:
+            raise CadOperationError(f"An assembly's joint kinds and details must total at most {_JOINTS_MAX_BYTES} bytes.")
+        self._joint_bytes += size
+        self.joints.append(AssemblyJoint(a, b, kind.strip(), details))
 
     def compound(self) -> Any:
         from build123d import Compound
@@ -797,7 +860,12 @@ class Assembly:
         return found
 
     def record(self) -> dict[str, Any]:
-        return {"name": self.name, "components": [item.name for item in self.components], "bom": self.bom()}
+        return {
+            "name": self.name,
+            "components": [item.name for item in self.components],
+            "bom": self.bom(),
+            "joints": [joint.record() for joint in self.joints],
+        }
 
 
 def assembly(name: str = "assembly") -> Assembly:
