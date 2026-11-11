@@ -7,6 +7,7 @@ function browserFullscreen(): Promise<void> {
 }
 
 abstract class PageTransport implements Transport {
+  readonly fillsWindow = parent === window;
   caps: TransportCaps = { fullscreen: document.fullscreenEnabled };
   abstract getInitialResult(): Promise<Envelope>;
   abstract readChunk(sceneId: string, offset: number, length: number): Promise<Chunk>;

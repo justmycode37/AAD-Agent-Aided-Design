@@ -88,6 +88,8 @@ export interface PartReference {
 }
 
 export interface Transport {
+  /** Standalone browser pages fill their viewport without entering browser fullscreen. */
+  readonly fillsWindow?: boolean;
   readonly controls?: "simple" | "cad";
   readonly caps: TransportCaps;
   getInitialResult(): Promise<Envelope>;

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from collections.abc import Mapping
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 from heapq import heappush, heapreplace
 import json
 from math import dist, floor, fsum, hypot, isfinite
@@ -1113,17 +1113,48 @@ def _mesh_watertight_check(shape: Any, tolerance: GateTolerances, unit_scale: fl
     if bodies is None:
         return _shape_watertight_check(shape, tolerance, unit_scale)
     try:
+        topology_groups = _partner_solid_groups(bodies)
+        representatives = [bodies[indices[0]] for indices in topology_groups]
+        if len(representatives) == len(bodies):
+            mesh_shape = shape
+        else:
+            from build123d import Compound
+
+            mesh_shape = Compound(children=representatives)
         meshes = _fresh_mesh_arrays_by_solid(
-            shape,
+            mesh_shape,
             tolerance.mesh_deflection_mm / unit_scale,
             tolerance.mesh_angular_deflection_rad,
         )
-        if len(meshes) != len(bodies):
+        if len(meshes) != len(topology_groups):
             raise ValueError("assembly copy produced a different number of solids")
-        results = [
-            _check_mesh_arrays(vertices, triangles, tolerance, unit_scale)
-            for vertices, triangles in meshes
-        ]
+        mesh_results: dict[tuple[Any, ...], Check] = {}
+        representative_results: list[Check] = []
+        cache_hits = len(bodies) - len(representatives)
+        for vertices, triangles in meshes:
+            try:
+                normalized_vertices, normalized_triangles = _normalized_mesh_arrays(
+                    vertices, triangles, unit_scale,
+                )
+            except Exception as exc:
+                if is_memory_exhaustion(exc):
+                    raise
+                representative_results.append(_check_mesh_arrays(vertices, triangles, tolerance, unit_scale))
+                continue
+            signature = (tuple(normalized_vertices), tuple(normalized_triangles))
+            cached = mesh_results.get(signature)
+            if cached is None:
+                cached = _check_mesh_arrays(normalized_vertices, normalized_triangles, tolerance, 1.0)
+                mesh_results[signature] = cached
+                representative_results.append(cached)
+            else:
+                cache_hits += 1
+                representative_results.append(replace(cached))
+        results: list[Check | None] = [None] * len(bodies)
+        for group_index, indices in enumerate(topology_groups):
+            for body_index in indices:
+                results[body_index] = replace(representative_results[group_index])
+        results = [result for result in results if result is not None]
         # A failing or unavailable batched result is checked again through the
         # original per-body path. That keeps unusual OCCT assembly topologies on
         # the established behavior, while the common valid case meshes once.
@@ -1136,10 +1167,85 @@ def _mesh_watertight_check(shape: Any, tolerance: GateTolerances, unit_scale: fl
         results[0],
     )
     failed = [index for index, result in enumerate(results) if result.status != "pass"]
-    worst.actual = f"bodies_checked={len(bodies)}; bodies_not_passed={len(failed)}; first_not_passed={failed[:8]}; {worst.actual}"
+    worst.actual = (
+        f"bodies_checked={len(bodies)}; bodies_not_passed={len(failed)}; first_not_passed={failed[:8]}; "
+        f"unique_topologies={len(representatives)}; unique_meshes={len(mesh_results)}; "
+        f"reused_meshes={cache_hits}; {worst.actual}"
+    )
     if worst.status == "pass":
         worst.message = f"All {len(bodies)} assembly bodies mesh to closed, consistently wound surfaces."
     return worst
+
+
+def _partner_solid_groups(solids: list[Any]) -> list[list[int]]:
+    """Group only exact shared OCCT topologies with matching orientation.
+
+    ``IsPartner`` ignores placement but requires the same underlying TShape.
+    That lets a gate check one rigidly placed instance and reuse its result for
+    exact instances. Hashes are only a bucket hint; every match is confirmed
+    with OCCT to handle collisions.
+    """
+    buckets: dict[int, list[int]] = defaultdict(list)
+    groups: list[list[int]] = []
+    for index, solid in enumerate(solids):
+        try:
+            wrapped = solid.wrapped
+            key = hash(wrapped.TShape())
+            orientation = wrapped.Orientation()
+            transform = wrapped.Location().Transformation()
+            rigid = (abs(float(transform.ScaleFactor()) - 1.0) <= 1e-12
+                     and not bool(transform.IsNegative()))
+            if not rigid:
+                raise ValueError("solid placement is not a positive unit-scale rigid transform")
+            match = None
+            candidates = dict.fromkeys([
+                *range(len(groups) - 1, max(-1, len(groups) - 9), -1),
+                *buckets[key],
+            ])
+            for group_index in candidates:
+                representative = solids[groups[group_index][0]].wrapped
+                if (representative.Orientation() == orientation
+                        and bool(representative.IsPartner(wrapped))):
+                    match = group_index
+                    break
+        except Exception as exc:
+            if is_memory_exhaustion(exc):
+                raise
+            match = None
+            key = -index - 1
+        if match is None:
+            buckets[key].append(len(groups))
+            groups.append([index])
+        else:
+            groups[match].append(index)
+    return groups
+
+
+def _normalized_mesh_arrays(
+    vertices: Any,
+    triangles: Any,
+    unit_scale: float,
+) -> tuple[list[tuple[float, float, float]], list[tuple[int, int, int]]]:
+    """Normalize a solid mesh by translation for exact in-process reuse.
+
+    Only equal normalized vertex arrays and equal oriented triangle indices
+    share a result. Each distinct mesh still goes through the full topology
+    check. The normalization is also the coordinate set passed to that check,
+    making its area and weld calculations translation independent.
+    """
+    points = [_point_in_mm(point, unit_scale) for point in vertices]
+    if points:
+        origin = tuple(min(point[axis] for point in points) for axis in range(3))
+        points = [tuple(point[axis] - origin[axis] for axis in range(3)) for point in points]
+    normalized_triangles: list[tuple[int, int, int]] = []
+    for triangle in triangles:
+        if len(triangle) != 3 or any(isinstance(index, bool) for index in triangle):
+            raise ValueError("a triangle has an invalid index row")
+        indices = tuple(integer_index(index) for index in triangle)
+        if any(index < 0 or index >= len(points) for index in indices):
+            raise ValueError("a triangle references an out-of-range vertex")
+        normalized_triangles.append(indices)
+    return points, normalized_triangles
 
 
 def _shape_watertight_check(shape: Any, tolerance: GateTolerances, unit_scale: float) -> Check:

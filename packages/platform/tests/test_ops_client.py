@@ -174,6 +174,7 @@ def test_remote_render_remains_refused(tmp_path, monkeypatch, platform):
     )
     assert result["ok"] is False
     assert result["failure"]["code"] == "SANDBOX_DENIED"
+    assert "review_packet" in result["failure"]["message"]
 
 
 def test_render_failure_keeps_brep_and_reports_render_phase(tmp_path, monkeypatch):
