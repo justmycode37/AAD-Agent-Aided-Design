@@ -242,3 +242,37 @@ def test_vendor_step_refuses_other_formats():
 
     with pytest.raises(ValueError, match=r"\.step or \.stp"):
         make_detailed("motor.stepper.17HS19-2004S1", vendor_step="supplier.brep", vendor_evidence={"source": "maker"})
+
+
+def test_worker_records_and_checks_geometrically_validated_assembly_joints(tmp_path):
+    source = (
+        "from aad import *\n"
+        "asm = assembly('stack')\n"
+        "asm.add('frame', Box(10, 10, 2))\n"
+        "asm.add('cover', Box(8, 8, 2), at=Pos(0, 0, 2))\n"
+        "asm.connect('frame', 'cover', 'bolted', tolerance=0.01, fasteners=['M3x8'])\n"
+        "result = asm\n"
+    )
+    spec = {'units': 'mm', 'requirements': [
+        {'id': 'assembly_paths', 'connected': {'ground': 'frame', 'tolerance': 0.1}},
+    ]}
+    result = run_build(BuildRequest(
+        source=source,
+        project_dir=tmp_path,
+        job_dir=tmp_path / 'assembly-job',
+        kind='assembly',
+        spec=spec,
+        timeout_s=60,
+    ))
+
+    assert result.ok, result.failure
+    check = next(item for item in result.checks if item.id == 'assembly_paths')
+    assert check.status == 'pass', check
+    assert 'Geometric contact proves touching only' in check.actual
+    assembly = result.context.meta['assembly']
+    assert assembly['joints'] == [{
+        'a': 'frame',
+        'b': 'cover',
+        'kind': 'bolted',
+        'details': {'tolerance': 0.01, 'fasteners': ['M3x8']},
+    }]

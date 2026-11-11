@@ -106,6 +106,7 @@ normal module. Geometry assumptions and limits are documented in
 - `face()`, `edge()`, `vertex()` resolve semantically. `expect=n` turns a count mismatch into a `SELECTOR_AMBIGUOUS` or `SELECTOR_EMPTY` failure with candidates.
 - `cached_part(key_inputs, builder_fn)` may wrap an explicitly deterministic, repeatable part builder. `key_inputs` must be JSON data that names every additional geometry input read by the builder, including captured state. AAD binds the builder code and the exact model source, effective model parameters, whole spec, staged assets, units, material/process, kernel and AAD versions, and geometry/check pipeline identity. Unsupported or incomplete keys run the builder without caching. A hit reuses B-rep geometry only; the full hard, spec and process checks run again.
 - A script produces one `part`, one `assembly` (assign `assembly()` to `result`), or (for `kind: "2d"`) one `sheet2d`.
+- `Assembly.connect(a, b, kind, **details)` records a declared joint between two existing component names. `kind` is non-empty text, details are finite JSON-compatible data (at most 16 KiB per joint with `kind`, 1 MiB per assembly), and optional `details.tolerance` is a non-negative distance in model units. `Assembly.record()` includes `components`, `bom`, and `joints` metadata; a declared joint is not proof of contact or fastening.
 - The script must not do I/O. Files come in through `asset("name")`, which reads from the project's imports.
 - Plain build123d is valid, and everything lands in an implicit `main` feature. Named features are what make edits reliable.
 
@@ -142,6 +143,8 @@ requirements:
     position: {selector: "vertex(feature='shaft_axis', nth=0)", target: [0, 0, 12], tolerance: 0.05}
   - id: bearing_fit
     fit: {a: shaft, b: bearing, clearance: {min: 0.02, max: 0.08}}
+  - id: assembly_paths
+    connected: {ground: frame, allow_floating: [cover], tolerance: 0.1}
   - id: press_fit
     fit: {a: insert, b: housing, interference: {min: 1, max: 3}}
   - id: no_interference
@@ -180,6 +183,20 @@ that threshold to count as interference. The provider uses a 60-second default
 pair-check budget, reports at most the 20 largest overlaps plus bounded unknown
 pair details, and identifies any unchecked pairs. A boolean failure or an
 exhausted budget cannot produce a pass.
+
+The `connected` requirement is assembly-only. `ground` and `allow_floating`
+contain exact component labels; `allow_floating` defaults to an empty list.
+`tolerance` is one non-negative length in spec units and bounds measured
+geometric contact. The evaluator builds a declared-joint graph and a separate
+minimum-distance contact graph, using component bounding boxes to filter
+candidate distances. A joint's optional numeric `details.tolerance` in model
+units overrides the spec tolerance for that joint. A joint edge is usable only
+when its minimum B-rep distance is within its tolerance. The report lists paths
+and disconnected component labels for both evidence types. Contact proves
+touching only, not fastening. Invalid references or a declared joint beyond
+tolerance fail; a distance failure or the 60-second graph-check budget remains
+unknown and cannot pass. The graph check does not establish joint strength,
+retention, preload, or function.
 
 ---
 
@@ -593,6 +610,10 @@ def aad_quality.process_checks(ctx: ModelContext) -> list[Check]
 def aad_quality.library(action: str, **kw) -> dict
 ```
 
+For an `Assembly` result, `meta["assembly"]` carries its name, component labels,
+BOM rows, and declared joint records (`a`, `b`, `kind`, and `details`) into the
+quality worker.
+
 **Worker pipeline:** run `model.py` → `hard_checks` → `spec_checks` → `process_checks` (or `aad_drafting.checks` for 2D) → `make_scene` → optional `render` → return `BuildResult`. A failure in an optional step becomes a `warn` check, and must never discard a built revision.
 
 For local macOS and Linux 3D `aad_render`, the `render_prepare` operation loads the revision B-rep
@@ -648,6 +669,7 @@ Build workers inherit `AAD_DISABLE_GEOMETRY_CACHE=1` from the trusted daemon env
 
 - 2026-11-06: S3 added `aad_render(review_packet=true)` for bounded, hashed visual review packets, including request text, measured parts, check skips, unresolved items and orthographic/section/isolated views; packets omit model source and assumptions, do not change revision status or count as verification, and remain unavailable in remote mode.
 - 2026-11-06: S1 connected the per-project geometry cache through deterministic `cached_part(key_inputs, builder_fn)`, scoped cache entries to full source/build identities, staged candidates without widening the model sandbox, reran all checks on hits, and reused exact duplicate-solid mesh checks. On the same machine, three sandboxed 1,500-box runs improved from 42.1/45.3/59.0 s (median 45.3 s) to 11.9/9.6/9.2 s (median 9.6 s); median hard mesh-gate time fell from 25.2 s to 146 ms.
+- 2026-11-06: S1 added `Assembly.connect()` joint metadata and the `connected` spec requirement, which reports geometrically validated joint paths separately from measured touching and keeps failed or timed-out distance evidence unknown.
 - 2026-11-06: S1/S5 added `aad_quality.components.make_detailed` beside unchanged `make_envelope`, with catalog evidence and representative-geometry metadata, vendor STEP/origin/evidence inputs, and LOD selection; `aad_build` now stages imported assets when a model uses `vendor_step`. Replaced failing helical fastener/thread solids with cosmetic thread envelopes and automatic drawing notes, preserving all hard-gate checks.
 - 2026-11-05: S1 applied configurable `engine.memory` virtual-address growth budgets to build and operation workers and made explicit `MemoryError`/`ENOMEM` results report `OUT_OF_MEMORY`, while keeping unrelated startup diagnostics and signal-only exits unclassified.
 - 2026-11-05: S2 made the structured `aad_render` report compact by default, with `inspection="full"` for the rest, because it reached 2.6 MB on a 492-part assembly.
