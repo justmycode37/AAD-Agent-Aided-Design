@@ -806,6 +806,147 @@ def _eval_interference(req_id: str, level: str, req: dict[str, Any], ctx: Any) -
     )
 
 
+def _eval_connected(req_id: str, level: str, req: dict[str, Any], unit: str, native_factor: float | None, ctx: Any) -> Any:
+    body = req["connected"]
+    tolerance = _range(body["tolerance"], unit=unit, path=("requirements", req_id, "connected", "tolerance"))
+    tolerance_mm = tolerance.minimum
+    if tolerance_mm is None:
+        raise ValueError("connected tolerance did not resolve to one length")
+    if native_factor is None:
+        return _check(
+            req_id,
+            level=level,
+            status="skip",
+            message=f"Connection requirement {req_id!r} is unknown because model units are unavailable.",
+            expected=f"a declared-joint path to ground {body['ground']!r}",
+            actual="unknown (model units are unavailable)",
+            fix_hint="Set model units to mm or in and rerun the connection check.",
+        )
+    if getattr(ctx, "kind", None) != "assembly":
+        return _check(
+            req_id,
+            level=level,
+            status="skip",
+            message=f"Connection requirement {req_id!r} needs an assembly with named components.",
+            expected=f"a declared-joint path to ground {body['ground']!r}",
+            actual="unknown (the project is not an assembly)",
+            fix_hint="Build the components as a named assembly before requesting connected evidence.",
+        )
+
+    from .connections import connected_evidence
+
+    try:
+        evidence = connected_evidence(
+            ctx,
+            ground=body["ground"],
+            allow_floating=body.get("allow_floating", []),
+            tolerance_mm=tolerance_mm,
+            mm_per_native=native_factor,
+        )
+    except Exception as exc:
+        from aad.engine.memory import is_memory_exhaustion
+        if is_memory_exhaustion(exc):
+            raise
+        return _check(
+            req_id,
+            level=level,
+            status="skip",
+            message=f"Connection requirement {req_id!r} could not be measured: {type(exc).__name__}: {exc}.",
+            expected=f"every component except allow_floating has a validated declared-joint path to {body['ground']!r}",
+            actual=f"unknown (connection graph evidence failed: {type(exc).__name__}: {exc})",
+            fix_hint="Keep this check unknown until component labels, B-reps, and distances can be evaluated.",
+            selector="assembly component connection graph",
+        )
+
+    report = evidence.report
+    bad_references = report["bad_references"]
+    joint_failures = report["joint_failures"]
+    unconnected = report["unconnected_by_joints"]
+    known_failure = bool(bad_references or joint_failures or (unconnected and not evidence.unknown))
+    if known_failure:
+        status = _comparison_status(False, level)
+        message = f"Connection requirement {req_id!r} has invalid or unconnected assembly components."
+    elif evidence.unknown:
+        status = "skip"
+        message = f"Connection requirement {req_id!r} remains unknown because geometric evidence is incomplete."
+    else:
+        status = "pass"
+        message = f"Connection requirement {req_id!r} has a measured declared-joint path from every required component to ground."
+
+    def labels(values: list[str]) -> str:
+        shown = values[:100]
+        text = ", ".join(shown)
+        if len(values) > len(shown):
+            text += f", and {len(values) - len(shown)} more"
+        return text
+
+    joint_path = "none (invalid ground reference)" if body["ground"] not in report["components"] else (
+        "all non-exempt components" if not unconnected else labels(unconnected)
+    )
+    contact_unconnected = report["unconnected_by_contact"]
+    contact_path = "none (invalid ground reference)" if body["ground"] not in report["components"] else (
+        "all non-exempt components" if not contact_unconnected else labels(contact_unconnected)
+    )
+    details = [
+        f"Declared joints: {report['validated_joint_count']} of {report['joint_count']} passed measured minimum-distance checks.",
+        f"Declared-joint path to ground {body['ground']!r}: {joint_path}.",
+        f"Geometric contact: {report['contact_pair_count']} component pairs have minimum distance within {_actual_value(tolerance_mm, power=1, unit=unit)}.",
+        f"Contact path to ground {body['ground']!r}: {contact_path}.",
+        "Geometric contact proves touching only; it does not prove fastening.",
+    ]
+    if report["joint_checks"]:
+        joint_details = []
+        for item in report["joint_checks"]:
+            distance = item.get("distance_mm")
+            distance_text = "unknown distance" if distance is None else _actual_value(distance, power=1, unit=unit)
+            joint_details.append(
+                f"{item['a']} to {item['b']} ({item.get('kind', 'joint')}): {item['status']}, "
+                f"minimum distance {distance_text}, tolerance {_actual_value(item['tolerance_mm'], power=1, unit=unit)}"
+            )
+        if report["joint_checks_truncated"]:
+            joint_details.append("additional joint checks omitted")
+        details.append("Declared-joint measurements: " + "; ".join(joint_details) + ".")
+    if report["contact_pairs"]:
+        contact_details = [
+            f"{item['a']} to {item['b']} at {_actual_value(item['distance_mm'], power=1, unit=unit)}"
+            for item in report["contact_pairs"]
+        ]
+        if report["contact_pairs_truncated"]:
+            contact_details.append(f"and {report['contact_pair_count'] - len(report['contact_pairs'])} more")
+        details.append("Measured touching pairs: " + "; ".join(contact_details) + ".")
+    if unconnected:
+        details.append("Components without a validated declared-joint path: " + labels(unconnected) + ".")
+    if joint_failures:
+        details.append("Declared-joint failures: " + "; ".join(joint_failures) + ".")
+    if bad_references:
+        details.append("Bad references: " + "; ".join(bad_references) + ".")
+    if evidence.unknown:
+        unknown_text = "; ".join(report["unknown_details"])
+        if report["unknown_count"] > len(report["unknown_details"]):
+            unknown_text += f"; and {report['unknown_count'] - len(report['unknown_details'])} more"
+        details.append(f"Unknown geometric evidence ({report['unknown_count']} item(s)): {unknown_text}.")
+    assumptions = (
+        "Declared-joint paths use only joints whose minimum component-to-component B-rep distance is within the joint tolerance "
+        "(the connected tolerance applies when a joint has no explicit tolerance). Geometric contact is measured separately; "
+        "touching does not prove a fastener, bond, weld, retention, strength, or operational function. Unchecked or failed "
+        "distance evidence remains unknown and cannot pass."
+    )
+    return _check(
+        req_id,
+        level=level,
+        status=status,
+        message=message,
+        expected=(
+            f"every assembly component except {body.get('allow_floating', [])!r} has a geometrically validated declared-joint "
+            f"path to ground {body['ground']!r}; geometric contact tolerance {_actual_value(tolerance_mm, power=1, unit=unit)}"
+        ),
+        actual=" ".join(details),
+        fix_hint="Add or repair declared joints for each required path to ground; do not treat geometric touching as fastening.",
+        selector="assembly component connection graph",
+        assumptions=assumptions,
+    )
+
+
 def _eval_components(req_id: str, level: str, req: dict[str, Any]) -> Any:
     from .components import check_items
 
@@ -848,6 +989,7 @@ def _evaluate_one(req: dict[str, Any], index: int, doc: dict[str, Any], ctx: Any
         "components",
         "position",
         "fit",
+        "connected",
     }
     known = [key for key in types if key in supported]
     if len(known) != 1:
@@ -928,6 +1070,8 @@ def _evaluate_one(req: dict[str, Any], index: int, doc: dict[str, Any], ctx: Any
         return _eval_fit(req_id, level, req, unit, native_factor, ctx)
     if field == "components":
         return _eval_components(req_id, level, req)
+    if field == "connected":
+        return _eval_connected(req_id, level, req, unit, native_factor, ctx)
     if field == "material_at_point":
         spec_factor = mm_per_unit(unit)
         return _eval_material_point(req_id, level, req, unit, spec_factor, native_factor, ctx)

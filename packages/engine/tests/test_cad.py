@@ -95,6 +95,33 @@ def test_assembly_bom_groups_by_number_and_refuses_different_geometry():
         asm.bom()
 
 
+def test_assembly_records_declared_joints_beside_bom_metadata():
+    asm = assembly("stack")
+    asm.add("frame", Box(10, 10, 2), part_number="FR-1")
+    asm.add("bracket", Box(5, 5, 2), at=Pos(0, 0, 2), part_number="BR-1")
+    asm.connect("frame", "bracket", "bolted", fasteners=["M3x8"], tolerance=0.1)
+
+    record = asm.record()
+    assert record["components"] == ["frame", "bracket"]
+    assert len(record["bom"]) == 2
+    assert record["joints"] == [{
+        "a": "frame",
+        "b": "bracket",
+        "kind": "bolted",
+        "details": {"fasteners": ["M3x8"], "tolerance": 0.1},
+    }]
+
+
+def test_assembly_connect_rejects_bad_references_and_non_json_details():
+    asm = assembly("stack")
+    asm.add("frame", Box(10, 10, 2))
+    asm.add("bracket", Box(5, 5, 2), at=Pos(0, 0, 2))
+    with pytest.raises(CadOperationError, match="unknown component"):
+        asm.connect("frame", "missing", "bolted")
+    with pytest.raises(CadOperationError, match="JSON-compatible"):
+        asm.connect("frame", "bracket", "bolted", data=object())
+
+
 def test_assembly_refuses_duplicate_names_and_empty_output():
     asm = assembly("x")
     with pytest.raises(CadOperationError, match="no components"):
