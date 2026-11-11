@@ -42,8 +42,55 @@ class ParameterTests(unittest.TestCase):
         values = params(width=Param(20.0, 10, 30, "mm"), spacing=(6.0, 10.0), label="original")
         self.assertEqual((values.width, values.spacing, values.label), (24, (8, 12), "edited"))
         self.assertEqual(current_params()["width"], 24)
-        self.assertEqual(current_param_definitions()["width"], {"value": 24, "min": 10, "max": 30, "unit": "mm"})
+        self.assertEqual(current_param_definitions()["width"], {
+            "value": 24, "min": 10, "max": 30, "unit": "mm",
+            "basis": "assumed", "source": None, "note": None,
+        })
         validate_params()
+
+    def test_provenance_defaults_validation_and_override_reset(self) -> None:
+        configure_params()
+        values = params(
+            published=Param(89.0, unit="mm", basis="published", source="https://example.org/spec", note="shaft spacing"),
+            measured=Param(12.0, basis="measured"),
+            plain=60.0,
+        )
+        self.assertEqual(values.published, 89.0)
+        definitions = current_param_definitions()
+        self.assertEqual(definitions["published"]["basis"], "published")
+        self.assertEqual(definitions["published"]["source"], "https://example.org/spec")
+        self.assertEqual(definitions["measured"]["basis"], "measured")
+        self.assertEqual(definitions["plain"]["basis"], "unknown")
+
+        configure_params({"published": 90.0})
+        params(published=Param(89.0, unit="mm", basis="published", source="https://example.org/spec", note="old"))
+        self.assertEqual(current_param_definitions()["published"], {
+            "value": 90.0, "min": None, "max": None, "unit": "mm",
+            "basis": "assumed", "source": None, "note": None,
+        })
+
+        configure_params({"published": {
+            "value": 91.0, "basis": "measured", "source": "measurement log", "note": "new reading",
+        }})
+        params(published=Param(89.0, basis="published", source="old source"))
+        self.assertEqual(current_param_definitions()["published"]["basis"], "measured")
+        self.assertEqual(current_param_definitions()["published"]["source"], "measurement log")
+        self.assertEqual(current_param_definitions()["published"]["note"], "new reading")
+
+    def test_provenance_text_and_basis_limits(self) -> None:
+        invalid = (
+            lambda: Param(1, basis="unknown"),
+            lambda: Param(1, basis="guessed"),
+            lambda: Param(1, source="  "),
+            lambda: Param(1, source="x" * 2049),
+            lambda: Param(1, note="x" * 2001),
+        )
+        for declaration in invalid:
+            with self.subTest(declaration=declaration), self.assertRaises(ModelInputError):
+                declaration()
+        configure_params({"width": {"value": 24, "basis": "published", "source": "x" * 2049}})
+        with self.assertRaises(ModelInputError):
+            params(width=Param(20, 10, 30))
 
     def test_invalid_defaults_and_bounds_are_rejected(self) -> None:
         invalid = (
@@ -188,7 +235,10 @@ with part("block"):
         self.assertIsNone(ctx.shape)
         self.assertEqual(ctx.part_name, "block")
         self.assertEqual(ctx.meta["purpose"], {"description": "fixture"})
-        self.assertEqual(ctx.param_definitions["width"], {"value": 12, "min": 5, "max": 20, "unit": "mm"})
+        self.assertEqual(ctx.param_definitions["width"], {
+            "value": 12, "min": 5, "max": 20, "unit": "mm",
+            "basis": "assumed", "source": None, "note": None,
+        })
         stock, = ctx.features
         self.assertEqual(stock.intent, "rectangular stock")
         self.assertEqual(len(stock.vertices), 8)
@@ -388,6 +438,27 @@ with part("bad"):
         self.assertEqual(undeclared.failure.code, "BAD_INPUT")
         invalid = self.live_build('params(width=Param(float("nan")))\nresult = Box(2,3,4)')
         self.assertEqual(invalid.failure.code, "BAD_INPUT")
+
+    def test_real_build_captures_provenance_and_warns_without_source(self) -> None:
+        source = '''from aad import *
+P = params(
+    spacing=Param(89.0, unit="mm", basis="published", source="https://example.org/spec", note="shaft centers"),
+    wall=Param(2.0, unit="mm", basis="measured"),
+    stock=60.0,
+)
+result = Box(P.spacing, 12, P.wall)
+'''
+        built = run_build(BuildRequest(source=source, project_dir=self.root, params={"spacing": 90.0}))
+        self.assertTrue(built.ok, built.failure)
+        definitions = built.context.param_definitions
+        self.assertEqual(definitions["spacing"]["basis"], "assumed")
+        self.assertIsNone(definitions["spacing"]["source"])
+        self.assertEqual(definitions["wall"]["basis"], "measured")
+        self.assertEqual(definitions["stock"]["basis"], "unknown")
+        warnings = [check for check in built.checks if check.id.startswith("param_source_missing")]
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("wall", warnings[0].id)
+        self.assertIn("does not verify provenance claims", warnings[0].message)
 
 
 if __name__ == "__main__":

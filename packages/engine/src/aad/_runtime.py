@@ -14,6 +14,10 @@ _values: dict[str, Any] = {}
 _definitions: dict[str, dict[str, Any]] = {}
 _declared = False
 
+_PARAM_BASES = ("published", "measured", "fitted", "assumed", "derived")
+_SOURCE_MAX_LENGTH = 2048
+_NOTE_MAX_LENGTH = 2000
+
 
 class ModelInputError(ValueError):
     """A model declaration or parameter override is invalid."""
@@ -21,12 +25,15 @@ class ModelInputError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class Param:
-    """A parameter declaration with optional numeric bounds and a unit."""
+    """A parameter declaration with bounds, units and author-claimed provenance."""
 
     value: Any
     min: int | float | None = None
     max: int | float | None = None
     unit: str | None = None
+    basis: str | None = None
+    source: str | None = None
+    note: str | None = None
 
     def __post_init__(self) -> None:
         _validate_value(self.value, "Param.value")
@@ -38,6 +45,11 @@ class Param:
             raise ModelInputError("Param.min must be less than or equal to Param.max")
         if self.unit is not None and (not isinstance(self.unit, str) or not self.unit.strip()):
             raise ModelInputError("Param.unit must be non-empty text or None")
+        if self.basis is not None and self.basis not in _PARAM_BASES:
+            choices = ", ".join(_PARAM_BASES)
+            raise ModelInputError(f"Param.basis must be one of {choices}, or None")
+        _validate_optional_text(self.source, "Param.source", _SOURCE_MAX_LENGTH)
+        _validate_optional_text(self.note, "Param.note", _NOTE_MAX_LENGTH)
         if (self.min is not None or self.max is not None) and not _is_number(self.value):
             raise ModelInputError("Param bounds are supported only for a numeric value")
         _check_range(self.value, self.min, self.max, "Param.value")
@@ -76,19 +88,37 @@ def params(**defaults: Any) -> SimpleNamespace:
             minimum = declaration.min
             maximum = declaration.max
             unit = declaration.unit
+            basis = declaration.basis or "unknown"
+            source = declaration.source
+            note = declaration.note
         else:
             default = declaration
             minimum = maximum = unit = None
+            basis = "unknown"
+            source = note = None
 
         _validate_value(default, f"parameter {name!r}")
-        selected = _overrides.get(name, default)
-        selected = _validate_override(name, default, selected, minimum, maximum)
+        overridden = name in _overrides
+        override = _overrides.get(name, default)
+        override_provenance: dict[str, Any] | None = None
+        if overridden and isinstance(override, Mapping):
+            override, override_provenance = _parameter_override(name, override)
+        selected = _validate_override(name, default, override, minimum, maximum)
+        if overridden:
+            # A new numeric value does not inherit the old claim. A caller can
+            # attach fresh provenance with the mapping form of an override.
+            basis = (override_provenance or {}).get("basis", "assumed")
+            source = (override_provenance or {}).get("source")
+            note = (override_provenance or {}).get("note")
         values[name] = deepcopy(selected)
         definitions[name] = {
             "value": selected,
             "min": minimum,
             "max": maximum,
             "unit": unit,
+            "basis": basis,
+            "source": source,
+            "note": note,
         }
 
     _values = values
@@ -140,6 +170,34 @@ def _validate_override(
         ]
         return tuple(checked) if isinstance(default, tuple) else checked
     raise ModelInputError(f"{label} must be a number, text, or a tuple/list of those values")
+
+
+def _parameter_override(name: str, override: Mapping[str, Any]) -> tuple[Any, dict[str, Any]]:
+    """Read an override carrying explicit provenance without trusting its text."""
+    allowed = {"value", "basis", "source", "note"}
+    unknown = sorted((key for key in override if key not in allowed), key=str)
+    if unknown:
+        raise ModelInputError(f"override for parameter {name!r} has unknown field(s): {', '.join(map(str, unknown))}")
+    if "value" not in override:
+        raise ModelInputError(f"override for parameter {name!r} with provenance must include value")
+    basis = override.get("basis", "assumed")
+    if basis not in _PARAM_BASES:
+        choices = ", ".join(_PARAM_BASES)
+        raise ModelInputError(f"override basis for parameter {name!r} must be one of {choices}")
+    source = override.get("source")
+    note = override.get("note")
+    _validate_optional_text(source, f"source for parameter {name!r}", _SOURCE_MAX_LENGTH)
+    _validate_optional_text(note, f"note for parameter {name!r}", _NOTE_MAX_LENGTH)
+    return override["value"], {"basis": basis, "source": source, "note": note}
+
+
+def _validate_optional_text(value: Any, label: str, maximum: int) -> None:
+    if value is None:
+        return
+    if not isinstance(value, str) or not value.strip():
+        raise ModelInputError(f"{label} must be non-empty text or None")
+    if len(value) > maximum:
+        raise ModelInputError(f"{label} must be at most {maximum} characters")
 
 
 def _validate_value(value: Any, label: str) -> None:

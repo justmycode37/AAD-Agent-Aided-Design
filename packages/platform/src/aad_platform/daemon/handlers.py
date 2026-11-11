@@ -367,28 +367,27 @@ class Handlers:
             return reply(_request_response(envelope, review))
         if result.get("scene"):
             result["scene"]["status"] = "verified" if status == "verified" else "draft"
-        (job_dir / "meta.json").write_text(
-            json.dumps(
-                compact(
-                    {
-                        "rev": rev,
-                        "base_rev": head,
-                        "job": job_id,
-                        "status": status,
-                        "metrics": result.get("metrics"),
-                        "checks": result.get("checks"),
-                        "checks_summary": result.get("checks_summary"),
-                        "scene": result.get("scene"),
-                        "param_overrides": overrides,
-                        "params": (result.get("context") or {}).get("params"),
-                        "features": (result.get("context") or {}).get("features"),
-                        "meta": (result.get("context") or {}).get("meta"),
-                    }
-                ),
-                indent=2,
-                default=str,
-            )
+        revision_metadata = compact(
+            {
+                "rev": rev,
+                "base_rev": head,
+                "job": job_id,
+                "status": status,
+                "metrics": result.get("metrics"),
+                "checks": result.get("checks"),
+                "checks_summary": result.get("checks_summary"),
+                "scene": result.get("scene"),
+                "param_overrides": overrides,
+                "params": (result.get("context") or {}).get("params"),
+                "param_definitions": (result.get("context") or {}).get("param_definitions"),
+                "features": (result.get("context") or {}).get("features"),
+                "meta": (result.get("context") or {}).get("meta"),
+            }
         )
+        # Keep explicit nulls for provenance fields so a cleared source/note is
+        # distinguishable from an older record that predates those fields.
+        revision_metadata["param_definitions"] = (result.get("context") or {}).get("param_definitions") or {}
+        (job_dir / "meta.json").write_text(json.dumps(revision_metadata, indent=2, default=str))
         if project.head_rev != head:
             project.discard_job(job_dir)
             return reply(
@@ -585,20 +584,31 @@ class Handlers:
         metrics = {k: {"from": before.get(k), "to": after.get(k)} for k in keys if before.get(k) != after.get(k)}
         pa, pb = a.get("params") or {}, b.get("params") or {}
         changed = {k: {"from": pa.get(k), "to": pb.get(k)} for k in sorted({*pa, *pb}) if pa.get(k) != pb.get(k)}
+        old_definitions = _parameter_report(a)["param_definitions"]
+        new_definitions = _parameter_report(b)["param_definitions"]
+        changed_provenance = {
+            k: {"from": old_definitions.get(k), "to": new_definitions.get(k)}
+            for k in sorted({*old_definitions, *new_definitions})
+            if _provenance_claim(old_definitions.get(k)) != _provenance_claim(new_definitions.get(k))
+        }
         lines = source.count("\n")
         return reply(
-            compact(
-                {
-                    "ok": True,
-                    "project": project.name,
-                    "rev": rev,
-                    "base_rev": other,
-                    "head_rev": project.head_rev,
-                    "status": b.get("status", "draft"),
-                    "summary": f"Rev {rev} against {other}: {lines} diff lines, {len(changed)} params changed, {len(metrics)} metrics changed.",
-                    "diff": {"source": source[:8000], "params": changed, "metrics": metrics},
-                }
-            )
+            {
+                "ok": True,
+                "project": project.name,
+                "rev": rev,
+                "base_rev": other,
+                "head_rev": project.head_rev,
+                "status": b.get("status", "draft"),
+                "summary": (
+                    f"Rev {rev} against {other}: {lines} diff lines, {len(changed)} param values changed, "
+                    f"{len(changed_provenance)} provenance records changed, {len(metrics)} metrics changed."
+                ),
+                "diff": {
+                    "source": source[:8000], "params": changed,
+                    "param_provenance": changed_provenance, "metrics": metrics,
+                },
+            }
         )
 
     async def _history_checkout(self, project: Project, rev: int | None) -> dict[str, Any]:
@@ -682,9 +692,17 @@ class Handlers:
             return self._history_diff(project, rev, params.get("against"))
         meta = _rev_meta(project, rev)
         base = {"ok": True, "project": project.name, "rev": rev, "head_rev": project.head_rev, "status": meta.get("status", "draft")}
+        parameter_report = _parameter_report(meta)
         if what == "params":
             values = meta.get("params") or {}
-            return reply({**base, "params": values, "summary": f"Rev {rev} params: {json.dumps(values, default=str)[:600]}"})
+            counts = parameter_report["param_basis_counts"]
+            missing = parameter_report["params_without_source"]
+            return reply({
+                **base,
+                "params": values,
+                **parameter_report,
+                "summary": _parameter_summary(counts, missing),
+            })
         if what == "features":
             features = [
                 {"name": f.get("name"), "faces": len(f.get("faces") or []), "edges": len(f.get("edges") or []),
@@ -735,7 +753,8 @@ class Handlers:
         return reply(_request_response(
             {
                 **base,
-                "summary": f"{project.name} rev {rev} ({base['status']}). {review_summary}",
+                **parameter_report,
+                "summary": f"{project.name} rev {rev} ({base['status']}). {review_summary} {_parameter_summary(parameter_report['param_basis_counts'], parameter_report['params_without_source'])}",
                 "metrics": meta.get("metrics"),
                 "checks": sort_checks(meta.get("checks") or []),
                 "checks_summary": meta.get("checks_summary"),
@@ -891,6 +910,7 @@ class Handlers:
                     "sheet": drawing.get("sheet"),
                     "views": drawing.get("views") or [],
                     "checks": sort_checks(checks),
+                    "parameter_provenance": _parameter_report(_rev_meta(project, rev)),
                     "failure": drawing.get("failure"),
                 }
             ),
@@ -931,7 +951,20 @@ class Handlers:
             return self._op_failed(project, rev, result)
         try:
             exports = _project_directory(project, "exports")
+            revision_meta = _rev_meta(project, rev)
+            parameter_report = _parameter_report(revision_meta)
+            export_metadata = {
+                "project": project.name,
+                "rev": rev,
+                "status": status,
+                **parameter_report,
+            }
+            metadata_path = out / f"{stem}.metadata.json"
+            metadata_path.write_text(json.dumps(export_metadata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+            result["files"]["metadata"] = str(metadata_path)
             files = _publish_exports(exports, out, result["files"], stem)
+            # `artifacts` stays one entry per requested format.
+            metadata_file = files.pop("metadata")
         except (OSError, ValueError) as exc:
             return reply(failure_envelope(project.name, "EXPORT_FAILED", "runtime", str(exc), head_rev=project.head_rev))
         note = "" if status == "verified" else " Files are marked UNVERIFIED."
@@ -943,6 +976,8 @@ class Handlers:
                 "status": status,
                 "summary": f"Exported {', '.join(files)} to {exports}.{note}",
                 "artifacts": files,
+                "metadata": export_metadata,
+                "metadata_file": metadata_file,
             }
         )
 
@@ -1140,6 +1175,84 @@ def _rev_meta(project: Project, rev: int) -> dict[str, Any]:
         return json.loads((project.rev_dir(rev) / "meta.json").read_text())
     except (OSError, ValueError):
         return {}
+
+
+_PARAM_BASES = ("published", "measured", "fitted", "assumed", "derived", "unknown")
+_PARAM_SOURCE_MAX_LENGTH = 2048
+_PARAM_NOTE_MAX_LENGTH = 2000
+_PARAM_UNIT_MAX_LENGTH = 64
+_PROVENANCE_NOTICE = (
+    "Parameter bases and sources are author claims. AAD does not verify that a source supports its value; "
+    "unknown basis is not evidence of a source."
+)
+
+
+def _bounded_text(value: Any, maximum: int) -> str | None:
+    if not isinstance(value, str) or not value.strip() or len(value) > maximum:
+        return None
+    return value
+
+
+def _parameter_report(revision_meta: dict[str, Any]) -> dict[str, Any]:
+    """Build a bounded provenance report; worker-written metadata is untrusted here."""
+    params = revision_meta.get("params")
+    if not isinstance(params, dict):
+        params = {}
+    raw_definitions = revision_meta.get("param_definitions")
+    if not isinstance(raw_definitions, dict):
+        raw_definitions = {}
+    definitions: dict[str, dict[str, Any]] = {}
+    rejected: list[str] = []
+    for name in sorted({*params, *raw_definitions}):
+        raw = raw_definitions.get(name)
+        if not isinstance(raw, dict):
+            raw = {}
+        basis = raw.get("basis")
+        source = _bounded_text(raw.get("source"), _PARAM_SOURCE_MAX_LENGTH)
+        note = _bounded_text(raw.get("note"), _PARAM_NOTE_MAX_LENGTH)
+        if (raw.get("source") is not None and source is None) or (raw.get("note") is not None and note is None):
+            rejected.append(name)
+        definition = {
+            "value": params[name] if name in params else raw.get("value"),
+            "basis": basis if basis in _PARAM_BASES else "unknown",
+            "source": source,
+            "note": note,
+        }
+        for bound in ("min", "max"):
+            if bound in raw:
+                value = raw[bound]
+                definition[bound] = value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+        if "unit" in raw:
+            definition["unit"] = _bounded_text(raw["unit"], _PARAM_UNIT_MAX_LENGTH)
+        definitions[name] = definition
+    counts = {basis: 0 for basis in _PARAM_BASES}
+    for definition in definitions.values():
+        counts[definition["basis"]] += 1
+    missing = [name for name, definition in definitions.items() if definition["source"] is None]
+    report = {
+        "param_definitions": definitions,
+        "param_basis_counts": counts,
+        "params_without_source": missing,
+        "provenance_notice": _PROVENANCE_NOTICE,
+    }
+    if rejected:
+        report["provenance_rejected"] = rejected
+    return report
+
+
+def _provenance_claim(definition: dict[str, Any] | None) -> tuple[Any, Any, Any]:
+    """The fields a provenance diff compares, so legacy records match unlabeled new ones."""
+    definition = definition or {}
+    return definition.get("basis", "unknown"), definition.get("source"), definition.get("note")
+
+
+def _parameter_summary(counts: dict[str, int], missing: list[str]) -> str:
+    count_text = ", ".join(f"{basis}={counts.get(basis, 0)}" for basis in _PARAM_BASES)
+    missing_text = ", ".join(missing) if missing else "none"
+    return (
+        f"Parameter bases (author claims): {count_text}; parameters lacking a source: {missing_text}. "
+        "AAD does not verify source contents."
+    )
 
 
 def _head_status(project: Project) -> str:
