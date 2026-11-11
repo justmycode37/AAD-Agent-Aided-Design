@@ -10,6 +10,7 @@ import base64
 import hashlib
 import json
 import struct
+import subprocess
 import sys
 import webbrowser
 import zlib
@@ -20,6 +21,30 @@ from ..presentation import VIEWS, normalize_presentation, normalize_views
 
 HTML_ARGUMENT_LIMIT = 512_000
 HTML_INLINE_LIMIT = 25 * 1024 * 1024
+
+
+def _open_in_browser(uri: str) -> None:
+    """Open uri in Safari on macOS, else (or if Safari fails) the default browser.
+
+    macOS uses LaunchServices (`open -a Safari`) rather than AppleScript, which
+    needs an Automation permission that agent and terminal processes often lack.
+    """
+    errors = []
+    if sys.platform == "darwin":
+        try:
+            done = subprocess.run(["/usr/bin/open", "-a", "Safari", uri], capture_output=True, text=True, timeout=30)
+            if done.returncode == 0:
+                return
+            errors.append(f"Safari: {done.stderr.strip() or f'exit {done.returncode}'}")
+        except (OSError, subprocess.SubprocessError) as exc:
+            errors.append(f"Safari: {exc}")
+    try:
+        if webbrowser.get().open(uri, new=2):
+            return
+        errors.append("The browser did not accept the open request")
+    except (webbrowser.Error, OSError) as exc:
+        errors.append(f"Could not open the browser: {exc}")
+    raise ValueError("; ".join(errors) + ".")
 
 
 def _asset(path: Path, payload: bytes, element_id: str, encoding: str = "base64+gzip") -> Path:
@@ -59,7 +84,8 @@ def export_bundle(scene_dir: Path, output_dir: Path, *, presentation: dict | Non
     asset. Opening viewer.html directly reports missing host-inlined assets
     instead of silently substituting geometry. standalone.html works offline.
     With open_on_limit=True, an oversized export opens the standalone file in
-    Safari on macOS (the default browser elsewhere) and returns that path.
+    Safari on macOS (the default browser elsewhere, or if Safari cannot open
+    it) and returns that path.
     A refused/failed browser launch still raises with the saved file path.
     """
     manifest = json.loads((scene_dir / "scene.json").read_text(encoding="utf-8"))
@@ -168,14 +194,11 @@ try {
         standalone_path = output_dir / "standalone.html"
         message = f"{reason}; standalone.html was written to {standalone_path}."
         if open_on_limit:
+            launch_uri = standalone_path.resolve().as_uri() + f"?aad_scene={manifest['scene_id']}&aad_viewer={runtime_id}"
             try:
-                browser = webbrowser.get("safari") if sys.platform == "darwin" else webbrowser.get()
-                launch_uri = standalone_path.resolve().as_uri() + f"?aad_scene={manifest['scene_id']}&aad_viewer={runtime_id}"
-                opened = browser.open(launch_uri, new=2)
-            except (webbrowser.Error, OSError) as exc:
-                raise ValueError(f"{message} Could not open the browser: {exc}") from exc
-            if not opened:
-                raise ValueError(f"{message} The browser did not accept the open request.")
+                _open_in_browser(launch_uri)
+            except ValueError as exc:
+                raise ValueError(f"{message} {exc}") from exc
             return standalone_path
         raise ValueError(f"{message} Open that file locally or use a host with a larger limit.")
     target = output_dir / "viewer.html"

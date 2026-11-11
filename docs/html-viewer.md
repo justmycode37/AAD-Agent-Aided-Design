@@ -71,7 +71,9 @@ bottom corners are included.
 
 For a requested automatic browser fallback, add `--open-on-limit`. When either
 chat limit is exceeded, export opens the complete standalone page in Safari on
-macOS (the default browser elsewhere) and returns that file path. It opens no
+macOS (the default browser elsewhere, or when Safari cannot open it) and
+returns that file path. Safari is launched with `open -a Safari`, so no macOS
+Automation permission is needed. It opens no
 browser for a scene that fits. Without this opt-in, export continues to report
 the limit as an error. A stale `viewer.html` is removed on oversized export.
 
