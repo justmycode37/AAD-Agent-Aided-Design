@@ -1587,3 +1587,32 @@ def _exception_text(exc: Exception) -> str:
 def _fmt(value: float) -> str:
     # Preserve enough digits to reconstruct the actual comparison value.
     return repr(float(value)).removesuffix(".0")
+
+
+def finishing_warning_checks(metadata: dict[str, Any]) -> list[Check]:
+    """Make unresolved helper operations visible in the normal build checks."""
+    checks = []
+    reports = metadata.get("finishing_reports", [])
+    if not isinstance(reports, list):
+        return checks
+    for index, report in enumerate(reports, start=1):
+        if not isinstance(report, dict) or report.get("operation") != "blend":
+            continue
+        counts = report.get("counts", {})
+        failed = counts.get("failed", 0) if isinstance(counts, dict) else 0
+        if not isinstance(failed, int) or failed <= 0:
+            continue
+        reduced = counts.get("reduced", 0)
+        applied = counts.get("applied", 0)
+        checks.append(Check(
+            id=f"blend_unresolved_edges_{index}",
+            suite="hard",
+            level="warn",
+            status="warn",
+            message=f"blend left {failed} requested edge(s) unresolved; inspect the feature metadata report.",
+            expected="every requested edge applied or reduced",
+            actual=f"{applied} applied, {reduced} reduced, {failed} failed",
+            feature=report.get("feature"),
+            fix_hint="Inspect the per-edge blend report, select a smaller edge group, or add an explicit smaller fallback radius.",
+        ))
+    return checks

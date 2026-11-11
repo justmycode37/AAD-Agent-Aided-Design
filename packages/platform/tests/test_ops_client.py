@@ -364,3 +364,16 @@ def test_parent_caps_worker_pipe_reads(tmp_path, fd, stream):
     assert result["ok"] is False
     assert result["failure"]["code"] == "WORKER_OUTPUT_LIMIT"
     assert stream in result["failure"]["message"]
+
+
+def test_check_rerun_keeps_unresolved_blend_warning(monkeypatch):
+    from types import SimpleNamespace
+
+    from aad_platform import ops
+
+    monkeypatch.setattr(ops, "_optional", lambda *_: lambda _ctx: [])
+    report = {"operation": "blend", "feature": "edges", "counts": {"applied": 0, "reduced": 0, "failed": 2}}
+    ctx = SimpleNamespace(kind="part", meta={"finishing_reports": [report]})
+    result = ops.op_check(ctx, {"suites": ["hard"]}, None)
+    ids = [check["id"] for check in result["checks"]]
+    assert ids == ["blend_unresolved_edges_1"]

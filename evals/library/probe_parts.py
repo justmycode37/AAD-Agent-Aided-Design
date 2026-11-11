@@ -103,8 +103,8 @@ def main():
     for part_id in EXPECTED:
         for repeat in range(1, args.repetitions+1):
             artifact = out / f"{part_id}-{repeat}.brep"
-            # The oracle checks real thread flanks, so ask for them rather than the default envelope.
-            options = {"thread": "helical"} if part_id == "fastener.iso4762.socket_head_cap_screw" else {}
+            # The B-rep carries the cosmetic major-diameter envelope; metadata/drawings carry the thread designation.
+            options = {"thread": "cosmetic"} if part_id == "fastener.iso4762.socket_head_cap_screw" else {}
             export_brep(standard_parts.make_part(part_id, **options),str(artifact))
             records.append({"id":part_id,"repeat":repeat,**measure_artifact(artifact,part_id),
                             "artifact":artifact.relative_to(BASE).as_posix(),"artifact_sha256":digest(artifact)})
