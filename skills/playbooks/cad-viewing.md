@@ -190,13 +190,19 @@ simplification or coordinate rounding to get under a host's HTML size limit.
 
 ### Oversized HTML viewer fallback
 
-`python -m aad_platform.viewer.bundle SCENE_DIR OUTPUT_DIR --open-on-limit`
-writes the complete offline viewer first. If the 25 MiB inlined-size limit or
-512,000-character argument limit is exceeded, this explicitly requested option
-opens `standalone.html` in Safari on macOS, or the default browser elsewhere,
-and returns its path. Browser launch failure reports the saved path as an error.
-The Python `export_bundle(..., open_on_limit=True)` option has the same behavior.
-Without the flag, oversized exports raise with the standalone path. An older
+`python -m aad_platform.viewer.bundle SCENE_DIR OUTPUT_DIR`
+always exports the complete, full-detail scene. Never decimate, simplify or
+drop parts to fit chat. If the 25 MiB inlined-size limit or 512,000-character
+argument limit is exceeded, export opens the complete `standalone.html` in
+Safari on macOS (the default browser elsewhere) by default and returns its
+path; tell the user the full model opened in Safari instead of chat. macOS
+launches Safari through LaunchServices (`open -a Safari`), which needs no
+Automation permission; if Safari cannot open the page, the default browser is
+tried. Browser launch failure reports the saved path as an error. Scene chunks
+decode one at a time, so very large scenes stay within Safari's canvas memory.
+`--no-open` (Python `export_bundle(..., open_on_limit=False)`) only writes the
+file and raises with its path; `--open-on-limit` is accepted for compatibility.
+An older
 `viewer.html` in that output directory is removed on oversized export so it cannot
 be mistaken for the current revision. Scene bytes are preserved. Use
 `--controls simple` for the same controls as chat; `--controls cad` retains the

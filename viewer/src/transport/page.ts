@@ -103,7 +103,10 @@ export function decodeSceneAsset(asset: string): Uint8Array {
 
 export async function decodeSceneAssets(assets: string[], counts: number[], total: number): Promise<Uint8Array> {
   if (!assets.length || assets.length !== counts.length) throw new Error("Scene bundle is missing one or more chunks");
-  const chunks = await Promise.all(assets.map(async (asset, i) => {
+  // Decode one chunk at a time and release its canvas, so peak memory stays
+  // near one chunk instead of the whole scene in pixels (Safari caps canvas memory).
+  const chunks: Uint8Array[] = [];
+  for (const [i, asset] of assets.entries()) chunks.push(await (async () => {
     if (!asset) throw new Error(`Scene chunk ${i} is missing`);
     if (!asset.startsWith("data:image/png;base64,")) throw new Error(`Scene chunk ${i} was not bundled by the host`);
     const image = new Image(); image.src = asset;
@@ -117,8 +120,9 @@ export async function decodeSceneAssets(assets: string[], counts: number[], tota
     const bytes = new Uint8Array(counts[i]);
     for (let j = 0; j < bytes.length; j++) bytes[j] = pixels[Math.floor(j / 3) * 4 + (j % 3)];
     if (bytes.length !== counts[i]) throw new Error(`Scene chunk ${i} byte count mismatch`);
+    canvas.width = canvas.height = 0;
     return bytes;
-  }));
+  })());
   const size = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
   if (size !== total) throw new Error("Scene bundle byte count mismatch");
   const bytes = new Uint8Array(size); let offset = 0;

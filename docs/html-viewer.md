@@ -69,11 +69,13 @@ document roots: a host may add padding around the viewer. Pass the measured
 height from the HTML preview to the display tool so that padding and the
 bottom corners are included.
 
-For a requested automatic browser fallback, add `--open-on-limit`. When either
-chat limit is exceeded, export opens the complete standalone page in Safari on
-macOS (the default browser elsewhere) and returns that file path. It opens no
-browser for a scene that fits. Without this opt-in, export continues to report
-the limit as an error. A stale `viewer.html` is removed on oversized export.
+Export never reduces the scene to fit chat. When either chat limit is exceeded,
+export opens the complete standalone page in Safari on macOS (the default
+browser elsewhere, or when Safari cannot open it) and returns that file path.
+Safari is launched with `open -a Safari`, so no macOS Automation permission is
+needed. It opens no browser for a scene that fits. `--no-open` only writes the
+file and reports the limit as an error. A stale `viewer.html` is removed on
+oversized export.
 
 Standalone browser pages automatically size the canvas to the available browser
 window height and refit on resize, using the same viewer runtime and controls.
