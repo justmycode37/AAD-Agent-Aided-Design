@@ -9,8 +9,8 @@ checkout, head, job promotion, `BuildResult`, cached metrics/checks, status or
 validation receipt. S2's `daemon/projects.py` owns numbered revisions and head
 movement. Its planned #52 failed-job retention (up to five candidates per
 project) is separate from this cache. Deleting this cache does not require
-deleting revision history or retained jobs. This package does not complete S1
-revisions/cache integration.
+deleting revision history or retained jobs. `aad.engine.jobs.run_build`
+integrates this store for explicit `cached_part(key_inputs, builder_fn)` calls.
 
 ## API and identity
 
@@ -22,6 +22,7 @@ cache = GeometryCache(project / ".aad" / "cache")
 entry = cache.put(key, record, generated / "part.brep", candidate_dir=generated)
 entry = cache.lookup(key, record)
 candidate_brep = cache.restore(key, record, fresh_destination)
+entries = cache.candidates(source=source, pipeline_identity=pipeline_identity)
 ```
 
 All paths name caller-owned locations. The cache directory's parent and the
@@ -157,12 +158,23 @@ unsafe path/file. Other filesystem errors retain their original `OSError`
 are unavailable. Lock/filesystem-operation failures are surfaced; there is no
 unlocked or Windows fallback.
 
-A hit skips **at most geometry generation**. It supplies bytes to a fresh
-trusted native hard/spec/process validator, never cached proof. Same-process
-model metrics/checks cannot attest these bytes. S2 must use a distinct restored
-candidate and run its validator before any revision promotion. Existing
-`run_build` rejects preexisting `part.brep`; this package leaves that guard
-intact and adds no cache-hit branch to it.
+A hit skips **at most geometry generation**. The trusted parent validates the
+cache entry, restores its B-rep into a private exchange directory inside the
+job tree, and passes the staged path and trusted input record to the worker.
+The sandbox still grants model code writes only to the job tree and never grants
+access to the persistent `.aad/cache`. Worker code verifies the staged bytes
+before loading them. The full hard/spec/process pipeline runs again for the
+assembled build, and no check result is read from cache.
+
+After the worker exits, the parent considers publication only for a successful
+build. It validates the key/record, the exact source and trusted pipeline
+fields, effective parameters and project-local cache paths before storing
+geometry. Publication is best effort; malformed/missing files or identity
+mismatches become misses. Cache contents are never trusted evidence, and a
+worker's `verified` claim remains subject to the existing parent evidence
+constraints and any independent validator. The project cache can be deleted
+safely. `AAD_DISABLE_GEOMETRY_CACHE=1` in the trusted engine environment
+disables cache staging and publication.
 
 ## Tests
 

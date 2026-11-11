@@ -98,6 +98,7 @@ Projects live in the host's MCP root, otherwise `~/AAD/<name>`.
 | `base_rev` | The revision this edit is based on. A stale value fails with `BASE_REV_CONFLICT` |
 | `preview` | Add a 4-up image. Default false |
 | `dry_run` | Full build and checks, without moving the head |
+| `part_cache` | `false` rebuilds every `cached_part()` without reading the cache. Default true |
 | `wait_s` | Seconds to wait before returning `running` with a job id. Default 30 |
 | `timeout_s` | Seconds before the build is killed. Default 60, maximum 600 |
 
@@ -209,13 +210,15 @@ with part("plate") as bp:
 - **`face()`, `edge()`, `vertex()`** are selectors, below.
 - **`entity_shape(ctx, entity)`** returns live topology for a resolved entity, for advanced exact work.
 - **`SelectorError`** is raised when a selector's count is wrong.
+- **`cached_part(key_inputs, builder_fn)`** reuses B-rep geometry for explicitly deterministic parts. AAD binds the builder code and model source; include every other input read by `builder_fn`, including captured or global state, in JSON-compatible `key_inputs`. AAD also binds effective parameters, spec, staged assets, units, material/process, kernel/AAD versions and geometry/check pipeline identity. Do not use it for builders that depend on time, randomness, hidden state or unbound file reads. Unsupported keys safely run the builder uncached. A cache hit skips geometry generation only; all hard, spec and process checks rerun.
 - **`assembly`, `Assembly`, `asset`, `sheet_metal`, `SheetMetalPart`, `variable_fillet`, `press_pull`, `delete_faces`, `sew_solid`, `pattern_along`, `exploded`, `overlap_volume`, `motion_clearance`** are below. They raise `CadOperationError` rather than return a near miss.
 - **Gears:** `gear_profile`, `gear_solid`, `gear_center_distance`, `helix_angle_for_center_distance`, `gear_mesh_phase`, `tapered_bevel_standin`, below.
 
 ### Rules for the script
 
 - It runs in an OS sandbox with no network, no subprocesses, and writes only to its job folder. It must not do I/O. The only project files it can read are imports, through `asset()`.
-- Each build reruns the whole script. Nothing carries over between builds.
+- Each build reruns the whole script in a fresh process. Explicit `cached_part()` calls can reuse eligible part geometry from the same project; the builder is still called when the key or cache entry cannot be validated, and all checks always rerun.
+- Cache hits and misses appear in `metrics.geometry_cache`. The cache is per-project under `.aad/cache`, keeps at most 2 GiB (256 MiB per entry, oldest removed first) and can be deleted safely. Model code writes the entries, so AAD cannot prove they match the builder: a build offered cached geometry gets an error-level `part_cache_unreproduced` skip and stays `draft`. Run `aad_build` with `part_cache=false` to confirm the source reproduces it. Set `AAD_DISABLE_GEOMETRY_CACHE=1` in the trusted engine environment to disable it. The model sandbox never gets access to the persistent cache.
 - It is killed after 60 s unless you pass `timeout_s`. When it outlasts `wait_s`, you get `running` and a job id; poll with `aad_history(action="job", job=...)`.
 - Coordinates are plain numbers. Project units never rescale them.
 
@@ -697,7 +700,7 @@ Every command takes `--json` for machine-readable output.
 
 **Client IDs:** `claude-code`, `claude-desktop`, `cline`, `codex`, `cursor`, `gemini-cli`, `goose`, `vscode`, `windsurf`, `zed`.
 
-**Environment:** `AAD_HOME` moves AAD's state folder from `~/.aad`.
+**Environment:** `AAD_HOME` moves AAD's state folder from `~/.aad`. `AAD_DISABLE_GEOMETRY_CACHE=1` disables per-project part geometry caching; accepted true values are `1`, `true`, `yes` and `on` (case-insensitive).
 
 **Remote mode:** `aad serve --http` serves MCP at `/mcp` over Streamable HTTP, for hosts that cannot reach a local process. Flags: `--host`, `--port` (8765), `--public-url` (required off loopback, behind a TLS proxy), `--add-user NAME` (prints a token once), `--remove-user NAME`, `--list-users`. Each user gets a private home and daemon. Imports read only from that user's home.
 
@@ -773,8 +776,8 @@ Say so plainly rather than working around it silently.
 - **Approximate `symmetric` geometry stays `skip`.** A zero-volume B-rep boolean alone does not pass; exact planar-face and straight-edge mirror signatures must also match. Curved boundaries are not covered by that exact comparison.
 - **The viewer cannot edit the model directly.** Sliders and a separate Ask editor are not built. Part selection and exact references work as described above; native composer insertion depends on advertised host support, and stays unavailable on unsupported hosts.
 - **Windows has no sandbox,** so builds refuse to run there.
-- **Each job starts a new process with no shared cache.** `engine.memory` limits additional per-process virtual address space from the worker's started Python baseline to builds and operations. `auto` is 16 GiB on Linux and macOS. This is not an RSS or whole-machine limit: Linux child processes each receive their own budget, and sampled RSS is not enforced as an aggregate job budget. The independent validator is not wired into the build path on main; when added, its clean 3D and 2D workers must receive the configured budget too.
-- **Large-assembly performance is not validated beyond the published synthetic benchmark.** A 1,500-box build took 42.5–46.2 s in three sandbox runs, with the hard mesh gate taking 26.8–28.3 s. Other models and several-thousand-part assemblies need a representative performance check; allow for that when choosing `timeout_s`.
+- **Cache reuse is explicit and limited to deterministic part geometry.** Each job still starts a fresh process and reruns the whole script. `cached_part()` builders must declare all extra inputs, and time, randomness, hidden state or unbound file reads make a builder unsuitable. Cache hits do not carry checks or verification evidence; all hard, spec and process checks rerun. Set `AAD_DISABLE_GEOMETRY_CACHE=1` in the trusted engine environment to disable it.
+- **Large-assembly performance is not validated beyond these measured cases.** On the same machine, three sandboxed runs of the 1,500-box workload took 42.1/45.3/59.0 s before the cache changes (median 45.3 s), with mesh-gate phases of 22.7/25.2/31.5 s (median 25.2 s). Afterward they took 11.9/9.6/9.2 s (median 9.6 s), with mesh-gate phases of 200/146/135 ms (median 146 ms). The detailed 42-part pump assembly took 6.0/6.9/103.4 s before and 2.6/2.6/2.6 s after; its slowest baseline was a cold outlier. Unaccounted `other` time varied between runs, so wall-time gains include runtime overhead as well as measured phases. Other models and several-thousand-part assemblies still need representative checks; allow for that when choosing `timeout_s`.
 - **Out of scope:** CAM and toolpaths, FEA and CFD, advanced surfacing, PMI and GD&T, several-thousand-part assemblies without a representative performance check, PDM and PLM, native formats such as SLDPRT, F3D or DWG.
 
 ## Honesty rules
