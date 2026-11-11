@@ -111,6 +111,7 @@ def load_context(request: dict[str, Any]) -> Any:
         sheet=sheet,
         features=features,
         params=meta.get("params") or {},
+        param_definitions=meta.get("param_definitions") or {},
         metrics=meta.get("metrics") or {},
         spec=spec,
         material=request.get("material") or (meta.get("meta") or {}).get("material"),
@@ -564,6 +565,11 @@ def op_check(ctx: Any, args: dict[str, Any], out: Path) -> dict[str, Any]:
                 checks.extend(_plain(function(ctx, limits=_sheet_laser_limits(ctx))))
             else:
                 checks.extend(_plain(function(ctx)))
+                if suite == "hard":
+                    from aad.engine.gate import finishing_warning_checks
+
+                    meta = ctx.meta if isinstance(getattr(ctx, "meta", None), dict) else {}
+                    checks.extend(_plain(finishing_warning_checks(meta)))
         except Exception as exc:  # A suite that crashed is not a suite that passed.
             from aad.engine.memory import is_memory_exhaustion
 

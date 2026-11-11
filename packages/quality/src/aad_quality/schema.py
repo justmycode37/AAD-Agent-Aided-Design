@@ -110,6 +110,7 @@ SUBSYSTEM_REVIEW_BYTES = 64 * 1024
 REQUIREMENT_TYPES = frozenset({
     "bbox", "area", "solids", "holes", "min_wall", "clearance", "mass_g", "symmetric",
     "measure", "material_at_point", "interference", "matches_reference", "components", "position", "fit",
+    "connected",
 })
 
 
@@ -369,6 +370,7 @@ def _validate_requirement(req: dict[str, Any], index: int, units: str) -> list[S
         "components": {"id", "level", "components"},
         "position": {"id", "level", "position"},
         "fit": {"id", "level", "fit"},
+        "connected": {"id", "level", "connected"},
     }[field]
     try:
         _check_keys(req, allowed | {"covers"}, path)
@@ -539,6 +541,22 @@ def _validate_requirement(req: dict[str, Any], index: int, units: str) -> list[S
             )
             if any(bound is not None and bound < 0 for bound in (fit_range.minimum, fit_range.maximum)):
                 raise ValueError(f"{_path_text(path + (field, mode))} bounds must be non-negative")
+        elif field == "connected":
+            values = _require_mapping(body, path + (field,))
+            _check_keys(values, {"ground", "allow_floating", "tolerance"}, path + (field,))
+            ground = values.get("ground")
+            if not isinstance(ground, str) or not ground.strip():
+                raise ValueError(f"{_path_text(path + (field,))}.ground must be a non-empty component name")
+            allowed = values.get("allow_floating", [])
+            if not isinstance(allowed, list) or any(not isinstance(item, str) or not item.strip() for item in allowed):
+                raise ValueError(f"{_path_text(path + (field,))}.allow_floating must be a list of non-empty component names")
+            if len(allowed) > 10000:
+                raise ValueError(f"{_path_text(path + (field,))}.allow_floating exceeds the 10000-name limit")
+            if "tolerance" not in values:
+                raise ValueError(f"{_path_text(path + (field,))}.tolerance is required")
+            tolerance = parse_numeric_range(values["tolerance"], default_unit=units, path=path + (field, "tolerance"))
+            if tolerance.minimum is None or tolerance.minimum < 0 or tolerance.minimum != tolerance.maximum:
+                raise ValueError(f"{_path_text(path + (field,))}.tolerance must be one non-negative finite length")
     except (ValueError, TypeError, KeyError) as exc:
         issues.append(SpecIssue(str(exc), path, index))
     return issues

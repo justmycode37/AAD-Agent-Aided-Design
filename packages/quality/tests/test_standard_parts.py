@@ -153,10 +153,9 @@ def test_fastener_dimensions_and_validity() -> None:
 
 
 @pytest.mark.parametrize('size,length', [('M3-0.5',5),('M10-1.5',16)])
-def test_full_threaded_screws_remain_single_solids_for_other_sizes(size,length):
-    pytest.importorskip('bd_warehouse')
-    screw=make_part(FASTENER_ID,size=size,length=length,thread='helical')
-    assert _is_valid(screw) and len(screw.solids())==1
+def test_helical_screws_are_rejected_instead_of_bypassing_the_hard_gate(size,length):
+    with pytest.raises(ValueError, match='edge_quality and face_quality'):
+        make_part(FASTENER_ID,size=size,length=length,thread='helical')
 
 
 def test_envelope_screw_holds_the_major_diameter_and_length() -> None:
@@ -170,8 +169,8 @@ def test_envelope_screw_holds_the_major_diameter_and_length() -> None:
     assert pieces[0].bounding_box().size.X == pytest.approx(6, abs=0.01)
 
 
-def test_helical_is_the_only_thread_alternative() -> None:
-    with pytest.raises(ValueError, match='envelope'):
+def test_only_cosmetic_or_major_diameter_envelope_threads_are_supported() -> None:
+    with pytest.raises(ValueError, match='must be .envelope. or .cosmetic.'):
         make_part(FASTENER_ID, thread='square')
 
 
@@ -261,7 +260,5 @@ def test_thread_builds_with_pinned_constructor_and_expected_major_dimensions() -
 
     thread = make_part(THREAD_ID)
     assert _is_valid(thread)
-    assert thread.major_diameter == 6
-    assert thread.pitch == 1
-    assert thread.length == 8
+    assert _dimensions(thread) == pytest.approx((6, 6, 8))
     assert _dimensions(thread) == pytest.approx((6.0, 6.0, 8.0), abs=0.01)

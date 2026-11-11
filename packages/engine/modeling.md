@@ -68,8 +68,12 @@ overrides are interchangeable. Unknown overrides, overrides without a
 declaration, nonfinite values, and boolean numeric values fail with `BAD_INPUT`.
 Parameter names are public Python identifiers.
 
-`Param(value, min=None, max=None, unit=None)` adds inclusive scalar numeric
-bounds and a descriptive unit. Both bounds and defaults must be finite and
+`Param(value, min=None, max=None, unit=None, basis=None, source=None, note=None)`
+adds inclusive scalar numeric bounds, a descriptive unit and author-claimed
+provenance. `basis` is `published`, `measured`, `fitted`, `assumed` or `derived`;
+absent means unknown. `source` is at most 2,048 characters and `note` at most
+2,000. AAD does not verify these claims. A bare override makes the basis
+`assumed`; `{value, basis?, source?, note?}` supplies new provenance. Both bounds and defaults must be finite and
 valid before an override is applied. Bounds are declarations, not inferred
 kernel limits. Units do not convert coordinates. Applied values are in
 `ctx.params`; live slider records are in `ctx.param_definitions`.

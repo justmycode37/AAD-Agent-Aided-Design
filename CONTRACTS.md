@@ -101,11 +101,26 @@ and `tapered_bevel_standin`. Their angles are in degrees; gear module is the
 normal module. Geometry assumptions and limits are documented in
 `packages/engine/modeling.md`.
 
-- `params()` declares every adjustable number; overrides come from tools. A param may be a `Param(value, min, max, unit)` so that sliders get ranges.
+The finishing API also exports `blend(shape, edges, radius, fallback=())`,
+`draft_faces(shape, faces, angle, neutral_plane=Plane.XY)`,
+`rib(shape, profile, direction)`, `boss(shape, center, radius, height, *,
+axis=(0,0,1), hole=0, root_fillet=0, hole_depth=0)`, and
+`split_flange(shape, seam, *, width, thickness, bolt_diameter, bolt_count,
+bolt_axis=(0,0,1), end_margin=None, gap=0, hole_depth=0)`. `blend` returns a
+`BlendResult` containing the resulting shape and a report for every requested
+edge (`applied`, `reduced`, or `failed`). Unresolved edges are retained in
+feature/model metadata and emitted as build warning checks. Helpers publish to
+the active `BuildPart` through feature tracking when their input is its current
+shape; otherwise, assign the returned shape. Playbook `family.cast_housing.v1`
+contains a runnable recipe and documents the geometric limits.
+
+- `params()` declares every adjustable number; overrides come from tools. A parameter may be a `Param(value, min, max, unit, basis, source, note)` so sliders get ranges and revisions can retain author-claimed provenance. `basis` is `published`, `measured`, `fitted`, `assumed` or `derived`; when omitted it is reported as `unknown`. `source` is up to 2,048 characters and `note` up to 2,000; both are untrusted text. A `published` or `measured` parameter without a source produces a warning. AAD does not verify that a source supports a value.
+- A bare `aad_build(params=...)` override is classified as `assumed` and clears the old source and note. To send new provenance with an override, pass `{value, basis?, source?, note?}`; omitted basis defaults to `assumed`. The same text limits apply.
 - `feature(name)` must be unique. It records created and modified faces and edges, source lines and dependencies.
 - `face()`, `edge()`, `vertex()` resolve semantically. `expect=n` turns a count mismatch into a `SELECTOR_AMBIGUOUS` or `SELECTOR_EMPTY` failure with candidates.
 - `cached_part(key_inputs, builder_fn)` may wrap an explicitly deterministic, repeatable part builder. `key_inputs` must be JSON data that names every additional geometry input read by the builder, including captured state. AAD binds the builder code and the exact model source, effective model parameters, whole spec, staged assets, units, material/process, kernel and AAD versions, and geometry/check pipeline identity. Unsupported or incomplete keys run the builder without caching. A hit reuses B-rep geometry only; the full hard, spec and process checks run again.
 - A script produces one `part`, one `assembly` (assign `assembly()` to `result`), or (for `kind: "2d"`) one `sheet2d`.
+- `Assembly.connect(a, b, kind, **details)` records a declared joint between two existing component names. `kind` is non-empty text, details are finite JSON-compatible data (at most 16 KiB per joint with `kind`, 1 MiB per assembly), and optional `details.tolerance` is a non-negative distance in model units. `Assembly.record()` includes `components`, `bom`, and `joints` metadata; a declared joint is not proof of contact or fastening.
 - The script must not do I/O. Files come in through `asset("name")`, which reads from the project's imports.
 - Plain build123d is valid, and everything lands in an implicit `main` feature. Named features are what make edits reliable.
 
@@ -142,6 +157,8 @@ requirements:
     position: {selector: "vertex(feature='shaft_axis', nth=0)", target: [0, 0, 12], tolerance: 0.05}
   - id: bearing_fit
     fit: {a: shaft, b: bearing, clearance: {min: 0.02, max: 0.08}}
+  - id: assembly_paths
+    connected: {ground: frame, allow_floating: [cover], tolerance: 0.1}
   - id: press_fit
     fit: {a: insert, b: housing, interference: {min: 1, max: 3}}
   - id: no_interference
@@ -224,6 +241,20 @@ pair-check budget, reports at most the 20 largest overlaps plus bounded unknown
 pair details, and identifies any unchecked pairs. A boolean failure or an
 exhausted budget cannot produce a pass.
 
+The `connected` requirement is assembly-only. `ground` and `allow_floating`
+contain exact component labels; `allow_floating` defaults to an empty list.
+`tolerance` is one non-negative length in spec units and bounds measured
+geometric contact. The evaluator builds a declared-joint graph and a separate
+minimum-distance contact graph, using component bounding boxes to filter
+candidate distances. A joint's optional numeric `details.tolerance` in model
+units overrides the spec tolerance for that joint. A joint edge is usable only
+when its minimum B-rep distance is within its tolerance. The report lists paths
+and disconnected component labels for both evidence types. Contact proves
+touching only, not fastening. Invalid references or a declared joint beyond
+tolerance fail; a distance failure or the 60-second graph-check budget remains
+unknown and cannot pass. The graph check does not establish joint strength,
+retention, preload, or function.
+
 ---
 
 ## 5. MCP tools
@@ -246,13 +277,18 @@ aad_new({ name: string, kind?: "part"|"assembly"|"2d", units?: "mm"|"in",
 aad_build({ project, base_rev?: number,
             source?: string,                       // full model.py, or
             patch?: string,                        // unified diff against base_rev, or
-            params?: Record<string, number|string>,// overrides, or combine with the above
+            params?: Record<string, number|string|ParamOverride>, // overrides, or combine with the above
             spec?: string,
             request?: Request,                    // replaces the request for this revision; omitted copies it forward
             preview?: boolean,                     // adds a 4-up sheet image, default false
             dry_run?: boolean,                     // full build and checks, no new head
             wait_s?: number,                       // default 30; returns status "running" with job id
             timeout_s?: number })                  // worker kill limit, default 60, max 600
+
+type ParamOverride = {
+  value: number|string, basis?: "published"|"measured"|"fitted"|"assumed"|"derived",
+  source?: string, note?: string
+} // source <= 2,048 chars, note <= 2,000 chars; both are untrusted text
 
 aad_inspect({ project, rev?: number,
               what?: "summary"|"features"|"params"|"topology"|"bom"|"diff", against?: number })
@@ -313,6 +349,17 @@ Build responses and `aad_inspect(what="summary")` report requirement IDs without
 The inspect summary also returns the captured request. A missing request yields
 a short non-failure hint. These links are not a semantic judgment; AAD never
 computes a request-coverage percentage.
+
+`aad_inspect(what="params")` and `what="summary"` include `param_definitions`,
+`param_basis_counts` (including `unknown`), `params_without_source`, and a
+`provenance_notice`. `params` remains the map of applied values for
+compatibility. `aad_history(action="diff")` includes value changes in `diff.params`
+and declaration/source changes in `diff.param_provenance`. `aad_export` writes
+an additional `<project>-r<rev>[-UNVERIFIED].metadata.json` sidecar and returns its path as `metadata_file` and
+the same report as `metadata`. These labels are the model author's claims;
+AAD never checks whether a source actually states a parameter value. `unknown`
+is not counted as sourced. A `published` or `measured` label without source
+text produces a build warning.
 
 When `spec.subsystems` is present, `request_review.functional_breakdown` reports
 subsystem and interface check state, lists `not_modeled` entries with reasons,
@@ -408,7 +455,16 @@ type Envelope = {
   topology?: unknown,                  // aad_inspect what: "topology"
   features?: unknown[],                // aad_inspect what: "features"
   params?: unknown,                    // aad_inspect what: "params"
-  diff?: { source: string, params: unknown, metrics: unknown },  // aad_history, aad_inspect
+  param_definitions?: Record<string, { value: unknown, min?: number, max?: number,
+    unit?: string, basis: "published"|"measured"|"fitted"|"assumed"|"derived"|"unknown",
+    source?: string|null, note?: string|null }>,
+  param_basis_counts?: Record<string, number>,
+  params_without_source?: string[],
+  provenance_notice?: string,
+  metadata?: unknown,                   // aad_export provenance sidecar report
+  metadata_file?: string,               // aad_export path of that sidecar
+  parameter_provenance?: unknown,        // aad_drawing provenance report
+  diff?: { source: string, params: unknown, param_provenance?: unknown, metrics: unknown },  // aad_history, aad_inspect
   imported?: unknown,                  // aad_import
   library?: unknown                    // aad_library
 }
@@ -655,6 +711,10 @@ def aad_quality.process_checks(ctx: ModelContext) -> list[Check]
 def aad_quality.library(action: str, **kw) -> dict
 ```
 
+For an `Assembly` result, `meta["assembly"]` carries its name, component labels,
+BOM rows, and declared joint records (`a`, `b`, `kind`, and `details`) into the
+quality worker.
+
 **Worker pipeline:** run `model.py` → `hard_checks` → `spec_checks` → `process_checks` (or `aad_drafting.checks` for 2D) → `make_scene` → optional `render` → return `BuildResult`. A failure in an optional step becomes a `warn` check, and must never discard a built revision.
 
 For local macOS and Linux 3D `aad_render`, the `render_prepare` operation loads the revision B-rep
@@ -716,6 +776,10 @@ Build workers inherit `AAD_DISABLE_GEOMETRY_CACHE=1` from the trusted daemon env
 
 - 2026-11-06: S3 added `aad_render(review_packet=true)` for bounded, hashed visual review packets, including request text, measured parts, check skips, unresolved items and orthographic/section/isolated views; packets omit model source and assumptions, do not change revision status or count as verification, and remain unavailable in remote mode.
 - 2026-11-06: S1 connected the per-project geometry cache through deterministic `cached_part(key_inputs, builder_fn)`, scoped cache entries to full source/build identities, staged candidates without widening the model sandbox, reran all checks on hits, and reused exact duplicate-solid mesh checks. On the same machine, three sandboxed 1,500-box runs improved from 42.1/45.3/59.0 s (median 45.3 s) to 11.9/9.6/9.2 s (median 9.6 s); median hard mesh-gate time fell from 25.2 s to 146 ms.
+- 2026-11-06: S1 added `Assembly.connect()` joint metadata and the `connected` spec requirement, which reports geometrically validated joint paths separately from measured touching and keeps failed or timed-out distance evidence unknown.
+- 2026-11-06: S1/S5 added `aad_quality.components.make_detailed` beside unchanged `make_envelope`, with catalog evidence and representative-geometry metadata, vendor STEP/origin/evidence inputs, and LOD selection; `aad_build` now stages imported assets when a model uses `vendor_step`. Replaced failing helical fastener/thread solids with cosmetic thread envelopes and automatic drawing notes, preserving all hard-gate checks.
+- 2026-11-06: S1 added grouped blend retries with per-edge reports and visible unresolved-edge warnings, cast-housing finishing helpers and the `family.cast_housing.v1` recipe, after measuring all-edge and local fillet failures on the boolean-heavy 0B5 housing.
+- 2026-11-06: S1 added author-claimed parameter provenance to `Param`, revision and export metadata, inspection summaries and history diffs; plain value overrides now become `assumed`, and source-less `published`/`measured` labels warn.
 - 2026-11-06: S5 added bounded `spec.subsystems` functional breakdowns, mechanical label/evidence checks in builds and `aad_check`, and a request-review report for not-proven and not-modeled subsystems; labels remain references and no function or meaning is assessed.
 - 2026-11-05: S1 applied configurable `engine.memory` virtual-address growth budgets to build and operation workers and made explicit `MemoryError`/`ENOMEM` results report `OUT_OF_MEMORY`, while keeping unrelated startup diagnostics and signal-only exits unclassified.
 - 2026-11-05: S2 made the structured `aad_render` report compact by default, with `inspection="full"` for the rest, because it reached 2.6 MB on a 492-part assembly.

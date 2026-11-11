@@ -91,7 +91,7 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
             # after it has already produced a usable BREP.
             "preview": False,
         }
-        if re.search(r"\basset\b", request.source):
+        if re.search(r"\b(?:asset|vendor_step)\b", request.source):
             _stage_assets(project_dir, job_dir)
         cache_enabled = request.part_cache and not _part_cache_disabled()
         pipeline = _part_cache_pipeline() if cache_enabled and "cached_part" in request.source else None
@@ -913,6 +913,7 @@ def _feature_from_wire(item: dict[str, Any]) -> FeatureInfo:
         deps=list(item.get("deps", [])),
         intent=item.get("intent"),
         vertices=[_entity_from_wire(entity) for entity in item.get("vertices", [])],
+        metadata=dict(item.get("metadata", {})),
     )
 
 

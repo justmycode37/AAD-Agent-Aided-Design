@@ -22,7 +22,7 @@ from aad._runtime import (
 from aad.modeling import (
     configure_modeling, context_metadata, current_part_name, finalize_modeling, named_shape, record_operation,
 )
-from .gate import _hard_checks_with_timings
+from .gate import _hard_checks_with_timings, finishing_warning_checks
 from .memory import is_memory_exhaustion
 from .part_cache import configure_part_cache, part_cache_metrics
 from .select import SelectorError
@@ -391,8 +391,10 @@ def _build(payload: dict[str, Any]) -> dict[str, Any]:
 
     checks, gate_timings = _hard_checks_with_timings(context)
     phase_timings.update(gate_timings)
+    checks.extend(finishing_warning_checks(metadata))
     if params_warning is not None:
         checks.append(params_warning)
+    checks.extend(_param_provenance_warnings(context.param_definitions))
 
     phase_started = time.perf_counter()
     spec_checks, spec_hook_available = _optional_checks(
@@ -600,6 +602,7 @@ def _finish_sheet(
         checks.append(Check(id="2d_spec_evaluation_failed", suite="spec", level="error", status="fail",
                             message="2D specification or process checks could not be evaluated.",
                             actual=f"{type(exc).__name__}: {exc}"))
+    checks.extend(_param_provenance_warnings(context.param_definitions))
     _add_phase_time(phase_timings, "gate.2d", phase_started)
     scene = None
     phase_started = time.perf_counter()
@@ -1035,6 +1038,7 @@ _KERNEL_OPERATIONS = {
     "fillet": "KERNEL_FILLET_FAILED",
     "max_fillet": "KERNEL_FILLET_FAILED",
     "chamfer": "KERNEL_CHAMFER_FAILED",
+    "draft": "KERNEL_OTHER",
     "offset": "KERNEL_SHELL_FAILED",
     "offset_3d": "KERNEL_SHELL_FAILED",
     "shell": "KERNEL_SHELL_FAILED",
@@ -1167,6 +1171,28 @@ def _checks_summary(checks: list[Check]) -> dict[str, int]:
         status: sum(1 for check in checks if check.status == status)
         for status in ("pass", "fail", "warn", "skip")
     }
+
+
+def _param_provenance_warnings(definitions: dict[str, dict[str, Any]]) -> list[Check]:
+    """Warn when a publication or measurement label has no source to inspect."""
+    warnings = []
+    for name, definition in definitions.items():
+        basis = definition.get("basis", "unknown")
+        source = definition.get("source")
+        if basis in {"published", "measured"} and not (isinstance(source, str) and source.strip()):
+            warnings.append(
+                Check(
+                    id=f"param_source_missing.{name}",
+                    suite="hard",
+                    level="warn",
+                    status="warn",
+                    message=(
+                        f"Parameter {name!r} is labeled {basis} but has no source. "
+                        "AAD does not verify provenance claims."
+                    ),
+                )
+            )
+    return warnings
 
 
 def _preserved_artifacts(job_dir: Path) -> dict[str, str]:

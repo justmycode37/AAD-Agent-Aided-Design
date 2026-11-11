@@ -7,9 +7,11 @@ Imports of the kernel stay inside functions, so ``aad.engine.types`` remains ker
 
 from __future__ import annotations
 
+import json
 import math
+import errno
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -41,6 +43,55 @@ def _finite(value: Any, name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
         raise CadOperationError(f"{name} must be a finite number, not {value!r}.")
     return float(value)
+
+
+def _nonnegative(value: Any, name: str) -> float:
+    result = _finite(value, name)
+    if result < 0:
+        raise CadOperationError(f"{name} must be non-negative, not {value!r}.")
+    return result
+
+
+def _shape(value: Any) -> Any:
+    """Accept either a build123d shape or an active/inactive BuildPart."""
+    if hasattr(value, "wrapped"):
+        return value
+    if hasattr(value, "part"):
+        try:
+            return value.part
+        except Exception as exc:
+            raise CadOperationError("The supplied BuildPart has no completed shape yet.") from exc
+    raise CadOperationError(f"Expected a build123d shape or BuildPart, not {type(value).__name__}.")
+
+
+def _publish_to_active_builder(source: Any, result: Any) -> Any:
+    """Replace the active builder only when the helper edited its current part."""
+    import build123d
+
+    builder = build123d.BuildPart._get_context(log=False)
+    if builder is None:
+        return result
+    try:
+        active = builder.part
+        source = _shape(source)
+        is_current = bool(source.wrapped.IsSame(active.wrapped))
+    except Exception:
+        is_current = False
+    if is_current and not active.wrapped.IsSame(result.wrapped):
+        # add() would move a copy to each active location, which breaks topology
+        # identity and hands every earlier feature's faces to the current feature.
+        builder._add_to_context(result, clean=False, mode=build123d.Mode.REPLACE)
+        return builder.part
+    return result
+
+
+def _record_finishing_report(report: dict[str, Any]) -> None:
+    # The worker attaches this JSON data to the owning feature and emits a
+    # warning check for unresolved blends. Keep the import lazy: cad.py is
+    # also imported by kernel-free type consumers.
+    from .modeling import record_finishing_report
+
+    record_finishing_report(report)
 
 
 # --- Imported files -------------------------------------------------------------------------
@@ -94,6 +145,426 @@ def _shapes(items: Any) -> list[Any]:
     if hasattr(items, "wrapped"):
         return [items]
     return list(items)
+
+
+@dataclass
+class BlendResult:
+    """A shape plus the disposition of every edge requested by :func:`blend`.
+
+    ``shape`` is also exposed as ``part`` so a result can be assigned directly
+    to model.py's ``result``. Iteration supports ``shape, report = blend(...)``.
+    """
+
+    shape: Any
+    report: dict[str, Any]
+
+    @property
+    def part(self) -> Any:
+        return self.shape
+
+    def __iter__(self) -> Iterator[Any]:
+        yield self.shape
+        yield self.report
+
+
+def _edge_groups(edges: Any) -> list[list[tuple[int, Any]]]:
+    """Keep explicit groups atomic; treat a flat selection as short-first singletons."""
+    if hasattr(edges, "wrapped"):
+        raw_groups = [[edges]]
+        explicit_groups = False
+    else:
+        try:
+            raw = list(edges)
+        except TypeError as exc:
+            raise CadOperationError("blend edges must be an Edge, iterable of edges, or nested edge groups.") from exc
+        if not raw:
+            raise CadOperationError("blend needs at least one edge.")
+        explicit_groups = not all(hasattr(item, "wrapped") for item in raw)
+        raw_groups = [list(group) for group in raw] if explicit_groups else [[item] for item in raw]
+    groups: list[list[tuple[int, Any]]] = []
+    index = 0
+    for group in raw_groups:
+        if not group:
+            raise CadOperationError("blend edge groups cannot be empty.")
+        indexed = []
+        for item in group:
+            if not hasattr(item, "wrapped") or not hasattr(item, "length"):
+                raise CadOperationError(f"blend expected an Edge, not {type(item).__name__}.")
+            indexed.append((index, item))
+            index += 1
+        # For a flat selector, a short-first order makes small local details
+        # resolve before broad edges change the surrounding topology.
+        indexed.sort(key=lambda pair: float(pair[1].length))
+        groups.append(indexed)
+    if not explicit_groups:
+        groups.sort(key=lambda group: float(group[0][1].length))
+    return groups
+
+
+def _edge_signature(edge: Any) -> tuple[Any, ...]:
+    box = edge.bounding_box()
+    center = edge.center()
+    return (
+        edge.geom_type.name,
+        float(edge.length),
+        tuple(round(float(getattr(box.min, axis)), 6) for axis in "XYZ"),
+        tuple(round(float(getattr(box.max, axis)), 6) for axis in "XYZ"),
+        tuple(round(float(getattr(center, axis)), 6) for axis in "XYZ"),
+    )
+
+
+def _same_edge(left: Any, right: Any) -> bool:
+    try:
+        return bool(left.wrapped.IsSame(right.wrapped))
+    except Exception:
+        return False
+
+
+def _find_current_edge(edge: Any, current_edges: list[Any], signature: tuple[Any, ...]) -> Any | None:
+    for candidate in current_edges:
+        if _same_edge(edge, candidate):
+            return candidate
+    # Boolean and fillet builders can wrap unchanged topology in a fresh
+    # Python object. A geometric signature is a safe fallback only when it is
+    # unique; ambiguity is surfaced as a failure instead of guessing.
+    matches = []
+    for candidate in current_edges:
+        candidate_signature = _edge_signature(candidate)
+        if candidate_signature[0] != signature[0]:
+            continue
+        if abs(candidate_signature[1] - signature[1]) > 1e-5:
+            continue
+        if candidate_signature[2:] == signature[2:]:
+            matches.append(candidate)
+    return matches[0] if len(matches) == 1 else None
+
+
+def blend(shape: Any, edges: Any, radius: float, fallback: Sequence[float] = ()) -> BlendResult:
+    """Blend edge groups from largest requested radius through explicit fallbacks.
+
+    A single edge or a flat iterable is tried one edge at a time, shortest
+    first. A nested iterable makes each inner group one atomic fillet request.
+    Each group is attempted on the geometry left by earlier successful groups.
+    ``fallback`` values must be positive and strictly decrease from ``radius``.
+
+    Every requested edge appears in ``report["edges"]`` with ``applied``,
+    ``reduced`` or ``failed`` status. Failed groups leave their source geometry
+    intact and are recorded in feature metadata plus a build warning check.
+    """
+    from build123d import Shape
+    from OCP.BRepFilletAPI import BRepFilletAPI_MakeFillet
+
+    source = _shape(shape)
+    requested_radius = _positive(radius, "radius")
+    try:
+        fallback_values = list(fallback)
+    except TypeError as exc:
+        raise CadOperationError("blend fallback must be an iterable of explicit radii.") from exc
+    reductions = [_positive(value, f"fallback[{index}]") for index, value in enumerate(fallback_values)]
+    previous = requested_radius
+    for index, value in enumerate(reductions):
+        if value >= previous:
+            raise CadOperationError("blend fallback radii must be explicit, unique and strictly decreasing.")
+        previous = value
+    groups = _edge_groups(edges)
+    indexed_edges = {index: edge for group in groups for index, edge in group}
+    signatures = {index: _edge_signature(edge) for index, edge in indexed_edges.items()}
+    statuses: dict[int, dict[str, Any]] = {
+        index: {
+            "index": index,
+            "group": group_index,
+            "edge": {
+                "curve": signatures[index][0],
+                "length": signatures[index][1],
+                "center": list(signatures[index][4]),
+                "bounds": [list(signatures[index][2]), list(signatures[index][3])],
+            },
+            "requested_radius": requested_radius,
+            "applied_radius": None,
+            "status": "failed",
+            "reason": "No blend attempt completed.",
+        }
+        for group_index, group in enumerate(groups)
+        for index, _edge in group
+    }
+    current = source
+    group_reports = []
+    for group_index, group in enumerate(groups):
+        current_edges = list(current.edges())
+        mapped: list[tuple[int, Any]] = []
+        for index, edge in group:
+            match = _find_current_edge(edge, current_edges, signatures[index])
+            if match is None:
+                statuses[index]["reason"] = "The requested edge no longer maps uniquely after an earlier blend."
+            else:
+                mapped.append((index, match))
+        if not mapped:
+            group_reports.append({
+                "group": group_index,
+                "requested_edges": [index for index, _edge in group],
+                "mapped_edges": [],
+                "status": "failed",
+                "attempts": [],
+                "reason": "No requested edge mapped uniquely to the current shape.",
+            })
+            continue
+        group_reason = "The kernel did not produce a valid fillet for this edge group."
+        group_attempts = []
+        successful_shape = None
+        successful_radius = None
+        for candidate_radius in (requested_radius, *reductions):
+            maker = BRepFilletAPI_MakeFillet(current.wrapped)
+            try:
+                for _index, edge in mapped:
+                    maker.Add(candidate_radius, edge.wrapped)
+                maker.Build()
+                if not maker.IsDone():
+                    group_reason = f"The kernel reported IsDone=False at radius {candidate_radius:g}."
+                    group_attempts.append({"radius": candidate_radius, "status": "failed", "reason": group_reason})
+                    continue
+                candidate = Shape.cast(maker.Shape())
+                if candidate is None or not candidate.is_valid:
+                    group_reason = f"The kernel returned an invalid shape at radius {candidate_radius:g}."
+                    group_attempts.append({"radius": candidate_radius, "status": "invalid", "reason": group_reason})
+                    continue
+                if len(candidate.solids()) != len(current.solids()):
+                    group_reason = f"The kernel changed the solid count at radius {candidate_radius:g}."
+                    group_attempts.append({"radius": candidate_radius, "status": "invalid", "reason": group_reason})
+                    continue
+                successful_shape = candidate
+                successful_radius = candidate_radius
+                group_attempts.append({"radius": candidate_radius, "status": "applied", "reason": None})
+                break
+            except MemoryError:
+                raise
+            except OSError as exc:
+                if exc.errno == errno.ENOMEM:
+                    raise
+                group_reason = f"{type(exc).__name__} at radius {candidate_radius:g}: {str(exc) or type(exc).__name__}"
+                group_attempts.append({"radius": candidate_radius, "status": "failed", "reason": group_reason})
+            except Exception as exc:
+                group_reason = f"{type(exc).__name__} at radius {candidate_radius:g}: {str(exc) or type(exc).__name__}"
+                group_attempts.append({"radius": candidate_radius, "status": "failed", "reason": group_reason})
+        mapped_indices = {requested_index for requested_index, _mapped_edge in mapped}
+        group_failed = len(group) - len(mapped)
+        for index, _edge in group:
+            if successful_shape is None:
+                if index in mapped_indices:
+                    statuses[index]["reason"] = group_reason
+                continue
+            if index not in mapped_indices:
+                continue
+            statuses[index]["applied_radius"] = successful_radius
+            statuses[index]["status"] = "applied" if successful_radius == requested_radius else "reduced"
+            statuses[index]["reason"] = None
+        if successful_shape is not None:
+            current = successful_shape
+            group_status = "partial" if group_failed else statuses[mapped[0][0]]["status"]
+        else:
+            group_status = "failed"
+        group_reports.append({
+            "group": group_index,
+            "requested_edges": [index for index, _edge in group],
+            "mapped_edges": sorted(mapped_indices),
+            "status": group_status,
+            "applied_radius": successful_radius,
+            "attempts": group_attempts,
+            "reason": None if successful_shape is not None else group_reason,
+        })
+
+    edge_report = [statuses[index] for index in sorted(statuses)]
+    failed = sum(item["status"] == "failed" for item in edge_report)
+    reduced = sum(item["status"] == "reduced" for item in edge_report)
+    applied = sum(item["status"] == "applied" for item in edge_report)
+    report = {
+        "operation": "blend",
+        "requested_radius": requested_radius,
+        "fallback": reductions,
+        "status": "failed" if failed else "reduced" if reduced else "applied",
+        "counts": {"applied": applied, "reduced": reduced, "failed": failed},
+        "groups": group_reports,
+        "edges": edge_report,
+    }
+    _record_finishing_report(report)
+    current = _publish_to_active_builder(shape, current)
+    return BlendResult(current, report)
+
+
+def draft_faces(shape: Any, faces: Any, angle: float, neutral_plane: Any = None) -> Any:
+    """Apply a degree-based mold draft to selected faces of one solid."""
+    from build123d import Plane
+
+    source = _shape(shape)
+    selected = _shapes(faces)
+    if not selected:
+        raise CadOperationError("draft needs at least one face.")
+    amount = _finite(angle, "angle")
+    if amount == 0:
+        raise CadOperationError("draft angle must not be zero.")
+    plane = neutral_plane if neutral_plane is not None else Plane.XY
+    solids = list(source.solids())
+    if len(solids) != 1:
+        raise CadOperationError("draft requires a shape with exactly one solid.")
+    result = solids[0].draft(selected, plane, amount)
+    result = _require_valid(result, "draft")
+    return _publish_to_active_builder(shape, result)
+
+
+def rib(shape: Any, profile: Any, direction: Any) -> Any:
+    """Extrude a closed face/wire by a direction vector and fuse it as a rib."""
+    from build123d import Face, Solid, Vector
+
+    source = _shape(shape)
+    if getattr(profile, "wrapped", None) is None:
+        raise CadOperationError("rib profile must be a closed build123d Face or Wire.")
+    section = profile if isinstance(profile, Face) else Face(profile)
+    vector = Vector(direction)
+    if vector.length <= 0:
+        raise CadOperationError("rib direction must have nonzero length.")
+    rib_solid = Solid.extrude(section, vector)
+    result = source.fuse(rib_solid)
+    result = _require_valid(result, "rib")
+    return _publish_to_active_builder(shape, result)
+
+
+def boss(
+    shape: Any,
+    center: Any,
+    radius: float,
+    height: float,
+    *,
+    axis: Any = (0, 0, 1),
+    hole: float = 0.0,
+    root_fillet: float = 0.0,
+    hole_depth: float = 0.0,
+) -> Any:
+    """Fuse a round boss with an optional through-bore, drill depth and swept root blend."""
+    from build123d import Axis, Edge, Face, Plane, Solid, Vector, Wire
+
+    source = _shape(shape)
+    outer_radius, boss_height = _positive(radius, "radius"), _positive(height, "height")
+    bore = _nonnegative(hole, "hole")
+    root = _nonnegative(root_fillet, "root_fillet")
+    drill = _nonnegative(hole_depth, "hole_depth")
+    if bore >= 2 * outer_radius:
+        raise CadOperationError("boss hole diameter must be smaller than its outside diameter.")
+    if root >= boss_height:
+        raise CadOperationError("boss root_fillet must be smaller than boss height.")
+    direction = Vector(axis)
+    if direction.length <= 0:
+        raise CadOperationError("boss axis must have nonzero length.")
+    direction = direction.normalized()
+    hole_radius = bore / 2
+    edges = []
+    p0 = Vector(hole_radius, 0, 0)
+    p1 = Vector(outer_radius + root, 0, 0)
+    p2 = Vector(outer_radius, 0, root)
+    p3 = Vector(outer_radius, 0, boss_height)
+    p4 = Vector(hole_radius, 0, boss_height)
+    edges.append(Edge.make_line(p0, p1))
+    if root:
+        midpoint = Vector(
+            outer_radius + root - root / math.sqrt(2),
+            0,
+            root - root / math.sqrt(2),
+        )
+        edges.append(Edge.make_three_point_arc(p1, midpoint, p2))
+    else:
+        p2 = p1
+    edges.extend((Edge.make_line(p2, p3), Edge.make_line(p3, p4), Edge.make_line(p4, p0)))
+    boss_local = Solid.revolve(Face(Wire(edges)), 360, Axis.Z)
+    plane = Plane(origin=Vector(center), z_dir=direction)
+    boss_world = boss_local.moved(plane.location)
+    result = source.fuse(boss_world)
+    if bore and drill:
+        cutter = Solid.make_cylinder(
+            hole_radius,
+            boss_height + drill,
+            Plane(origin=Vector(center) - direction * drill, z_dir=direction),
+        )
+        result = result.cut(cutter)
+    result = _require_valid(result, "boss")
+    return _publish_to_active_builder(shape, result)
+
+
+def split_flange(
+    shape: Any,
+    seam: Any,
+    *,
+    width: float,
+    thickness: float,
+    bolt_diameter: float,
+    bolt_count: int,
+    bolt_axis: Any = (0, 0, 1),
+    end_margin: float | None = None,
+    gap: float = 0.0,
+    hole_depth: float = 0.0,
+) -> Any:
+    """Add two rails along a straight housing split and drill a paired bolt pattern.
+
+    ``seam`` is the centerline edge. The flange rails sit on either side of it;
+    ``bolt_axis`` is normal to the mating flange face, and ``hole_depth`` is
+    the extra depth the bores continue into the parent housing.
+    """
+    from build123d import Edge, Face, Plane, Solid, Vector, Wire
+
+    source = _shape(shape)
+    rail_width = _positive(width, "width")
+    rail_thickness = _positive(thickness, "thickness")
+    bolt_d = _positive(bolt_diameter, "bolt_diameter")
+    split_gap = _nonnegative(gap, "gap")
+    drill = _nonnegative(hole_depth, "hole_depth")
+    if isinstance(bolt_count, bool) or not isinstance(bolt_count, int) or bolt_count < 2:
+        raise CadOperationError("split_flange bolt_count must be an integer of at least 2.")
+    if not isinstance(seam, Edge) or seam.geom_type.name != "LINE":
+        raise CadOperationError("split_flange seam must be a straight Edge.")
+    start, end = seam.start_point(), seam.end_point()
+    tangent = (end - start).normalized()
+    length = float(seam.length)
+    margin = rail_width if end_margin is None else _nonnegative(end_margin, "end_margin")
+    if 2 * margin >= length:
+        raise CadOperationError("split_flange end margins must leave a positive bolt-pattern span.")
+    axis = Vector(bolt_axis)
+    if axis.length <= 0:
+        raise CadOperationError("split_flange bolt_axis must have nonzero length.")
+    axis = axis.normalized()
+    across = axis.cross(tangent)
+    if across.length <= 1e-8:
+        raise CadOperationError("split_flange bolt_axis must be perpendicular to the seam.")
+    across = across.normalized()
+    if abs(float(axis.dot(tangent))) > 1e-6:
+        raise CadOperationError("split_flange bolt_axis must be perpendicular to the seam.")
+    # Holes sit on rail centerlines, so paired holes are one rail width plus the gap apart.
+    if bolt_d >= rail_width:
+        raise CadOperationError("split_flange bolt diameter must be smaller than the rail width.")
+
+    rails = []
+    hole_centers = []
+    pitch = (length - 2 * margin) / (bolt_count - 1)
+    for side in (-1, 1):
+        rail_offset = -split_gap / 2 - rail_width if side < 0 else split_gap / 2
+        rail_origin = start + across * rail_offset
+        corners = [
+            rail_origin,
+            rail_origin + tangent * length,
+            rail_origin + tangent * length + across * rail_width,
+            rail_origin + across * rail_width,
+        ]
+        profile = Face(Wire.make_polygon(corners, close=True))
+        rails.append(Solid.extrude(profile, axis * rail_thickness))
+        for index in range(bolt_count):
+            along = margin + index * pitch
+            hole_centers.append(rail_origin + tangent * along + across * (rail_width / 2))
+    result = source.fuse(*rails)
+    for center in hole_centers:
+        cutter = Solid.make_cylinder(
+            bolt_d / 2,
+            rail_thickness + drill,
+            Plane(origin=center - axis * drill, z_dir=axis),
+        )
+        result = result.cut(cutter)
+    result = _require_valid(result, "split_flange")
+    return _publish_to_active_builder(shape, result)
 
 
 def variable_fillet(shape: Any, edges: Any, start_radius: float, end_radius: float) -> Any:
@@ -229,12 +700,34 @@ class Component:
     description: str | None = None
 
 
+@dataclass(frozen=True)
+class AssemblyJoint:
+    """A declared relationship between two named assembly components."""
+
+    a: str
+    b: str
+    kind: str
+    details: dict[str, Any] = field(default_factory=dict)
+
+    def record(self) -> dict[str, Any]:
+        details = json.loads(json.dumps(self.details, allow_nan=False))
+        return {"a": self.a, "b": self.b, "kind": self.kind, "details": details}
+
+
+_JOINT_MAX_BYTES = 16 * 1024
+_JOINTS_MAX_BYTES = 1024 * 1024
+
+
 class Assembly:
-    """Named components, a bill of materials, exploded output and motion clearance.
+    """Named components, declared joints, a bill of materials and motion clearance.
 
     Add components, then assign ``result = asm``. Position parts with ``at=`` (any build123d
     Location), or with build123d joints before adding them. Reusing one ``part_number`` makes
     rows in the BOM combine; geometry with a different volume under one number is refused.
+    ``connect(a, b, kind, **details)`` records a declared joint between existing component
+    names. Details are JSON data; a numeric ``tolerance`` is in the assembly's model units.
+    The declaration is metadata only: connected-spec checks measure the actual gap before
+    using it as connection evidence.
     """
 
     def __init__(self, name: str = "assembly") -> None:
@@ -242,6 +735,9 @@ class Assembly:
             raise CadOperationError("Assembly name must be non-empty text.")
         self.name = name
         self.components: list[Component] = []
+        self._component_names: set[str] = set()
+        self.joints: list[AssemblyJoint] = []
+        self._joint_bytes = 0
 
     def add(
         self,
@@ -257,7 +753,7 @@ class Assembly:
 
         if not isinstance(name, str) or not name.strip():
             raise CadOperationError("Component name must be non-empty text.")
-        if any(item.name == name for item in self.components):
+        if name in self._component_names:
             raise CadOperationError(f"Component name {name!r} is already used in this assembly.")
         if hasattr(shape, "part") and not hasattr(shape, "wrapped"):
             shape = shape.part
@@ -267,6 +763,7 @@ class Assembly:
         placed = shape.moved(at if at is not None else Location())
         placed.label = name
         self.components.append(Component(name, placed, part_number, material, description))
+        self._component_names.add(name)
         return placed
 
     def __getitem__(self, name: str) -> Any:
@@ -274,6 +771,42 @@ class Assembly:
             if item.name == name:
                 return item.shape
         raise KeyError(name)
+
+    def connect(self, a: str, b: str, kind: str, **details: Any) -> None:
+        """Record a declared joint between two previously added components.
+
+        Joint details are retained verbatim as JSON metadata for downstream checks and
+        future joint helpers. When present, ``tolerance`` is a non-negative distance in
+        the model's units and is used to validate this joint's geometric gap.
+        """
+        for side, name in (("a", a), ("b", b)):
+            if not isinstance(name, str) or not name.strip():
+                raise CadOperationError(f"Joint endpoint {side} must be a non-empty component name.")
+            if name not in self._component_names:
+                raise CadOperationError(f"Joint endpoint {side} references unknown component {name!r}.")
+        if a == b:
+            raise CadOperationError("A joint must connect two different components.")
+        if not isinstance(kind, str) or not kind.strip():
+            raise CadOperationError("Joint kind must be non-empty text.")
+        if "tolerance" in details:
+            try:
+                tolerance = _finite(details["tolerance"], "joint tolerance")
+            except OverflowError as exc:
+                raise CadOperationError("joint tolerance must be a finite number.") from exc
+            if tolerance < 0:
+                raise CadOperationError("joint tolerance must be non-negative.")
+            details["tolerance"] = tolerance
+        try:
+            details = json.loads(json.dumps(details, allow_nan=False))
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise CadOperationError("Joint details must contain only finite JSON-compatible data.") from exc
+        size = len(json.dumps(details, allow_nan=False).encode("utf-8")) + len(kind.encode("utf-8"))
+        if size > _JOINT_MAX_BYTES:
+            raise CadOperationError(f"Joint kind and details must be at most {_JOINT_MAX_BYTES} bytes.")
+        if self._joint_bytes + size > _JOINTS_MAX_BYTES:
+            raise CadOperationError(f"An assembly's joint kinds and details must total at most {_JOINTS_MAX_BYTES} bytes.")
+        self._joint_bytes += size
+        self.joints.append(AssemblyJoint(a, b, kind.strip(), details))
 
     def compound(self) -> Any:
         from build123d import Compound
@@ -327,7 +860,12 @@ class Assembly:
         return found
 
     def record(self) -> dict[str, Any]:
-        return {"name": self.name, "components": [item.name for item in self.components], "bom": self.bom()}
+        return {
+            "name": self.name,
+            "components": [item.name for item in self.components],
+            "bom": self.bom(),
+            "joints": [joint.record() for joint in self.joints],
+        }
 
 
 def assembly(name: str = "assembly") -> Assembly:
@@ -509,18 +1047,24 @@ def sheet_metal(
 
 __all__ = [
     "Assembly",
+    "BlendResult",
     "CadOperationError",
     "Component",
     "SheetMetalPart",
     "assembly",
     "asset",
+    "blend",
+    "boss",
     "delete_faces",
+    "draft_faces",
     "exploded",
     "motion_clearance",
     "overlap_volume",
     "pattern_along",
     "press_pull",
+    "rib",
     "sew_solid",
     "sheet_metal",
+    "split_flange",
     "variable_fillet",
 ]
