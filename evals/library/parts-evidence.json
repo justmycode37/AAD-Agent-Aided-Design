@@ -1,5 +1,5 @@
 {
-  "run_id": "8f16cf58-e48b-4509-948a-a29733930a04",
+  "run_id": "39082c94-6b84-49f8-91e3-a8eca6ac9634",
   "repetitions": 3,
   "complete": true,
   "passed": true,
@@ -11,9 +11,9 @@
     "bd_warehouse": "0.4.0"
   },
   "source_sha256": {
-    "adapter": "f910e63cc24f9e473fbb24b3b07afa4388eb97729bf240ee71ee3ae83096cd9f",
-    "probe": "0d624973f59f043e26344eaf53ef9a6a3766d55adc7c18ecca901b78d70baacb",
-    "validation/native_witnesses.py": "f760a7730ae653880b065771f49df4d2b3f06d431a61462320fa576c32fe9b33",
+    "adapter": "a121f7e9be69e5e6379d85dce7aaa8038c148f87fa8ee2472891252a9e007a96",
+    "probe": "2921be2c74e8ee567f3ff65aa749f292217801566a2229ec8f94ae424cdde04c",
+    "validation/native_witnesses.py": "92cec2fba547fcb69b95e8b5fb111af996d8bc432c32a6c19add9d17444e0ce1",
     "validation/evidence.py": "30bc1c46d8f45415265b2361edf07f60312d52aaa652669a955813e7d3a18e40",
     "validation/check_evidence.py": "5b447e13cc242d82dd7de9f1f53e1f79b5284e80646936fbc7fa6c0b782c0cbd",
     "upstream/__init__.py": "c0bfad7d972052a2d09400bb5bc290102f80e35be508e885a0fab6934fc68e52",
@@ -102,22 +102,16 @@
       "n": 3,
       "valid_count": 3,
       "bbox_mean_mm": [
-        10.220000200000001,
-        10.220000200000001,
-        26.000000200000002
+        10.220000000000002,
+        10.22,
+        26.0000001
       ],
       "bbox_sample_sd_mm": [
         0.0,
         0.0,
         0.0
       ],
-      "geometry_witness_stats": {
-        "signed_thread_pitch_mm": {
-          "n": 3,
-          "mean": 0.99999990803245,
-          "sample_sd": 0.0
-        }
-      }
+      "geometry_witness_stats": {}
     },
     {
       "id": "bearing.deep_groove_ball.skt",
@@ -151,32 +145,16 @@
       "n": 3,
       "valid_count": 3,
       "bbox_mean_mm": [
-        6.0000002056623,
-        5.9999005085839165,
-        8.000000200000004
+        6.0,
+        6.0,
+        8.0
       ],
       "bbox_sample_sd_mm": [
         0.0,
         0.0,
         0.0
       ],
-      "geometry_witness_stats": {
-        "signed_thread_pitch_mm": {
-          "n": 3,
-          "mean": 0.9999995834729989,
-          "sample_sd": 0.0
-        },
-        "tooth_width_at_radius_2.65_mm": {
-          "n": 3,
-          "mean": 0.5291503906249995,
-          "sample_sd": 0.0
-        },
-        "tooth_width_at_radius_2.9_mm": {
-          "n": 3,
-          "mean": 0.2404785156249999,
-          "sample_sd": 0.0
-        }
-      }
+      "geometry_witness_stats": {}
     }
   ],
   "records": [
@@ -185,13 +163,13 @@
       "repeat": 1,
       "valid": true,
       "bbox_mm": [
-        10.220000200000001,
-        10.220000200000001,
-        26.000000200000002
+        10.220000000000002,
+        10.22,
+        26.0000001
       ],
       "thread_zone_xy_mm": [
-        6.000000230621134,
-        5.999900508900889
+        6.0,
+        6.0
       ],
       "solids": 1,
       "material_probes": [
@@ -199,7 +177,7 @@
           "point_mm": [
             2.3,
             0,
-            -10.000000100000001
+            -10.0
           ],
           "expected_solid": true,
           "actual_solid": true
@@ -208,79 +186,41 @@
           "point_mm": [
             3.01,
             0,
-            -10.000000100000001
+            -10.0
           ],
           "expected_solid": false,
           "actual_solid": false
         }
       ],
       "geometry_witness": {
-        "helical_edges": {
-          "edge_count": 40,
-          "signed_pitches_mm": [
-            0.9999830964020122,
-            1.000000000000002,
-            1.000000000000002,
-            1.000000000000002,
-            1.000000000000003,
-            1.000000000000004,
-            1.0000000000000044,
-            1.0000000000000044,
-            1.0000000000000044,
-            1.000000000000005,
-            1.0000000000000056,
-            1.0000000000000056,
-            1.0000000000000078,
-            1.000000000000009,
-            1.000000000000009,
-            1.0000000000000102,
-            1.0000000000000102,
-            1.0000000000000109,
-            1.0000000000000115,
-            1.000000000000012,
-            1.000000000000012,
-            1.000000000000013,
-            1.0000000000000138,
-            1.0000000000000138,
-            1.0000000000000149,
-            1.000000000000015,
-            1.000000000000016,
-            1.0000000000000162,
-            1.0000000000000162,
-            1.0000000000000182,
-            1.0000000000000182,
-            1.0000000000000189,
-            1.0000000000000195,
-            1.00000000000002,
-            1.0000000000000209,
-            1.0000000000000213,
-            1.0000000000000215,
-            1.000000000000022,
-            1.0000000000000224,
-            1.0000132248955282
+        "thread_representation": "cosmetic",
+        "cosmetic_thread": {
+          "cylindrical_faces": [
+            {
+              "radius_mm": 3.0,
+              "axial_extent_mm": 20.0
+            }
           ],
-          "z_angle_max_error_mm": 1.8571036540827868e-05,
           "passed": true
         },
-        "profile": null,
         "passed": true
       },
       "passed": true,
-      "artifact": ".runs/8f16cf58-e48b-4509-948a-a29733930a04/fastener.iso4762.socket_head_cap_screw-1.brep",
-      "artifact_sha256": "ba3559ad6c9d1ae230c698675e2e834540bf5931a9ef10a37808591b0c5beabd"
+      "artifact": ".runs/39082c94-6b84-49f8-91e3-a8eca6ac9634/fastener.iso4762.socket_head_cap_screw-1.brep",
+      "artifact_sha256": "ad3b46ddcb12b9bc5bf49c45e01c6666b06a35dc7d512d32ffceed825bb3365a"
     },
     {
       "id": "fastener.iso4762.socket_head_cap_screw",
       "repeat": 2,
       "valid": true,
       "bbox_mm": [
-        10.220000200000001,
-        10.220000200000001,
-        26.000000200000002
+        10.220000000000002,
+        10.22,
+        26.0000001
       ],
       "thread_zone_xy_mm": [
-        6.000000230621134,
-        5.999900508900889
+        6.0,
+        6.0
       ],
       "solids": 1,
       "material_probes": [
@@ -288,7 +228,7 @@
           "point_mm": [
             2.3,
             0,
-            -10.000000100000001
+            -10.0
           ],
           "expected_solid": true,
           "actual_solid": true
@@ -297,79 +237,41 @@
           "point_mm": [
             3.01,
             0,
-            -10.000000100000001
+            -10.0
           ],
           "expected_solid": false,
           "actual_solid": false
         }
       ],
       "geometry_witness": {
-        "helical_edges": {
-          "edge_count": 40,
-          "signed_pitches_mm": [
-            0.9999830964020122,
-            1.000000000000002,
-            1.000000000000002,
-            1.000000000000002,
-            1.000000000000003,
-            1.000000000000004,
-            1.0000000000000044,
-            1.0000000000000044,
-            1.0000000000000044,
-            1.000000000000005,
-            1.0000000000000056,
-            1.0000000000000056,
-            1.0000000000000078,
-            1.000000000000009,
-            1.000000000000009,
-            1.0000000000000102,
-            1.0000000000000102,
-            1.0000000000000109,
-            1.0000000000000115,
-            1.000000000000012,
-            1.000000000000012,
-            1.000000000000013,
-            1.0000000000000138,
-            1.0000000000000138,
-            1.0000000000000149,
-            1.000000000000015,
-            1.000000000000016,
-            1.0000000000000162,
-            1.0000000000000162,
-            1.0000000000000182,
-            1.0000000000000182,
-            1.0000000000000189,
-            1.0000000000000195,
-            1.00000000000002,
-            1.0000000000000209,
-            1.0000000000000213,
-            1.0000000000000215,
-            1.000000000000022,
-            1.0000000000000224,
-            1.0000132248955282
+        "thread_representation": "cosmetic",
+        "cosmetic_thread": {
+          "cylindrical_faces": [
+            {
+              "radius_mm": 3.0,
+              "axial_extent_mm": 20.0
+            }
           ],
-          "z_angle_max_error_mm": 1.8571036540827868e-05,
           "passed": true
         },
-        "profile": null,
         "passed": true
       },
       "passed": true,
-      "artifact": ".runs/8f16cf58-e48b-4509-948a-a29733930a04/fastener.iso4762.socket_head_cap_screw-2.brep",
-      "artifact_sha256": "ba3559ad6c9d1ae230c698675e2e834540bf5931a9ef10a37808591b0c5beabd"
+      "artifact": ".runs/39082c94-6b84-49f8-91e3-a8eca6ac9634/fastener.iso4762.socket_head_cap_screw-2.brep",
+      "artifact_sha256": "ad3b46ddcb12b9bc5bf49c45e01c6666b06a35dc7d512d32ffceed825bb3365a"
     },
     {
       "id": "fastener.iso4762.socket_head_cap_screw",
       "repeat": 3,
       "valid": true,
       "bbox_mm": [
-        10.220000200000001,
-        10.220000200000001,
-        26.000000200000002
+        10.220000000000002,
+        10.22,
+        26.0000001
       ],
       "thread_zone_xy_mm": [
-        6.000000230621134,
-        5.999900508900889
+        6.0,
+        6.0
       ],
       "solids": 1,
       "material_probes": [
@@ -377,7 +279,7 @@
           "point_mm": [
             2.3,
             0,
-            -10.000000100000001
+            -10.0
           ],
           "expected_solid": true,
           "actual_solid": true
@@ -386,66 +288,28 @@
           "point_mm": [
             3.01,
             0,
-            -10.000000100000001
+            -10.0
           ],
           "expected_solid": false,
           "actual_solid": false
         }
       ],
       "geometry_witness": {
-        "helical_edges": {
-          "edge_count": 40,
-          "signed_pitches_mm": [
-            0.9999830964020122,
-            1.000000000000002,
-            1.000000000000002,
-            1.000000000000002,
-            1.000000000000003,
-            1.000000000000004,
-            1.0000000000000044,
-            1.0000000000000044,
-            1.0000000000000044,
-            1.000000000000005,
-            1.0000000000000056,
-            1.0000000000000056,
-            1.0000000000000078,
-            1.000000000000009,
-            1.000000000000009,
-            1.0000000000000102,
-            1.0000000000000102,
-            1.0000000000000109,
-            1.0000000000000115,
-            1.000000000000012,
-            1.000000000000012,
-            1.000000000000013,
-            1.0000000000000138,
-            1.0000000000000138,
-            1.0000000000000149,
-            1.000000000000015,
-            1.000000000000016,
-            1.0000000000000162,
-            1.0000000000000162,
-            1.0000000000000182,
-            1.0000000000000182,
-            1.0000000000000189,
-            1.0000000000000195,
-            1.00000000000002,
-            1.0000000000000209,
-            1.0000000000000213,
-            1.0000000000000215,
-            1.000000000000022,
-            1.0000000000000224,
-            1.0000132248955282
+        "thread_representation": "cosmetic",
+        "cosmetic_thread": {
+          "cylindrical_faces": [
+            {
+              "radius_mm": 3.0,
+              "axial_extent_mm": 20.0
+            }
           ],
-          "z_angle_max_error_mm": 1.8571036540827868e-05,
           "passed": true
         },
-        "profile": null,
         "passed": true
       },
       "passed": true,
-      "artifact": ".runs/8f16cf58-e48b-4509-948a-a29733930a04/fastener.iso4762.socket_head_cap_screw-3.brep",
-      "artifact_sha256": "ba3559ad6c9d1ae230c698675e2e834540bf5931a9ef10a37808591b0c5beabd"
+      "artifact": ".runs/39082c94-6b84-49f8-91e3-a8eca6ac9634/fastener.iso4762.socket_head_cap_screw-3.brep",
+      "artifact_sha256": "ad3b46ddcb12b9bc5bf49c45e01c6666b06a35dc7d512d32ffceed825bb3365a"
     },
     {
       "id": "bearing.deep_groove_ball.skt",
@@ -673,7 +537,7 @@
         "passed": true
       },
       "passed": true,
-      "artifact": ".runs/8f16cf58-e48b-4509-948a-a29733930a04/bearing.deep_groove_ball.skt-1.brep",
+      "artifact": ".runs/39082c94-6b84-49f8-91e3-a8eca6ac9634/bearing.deep_groove_ball.skt-1.brep",
       "artifact_sha256": "0e9034288673a0f176941ceb527da6a19f6d962fca55c3cd85edcdfbf2c0bfd1"
     },
     {
@@ -902,7 +766,7 @@
         "passed": true
       },
       "passed": true,
-      "artifact": ".runs/8f16cf58-e48b-4509-948a-a29733930a04/bearing.deep_groove_ball.skt-2.brep",
+      "artifact": ".runs/39082c94-6b84-49f8-91e3-a8eca6ac9634/bearing.deep_groove_ball.skt-2.brep",
       "artifact_sha256": "0e9034288673a0f176941ceb527da6a19f6d962fca55c3cd85edcdfbf2c0bfd1"
     },
     {
@@ -1131,7 +995,7 @@
         "passed": true
       },
       "passed": true,
-      "artifact": ".runs/8f16cf58-e48b-4509-948a-a29733930a04/bearing.deep_groove_ball.skt-3.brep",
+      "artifact": ".runs/39082c94-6b84-49f8-91e3-a8eca6ac9634/bearing.deep_groove_ball.skt-3.brep",
       "artifact_sha256": "0e9034288673a0f176941ceb527da6a19f6d962fca55c3cd85edcdfbf2c0bfd1"
     },
     {
@@ -1139,101 +1003,20 @@
       "repeat": 1,
       "valid": true,
       "bbox_mm": [
-        6.0000002056623,
-        5.9999005085839165,
-        8.000000200000004
+        6.0,
+        6.0,
+        8.0
       ],
       "thread_zone_xy_mm": null,
-      "solids": 9,
+      "solids": 1,
       "material_probes": [],
       "geometry_witness": {
-        "helical_edges": {
-          "edge_count": 18,
-          "signed_pitches_mm": [
-            0.9999830450746617,
-            0.9999830662807713,
-            1.000000000000002,
-            1.000000000000003,
-            1.0000000000000047,
-            1.0000000000000053,
-            1.0000000000000053,
-            1.0000000000000053,
-            1.0000000000000056,
-            1.0000000000000064,
-            1.0000000000000064,
-            1.0000000000000069,
-            1.0000000000000082,
-            1.000000000000009,
-            1.0000000000000093,
-            1.0000000000000102,
-            1.0000131875616602,
-            1.0000132035967981
-          ],
-          "z_angle_max_error_mm": 1.8570762092023907e-05,
-          "passed": true
-        },
-        "profile": {
-          "sample_step_mm": 0.025,
-          "slices": [
+        "thread_representation": "cosmetic",
+        "cosmetic_thread": {
+          "cylindrical_faces": [
             {
-              "radius_mm": 2.65,
-              "angle_deg": 0,
-              "intervals_z_mm": [
-                [
-                  2.2354248046875,
-                  2.7645751953125
-                ],
-                [
-                  3.2354248046875,
-                  3.7645751953125
-                ],
-                [
-                  4.235424804687501,
-                  4.764575195312499
-                ],
-                [
-                  5.235424804687501,
-                  5.764575195312499
-                ]
-              ],
-              "expected_width_mm": 0.5291451884327383,
-              "mean_width_mm": 0.5291503906249995,
-              "center_pitches_mm": [
-                1.0,
-                1.0,
-                1.0
-              ],
-              "passed": true
-            },
-            {
-              "radius_mm": 2.9,
-              "angle_deg": 0,
-              "intervals_z_mm": [
-                [
-                  2.3797607421875,
-                  2.6202392578125
-                ],
-                [
-                  3.3797607421875004,
-                  3.6202392578125
-                ],
-                [
-                  4.3797607421875,
-                  4.6202392578125
-                ],
-                [
-                  5.3797607421875,
-                  5.6202392578125
-                ]
-              ],
-              "expected_width_mm": 0.2404700538379253,
-              "mean_width_mm": 0.2404785156249999,
-              "center_pitches_mm": [
-                1.0,
-                1.0,
-                1.0
-              ],
-              "passed": true
+              "radius_mm": 3.0,
+              "axial_extent_mm": 8.0
             }
           ],
           "passed": true
@@ -1241,109 +1024,28 @@
         "passed": true
       },
       "passed": true,
-      "artifact": ".runs/8f16cf58-e48b-4509-948a-a29733930a04/thread.iso_metric_external-1.brep",
-      "artifact_sha256": "b0c7dc1097762d7a973ac83e696c6bf1b373ae4c77862aa99408f46352a3e339"
+      "artifact": ".runs/39082c94-6b84-49f8-91e3-a8eca6ac9634/thread.iso_metric_external-1.brep",
+      "artifact_sha256": "a594f688179f53e25927cba951ffb835264d6457612407a4b2be1ea1332cf482"
     },
     {
       "id": "thread.iso_metric_external",
       "repeat": 2,
       "valid": true,
       "bbox_mm": [
-        6.0000002056623,
-        5.9999005085839165,
-        8.000000200000004
+        6.0,
+        6.0,
+        8.0
       ],
       "thread_zone_xy_mm": null,
-      "solids": 9,
+      "solids": 1,
       "material_probes": [],
       "geometry_witness": {
-        "helical_edges": {
-          "edge_count": 18,
-          "signed_pitches_mm": [
-            0.9999830450746617,
-            0.9999830662807713,
-            1.000000000000002,
-            1.000000000000003,
-            1.0000000000000047,
-            1.0000000000000053,
-            1.0000000000000053,
-            1.0000000000000053,
-            1.0000000000000056,
-            1.0000000000000064,
-            1.0000000000000064,
-            1.0000000000000069,
-            1.0000000000000082,
-            1.000000000000009,
-            1.0000000000000093,
-            1.0000000000000102,
-            1.0000131875616602,
-            1.0000132035967981
-          ],
-          "z_angle_max_error_mm": 1.8570762092023907e-05,
-          "passed": true
-        },
-        "profile": {
-          "sample_step_mm": 0.025,
-          "slices": [
+        "thread_representation": "cosmetic",
+        "cosmetic_thread": {
+          "cylindrical_faces": [
             {
-              "radius_mm": 2.65,
-              "angle_deg": 0,
-              "intervals_z_mm": [
-                [
-                  2.2354248046875,
-                  2.7645751953125
-                ],
-                [
-                  3.2354248046875,
-                  3.7645751953125
-                ],
-                [
-                  4.235424804687501,
-                  4.764575195312499
-                ],
-                [
-                  5.235424804687501,
-                  5.764575195312499
-                ]
-              ],
-              "expected_width_mm": 0.5291451884327383,
-              "mean_width_mm": 0.5291503906249995,
-              "center_pitches_mm": [
-                1.0,
-                1.0,
-                1.0
-              ],
-              "passed": true
-            },
-            {
-              "radius_mm": 2.9,
-              "angle_deg": 0,
-              "intervals_z_mm": [
-                [
-                  2.3797607421875,
-                  2.6202392578125
-                ],
-                [
-                  3.3797607421875004,
-                  3.6202392578125
-                ],
-                [
-                  4.3797607421875,
-                  4.6202392578125
-                ],
-                [
-                  5.3797607421875,
-                  5.6202392578125
-                ]
-              ],
-              "expected_width_mm": 0.2404700538379253,
-              "mean_width_mm": 0.2404785156249999,
-              "center_pitches_mm": [
-                1.0,
-                1.0,
-                1.0
-              ],
-              "passed": true
+              "radius_mm": 3.0,
+              "axial_extent_mm": 8.0
             }
           ],
           "passed": true
@@ -1351,109 +1053,28 @@
         "passed": true
       },
       "passed": true,
-      "artifact": ".runs/8f16cf58-e48b-4509-948a-a29733930a04/thread.iso_metric_external-2.brep",
-      "artifact_sha256": "b0c7dc1097762d7a973ac83e696c6bf1b373ae4c77862aa99408f46352a3e339"
+      "artifact": ".runs/39082c94-6b84-49f8-91e3-a8eca6ac9634/thread.iso_metric_external-2.brep",
+      "artifact_sha256": "a594f688179f53e25927cba951ffb835264d6457612407a4b2be1ea1332cf482"
     },
     {
       "id": "thread.iso_metric_external",
       "repeat": 3,
       "valid": true,
       "bbox_mm": [
-        6.0000002056623,
-        5.9999005085839165,
-        8.000000200000004
+        6.0,
+        6.0,
+        8.0
       ],
       "thread_zone_xy_mm": null,
-      "solids": 9,
+      "solids": 1,
       "material_probes": [],
       "geometry_witness": {
-        "helical_edges": {
-          "edge_count": 18,
-          "signed_pitches_mm": [
-            0.9999830450746617,
-            0.9999830662807713,
-            1.000000000000002,
-            1.000000000000003,
-            1.0000000000000047,
-            1.0000000000000053,
-            1.0000000000000053,
-            1.0000000000000053,
-            1.0000000000000056,
-            1.0000000000000064,
-            1.0000000000000064,
-            1.0000000000000069,
-            1.0000000000000082,
-            1.000000000000009,
-            1.0000000000000093,
-            1.0000000000000102,
-            1.0000131875616602,
-            1.0000132035967981
-          ],
-          "z_angle_max_error_mm": 1.8570762092023907e-05,
-          "passed": true
-        },
-        "profile": {
-          "sample_step_mm": 0.025,
-          "slices": [
+        "thread_representation": "cosmetic",
+        "cosmetic_thread": {
+          "cylindrical_faces": [
             {
-              "radius_mm": 2.65,
-              "angle_deg": 0,
-              "intervals_z_mm": [
-                [
-                  2.2354248046875,
-                  2.7645751953125
-                ],
-                [
-                  3.2354248046875,
-                  3.7645751953125
-                ],
-                [
-                  4.235424804687501,
-                  4.764575195312499
-                ],
-                [
-                  5.235424804687501,
-                  5.764575195312499
-                ]
-              ],
-              "expected_width_mm": 0.5291451884327383,
-              "mean_width_mm": 0.5291503906249995,
-              "center_pitches_mm": [
-                1.0,
-                1.0,
-                1.0
-              ],
-              "passed": true
-            },
-            {
-              "radius_mm": 2.9,
-              "angle_deg": 0,
-              "intervals_z_mm": [
-                [
-                  2.3797607421875,
-                  2.6202392578125
-                ],
-                [
-                  3.3797607421875004,
-                  3.6202392578125
-                ],
-                [
-                  4.3797607421875,
-                  4.6202392578125
-                ],
-                [
-                  5.3797607421875,
-                  5.6202392578125
-                ]
-              ],
-              "expected_width_mm": 0.2404700538379253,
-              "mean_width_mm": 0.2404785156249999,
-              "center_pitches_mm": [
-                1.0,
-                1.0,
-                1.0
-              ],
-              "passed": true
+              "radius_mm": 3.0,
+              "axial_extent_mm": 8.0
             }
           ],
           "passed": true
@@ -1461,8 +1082,8 @@
         "passed": true
       },
       "passed": true,
-      "artifact": ".runs/8f16cf58-e48b-4509-948a-a29733930a04/thread.iso_metric_external-3.brep",
-      "artifact_sha256": "b0c7dc1097762d7a973ac83e696c6bf1b373ae4c77862aa99408f46352a3e339"
+      "artifact": ".runs/39082c94-6b84-49f8-91e3-a8eca6ac9634/thread.iso_metric_external-3.brep",
+      "artifact_sha256": "a594f688179f53e25927cba951ffb835264d6457612407a4b2be1ea1332cf482"
     }
   ]
 }
