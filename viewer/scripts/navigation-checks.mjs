@@ -148,9 +148,14 @@ export async function checkNavigation({ page, frame, check, label = "navigation"
     await page.mouse.move(x, y);
     await wheel(-50, 25);
     await button("Put together").click();
-    await frame.waitForTimeout(500);
-    after = await state(frame);
-    check(near(after.position, assembled.position) && near(after.target, assembled.target) && near(after.wrapperTarget, assembled.wrapperTarget) && closeTo(after.zoom, assembled.zoom, 1e-6), `${label}: put together restores the assembled view after panning while apart`);
+    // The animated transition can outlast a fixed wait on slow software-GL CI runners.
+    const restored = (view) => near(view.position, assembled.position) && near(view.target, assembled.target) && near(view.wrapperTarget, assembled.wrapperTarget) && closeTo(view.zoom, assembled.zoom, 1e-6);
+    for (let waited = 0; waited < 3000; waited += 100) {
+      after = await state(frame);
+      if (restored(after)) break;
+      await frame.waitForTimeout(100);
+    }
+    check(restored(after), `${label}: put together restores the assembled view after panning while apart`);
     await wheel(40, 0);
   }
 
