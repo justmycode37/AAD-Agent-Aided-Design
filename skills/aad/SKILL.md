@@ -206,12 +206,12 @@ with part("plate") as bp:
 - **`Param(value, min=None, max=None, unit=None)`** adds inclusive bounds and a descriptive unit to a number.
 - **`meta(**fields)`** records `name`, `units`, `material`, `process` and any other JSON data. Declarations in the model, the build and the spec must agree, or the build fails with `BAD_INPUT`.
 - **`part("name")`** opens a named `BuildPart`. One per build.
-- **`feature("name", intent="...")`** names a step inside `part()`. Names must be unique, blocks cannot nest, and `main` and `unknown` are reserved. Plain build123d also works, and lands in one implicit `main` feature. Name features when you expect to edit the part.
+- **`feature("name", intent="...")`** names a step inside `part()`. Names must be unique, blocks cannot nest, and `main` and `unknown` are reserved. It tracks changed faces and edges, source lines, dependencies and helper metadata. Plain build123d also works, and lands in one implicit `main` feature. Name features when you expect to edit the part.
 - **`face()`, `edge()`, `vertex()`** are selectors, below.
 - **`entity_shape(ctx, entity)`** returns live topology for a resolved entity, for advanced exact work.
 - **`SelectorError`** is raised when a selector's count is wrong.
 - **`cached_part(key_inputs, builder_fn)`** reuses B-rep geometry for explicitly deterministic parts. AAD binds the builder code and model source; include every other input read by `builder_fn`, including captured or global state, in JSON-compatible `key_inputs`. AAD also binds effective parameters, spec, staged assets, units, material/process, kernel/AAD versions and geometry/check pipeline identity. Do not use it for builders that depend on time, randomness, hidden state or unbound file reads. Unsupported keys safely run the builder uncached. A cache hit skips geometry generation only; all hard, spec and process checks rerun.
-- **`assembly`, `Assembly`, `asset`, `sheet_metal`, `SheetMetalPart`, `variable_fillet`, `press_pull`, `delete_faces`, `sew_solid`, `pattern_along`, `exploded`, `overlap_volume`, `motion_clearance`** are below. They raise `CadOperationError` rather than return a near miss.
+- **`assembly`, `Assembly`, `asset`, `sheet_metal`, `SheetMetalPart`, `variable_fillet`, `blend`, `BlendResult`, `draft_faces`, `rib`, `boss`, `split_flange`, `press_pull`, `delete_faces`, `sew_solid`, `pattern_along`, `exploded`, `overlap_volume`, `motion_clearance`** are below. Invalid arguments raise `CadOperationError`; `blend` returns an explicit per-edge failure report rather than hiding unresolved requests.
 - **Gears:** `gear_profile`, `gear_solid`, `gear_center_distance`, `helix_angle_for_center_distance`, `gear_mesh_phase`, `tapered_bevel_standin`, below.
 
 ### Rules for the script
@@ -278,11 +278,24 @@ result = asm
 Playbook `workflow.capabilities.v1` has working code for each of these.
 
 - **`sheet_metal(segments, bend_angles, width=, thickness=, inner_radius=, k_factor=0.44, holes=())`** returns a `SheetMetalPart` with `folded`, `bends`, `flat_length` and `flat_sheet()`. It handles one strip with parallel bends. The k-factor is an assumption to state.
+- **`blend(shape, edges, radius, fallback=())`** tries edge groups at the requested radius and then explicit, strictly decreasing fallback radii. Flat selections are attempted as short-first singleton groups; nested edge iterables are atomic groups in supplied order. It returns a `BlendResult` with `.shape`/`.part`, `.report`, and unpacking as `(shape, report)`. Every edge is marked `applied`, `reduced` or `failed`. Failed groups remain unchanged and produce a build warning plus feature metadata; smaller radii are not guaranteed to succeed.
+- **`BlendResult`** holds a blend's output shape and complete per-edge report.
+- **`draft_faces(shape, faces, angle, neutral_plane=Plane.XY)`** applies a degree-based draft to planar, cylindrical or conical faces on exactly one solid.
+- **`rib(shape, profile, direction)`** extrudes a closed Face or Wire by the direction vector and fuses it to the parent.
+- **`boss(shape, center, radius, height, axis=(0,0,1), hole=0, root_fillet=0, hole_depth=0)`** revolves a boss with an optional bore and root blend, then fuses it. `hole_depth` extends the bore into the parent wall.
+- **`split_flange(shape, seam, width=, thickness=, bolt_diameter=, bolt_count=, bolt_axis=(0,0,1), end_margin=None, gap=0, hole_depth=0)`** builds paired rails along a straight seam Edge and drills a matching linear bolt pattern. The bolt axis must be perpendicular to the seam.
 - **`variable_fillet(shape, edges, start_radius, end_radius)`** tapers a fillet.
 - **`press_pull(shape, faces, distance)`** moves planar faces along their normals.
 - **`delete_faces(shape, faces)`** removes fillets, holes or bosses and heals the solid.
 - **`pattern_along(shape, path, count, align=True)`** copies along a curve from the shape's current position.
 - **`sew_solid(faces, tolerance=1e-3)`** sews faces into a shell, and into a solid when the shell closes. Build faces with `Face.make_surface` and thicken them with `thicken`.
+
+These shape helpers work inside or outside a BuildPart. Inside an active builder,
+they replace the current part through the feature tracker, preserving `feature()`
+ownership; outside, assign the returned shape. Blend reports invoked in a feature
+are attached to its metadata. Unresolved edges remain visible in the build's
+warning checks. These helpers are geometry tools; they do not prove fit,
+castability, strength or process suitability.
 
 ### Gears
 
@@ -625,7 +638,7 @@ Revisions never change. A failed build leaves the head alone. Use `checkout` to 
 ## Library
 
 - **Playbooks:** `aad.guide.v1` (this guide), `workflow.capabilities.v1` (working code for each CAD job), `components.real-parts.v1` (choosing purchased parts), `modeling.curved-freeform.v1` (lofts, sweeps and splines), `workflow.core.v1`, `failure.recipes.v1`, `build123d.mistakes.v1`, `spec.evidence.v1`, `review.render.v1`, `viewer.presentation.v1`.
-- **Part-family playbooks:** `family.bracket.v1`, `family.enclosure.v1`, `family.gear.v1`, `family.hinge.v1`, `family.snap_fit.v1`, `family.thread.v1`.
+- **Part-family playbooks:** `family.bracket.v1`, `family.enclosure.v1`, `family.cast_housing.v1`, `family.gear.v1`, `family.hinge.v1`, `family.snap_fit.v1`, `family.thread.v1`.
 - **Process playbooks:** `process.fdm_pla.v1`, `process.sla.v1`, `process.cnc_3axis.v1`, `process.sheet_metal.v1`, `process.laser.v1`, `process.injection.v1`.
 - **API notes:** `api.build123d`, `api.quality.spec`, `api.quality.process`.
 

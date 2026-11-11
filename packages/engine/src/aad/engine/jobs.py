@@ -913,6 +913,7 @@ def _feature_from_wire(item: dict[str, Any]) -> FeatureInfo:
         deps=list(item.get("deps", [])),
         intent=item.get("intent"),
         vertices=[_entity_from_wire(entity) for entity in item.get("vertices", [])],
+        metadata=dict(item.get("metadata", {})),
     )
 
 
