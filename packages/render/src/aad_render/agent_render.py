@@ -60,6 +60,8 @@ _GRID_MAJOR = (209, 215, 222)
 _BACKGROUND = (244, 246, 248)
 _ALLOWED_RENDER_VIEWS = _VIEWS | {"sheet", "custom"}
 _OUTPUT_NAMES = {f"{view}.png" for view in _ALLOWED_RENDER_VIEWS} | {"labels.json", "inspection.json"}
+_REVIEW_OUTPUT_NAME = re.compile(r"^review-[a-z0-9][a-z0-9-]{0,63}-(?:front|back|left|right|top|bottom|iso|custom)\.png$")
+_REVIEW_IMAGE_PREFIX = re.compile(r"^review-[a-z0-9][a-z0-9-]{0,63}-$")
 
 Vec3 = tuple[float, float, float]
 
@@ -161,13 +163,16 @@ class _SafeOutputDirectory:
     def write_bytes(self, name: str, data: bytes) -> Path:
         if self.fd is None or self.path is None:
             raise RuntimeError("render output directory is not open")
-        if name not in _OUTPUT_NAMES or Path(name).name != name:
+        is_review_image = bool(_REVIEW_OUTPUT_NAME.fullmatch(name))
+        if (name not in _OUTPUT_NAMES and not is_review_image) or Path(name).name != name:
             raise ValueError(f"unsupported render output name {name!r}")
         max_bytes = (
             _limits.MAX_LABELS_JSON_BYTES
             if name == "labels.json"
             else _limits.MAX_INSPECTION_JSON_BYTES
             if name == "inspection.json"
+            else _limits.MAX_REVIEW_PACKET_IMAGE_BYTES
+            if is_review_image
             else _limits.MAX_RENDER_IMAGE_BYTES
         )
         if len(data) > max_bytes:
@@ -470,10 +475,53 @@ def render_mesh(payload: dict[str, Any], out: Path) -> dict[str, Any]:
     return _render_mesh_payload(payload, out)
 
 
-def _render_mesh_from_bounded_payload(payload: dict[str, Any], out: Path, serialized_size: int) -> dict[str, Any]:
+def _render_mesh_from_bounded_payload(
+    payload: dict[str, Any],
+    out: Path,
+    serialized_size: int,
+    *,
+    image_prefix: str | None = None,
+) -> dict[str, Any]:
     """Render data the worker already read under its byte limit."""
     _validate_render_payload_size(payload, serialized_size=serialized_size)
-    return _render_mesh_payload(payload, out)
+    return _render_mesh_payload(payload, out, image_prefix=image_prefix)
+
+
+def render_review_batch(batch_data: bytes, out: Path) -> dict[str, Any]:
+    """Render packet cases sequentially so only one decoded mesh is resident at once."""
+    from .render_wire import decode_render_payload, iter_render_batch
+
+    cases = []
+    image_count = 0
+    total_bytes = 0
+    for case_id, payload_bytes in iter_render_batch(batch_data):
+        decoded, payload_size = decode_render_payload(payload_bytes)
+        if set(decoded) != {"render"} or not isinstance(decoded["render"], dict):
+            raise ValueError("review packet case has malformed render data")
+        rendered = _render_mesh_from_bounded_payload(
+            decoded["render"],
+            out,
+            payload_size,
+            image_prefix=f"review-{case_id}-",
+        )
+        images = rendered["images"]
+        image_count += len(images)
+        if image_count > _limits.MAX_REVIEW_PACKET_IMAGES:
+            raise ValueError("review packet exceeds its image count limit")
+        for name in images:
+            path = Path(out) / name
+            info = path.lstat()
+            if not stat.S_ISREG(info.st_mode) or info.st_size > _limits.MAX_REVIEW_PACKET_IMAGE_BYTES:
+                raise ValueError(f"review packet image {name!r} is not a regular file within its size limit")
+            total_bytes += info.st_size
+            if total_bytes > _limits.MAX_REVIEW_PACKET_BYTES:
+                raise ValueError("review packet images exceed the aggregate size limit")
+        cases.append({"id": case_id, "images": images})
+    if not cases:
+        raise ValueError("review packet contains no render cases")
+    result = {"cases": cases, "image_count": image_count, "image_bytes": total_bytes}
+    _limits.json_size_limited(result, _limits.MAX_RENDER_RESULT_BYTES, "review packet render metadata")
+    return result
 
 
 def _validate_render_payload_size(payload: Any, *, serialized_size: int | None = None) -> None:
@@ -493,10 +541,13 @@ def _validate_render_payload_size(payload: Any, *, serialized_size: int | None =
         raise ValueError(f"render payload exceeds the {_limits.MAX_RENDER_PAYLOAD_BYTES}-byte limit")
 
 
-def _render_mesh_payload(payload: dict[str, Any], out: Path) -> dict[str, Any]:
+def _render_mesh_payload(payload: dict[str, Any], out: Path, *, image_prefix: str | None = None) -> dict[str, Any]:
     if set(payload) != {"version", "request", "scene", "labels", "legend", "heat_legend", "overlay", "pictures", "clip_box"}:
         raise ValueError("prepared render payload has unexpected fields")
     request = _validate_render_request(payload["request"])
+    if image_prefix is not None:
+        if not _REVIEW_IMAGE_PREFIX.fullmatch(image_prefix) or request["labels"] != "none":
+            raise ValueError("review packet image prefix or labels are invalid")
     picture_specs = _validate_picture_specs(request["views"], payload["pictures"])
     scene = _scene_from_payload(payload["scene"])
     labels, legend = _validate_payload_labels(payload["labels"], payload["legend"], request["labels"])
@@ -511,7 +562,7 @@ def _render_mesh_payload(payload: dict[str, Any], out: Path) -> dict[str, Any]:
         marks=raw_overlay["marks"],
     )
     clip_box = _validate_clip_box(payload["clip_box"])
-    image_names = [f"{view}.png" for view in request["views"]]
+    image_names = [f"{image_prefix or ''}{view}.png" for view in request["views"]]
     label_name = "labels.json" if request["labels"] != "none" else None
     label_bytes = (
         (json.dumps(legend, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n").encode("utf-8")
@@ -529,8 +580,9 @@ def _render_mesh_payload(payload: dict[str, Any], out: Path) -> dict[str, Any]:
             )
             if not isinstance(image, Image.Image) or image.size != (size, size):
                 raise ValueError(f"renderer returned an invalid {view!r} image")
-            output.write_bytes(f"{view}.png", _png_bytes(image))
-            image_reports[f"{view}.png"] = _image_report(size, panes, scene)
+            image_name = f"{image_prefix or ''}{view}.png"
+            output.write_bytes(image_name, _png_bytes(image))
+            image_reports[image_name] = _image_report(size, panes, scene)
         if label_name is not None and label_bytes is not None:
             output.write_bytes(label_name, label_bytes)
 

@@ -148,6 +148,7 @@ export async function checkNavigation({ page, frame, check, label = "navigation"
     await page.mouse.move(x, y);
     await wheel(-50, 25);
     await button("Put together").click();
+    await frame.waitForTimeout(500);
     after = await state(frame);
     check(near(after.position, assembled.position) && near(after.target, assembled.target) && near(after.wrapperTarget, assembled.wrapperTarget) && closeTo(after.zoom, assembled.zoom, 1e-6), `${label}: put together restores the assembled view after panning while apart`);
     await wheel(40, 0);

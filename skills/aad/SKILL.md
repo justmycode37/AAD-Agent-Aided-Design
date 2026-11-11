@@ -98,6 +98,7 @@ Projects live in the host's MCP root, otherwise `~/AAD/<name>`.
 | `base_rev` | The revision this edit is based on. A stale value fails with `BASE_REV_CONFLICT` |
 | `preview` | Add a 4-up image. Default false |
 | `dry_run` | Full build and checks, without moving the head |
+| `part_cache` | `false` rebuilds every `cached_part()` without reading the cache. Default true |
 | `wait_s` | Seconds to wait before returning `running` with a job id. Default 30 |
 | `timeout_s` | Seconds before the build is killed. Default 60, maximum 600 |
 
@@ -142,7 +143,7 @@ On a 2D sheet, only whole-sheet `area` and `bbox` work, and they return the shee
 
 ### aad_render: images and exact facts for you
 
-See [Render](#render) for what each option does. Arguments: `views`, `style`, `section`, `labels`, `heatmap`, `heatmap_range`, `min_wall`, `direction`, `highlight`, `size`, `camera`, `focus`, `dimensions`, `probes`, `measure`, `inspection`.
+See [Render](#render) for what each option does. Arguments: `views`, `style`, `section`, `labels`, `heatmap`, `heatmap_range`, `min_wall`, `direction`, `highlight`, `size`, `camera`, `focus`, `dimensions`, `probes`, `measure`, `inspection`, `review_packet`.
 
 ### aad_show: show the user
 
@@ -209,13 +210,15 @@ with part("plate") as bp:
 - **`face()`, `edge()`, `vertex()`** are selectors, below.
 - **`entity_shape(ctx, entity)`** returns live topology for a resolved entity, for advanced exact work.
 - **`SelectorError`** is raised when a selector's count is wrong.
+- **`cached_part(key_inputs, builder_fn)`** reuses B-rep geometry for explicitly deterministic parts. AAD binds the builder code and model source; include every other input read by `builder_fn`, including captured or global state, in JSON-compatible `key_inputs`. AAD also binds effective parameters, spec, staged assets, units, material/process, kernel/AAD versions and geometry/check pipeline identity. Do not use it for builders that depend on time, randomness, hidden state or unbound file reads. Unsupported keys safely run the builder uncached. A cache hit skips geometry generation only; all hard, spec and process checks rerun.
 - **`assembly`, `Assembly`, `asset`, `sheet_metal`, `SheetMetalPart`, `variable_fillet`, `press_pull`, `delete_faces`, `sew_solid`, `pattern_along`, `exploded`, `overlap_volume`, `motion_clearance`** are below. They raise `CadOperationError` rather than return a near miss.
 - **Gears:** `gear_profile`, `gear_solid`, `gear_center_distance`, `helix_angle_for_center_distance`, `gear_mesh_phase`, `tapered_bevel_standin`, below.
 
 ### Rules for the script
 
 - It runs in an OS sandbox with no network, no subprocesses, and writes only to its job folder. It must not do I/O. The only project files it can read are imports, through `asset()`.
-- Each build reruns the whole script. Nothing carries over between builds.
+- Each build reruns the whole script in a fresh process. Explicit `cached_part()` calls can reuse eligible part geometry from the same project; the builder is still called when the key or cache entry cannot be validated, and all checks always rerun.
+- Cache hits and misses appear in `metrics.geometry_cache`. The cache is per-project under `.aad/cache`, keeps at most 2 GiB (256 MiB per entry, oldest removed first) and can be deleted safely. Model code writes the entries, so AAD cannot prove they match the builder: a build offered cached geometry gets an error-level `part_cache_unreproduced` skip and stays `draft`. Run `aad_build` with `part_cache=false` to confirm the source reproduces it. Set `AAD_DISABLE_GEOMETRY_CACHE=1` in the trusted engine environment to disable it. The model sandbox never gets access to the persistent cache.
 - It is killed after 60 s unless you pass `timeout_s`. When it outlasts `wait_s`, you get `running` and a job id; poll with `aad_history(action="job", job=...)`.
 - Coordinates are plain numbers. Project units never rescale them.
 
@@ -436,7 +439,7 @@ A sliver edge is usually a coincidence between two surfaces; moving one by a sma
 
 ## Render
 
-`aad_render` makes images for you, plus an exact `inspection` report. Look at these before calling work done.
+`aad_render` makes images for you, plus an exact `inspection` report. Look at these before calling work done. Set `review_packet=true` to prepare a bounded packet for an independent visual critique.
 
 | Argument | Values |
 |---|---|
@@ -456,11 +459,24 @@ A sliver edge is usually a coincidence between two surfaces; moving one by a sma
 | `probes` | `{image, x, y}` for a pixel (`image` is a view name, no `.png`), or `{point, direction}` for a ray. Returns the exact point, normal, selector, bend radius and wall thickness |
 | `measure` | `{a, b}` pairs. Returns minimum distance, closest points, and angle when both have a direction |
 | `inspection` | `summary` (default) or `full`. Summary leaves the per-face, per-edge and visible-selector tables, and legends over 64 entries, in the `inspection.json` and `labels.json` artifacts. `full` returns them inline, which is large on big models |
+| `review_packet` | `true` writes a review directory instead of returning inline image blocks. It uses its own standard views, so other render options are ignored in this mode. The directory contains `request.txt`, `manifest.json`, and hashed PNG files. The manifest includes the revision status, measured part sizes, all saved revision checks including skips, unresolved request items, and view coverage. The packet omits model source, assumptions and `not_checked` reasons. Part labels that are not short names become `part-NNN`. The result is a short directory handle. Local mode only; remote mode refuses rendering |
 
 3D renders are limited to a 384 MiB mesh payload, 8 million vertices, 12 million triangles,
 50,000 labels, 50,000 probes, 50,000 measurement pairs and 32 MiB per PNG. Overlay text is limited
 to 4,096 characters. A render that exceeds a cap fails in the render phase and leaves the saved
 revision and B-rep unchanged.
+
+Review packets are limited to 20 render cases, 32 images, 8 major parts for centered sections and
+isolated views, 2 MiB per image, 2 MiB for the manifest, 80,000 UTF-8 bytes for the captured
+request and 64 MiB total. The overview has six orthographic directions plus iso; section views pass
+through the assembly center and up to eight largest part centers. The manifest lists any component
+omitted by the view cap. It includes open questions, `not_checked` items and non-pass check results
+as unresolved items; captured assumptions are omitted. A missing request is recorded as unresolved.
+
+When a host supports separate reviewers, give the packet to a separate reviewer that sees only the
+packet. Use [Render review rubric](../playbooks/render-review-rubric.md) for its response format.
+If no separate reviewer is available, label the critique as self-review. Reviewer findings do not
+change revision status and never count as verification.
 
 The `inspection` report holds exact B-rep facts: mass properties, bounding box, section loops, per-image scale, a `world_to_pixel` matrix for mapping 3D points to pixels, and your `probes` and `measure` answers. With `inspection="full"` or in the artifact, it also has face types and dimensions, edge types and adjacency, and visible selectors. Cylinders distinguish holes from bosses. Edge classes and adjacency are omitted above 2,048 edges, and `edge_classification` says so.
 
@@ -686,7 +702,7 @@ Every command takes `--json` for machine-readable output.
 
 **Client IDs:** `claude-code`, `claude-desktop`, `cline`, `codex`, `cursor`, `gemini-cli`, `goose`, `vscode`, `windsurf`, `zed`.
 
-**Environment:** `AAD_HOME` moves AAD's state folder from `~/.aad`.
+**Environment:** `AAD_HOME` moves AAD's state folder from `~/.aad`. `AAD_DISABLE_GEOMETRY_CACHE=1` disables per-project part geometry caching; accepted true values are `1`, `true`, `yes` and `on` (case-insensitive).
 
 **Remote mode:** `aad serve --http` serves MCP at `/mcp` over Streamable HTTP, for hosts that cannot reach a local process. Flags: `--host`, `--port` (8765), `--public-url` (required off loopback, behind a TLS proxy), `--add-user NAME` (prints a token once), `--remove-user NAME`, `--list-users`. Each user gets a private home and daemon. Imports read only from that user's home.
 
@@ -699,6 +715,33 @@ python -m aad_platform.viewer.bundle <revision>/scene <output_dir> [--title T] [
 HTML bundles split scene data into lossless PNG chunks. `viewer.html` stays below the 512,000-character `html_preview`/`html_render` argument limit and references each PNG once by absolute local path for host inlining. The viewer checks chunk and total byte counts and the scene SHA-256; missing chunks stop loading with an error. If the argument or current T3 inline limit (25 MiB, host-specific) is exceeded, export leaves `standalone.html` and reports that path.
 
 It writes `viewer.html` for chat, and an offline `standalone.html`. `--controls cad` enables the CAD panels in the standalone page only. The original scene bytes are preserved.
+
+### Oversized HTML viewer fallback
+
+`python -m aad_platform.viewer.bundle SCENE_DIR OUTPUT_DIR --open-on-limit`
+writes the complete offline viewer first. If the 25 MiB inlined-size limit or
+512,000-character argument limit is exceeded, this explicitly requested option
+opens `standalone.html` in Safari on macOS, or the default browser elsewhere,
+and returns its path. Browser launch failure reports the saved path as an error.
+The Python `export_bundle(..., open_on_limit=True)` option has the same behavior.
+Without the flag, oversized exports raise with the standalone path. An older
+`viewer.html` in that output directory is removed on oversized export so it cannot
+be mistaken for the current revision. Scene bytes are preserved. Use
+`--controls simple` for the same controls as chat; `--controls cad` retains the
+advanced CAD panels in a separate standalone export.
+
+The simple Pull apart / Put together control animates component translations
+and camera framing in both directions. A second click reverses an ongoing
+transition from its current pose. Reduced-motion preference switches directly
+to the requested pose. Reset and selecting another view cancel an unfinished
+transition before applying the new recipe; scene bytes remain unchanged.
+
+Standalone browser pages automatically size the canvas to the available browser
+window height and refit on resize, using the same viewer runtime and controls.
+Embedded chat keeps its compact height. This uses the browser viewport without
+entering operating-system fullscreen; the fullscreen button still requests or
+exits actual browser fullscreen and reports that state.
+
 
 ## 2D sheets
 
@@ -735,8 +778,8 @@ Say so plainly rather than working around it silently.
 - **Approximate `symmetric` geometry stays `skip`.** A zero-volume B-rep boolean alone does not pass; exact planar-face and straight-edge mirror signatures must also match. Curved boundaries are not covered by that exact comparison.
 - **The viewer cannot edit the model directly.** Sliders and a separate Ask editor are not built. Part selection and exact references work as described above; native composer insertion depends on advertised host support, and stays unavailable on unsupported hosts.
 - **Windows has no sandbox,** so builds refuse to run there.
-- **Each job starts a new process with no shared cache.** `engine.memory` limits additional per-process virtual address space from the worker's started Python baseline to builds and operations. `auto` is 16 GiB on Linux and macOS. This is not an RSS or whole-machine limit: Linux child processes each receive their own budget, and sampled RSS is not enforced as an aggregate job budget. The independent validator is not wired into the build path on main; when added, its clean 3D and 2D workers must receive the configured budget too.
-- **Large-assembly performance is not validated beyond the published synthetic benchmark.** A 1,500-box build took 42.5–46.2 s in three sandbox runs, with the hard mesh gate taking 26.8–28.3 s. Other models and several-thousand-part assemblies need a representative performance check; allow for that when choosing `timeout_s`.
+- **Cache reuse is explicit and limited to deterministic part geometry.** Each job still starts a fresh process and reruns the whole script. `cached_part()` builders must declare all extra inputs, and time, randomness, hidden state or unbound file reads make a builder unsuitable. Cache hits do not carry checks or verification evidence; all hard, spec and process checks rerun. Set `AAD_DISABLE_GEOMETRY_CACHE=1` in the trusted engine environment to disable it.
+- **Large-assembly performance is not validated beyond these measured cases.** On the same machine, three sandboxed runs of the 1,500-box workload took 42.1/45.3/59.0 s before the cache changes (median 45.3 s), with mesh-gate phases of 22.7/25.2/31.5 s (median 25.2 s). Afterward they took 11.9/9.6/9.2 s (median 9.6 s), with mesh-gate phases of 200/146/135 ms (median 146 ms). The detailed 42-part pump assembly took 6.0/6.9/103.4 s before and 2.6/2.6/2.6 s after; its slowest baseline was a cold outlier. Unaccounted `other` time varied between runs, so wall-time gains include runtime overhead as well as measured phases. Other models and several-thousand-part assemblies still need representative checks; allow for that when choosing `timeout_s`.
 - **Full helical thread B-reps are not supported by the hard gate.** Their trimmed sweep has sub-threshold edges and sliver faces. Use the documented cosmetic representation and drawing note; `edge_quality` and `face_quality` are not relaxed.
 - **Detailed internals are representative.** Only deep-groove radial ball-bearing internals are modeled; other bearing families need vendor STEP. Motors without catalog shaft dimensions (including the current SG90 record) need a dimensioned STEP. Bearing balls/cages, connector contacts, and motor hole dimensions do not establish load, fit, or operation.
 - **Detailed-fastener cost is only measured once.** A 100-screw full-LOD build passed hard checks in 75.6 s on the recorded machine, with 70.8 s in unassigned worker time. See `packages/quality/COMPONENTS.md` and `evals/library/README.md`; do not treat that single result as a general per-part estimate.

@@ -167,3 +167,53 @@ def test_bundle_refuses_manifest_over_html_argument_limit(tmp_path):
         export_bundle(source, output)
     assert (output / "standalone.html").exists()
     assert not (output / "viewer.html").exists()
+
+
+@pytest.mark.parametrize("limit", ["HTML_INLINE_LIMIT", "HTML_ARGUMENT_LIMIT"])
+def test_oversize_opt_in_opens_complete_standalone_in_safari(saved_scene, tmp_path, monkeypatch, limit):
+    from aad_platform.viewer import bundle
+    source, payload, manifest = saved_scene
+    monkeypatch.setattr(bundle, limit, 1)
+    monkeypatch.setattr(bundle.sys, "platform", "darwin")
+    opened = []
+    class Browser:
+        def open(self, url, new):
+            opened.append((url, new))
+            return True
+    requested = []
+    def get(name):
+        requested.append(name)
+        return Browser()
+    monkeypatch.setattr(bundle.webbrowser, "get", get)
+    output = tmp_path / "export"
+    output.mkdir()
+    (output / "viewer.html").write_text("stale revision")
+    target = export_bundle(source, output, open_on_limit=True)
+    assert target == output / "standalone.html"
+    assert requested == ["safari"]
+    assert len(opened) == 1 and opened[0][1] == 2
+    assert opened[0][0].startswith(target.resolve().as_uri() + "?aad_scene=" + manifest["scene_id"] + "&aad_viewer=")
+    assert not (output / "viewer.html").exists()
+    config = json.loads(target.read_text(encoding="utf-8").split("window.__AAD_EMBEDDED_SCENE__ = ", 1)[1].split(";</script>", 1)[0])
+    assert config["manifest"] == manifest
+    assert decode_rgb_png(base64.b64decode(config["assets"][0].split(",", 1)[1]), len(payload)) == payload
+
+
+def test_oversize_browser_refusal_reports_saved_path(saved_scene, tmp_path, monkeypatch):
+    from aad_platform.viewer import bundle
+    source, _, _ = saved_scene
+    monkeypatch.setattr(bundle, "HTML_INLINE_LIMIT", 1)
+    class Browser:
+        def open(self, *args, **kwargs): return False
+    monkeypatch.setattr(bundle.webbrowser, "get", lambda *args: Browser())
+    with pytest.raises(ValueError, match="standalone.html.*browser did not accept"):
+        export_bundle(source, tmp_path / "export", open_on_limit=True)
+    assert (tmp_path / "export/standalone.html").exists()
+
+
+def test_browser_opt_in_does_not_open_a_scene_that_fits(saved_scene, tmp_path, monkeypatch):
+    from aad_platform.viewer import bundle
+    source, _, _ = saved_scene
+    def unexpected(*args): raise AssertionError("Fitting scene must remain inline")
+    monkeypatch.setattr(bundle.webbrowser, "get", unexpected)
+    assert export_bundle(source, tmp_path / "export", open_on_limit=True).name == "viewer.html"

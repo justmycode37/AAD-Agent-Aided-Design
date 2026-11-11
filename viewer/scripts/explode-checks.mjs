@@ -50,10 +50,20 @@ export async function checkExplode({ frame, check }) {
   const assembled = await snapshot();
   check(overlaps(assembled), "explode regression starts with concentric overlapping bounds");
   await frame.getByRole("button", { name: "Pull apart", exact: true }).click();
+  await frame.waitForTimeout(120);
+  const middle = await snapshot();
+  check(middle.some((part, i) => !same(part.position, assembled[i].position)) && overlaps(middle), "explode passes through intermediate component positions");
+  await frame.getByRole("button", { name: "Put together", exact: true }).click();
+  await frame.waitForTimeout(650);
+  const reversed = await snapshot();
+  check(reversed.every((part, i) => same(part.position, assembled[i].position)), "quick reversal returns smoothly to the assembled transforms");
+  await frame.getByRole("button", { name: "Pull apart", exact: true }).click();
+  await frame.waitForTimeout(700);
   let apart = await snapshot();
   check(!overlaps(apart), "pull apart clears concentric bounds under a rotated, scaled parent");
   check(apart.every((part, i) => same(part.quaternion, assembled[i].quaternion) && same(part.scale, assembled[i].scale) && JSON.stringify(part.geometry) === JSON.stringify(assembled[i].geometry)), "explode translates original geometry without rotating, scaling, or replacing it");
   await frame.getByRole("button", { name: "Put together", exact: true }).click();
+  await frame.waitForTimeout(650);
   let together = await snapshot();
   check(together.every((part, i) => same(part.position, assembled[i].position) && same(part.min, assembled[i].min) && same(part.max, assembled[i].max)), "put together restores original transforms and world bounds");
 
@@ -73,6 +83,7 @@ export async function checkExplode({ frame, check }) {
   await frame.evaluate(() => { const v = globalThis.__viewer; v.setStates(Object.fromEntries(Object.keys(v.getStates()).map(id => [id, [1, 1]]))); v.setRelativeTime(1); });
   check(!overlaps(await snapshot()), "showing all parts again regenerates the complete exploded layout");
   await frame.evaluate(() => globalThis.__viewer.setExplode(false));
+  await frame.waitForTimeout(650);
   together = await snapshot();
   check(together.every((part, i) => same(part.position, assembled[i].position)), "native CAD collapse restores all component positions");
   check(await frame.evaluate(() => globalThis.__aad.loads === 1 && globalThis.__aad.verified), "exploded layout reuses the verified original scene");
@@ -86,6 +97,7 @@ export async function checkExplodedCamera({ frame, check, large = false }) {
   const same = (a, b) => a.every((x, i) => Math.abs(x - b[i]) < 1e-7);
   const before = await cameraState();
   await frame.getByRole("button", { name: "Pull apart", exact: true }).click();
+  await frame.waitForFunction(() => globalThis.__viewer.getRelativeTime() > .999);
   const apart = await cameraState();
   check(same(before.quaternion, apart.quaternion), "fitting an asymmetric exploded layout preserves view direction");
   check(same(apart.target, apart.wrapperTarget), "exploded fitting keeps both camera targets synchronized");
@@ -103,5 +115,8 @@ export async function checkExplodedCamera({ frame, check, large = false }) {
     check(visible, "all forty exploded component centers remain inside the camera frustum");
   }
   await frame.getByRole("button", { name: "Put together", exact: true }).click();
-  check(same((await cameraState()).far, before.far), "collapse restores the original camera clipping range");
+  await frame.waitForFunction(() => globalThis.__viewer.state.get("animationMode") !== "explode");
+  await frame.waitForTimeout(50);
+  const collapsed = await cameraState();
+  check(same(collapsed.far, before.far), "collapse restores the original camera clipping range", JSON.stringify({ before: before.far, after: collapsed.far }));
 }

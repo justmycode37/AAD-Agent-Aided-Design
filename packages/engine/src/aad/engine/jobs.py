@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import importlib.metadata
 import math
 import os
 import re
@@ -18,6 +20,8 @@ from pathlib import Path
 from typing import Any
 
 from . import memory, sandbox
+from .cache import CacheError, GeometryCache
+from .identity import cache_identity
 from .types import (
     BuildRequest,
     BuildResult,
@@ -51,6 +55,8 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
     installs its address-space growth budget before importing worker/kernel
     code; an unavailable boundary fails closed.
     """
+    exchange_dir: Path | None = None
+    job_dir: Path | None = None
     try:
         request = _coerce_request(req)
         _validate_request(request)
@@ -85,10 +91,31 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
             # after it has already produced a usable BREP.
             "preview": False,
         }
-        input_bytes = (json.dumps(payload, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
         if re.search(r"\b(?:asset|vendor_step)\b", request.source):
             _stage_assets(project_dir, job_dir)
+        cache_enabled = request.part_cache and not _part_cache_disabled()
+        pipeline = _part_cache_pipeline() if cache_enabled and "cached_part" in request.source else None
+        cache_enabled = cache_enabled and pipeline is not None and "cached_part" in request.source
+        exchange_dir = Path(tempfile.mkdtemp(prefix=".aad-part-cache-", dir=job_dir)) if cache_enabled else job_dir
+        kernel_versions, pipeline_identity = pipeline if pipeline is not None else ({}, "")
+        asset_sha256 = _staged_asset_digests(job_dir)
+        cache_seeds = _stage_part_cache(
+            project_dir, exchange_dir, source=request.source,
+            pipeline_identity=pipeline_identity, kernel_versions=kernel_versions,
+            asset_sha256=asset_sha256, spec=request.spec, kind=request.kind, units=request.units,
+        ) if cache_enabled else {}
+        payload.update({
+            "part_cache_enabled": cache_enabled,
+            "part_cache_exchange_dir": str(exchange_dir),
+            "part_cache_seeds": cache_seeds,
+            "part_cache_kernel_versions": kernel_versions,
+            "part_cache_pipeline_identity": pipeline_identity,
+            "part_cache_asset_sha256": asset_sha256,
+        })
+        input_bytes = (json.dumps(payload, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
     except (TypeError, ValueError, OSError, OverflowError) as exc:
+        if exchange_dir is not None and job_dir is not None and exchange_dir != job_dir:
+            _cleanup_part_cache_exchange(exchange_dir, job_dir)
         return _failed(
             Failure(
                 code="BAD_INPUT",
@@ -116,6 +143,8 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
             address_space=startup_limit,
         )
     except (sandbox.SandboxUnavailable, memory.AddressSpaceUnavailable, OSError) as exc:
+        if exchange_dir is not None and job_dir is not None and exchange_dir != job_dir:
+            _cleanup_part_cache_exchange(exchange_dir, job_dir)
         return _failed(
             Failure(
                 code="SANDBOX_DENIED",
@@ -127,6 +156,8 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
             build_ms=_elapsed_ms(started),
         )
     except (TypeError, ValueError) as exc:
+        if exchange_dir is not None and job_dir is not None and exchange_dir != job_dir:
+            _cleanup_part_cache_exchange(exchange_dir, job_dir)
         return _failed(
             Failure(code="BAD_INPUT", phase="input", message=f"Build memory policy is invalid: {exc}"),
             job_dir=job_dir,
@@ -138,6 +169,8 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
     except subprocess.TimeoutExpired:
         _kill_worker(process)
         stdout_bytes, stderr_bytes = _drain_killed_worker(process)
+        if exchange_dir is not None and job_dir is not None and exchange_dir != job_dir:
+            _cleanup_part_cache_exchange(exchange_dir, job_dir)
         return _failed(
             Failure(
                 code="TIMEOUT",
@@ -154,6 +187,8 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
     elapsed_ms = _elapsed_ms(started)
     response = _find_response(stdout_bytes)
     if process.returncode != 0 or response is None:
+        if exchange_dir is not None and job_dir is not None and exchange_dir != job_dir:
+            _cleanup_part_cache_exchange(exchange_dir, job_dir)
         worker_started = _STARTED_MARKER in stdout_bytes.splitlines(keepends=True)
         failure = Failure(
             code="WORKER_CRASH",
@@ -196,6 +231,8 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
         result = _result_from_wire(response, job_dir=job_dir, elapsed_ms=elapsed_ms, process_stderr=_decode(stderr_bytes))
         result = _constrain_worker_evidence(result, job_dir, project_dir, kind=request.kind)
     except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        if exchange_dir is not None and job_dir is not None and exchange_dir != job_dir:
+            _cleanup_part_cache_exchange(exchange_dir, job_dir)
         return _failed(
             Failure(
                 code="WORKER_CRASH",
@@ -209,6 +246,24 @@ def run_build(req: BuildRequest, *, memory_limit_bytes: int | None = None) -> Bu
             stdout=_decode(stdout_bytes),
             stderr=_decode(stderr_bytes),
         )
+
+    if cache_seeds:
+        _mark_unreproduced_geometry(result)
+
+    if exchange_dir != job_dir:
+        stored, write_errors = _publish_part_cache(
+            project_dir, exchange_dir, result,
+            source=request.source, pipeline_identity=pipeline_identity,
+            kernel_versions=kernel_versions, asset_sha256=asset_sha256,
+            spec=request.spec, kind=request.kind, units=request.units,
+        )
+        cache_metrics = result.metrics.setdefault("geometry_cache", {})
+        if isinstance(cache_metrics, dict):
+            cache_metrics["stored"] = stored
+            cache_metrics["write_errors"] = write_errors
+            if result.context is not None:
+                result.context.metrics["geometry_cache"] = dict(cache_metrics)
+        _cleanup_part_cache_exchange(exchange_dir, job_dir)
 
     preview_started = time.perf_counter()
     if request.preview and "part.brep" in result.artifacts:
@@ -247,6 +302,266 @@ def _finish_phase_timings(result: BuildResult, elapsed_ms: float, *, preview_ms:
     if elapsed_ms > 20_000 and normalized:
         slowest, milliseconds = max(normalized.items(), key=lambda item: item[1])
         result.summary = f"{result.summary} Slowest phase: {slowest} ({milliseconds / 1000:.1f} s)."
+
+
+# Candidates come from model code, so these bound what it can make the parent read or keep.
+_MAX_CACHE_RECORD_BYTES = 8 * 1024 * 1024
+_MAX_CACHE_ENTRY_BYTES = 256 * 1024 * 1024
+_MAX_CACHE_PROJECT_BYTES = 2 * 1024 * 1024 * 1024
+
+
+def _part_cache_disabled() -> bool:
+    return os.environ.get("AAD_DISABLE_GEOMETRY_CACHE", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _part_cache_pipeline() -> tuple[dict[str, str], str] | None:
+    """Identify the versions and source code that can affect cached geometry/checks."""
+    distributions = (
+        "python", "aad-engine", "aad-quality", "aad-render", "aad-drafting", "aad-design",
+        "build123d", "cadquery-ocp-novtk",
+    )
+    versions: dict[str, str] = {}
+    for distribution in distributions:
+        try:
+            value = sys.version.split()[0] if distribution == "python" else importlib.metadata.version(distribution)
+        except importlib.metadata.PackageNotFoundError:
+            return None
+        versions[distribution] = value
+
+    try:
+        import aad
+        import aad_quality
+
+        roots = {
+            "engine": Path(aad.__file__).resolve().parent,
+            "quality": Path(aad_quality.__file__).resolve().parent,
+        }
+        engine_project = Path(__file__).resolve().parents[3]
+        quality_project = roots["quality"].parents[1]
+        files = [engine_project / "pyproject.toml", quality_project / "pyproject.toml"]
+        for root in roots.values():
+            files.extend(path for path in root.rglob("*")
+                         if path.is_file() and path.suffix in {".py", ".json"})
+        digest = hashlib.sha256()
+        digest.update(sys.platform.encode("utf-8"))
+        for name, version in sorted(versions.items()):
+            digest.update(name.encode("utf-8") + b"\0" + version.encode("utf-8") + b"\0")
+        for path in sorted(set(files), key=lambda item: str(item)):
+            if not path.is_file():
+                return None
+            try:
+                relative = path.relative_to(engine_project.parent.parent)
+            except ValueError:
+                relative = path
+            digest.update(str(relative).encode("utf-8") + b"\0")
+            with path.open("rb") as stream:
+                while chunk := stream.read(1024 * 1024):
+                    digest.update(chunk)
+        return versions, digest.hexdigest()
+    except (ImportError, OSError, ValueError):
+        return None
+
+
+def _staged_asset_digests(job_dir: Path) -> dict[str, str]:
+    assets = job_dir / "assets"
+    if assets.is_symlink() or not assets.is_dir():
+        return {}
+    digests: dict[str, str] = {}
+    for path in sorted(assets.iterdir(), key=lambda item: item.name):
+        try:
+            info = path.lstat()
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                continue
+            digest = hashlib.sha256()
+            with path.open("rb") as stream:
+                while chunk := stream.read(1024 * 1024):
+                    digest.update(chunk)
+            digests[path.name] = digest.hexdigest()
+        except OSError:
+            continue
+    return digests
+
+
+def _wire_json(value: Any) -> Any:
+    return json.loads(json.dumps(value, ensure_ascii=False, allow_nan=False))
+
+
+def _canonical_json(value: Any) -> bytes:
+    return json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True,
+                      separators=(",", ":")).encode("utf-8")
+
+
+def _stage_part_cache(
+    project_dir: Path,
+    exchange_dir: Path,
+    *,
+    source: str,
+    pipeline_identity: str,
+    kernel_versions: dict[str, str],
+    asset_sha256: dict[str, str],
+    spec: dict[str, Any],
+    kind: str,
+    units: str,
+) -> dict[str, dict[str, Any]]:
+    """Copy valid same-project candidates into the already-writable job tree."""
+    aad_dir = project_dir / ".aad"
+    cache_dir = aad_dir / "cache"
+    try:
+        aad_info = aad_dir.lstat()
+        cache_info = cache_dir.lstat()
+        if not stat.S_ISDIR(aad_info.st_mode) or not stat.S_ISDIR(cache_info.st_mode):
+            return {}
+        cache = GeometryCache(cache_dir)
+        entries = cache.candidates(source=source, pipeline_identity=pipeline_identity)
+        trusted = {
+            "source": source,
+            "spec": _wire_json(spec),
+            "kind": kind,
+            "units": units,
+            "kernel_versions": kernel_versions,
+            "asset_sha256": asset_sha256,
+            "pipeline_identity": pipeline_identity,
+        }
+        seed_root = exchange_dir / "seed"
+        seed_root.mkdir(mode=0o700)
+        seeds: dict[str, dict[str, Any]] = {}
+        for item in entries:
+            record = item.input_record
+            if any(_canonical_json(record.get(name)) != _canonical_json(value)
+                   for name, value in trusted.items()):
+                continue
+            try:
+                destination = seed_root / item.geometry.key
+                cache.restore(item.geometry.key, record, destination)
+            except (CacheError, OSError, ValueError):
+                continue
+            seeds[item.geometry.key] = {
+                "input_record": record,
+                "byte_length": item.geometry.byte_length,
+                "sha256": item.geometry.sha256,
+            }
+        return seeds
+    except (CacheError, OSError, ValueError, RuntimeError):
+        return {}
+
+
+def _ensure_project_cache(project_dir: Path) -> GeometryCache:
+    aad_dir = project_dir / ".aad"
+    try:
+        info = aad_dir.lstat()
+    except FileNotFoundError:
+        aad_dir.mkdir(mode=0o700)
+    else:
+        if not stat.S_ISDIR(info.st_mode):
+            raise ValueError("project .aad path must be a real directory")
+    return GeometryCache(aad_dir / "cache")
+
+
+def _publish_part_cache(
+    project_dir: Path,
+    exchange_dir: Path,
+    result: BuildResult,
+    *,
+    source: str,
+    pipeline_identity: str,
+    kernel_versions: dict[str, str],
+    asset_sha256: dict[str, str],
+    spec: dict[str, Any],
+    kind: str,
+    units: str,
+) -> tuple[int, int]:
+    """Publish candidate B-reps only after the worker process has exited."""
+    if not result.ok or result.context is None or kind == "2d":
+        return 0, 0
+    pending = exchange_dir / "pending"
+    try:
+        if not stat.S_ISDIR(pending.lstat().st_mode):
+            return 0, 0
+        cache = _ensure_project_cache(project_dir)
+    except (OSError, ValueError, CacheError):
+        return 0, 0
+
+    trusted = {
+        "source": source,
+        "spec": _wire_json(spec),
+        "kind": kind,
+        "units": units,
+        "kernel_versions": kernel_versions,
+        "asset_sha256": asset_sha256,
+        "pipeline_identity": pipeline_identity,
+        "material": result.context.material,
+        "process": result.context.process,
+    }
+    stored = errors = 0
+    for entry in pending.iterdir():
+        key = entry.name
+        if len(key) != 64 or any(character not in "0123456789abcdef" for character in key):
+            continue
+        try:
+            if not stat.S_ISDIR(entry.lstat().st_mode):
+                continue
+            record_path = entry / "input_record.json"
+            record_info = record_path.lstat()
+            if (not stat.S_ISREG(record_info.st_mode) or record_info.st_nlink != 1
+                    or record_info.st_size > _MAX_CACHE_RECORD_BYTES):
+                continue
+            brep_info = (entry / "part.brep").lstat()
+            if brep_info.st_size > _MAX_CACHE_ENTRY_BYTES:
+                continue
+            with record_path.open("rb") as stream:
+                record = json.loads(stream.read().decode("utf-8"))
+            kwargs = {name: record[name] for name in (
+                "source", "applied_params", "spec", "kind", "units", "material", "process",
+                "kernel_versions", "tolerances", "asset_sha256", "pipeline_identity",
+            )}
+            actual_key, canonical_record = cache_identity(**kwargs)
+            if actual_key != key or _canonical_json(record) != _canonical_json(canonical_record):
+                continue
+            if any(_canonical_json(record.get(name)) != _canonical_json(value)
+                   for name, value in trusted.items()):
+                continue
+            params_record = record.get("applied_params")
+            if type(params_record) is not dict or _canonical_json(params_record.get("model")) != _canonical_json(_wire_json(result.context.params)):
+                continue
+            try:
+                cache.put(key, record, entry / "part.brep", candidate_dir=exchange_dir)
+                cache.prune(_MAX_CACHE_PROJECT_BYTES)
+                stored += 1
+            except (CacheError, OSError, ValueError):
+                errors += 1
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+            errors += 1
+    return stored, errors
+
+
+def _mark_unreproduced_geometry(result: BuildResult) -> None:
+    """Keep a build that was offered cached geometry from reaching ``verified``.
+
+    Entries are written by model code, so their bytes cannot be proven to match
+    the builder. The offer decides this, because the worker's hit count is also
+    untrusted. The returned geometry still gets every check; a clean rebuild
+    with ``part_cache=False`` shows the source reproduces it.
+    """
+    result.checks.append(Check(
+        id="part_cache_unreproduced", suite="hard", level="error", status="skip",
+        message="This build was offered cached part geometry that AAD cannot prove matches its builder.",
+        fix_hint="Rebuild with part_cache=false to confirm the source reproduces this geometry.",
+    ))
+    result.checks_summary["skip"] = result.checks_summary.get("skip", 0) + 1
+    if result.status == "verified":
+        result.status = "draft"
+    if result.scene is not None:
+        result.scene.checks_summary = dict(result.checks_summary)
+
+
+def _cleanup_part_cache_exchange(exchange_dir: Path, job_dir: Path) -> None:
+    try:
+        if (exchange_dir.parent.resolve(strict=True) == job_dir.resolve(strict=True)
+                and exchange_dir.name.startswith(".aad-part-cache-")
+                and stat.S_ISDIR(exchange_dir.lstat().st_mode)):
+            shutil.rmtree(exchange_dir)
+    except (OSError, RuntimeError, ValueError):
+        pass
 
 
 def _coerce_request(req: BuildRequest | Mapping[str, Any]) -> BuildRequest:

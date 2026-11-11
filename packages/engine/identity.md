@@ -61,7 +61,7 @@ JSON cannot preserve Python container identity. Python's integer-to-string
 limit also applies. Invalid types raise `TypeError`; invalid values, including
 non-finite numbers and invalid Unicode, raise `ValueError`.
 
-## Integrating a future cache
+## Current per-part cache integration
 
 The caller must establish a complete, stable input snapshot before using the
 key. This function does not discover or attest inputs:
@@ -94,7 +94,17 @@ If time, randomness, environment, project paths, unstaged files, or any other
 unbound input can affect the result, control or bind it in the pipeline
 identity, or skip caching. No determinism or input completeness is inferred.
 
+`cached_part(key_inputs, builder_fn)` applies this identity to explicit part
+builders. AAD adds the full model source, effective current model parameters,
+spec, project assets, units, material/process, kernel/AAD versions, tolerances,
+and a digest of engine/quality source and runtime versions. The helper only
+accepts complete JSON-compatible key inputs; if record construction fails it
+calls the builder without using or populating cache. The model must still be
+deterministic and declare all additional values it reads.
+
 The key identifies declared inputs only. It is not an authenticated receipt,
 an artifact integrity check, or evidence that a build passed quality gates.
-A cache hit must not by itself promote a revision to `verified`. Immutable
-storage, head movement, file staging, and trusted verification are later work.
+The parent owns project-scoped storage and stages copies inside the job tree;
+the model cannot access the persistent cache. A hit reuses geometry only, and
+the worker runs the hard/spec/process checks again. Cached checks are never
+accepted as evidence and a cache hit cannot promote a revision to `verified`.
